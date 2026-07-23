@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { generator } from '@/core/euclid';
 import { createMidiPort } from '@/midi/port';
+import type { MidiDevice } from '@/midi/types';
 import { color, font, radius, space, timing } from '@/theme/tokens';
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -54,6 +55,10 @@ export default function Screen() {
   const [step, setStep] = useState(0);
   const [log, setLog] = useState<string[]>([]);
 
+  const [outputs, setOutputs] = useState<MidiDevice[]>([]);
+  const [selectedOut, setSelectedOut] = useState<string | null>(null);
+  const [listening, setListening] = useState(false);
+
   const pattern = useMemo(() => generator(hits, steps, rotation), [hits, steps, rotation]);
 
   // Keep hits within the current step count when steps shrinks.
@@ -91,10 +96,33 @@ export default function Screen() {
     };
   }, [playing, bpm, resolution, steps, hits, rotation, note, velocity, gate, midiEnabled, midi]);
 
-  const enableMidi = () => {
-    void midi.init();
-    setMidiEnabled(true);
+  const refreshOutputs = () => {
+    const outs = midi.listOutputs();
+    setOutputs(outs);
+    setSelectedOut((cur) => cur ?? outs[0]?.id ?? null);
   };
+
+  const enableMidi = async () => {
+    try {
+      await midi.init();
+    } catch {
+      // init can reject on web (SecurityError); native won't.
+    }
+    setMidiEnabled(true);
+    refreshOutputs();
+    midi.onStateChange(refreshOutputs);
+  };
+
+  // "Listen for note" — capture the next inbound note-on from the device.
+  useEffect(() => {
+    if (!listening) return;
+    return midi.onInbound((e) => {
+      if (e.type === 'noteon') {
+        setNote(e.note);
+        setListening(false);
+      }
+    });
+  }, [listening, midi]);
 
   const togglePlay = () => {
     if (playing) {
@@ -125,9 +153,23 @@ export default function Screen() {
         </Pressable>
       ) : (
         <View style={styles.group}>
-          <Row label="Output" value="OP–XY" />
-          <View style={styles.sep} />
-          <Row label="Input" value="OP–XY" />
+          <Text style={styles.groupLabel}>MIDI OUTPUT</Text>
+          {outputs.length === 0 ? (
+            <Text style={styles.muted}>No outputs found — connect the OP–XY.</Text>
+          ) : (
+            outputs.map((o) => (
+              <Pressable
+                key={o.id}
+                style={styles.deviceRow}
+                onPress={() => {
+                  midi.selectOutput(o.id);
+                  setSelectedOut(o.id);
+                }}>
+                <Text style={styles.deviceName}>{o.name}</Text>
+                {o.id === selectedOut ? <Text style={styles.deviceName}>✓</Text> : null}
+              </Pressable>
+            ))
+          )}
         </View>
       )}
 
@@ -161,8 +203,10 @@ export default function Screen() {
           <Text style={styles.laneTitle}>Lane 1</Text>
           <View style={styles.noteRow}>
             <Text style={styles.noteLabel}>Note {noteName(note)}</Text>
-            <Pressable style={styles.listenBtn} onPress={() => setNote((n) => clamp(n + 1, 0, 108))}>
-              <Text style={styles.listenLabel}>Listen</Text>
+            <Pressable
+              style={[styles.listenBtn, listening && styles.listenBtnActive]}
+              onPress={() => setListening((l) => !l)}>
+              <Text style={styles.listenLabel}>{listening ? 'Listening…' : 'Listen'}</Text>
             </Pressable>
           </View>
         </View>
@@ -349,6 +393,26 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   listenLabel: { fontFamily: font.text, fontSize: 13, fontWeight: '700', color: color.ground },
+  listenBtnActive: { backgroundColor: color.playhead },
+  groupLabel: {
+    fontFamily: font.text,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    color: color.label4,
+    paddingHorizontal: space.lg,
+    paddingTop: space.md,
+    paddingBottom: 4,
+  },
+  deviceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: space.lg,
+  },
+  deviceName: { fontFamily: font.text, fontSize: 16, color: color.label },
+  muted: { fontFamily: font.text, fontSize: 14, color: color.label3, paddingHorizontal: space.lg, paddingVertical: 12 },
 
   dots: { flexDirection: 'row', gap: 4 },
   dot: { flex: 1, height: 22, borderRadius: radius.step },
