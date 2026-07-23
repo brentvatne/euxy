@@ -131,13 +131,18 @@ export default function Screen() {
     midi.onStateChange(refreshDevices);
   };
 
-  // "Listen for note" — capture the next inbound note-on from the device.
+  // "Listen for note" — while active, the lane note follows the last note you
+  // play, and each note is echoed back out on the channel it arrived on
+  // (soft-thru) so you hear it on the OP-XY track mapped to that channel. Tap
+  // Listen again to lock the note in.
   useEffect(() => {
     if (!listening) return;
     return midi.onInbound((e) => {
       if (e.type === 'noteon') {
         setNote(e.note);
-        setListening(false);
+        midi.sendNoteOn(e.note, e.velocity, e.channel);
+      } else if (e.type === 'noteoff') {
+        midi.sendNoteOff(e.note, e.channel);
       }
     });
   }, [listening, midi]);
