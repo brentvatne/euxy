@@ -60,6 +60,8 @@ export default function Screen() {
   const [inputs, setInputs] = useState<MidiDevice[]>([]);
   const [selectedIn, setSelectedIn] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
+  const [clockActive, setClockActive] = useState(false);
+  const clockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const pattern = useMemo(() => generator(hits, steps, rotation), [hits, steps, rotation]);
 
@@ -68,17 +70,26 @@ export default function Screen() {
     setHits((h) => Math.min(h, steps));
   }, [steps]);
 
-  // Raw byte stream (both directions).
+  // Raw byte stream (both directions). Skip the high-rate system messages that
+  // would flood the log — clock (0xF8) and active sensing (0xFE).
   useEffect(() => {
     return midi.onRaw((bytes) => {
+      if (bytes[0] === 0xf8 || bytes[0] === 0xfe) return;
       const line = `· ${bytes.map(hex).join(' ')}`;
       setLog((prev) => [line, ...prev].slice(0, 24));
     });
   }, [midi]);
 
-  // Parsed inbound — the clear signal that the device is sending to us.
+  // Parsed inbound. Clock isn't logged per-tick — it just lights the header
+  // indicator, which auto-clears when ticks stop.
   useEffect(() => {
-    return midi.onInbound((e) => {
+    const unsub = midi.onInbound((e) => {
+      if (e.type === 'clock') {
+        setClockActive(true);
+        if (clockTimer.current) clearTimeout(clockTimer.current);
+        clockTimer.current = setTimeout(() => setClockActive(false), 600);
+        return;
+      }
       const label =
         e.type === 'noteon'
           ? `note on ${e.note} v${e.velocity}`
@@ -87,6 +98,10 @@ export default function Screen() {
             : e.type;
       setLog((prev) => [`in ← ${label}`, ...prev].slice(0, 24));
     });
+    return () => {
+      unsub();
+      if (clockTimer.current) clearTimeout(clockTimer.current);
+    };
   }, [midi]);
 
   // Playhead / note scheduling (PoC-grade; see file header note).
@@ -293,7 +308,15 @@ export default function Screen() {
 
       {/* Activity log */}
       <View style={styles.log}>
-        <Text style={styles.logTitle}>MIDI ACTIVITY</Text>
+        <View style={styles.logHeader}>
+          <Text style={styles.logTitle}>MIDI ACTIVITY</Text>
+          {clockActive ? (
+            <View style={styles.clockTag}>
+              <View style={styles.clockDot} />
+              <Text style={styles.clockText}>clock</Text>
+            </View>
+          ) : null}
+        </View>
         {log.length === 0 ? (
           <Text style={styles.logLine}>— idle —</Text>
         ) : (
@@ -504,6 +527,10 @@ const styles = StyleSheet.create({
     padding: space.lg,
     gap: 4,
   },
+  logHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   logTitle: { fontFamily: font.mono, fontSize: 11, color: color.label4 },
+  clockTag: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  clockDot: { width: 6, height: 6, borderRadius: 999, backgroundColor: color.playhead },
+  clockText: { fontFamily: font.mono, fontSize: 11, color: color.playhead },
   logLine: { fontFamily: font.mono, fontSize: 11, color: color.label3 },
 });
