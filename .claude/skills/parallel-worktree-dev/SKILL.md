@@ -35,9 +35,7 @@ npx --yes eas-cli@latest build:list --platform ios --profile development-simulat
 If there's no recent `finished` build (or the native fingerprint changed), start one:
 
 ```bash
-# EAS_NO_VCS=1 includes uncommitted eas.json changes without committing (git policy:
-# never commit without explicit permission). Drop it once the profile is committed.
-EAS_NO_VCS=1 npx --yes eas-cli@latest build \
+npx --yes eas-cli@latest build \
   --platform ios --profile development-simulator --non-interactive --no-wait
 ```
 
@@ -45,8 +43,10 @@ EAS_NO_VCS=1 npx --yes eas-cli@latest build \
 move on; check status later with `build:list` or the build page. The `.app` this
 produces gets installed into **every** sim session below.
 
-> Suggest committing the `development-simulator` profile to `eas.json` when the user is
-> ready — then future builds don't need `EAS_NO_VCS=1`.
+> If `eas.json` has **uncommitted** changes you need in the build (e.g. a just-added
+> profile) and you can't commit yet, prefix with `EAS_NO_VCS=1` so the working tree is
+> uploaded as-is. The `development-simulator` profile is already committed, so normally
+> you don't need it.
 
 ## 1. One worktree per parallel unit
 
