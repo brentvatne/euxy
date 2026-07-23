@@ -10,7 +10,8 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "dev.brent.euxy",
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "appleTeamId": "GQ4S96SE9Z"
     },
     "android": {
       "adaptiveIcon": {
