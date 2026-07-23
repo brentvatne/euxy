@@ -57,6 +57,8 @@ export default function Screen() {
 
   const [outputs, setOutputs] = useState<MidiDevice[]>([]);
   const [selectedOut, setSelectedOut] = useState<string | null>(null);
+  const [inputs, setInputs] = useState<MidiDevice[]>([]);
+  const [selectedIn, setSelectedIn] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
 
   const pattern = useMemo(() => generator(hits, steps, rotation), [hits, steps, rotation]);
@@ -66,11 +68,24 @@ export default function Screen() {
     setHits((h) => Math.min(h, steps));
   }, [steps]);
 
-  // Live activity log fed by the stub's raw output.
+  // Raw byte stream (both directions).
   useEffect(() => {
     return midi.onRaw((bytes) => {
-      const line = bytes.map(hex).join(' ');
+      const line = `· ${bytes.map(hex).join(' ')}`;
       setLog((prev) => [line, ...prev].slice(0, 24));
+    });
+  }, [midi]);
+
+  // Parsed inbound — the clear signal that the device is sending to us.
+  useEffect(() => {
+    return midi.onInbound((e) => {
+      const label =
+        e.type === 'noteon'
+          ? `note on ${e.note} v${e.velocity}`
+          : e.type === 'noteoff'
+            ? `note off ${e.note}`
+            : e.type;
+      setLog((prev) => [`in ← ${label}`, ...prev].slice(0, 24));
     });
   }, [midi]);
 
@@ -96,10 +111,13 @@ export default function Screen() {
     };
   }, [playing, bpm, resolution, steps, hits, rotation, note, velocity, gate, midiEnabled, midi]);
 
-  const refreshOutputs = () => {
+  const refreshDevices = () => {
     const outs = midi.listOutputs();
     setOutputs(outs);
     setSelectedOut((cur) => cur ?? outs[0]?.id ?? null);
+    const ins = midi.listInputs();
+    setInputs(ins);
+    setSelectedIn((cur) => cur ?? ins[0]?.id ?? null);
   };
 
   const enableMidi = async () => {
@@ -109,8 +127,8 @@ export default function Screen() {
       // init can reject on web (SecurityError); native won't.
     }
     setMidiEnabled(true);
-    refreshOutputs();
-    midi.onStateChange(refreshOutputs);
+    refreshDevices();
+    midi.onStateChange(refreshDevices);
   };
 
   // "Listen for note" — capture the next inbound note-on from the device.
@@ -152,25 +170,46 @@ export default function Screen() {
           <Text style={styles.primaryBtnLabel}>Enable MIDI</Text>
         </Pressable>
       ) : (
-        <View style={styles.group}>
-          <Text style={styles.groupLabel}>MIDI OUTPUT</Text>
-          {outputs.length === 0 ? (
-            <Text style={styles.muted}>No outputs found — connect the OP–XY.</Text>
-          ) : (
-            outputs.map((o) => (
-              <Pressable
-                key={o.id}
-                style={styles.deviceRow}
-                onPress={() => {
-                  midi.selectOutput(o.id);
-                  setSelectedOut(o.id);
-                }}>
-                <Text style={styles.deviceName}>{o.name}</Text>
-                {o.id === selectedOut ? <Text style={styles.deviceName}>✓</Text> : null}
-              </Pressable>
-            ))
-          )}
-        </View>
+        <>
+          <View style={styles.group}>
+            <Text style={styles.groupLabel}>MIDI OUTPUT</Text>
+            {outputs.length === 0 ? (
+              <Text style={styles.muted}>No outputs found — connect the OP–XY.</Text>
+            ) : (
+              outputs.map((o) => (
+                <Pressable
+                  key={o.id}
+                  style={styles.deviceRow}
+                  onPress={() => {
+                    midi.selectOutput(o.id);
+                    setSelectedOut(o.id);
+                  }}>
+                  <Text style={styles.deviceName}>{o.name}</Text>
+                  {o.id === selectedOut ? <Text style={styles.deviceName}>✓</Text> : null}
+                </Pressable>
+              ))
+            )}
+          </View>
+          <View style={styles.group}>
+            <Text style={styles.groupLabel}>MIDI INPUT (for Listen)</Text>
+            {inputs.length === 0 ? (
+              <Text style={styles.muted}>No inputs found.</Text>
+            ) : (
+              inputs.map((d) => (
+                <Pressable
+                  key={d.id}
+                  style={styles.deviceRow}
+                  onPress={() => {
+                    midi.selectInput(d.id);
+                    setSelectedIn(d.id);
+                  }}>
+                  <Text style={styles.deviceName}>{d.name}</Text>
+                  {d.id === selectedIn ? <Text style={styles.deviceName}>✓</Text> : null}
+                </Pressable>
+              ))
+            )}
+          </View>
+        </>
       )}
 
       {/* Transport */}
@@ -255,7 +294,7 @@ export default function Screen() {
         ) : (
           log.map((line, i) => (
             <Text key={i} style={styles.logLine}>
-              → {line}
+              {line}
             </Text>
           ))
         )}
