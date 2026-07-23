@@ -35,6 +35,16 @@ const STEPS_PER_BEAT: Record<Resolution, number> = {
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const hex = (n: number) => n.toString(16).toUpperCase().padStart(2, '0');
 
+// Match "OP-XY" / "OP–XY" regardless of dash or case, and float it to the top.
+const isOpXy = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '').includes('opxy');
+const opXyFirst = (list: MidiDevice[]) => {
+  const i = list.findIndex((d) => isOpXy(d.name));
+  if (i <= 0) return list;
+  const copy = [...list];
+  const [op] = copy.splice(i, 1);
+  return [op, ...copy];
+};
+
 export default function Screen() {
   const insets = useSafeAreaInsets();
   const midi = useMemo(() => createMidiPort(), []);
@@ -127,13 +137,13 @@ export default function Screen() {
     };
   }, [playing, bpm, resolution, steps, hits, rotation, note, velocity, gate, channel, midiEnabled, midi]);
 
-  const refreshDevices = () => {
-    const outs = midi.listOutputs();
+  // Refresh + resort the lists (OP-XY on top) without changing the selection.
+  const applyDevices = () => {
+    const outs = opXyFirst(midi.listOutputs());
+    const ins = opXyFirst(midi.listInputs());
     setOutputs(outs);
-    setSelectedOut((cur) => cur ?? outs[0]?.id ?? null);
-    const ins = midi.listInputs();
     setInputs(ins);
-    setSelectedIn((cur) => cur ?? ins[0]?.id ?? null);
+    return { outs, ins };
   };
 
   const enableMidi = async () => {
@@ -143,8 +153,19 @@ export default function Screen() {
       // init can reject on web (SecurityError); native won't.
     }
     setMidiEnabled(true);
-    refreshDevices();
-    midi.onStateChange(refreshDevices);
+    const { outs, ins } = applyDevices();
+    // Auto-connect to the OP-XY by name (falls back to the first device).
+    const outPick = (outs.find((d) => isOpXy(d.name)) ?? outs[0])?.id ?? null;
+    if (outPick) {
+      midi.selectOutput(outPick);
+      setSelectedOut(outPick);
+    }
+    const inPick = (ins.find((d) => isOpXy(d.name)) ?? ins[0])?.id ?? null;
+    if (inPick) {
+      midi.selectInput(inPick);
+      setSelectedIn(inPick);
+    }
+    midi.onStateChange(applyDevices);
   };
 
   // Soft-thru (always on): echo inbound notes back out on the channel they
