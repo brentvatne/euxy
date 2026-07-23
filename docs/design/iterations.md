@@ -51,4 +51,4 @@ investing in UI. Matches ROADMAP §6 (PoC screen).
 
 **Takeaway for the build agent:** don't reintroduce per-lane hues or a general
 accent color. The monochrome discipline and the three functional colors are a
-deliberate, hardware-grounded decision — see `theme/tokens.ts`.
+deliberate, hardware-grounded decision — see `src/theme/tokens.ts`.

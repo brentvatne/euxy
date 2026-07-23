@@ -9,7 +9,7 @@ A universal **Expo (SDK 57) / React Native** app: a Euclidean rhythm sequencer
 that drives an OP-XY hardware synth over MIDI. iOS-native is the product; web
 exists only to test the MIDI connection. Judge against these repo conventions:
 
-- **Styling is React Native `StyleSheet` consuming `theme/tokens.ts`. Do NOT use
+- **Styling is React Native `StyleSheet` consuming `src/theme/tokens.ts`. Do NOT use
   NativeWind / Tailwind.** The design system is monochrome (see `docs/design/`).
 - **Sequencer timing must stay off the React render path.** The engine/scheduler
   is a plain module; the playhead animates on the UI thread (Reanimated shared

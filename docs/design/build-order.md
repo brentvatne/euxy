@@ -5,13 +5,13 @@ plumbing on a single lane before building the full UI.** Don't build all screens
 up front. Each step lists a concrete, hardware-touchable acceptance check.
 
 Design values: pull from Paper nodes (see `docs/design/README.md`) or
-`theme/tokens.ts`. Behavior rules: the "Behavior redlines" section of the spec.
+`src/theme/tokens.ts`. Behavior rules: the "Behavior redlines" section of the spec.
 
 ## Phase 0 — Foundation
 
 1. **Scaffold** Expo Router app shell. Load `expo:expo-project-structure`.
    - `app/_layout.tsx` → `NativeTabs` (Sequencer / Patterns / MIDI).
-   - Shared Stack per tab. Dark, monochrome theme wired from `theme/tokens.ts`;
+   - Shared Stack per tab. Dark, monochrome theme wired from `src/theme/tokens.ts`;
      override the system tint to `white`.
    - ✅ Three tabs render; large titles on Patterns/MIDI; app is all-grayscale.
 2. **Tokens + primitives.** Step block, lane-row shell, segmented control

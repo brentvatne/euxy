@@ -3,11 +3,11 @@
 This is the source of truth for building the euxy iOS app. Read this before the
 screenshots. Screenshots are **visual reference only — never read measurements
 or colors from them.** Pull exact values from the Paper file (below) or from
-`theme/tokens.ts`.
+`src/theme/tokens.ts`.
 
 - **Design file (Paper):** https://app.paper.design/file/01KY80MDKPNF9GAKHVF36TY2GJ/1-0 (file: "euxy")
-- **Tokens (code):** `theme/tokens.ts` — colors, type scale, spacing, radii, tap target
-- **Styling:** React Native `StyleSheet` consuming `theme/tokens.ts` (+ `Color` from expo-router for semantics). **Do NOT use NativeWind / Tailwind.**
+- **Tokens (code):** `src/theme/tokens.ts` — colors, type scale, spacing, radii, tap target
+- **Styling:** React Native `StyleSheet` consuming `src/theme/tokens.ts` (+ `Color` from expo-router for semantics). **Do NOT use NativeWind / Tailwind.**
 - **Product spec / phases:** `ROADMAP.md`
 - **Build order + acceptance criteria:** `docs/design/build-order.md`
 
@@ -18,7 +18,7 @@ or colors from them.** Pull exact values from the Paper file (below) or from
    `get_jsx` / `get_computed_styles` / `get_fill_image`. Use the
    **`paper-desktop:design-to-code`** skill — it translates a node into *this
    project's* conventions rather than generic markup. Build one node at a time.
-2. **If Paper is not available:** build from `theme/tokens.ts` + the redlines in
+2. **If Paper is not available:** build from `src/theme/tokens.ts` + the redlines in
    this doc. The screenshots pin layout/hierarchy; tokens pin exact values.
 3. Load the Expo skills named per-component below before writing that component.
 
@@ -79,7 +79,7 @@ Load the referenced skill before building each.
 | Grouped forms (MIDI, New Pattern fields, device list) | `@expo/ui` native `List`/`Form` (SwiftUI Form) for the true grouped look | `expo:expo-ui` |
 | Steppers (steps/pulses/rotation/tempo) | custom (± buttons + value); ≥44pt targets | — |
 | SF Symbols (icons) | `expo-symbols` `SymbolView` | `expo:expo-native-ui` |
-| Semantic colors / light-dark | `Color` from `expo-router` + `theme/tokens.ts` | `expo:expo-native-ui` |
+| Semantic colors / light-dark | `Color` from `expo-router` + `src/theme/tokens.ts` | `expo:expo-native-ui` |
 | Step grid + playhead | **custom + Reanimated** (see Performance) | `expo:expo-native-ui` (animations) |
 | Haptics (record start, drop, panic) | `expo-haptics` | — |
 
