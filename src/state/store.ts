@@ -1,0 +1,192 @@
+/**
+ * Central app store (Zustand). This is the contract every screen and the engine
+ * bind to — keep the action surface stable.
+ *
+ * The engine reads `useStore.getState()` fresh each tick (no stale closures);
+ * editing a lane mid-play takes effect on the next tick with no re-sync. Nothing
+ * here re-renders on the tick — the playhead is driven off a Reanimated shared
+ * value in the engine, not this store.
+ */
+import { create } from 'zustand';
+
+import { timing } from '@/theme/tokens';
+import type { CombineOp, Lane, Pattern, Settings, Transport } from './types';
+
+let counter = 0;
+const uid = (prefix: string) => `${prefix}_${(counter++).toString(36)}${Date.now().toString(36)}`;
+
+/** A new lane with sensible defaults, single-generator (genB.pulses = 0). */
+export function makeLane(overrides: Partial<Lane> = {}): Lane {
+  return {
+    id: uid('lane'),
+    length: 16,
+    genA: { pulses: 4, rotation: 0 },
+    genB: { pulses: 0, rotation: 0 },
+    op: 'OR',
+    trackRot: 0,
+    note: 60,
+    channel: 0,
+    velocity: 100,
+    gateMs: timing.defaultGateMs,
+    resolutionTicks: timing.defaultResolutionTicks,
+    muted: false,
+    solo: false,
+    ...overrides,
+  };
+}
+
+/** Seed pattern: mixed lengths to show polymeter (they realign only at the LCM). */
+function seedPattern(): Pattern {
+  return {
+    id: 'pattern_seed',
+    name: 'Untitled',
+    bpm: 120,
+    baseResolutionTicks: timing.defaultResolutionTicks,
+    lanes: [
+      makeLane({ id: 'lane_kick', name: 'Kick', length: 16, genA: { pulses: 4, rotation: 0 }, note: 36, channel: 0 }),
+      makeLane({ id: 'lane_snare', name: 'Snare', length: 16, genA: { pulses: 2, rotation: 4 }, note: 38, channel: 1 }),
+      makeLane({ id: 'lane_hat', name: 'Hat', length: 16, genA: { pulses: 11, rotation: 0 }, note: 42, channel: 2 }),
+      makeLane({ id: 'lane_perc', name: 'Perc', length: 12, genA: { pulses: 5, rotation: 0 }, note: 39, channel: 3 }),
+      makeLane({ id: 'lane_bass', name: 'Bass', length: 8, genA: { pulses: 3, rotation: 0 }, note: 48, channel: 4 }),
+    ],
+  };
+}
+
+export interface AppState {
+  patterns: Pattern[];
+  activePatternId: string;
+  transport: Transport;
+  selection: { laneId: string | null };
+  settings: Settings;
+
+  // Transport ------------------------------------------------------------
+  play: () => void;
+  stop: () => void;
+  togglePlay: () => void;
+  setBpm: (bpm: number) => void;
+  setClockMode: (mode: Transport['clockMode']) => void;
+
+  // Lanes (operate on the active pattern) --------------------------------
+  addLane: (overrides?: Partial<Lane>) => string;
+  removeLane: (id: string) => void;
+  updateLane: (id: string, patch: Partial<Lane>) => void;
+  updateGenerator: (id: string, gen: 'genA' | 'genB', patch: Partial<Lane['genA']>) => void;
+  setLaneOp: (id: string, op: CombineOp) => void;
+  toggleMute: (id: string) => void;
+  toggleSolo: (id: string) => void;
+  reorderLanes: (from: number, to: number) => void;
+
+  // Selection ------------------------------------------------------------
+  selectLane: (id: string | null) => void;
+
+  // Settings -------------------------------------------------------------
+  setOutput: (id: string | null) => void;
+  setInput: (id: string | null) => void;
+  setLatencyOffsetMs: (ms: number) => void;
+
+  // Patterns -------------------------------------------------------------
+  newPattern: (opts?: { name?: string; bpm?: number; baseResolutionTicks?: number }) => string;
+  loadPattern: (id: string) => void;
+  deletePattern: (id: string) => void;
+  renameActivePattern: (name: string) => void;
+}
+
+export const useStore = create<AppState>((set, get) => {
+  /** Apply a transform to the active pattern immutably. */
+  const mutateActive = (fn: (p: Pattern) => Pattern) =>
+    set((s) => ({
+      patterns: s.patterns.map((p) => (p.id === s.activePatternId ? fn(p) : p)),
+    }));
+
+  /** Apply a patch to one lane of the active pattern. */
+  const mutateLane = (id: string, fn: (l: Lane) => Lane) =>
+    mutateActive((p) => ({ ...p, lanes: p.lanes.map((l) => (l.id === id ? fn(l) : l)) }));
+
+  const seed = seedPattern();
+
+  return {
+    patterns: [seed],
+    activePatternId: seed.id,
+    transport: { playing: false, bpm: seed.bpm, clockMode: 'jam' },
+    selection: { laneId: null },
+    settings: { outputId: null, inputId: null, latencyOffsetMs: 0 },
+
+    // Transport
+    play: () => set((s) => ({ transport: { ...s.transport, playing: true } })),
+    stop: () => set((s) => ({ transport: { ...s.transport, playing: false } })),
+    togglePlay: () => set((s) => ({ transport: { ...s.transport, playing: !s.transport.playing } })),
+    setBpm: (bpm) => {
+      const clamped = Math.max(20, Math.min(300, Math.round(bpm)));
+      set((s) => ({ transport: { ...s.transport, bpm: clamped } }));
+      mutateActive((p) => ({ ...p, bpm: clamped }));
+    },
+    setClockMode: (clockMode) => set((s) => ({ transport: { ...s.transport, clockMode } })),
+
+    // Lanes
+    addLane: (overrides) => {
+      const p = get().patterns.find((x) => x.id === get().activePatternId);
+      const base = p?.baseResolutionTicks ?? timing.defaultResolutionTicks;
+      const lane = makeLane({ resolutionTicks: base, channel: p ? p.lanes.length : 0, ...overrides });
+      mutateActive((pp) => ({ ...pp, lanes: [...pp.lanes, lane] }));
+      return lane.id;
+    },
+    removeLane: (id) => mutateActive((p) => ({ ...p, lanes: p.lanes.filter((l) => l.id !== id) })),
+    updateLane: (id, patch) => mutateLane(id, (l) => ({ ...l, ...patch })),
+    updateGenerator: (id, gen, patch) => mutateLane(id, (l) => ({ ...l, [gen]: { ...l[gen], ...patch } })),
+    setLaneOp: (id, op) => mutateLane(id, (l) => ({ ...l, op })),
+    toggleMute: (id) => mutateLane(id, (l) => ({ ...l, muted: !l.muted })),
+    toggleSolo: (id) => mutateLane(id, (l) => ({ ...l, solo: !l.solo })),
+    reorderLanes: (from, to) =>
+      mutateActive((p) => {
+        const lanes = [...p.lanes];
+        if (from < 0 || from >= lanes.length || to < 0 || to >= lanes.length) return p;
+        const [moved] = lanes.splice(from, 1);
+        lanes.splice(to, 0, moved);
+        return { ...p, lanes };
+      }),
+
+    // Selection
+    selectLane: (laneId) => set({ selection: { laneId } }),
+
+    // Settings
+    setOutput: (outputId) => set((s) => ({ settings: { ...s.settings, outputId } })),
+    setInput: (inputId) => set((s) => ({ settings: { ...s.settings, inputId } })),
+    setLatencyOffsetMs: (latencyOffsetMs) => set((s) => ({ settings: { ...s.settings, latencyOffsetMs } })),
+
+    // Patterns
+    newPattern: (opts) => {
+      const pattern: Pattern = {
+        id: uid('pattern'),
+        name: opts?.name?.trim() || 'Untitled',
+        bpm: opts?.bpm ?? 120,
+        baseResolutionTicks: opts?.baseResolutionTicks ?? timing.defaultResolutionTicks,
+        lanes: [],
+      };
+      set((s) => ({
+        patterns: [...s.patterns, pattern],
+        activePatternId: pattern.id,
+        transport: { ...s.transport, bpm: pattern.bpm, playing: false },
+        selection: { laneId: null },
+      }));
+      return pattern.id;
+    },
+    loadPattern: (id) =>
+      set((s) => {
+        const p = s.patterns.find((x) => x.id === id);
+        if (!p) return {};
+        return {
+          activePatternId: id,
+          transport: { ...s.transport, bpm: p.bpm, playing: false },
+          selection: { laneId: null },
+        };
+      }),
+    deletePattern: (id) =>
+      set((s) => {
+        if (s.patterns.length <= 1) return {}; // keep at least one
+        const patterns = s.patterns.filter((p) => p.id !== id);
+        const activePatternId = s.activePatternId === id ? patterns[0].id : s.activePatternId;
+        return { patterns, activePatternId };
+      }),
+    renameActivePattern: (name) => mutateActive((p) => ({ ...p, name: name.trim() || p.name })),
+  };
+});
