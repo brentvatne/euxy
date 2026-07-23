@@ -41,3 +41,6 @@ example
 # generated native folders
 /ios
 /android
+
+# EAS Simulator session (carries a token)
+.env.eas-simulator

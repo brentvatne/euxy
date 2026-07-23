@@ -2,12 +2,14 @@
   "expo": {
     "name": "euxy",
     "slug": "euxy",
+    "owner": "brent-org",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "euxy",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "dev.brent.euxy",
       "icon": "./assets/expo.icon"
     },
     "android": {
@@ -37,6 +39,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2ee288d6-807b-4316-8331-d0f5cd5eebe8"
+      }
     }
   }
 }
