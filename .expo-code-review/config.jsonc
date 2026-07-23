@@ -1,0 +1,56 @@
+{
+  // Default model for every agent. Override per-agent via frontmatter in the
+  // agent's markdown, or at runtime with the REVIEWER_MODEL env var
+  // (e.g. REVIEWER_MODEL=openai/gpt-5.4-mini-fast).
+  "model": "anthropic/claude-sonnet-5",
+
+  // Agents: every markdown file in agents/ is one reviewer (id = filename).
+  // Add or remove files to change the roster — no list needed here.
+  // shared.md (prepended to every agent + coordinator) and coordinator.md are
+  // reserved filenames. Per-agent overrides go in each file's YAML frontmatter,
+  // e.g. `---\nmodel: anthropic/claude-opus-4-1\n---`.
+
+  "policy": {
+    // Phase 1: keep signal high by surfacing only critical/warning.
+    "includeSuggestions": false
+    // "maxFindings": 10
+  },
+
+  // Files to always skip, in addition to the built-in defaults (lockfiles,
+  // *.min.js, *.map, __snapshots__/*.snap, @generated markers).
+  "noise": { "additionalIgnores": ["ios/**", "android/**", ".expo/**", "dist/**", "expo-env.d.ts"] },
+
+  // Large diffs are split into focused chunks by changed-line count, plus a
+  // cross-cutting pass for multi-file issues. Diffs under maxChangedLines are one
+  // full-context pass. Defaults shown; raise/lower per your model + PR sizes.
+  // "chunk": { "maxChangedLines": 1000, "maxFiles": 20, "concurrency": 4 },
+
+  // Which PRs `ecr ci` reviews. This is the source of truth for trigger policy;
+  // the scaffolded workflow always calls `ecr ci` and lets this decide. (If you'd
+  // rather gate in the workflow instead, add an `if:` to the job — see the
+  // workflow template — and this still applies on top.)
+  //   "trigger": "all"   — review every PR, unless it has the `skipLabel`.
+  //   "trigger": "label" — review only PRs labeled `label` (or `label:<agent>`).
+  // The `skipLabel` is write-gated (only maintainers can add labels), so a PR
+  // author can't opt their own PR out.
+  "review": { "trigger": "all", "label": "ai-review", "skipLabel": "ai-review:skip" },
+
+  // A maintainer comment containing this marker skips the CI review.
+  "breakGlass": { "marker": "/skip-review" },
+
+  // HTML marker used to find + update the single PR comment. Keep it stable.
+  "commentTag": "expo-ai-code-reviewer",
+
+  // How model credentials are provided. Default: a Claude Pro/Max subscription.
+  //   "oauth":   tokenEnv holds a Claude Pro/Max OAuth token (from
+  //              `claude setup-token`); it's injected as a bearer credential.
+  //   "api-key": tokenEnv holds a provider API key (sent as x-api-key). If you
+  //              omit `auth`, OpenCode's own login / ANTHROPIC_API_KEY is used.
+  // For OpenAI/GPT or another provider, omit `auth` and set REVIEWER_MODEL after an
+  // `opencode auth login` for that provider.
+  "auth": {
+    "mode": "oauth",
+    "provider": "anthropic",
+    "tokenEnv": "ANTHROPIC_OAUTH_API_KEY"
+  }
+}

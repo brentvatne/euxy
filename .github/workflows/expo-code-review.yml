@@ -1,0 +1,74 @@
+name: AI code review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+# Comment-only: read the repo, write PR comments (issue comments API).
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: ai-code-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    # Trigger policy lives in .expo-code-review/config.jsonc (review.trigger); `ecr ci`
+    # self-gates on it (and honors the ai-review:skip label). This coarse gate just
+    # avoids spinning up a runner for a PR that explicitly opted out. Uses the array
+    # form of contains() for an EXACT label match ("ai-review:skip" is not "ai-review").
+    # Prefer to gate entirely here instead? Set config trigger to "label" and replace
+    # the line below with, e.g.:
+    #   if: contains(github.event.pull_request.labels.*.name, 'ai-review')
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'ai-review:skip') }}
+    # Backstop so a stalled review fails fast instead of hanging.
+    timeout-minutes: 60
+    # A reviewer failure must never fail the PR's checks.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Shallow is enough — the reviewer gets the diff from the API (`gh`).
+          fetch-depth: 1
+
+      # SECURITY: this workflow checks out the PR's code, including
+      # .expo-code-review/config.jsonc, whose auth.tokenEnv names the env var the CLI
+      # forwards as the model credential. Refuse to run unless it's the expected value
+      # (below / repo var ECR_EXPECTED_TOKEN_ENV) so a PR can't repoint it at another
+      # secret in the runner. Keep this in sync with auth.tokenEnv in config.jsonc.
+      - name: Guard config.jsonc tokenEnv
+        env:
+          EXPECTED: ${{ vars.ECR_EXPECTED_TOKEN_ENV || 'ANTHROPIC_OAUTH_API_KEY' }}
+        run: |
+          values=$(grep -oE '"tokenEnv"[[:space:]]*:[[:space:]]*"[A-Za-z0-9_]+"' .expo-code-review/config.jsonc | sed -E 's/.*"([A-Za-z0-9_]+)"$/\1/')
+          count=$(printf '%s\n' "$values" | grep -c .)
+          if [ "$count" != "1" ] || [ "$values" != "$EXPECTED" ]; then
+            echo "::error::.expo-code-review/config.jsonc auth.tokenEnv must be \"$EXPECTED\" (found: \"${values:-none}\"). Refusing to run so a PR can't redirect which secret is forwarded to the model provider."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          # The reviewer runs via npx and never installs with a package manager, so
+          # disable setup-node's auto package-manager cache (its post step would try
+          # to save an empty cache and error).
+          package-manager-cache: false
+
+      - name: Run AI review
+        # npx installs @expo/code-review-cli and its bundled `opencode` binary and
+        # puts them on PATH for this process. Pin @latest to a version to freeze it.
+        run: npx --yes -p "@expo/code-review-cli@latest" ecr ci
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Claude Pro/Max OAuth token (from `claude setup-token`) — the env var
+          # named by auth.tokenEnv in config.jsonc. Store it as a repo secret.
+          # (For an API key instead, set auth.mode "api-key" and pass that key here.)
+          ANTHROPIC_OAUTH_API_KEY: ${{ secrets.ANTHROPIC_OAUTH_API_KEY }}
+          # Optional: override the model for every agent (uses your OpenCode login).
+          REVIEWER_MODEL: ${{ vars.REVIEWER_MODEL }}
