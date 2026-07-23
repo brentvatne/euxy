@@ -45,6 +45,7 @@ export default function Screen() {
   const [playing, setPlaying] = useState(false);
 
   const [note, setNote] = useState(36); // C1
+  const [channel, setChannel] = useState(0); // 0-based; track = channel + 1
   const [steps, setSteps] = useState(16);
   const [hits, setHits] = useState(4);
   const [rotation, setRotation] = useState(0);
@@ -114,8 +115,8 @@ export default function Screen() {
         const next = (s + 1) % steps;
         const pat = generator(hits, steps, rotation);
         if (midiEnabled && pat[next]) {
-          midi.sendNoteOn(note, velocity, 0);
-          gateTimers.push(setTimeout(() => midi.sendNoteOff(note, 0), gate));
+          midi.sendNoteOn(note, velocity, channel);
+          gateTimers.push(setTimeout(() => midi.sendNoteOff(note, channel), gate));
         }
         return next;
       });
@@ -124,7 +125,7 @@ export default function Screen() {
       clearInterval(id);
       gateTimers.forEach(clearTimeout);
     };
-  }, [playing, bpm, resolution, steps, hits, rotation, note, velocity, gate, midiEnabled, midi]);
+  }, [playing, bpm, resolution, steps, hits, rotation, note, velocity, gate, channel, midiEnabled, midi]);
 
   const refreshDevices = () => {
     const outs = midi.listOutputs();
@@ -146,18 +147,25 @@ export default function Screen() {
     midi.onStateChange(refreshDevices);
   };
 
-  // "Listen for note" — while active, the lane note follows the last note you
-  // play, and each note is echoed back out on the channel it arrived on
-  // (soft-thru) so you hear it on the OP-XY track mapped to that channel. Tap
-  // Listen again to lock the note in.
+  // Soft-thru (always on): echo inbound notes back out on the channel they
+  // arrived on, so playing the OP-XY's MIDI track sounds through — with or
+  // without Listen.
+  useEffect(() => {
+    return midi.onInbound((e) => {
+      if (e.type === 'noteon') midi.sendNoteOn(e.note, e.velocity, e.channel);
+      else if (e.type === 'noteoff') midi.sendNoteOff(e.note, e.channel);
+    });
+  }, [midi]);
+
+  // Listen: while active, the lane follows the last note played AND its track
+  // (the incoming channel), so you can reassign a lane's note + track by ear.
+  // Tap Listen again to lock it in.
   useEffect(() => {
     if (!listening) return;
     return midi.onInbound((e) => {
       if (e.type === 'noteon') {
         setNote(e.note);
-        midi.sendNoteOn(e.note, e.velocity, e.channel);
-      } else if (e.type === 'noteoff') {
-        midi.sendNoteOff(e.note, e.channel);
+        setChannel(e.channel);
       }
     });
   }, [listening, midi]);
@@ -165,7 +173,7 @@ export default function Screen() {
   const togglePlay = () => {
     if (playing) {
       midi.sendStop();
-      midi.allNotesOff(0);
+      midi.allNotesOff(channel);
       setPlaying(false);
     } else {
       setStep(0);
@@ -261,7 +269,9 @@ export default function Screen() {
         <View style={styles.laneHead}>
           <Text style={styles.laneTitle}>Lane 1</Text>
           <View style={styles.noteRow}>
-            <Text style={styles.noteLabel}>Note {noteName(note)}</Text>
+            <Text style={styles.noteLabel}>
+              Track {channel + 1} · {noteName(note)}
+            </Text>
             <Pressable
               style={[styles.listenBtn, listening && styles.listenBtnActive]}
               onPress={() => setListening((l) => !l)}>
