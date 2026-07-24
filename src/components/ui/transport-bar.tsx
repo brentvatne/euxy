@@ -159,6 +159,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#0A0A0A',
     borderTopWidth: 1,
     borderTopColor: color.surface,
+    // Subtle upward shadow so the pinned bar reads as floating over the lane
+    // list scrolling beneath it (Paper 2026-07-24 depth pass).
+    shadowColor: '#000000',
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -8 },
   },
   bpmCol: { flex: 1 },
   bpmBlock: { alignItems: 'center', alignSelf: 'flex-start' },

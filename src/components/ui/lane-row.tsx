@@ -1,9 +1,11 @@
 /**
  * Lane row — the repeated unit of the Sequencer. Values pulled from Paper node
- * WV-0: white accent bar + title(15 semibold)/subtitle(12 medium #95959A) on the
- * left, M/S (44×44, radius 10, bg #16161D; active = white fill) on the right,
- * then a full-width step strip (children) below. Presentational only — step
- * sizing/playhead live in the Sequencer.
+ * WV-0 (2026-07-24 "MS" revision): white accent bar + title(15 semibold)/
+ * subtitle(12 medium #95959A) on the left; M/S on the right as BARE LETTERS
+ * with a small light bar beneath — engaged = white letter + glowing bar,
+ * matching the app-wide light language (no button chrome). Then a full-width
+ * step strip (children) below. Presentational only — step sizing/playhead
+ * live in the Sequencer.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -59,12 +61,13 @@ function MSButton({ label, active, onPress }: { label: string; active: boolean; 
     <Pressable
       onPress={onPress}
       disabled={!onPress}
-      style={[styles.ms, active && styles.msActive]}
+      style={styles.ms}
       accessibilityRole="button"
       accessibilityLabel={label === 'M' ? 'Mute' : 'Solo'}
       accessibilityState={{ selected: active }}
     >
       <AppText style={[styles.msLabel, active && styles.msLabelActive]}>{label}</AppText>
+      <View style={[styles.msBar, active && styles.msBarActive]} />
     </Pressable>
   );
 }
@@ -84,16 +87,24 @@ const styles = StyleSheet.create({
   title: { fontFamily: font.text, fontWeight: '600', fontSize: 15, lineHeight: 18, color: color.label },
   subtitle: { fontFamily: font.text, fontWeight: '500', fontSize: 12, lineHeight: 16, color: color.label3 },
   msGroup: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  // Paper "MS": bare letter over a 14×3 light bar; the 36pt-wide pressable
+  // keeps a full-height touch column without any visible chrome.
   ms: {
-    width: HIT_TARGET,
+    width: 36,
     height: HIT_TARGET,
-    borderRadius: 10,
-    backgroundColor: ramp[7],
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 4,
   },
-  msActive: { backgroundColor: color.label },
-  msLabel: { fontFamily: font.text, fontWeight: '700', fontSize: 13, lineHeight: 16, color: color.label3 },
-  msLabelActive: { color: color.ground },
+  msLabel: { fontFamily: font.text, fontWeight: '700', fontSize: 15, lineHeight: 18, color: color.labelDisabled },
+  msLabelActive: { color: '#FFFFFF' },
+  msBar: { width: 14, height: 3, borderRadius: 2, backgroundColor: '#26262b' },
+  msBarActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#FFFFFF',
+    shadowOpacity: 0.95,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 0 },
+  },
   steps: { flexDirection: 'row', gap: 4 },
 });

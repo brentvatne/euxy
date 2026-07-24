@@ -1,14 +1,14 @@
 /**
  * 01 · Sequencer — the instrument home (Paper 7A-0, with states 1OO-0 64-step,
  * 1WK-0 record, 22T-0 empty, 2CD-0 overview). Compact custom header (pattern
- * name + connection pill), Lanes | Overview toggle, lane list with UI-thread
- * playheads, and the pinned transport above the tab bar.
+ * name + connection pill), mutate tools row, lane list with UI-thread
+ * playheads (all steps always visible, wrapped at 16 per row), and the pinned
+ * transport above the tab bar.
  */
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { router } from 'expo-router';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
 
 import { engine } from '@/core/engine';
 import { midiNoteName } from '@/core/note';
@@ -17,17 +17,11 @@ import { getMutateDepth, useStore } from '@/state/store';
 import type { Lane } from '@/state/types';
 import { useMidiRuntime } from '@/components/midi/runtime';
 import { useObserve } from '@/lib/shims';
-import { color, font, ramp } from '@/theme/tokens';
-import { AppText, LaneRow, TransportBar } from '@/components/ui';
-import {
-  LanesOverviewToggle,
-  MutateControls,
-  SequencerNav,
-  type PatternMenuAction,
-  type SequencerView,
-} from '@/components/sequencer/header';
+import { color } from '@/theme/tokens';
+import { LaneRow, TransportBar } from '@/components/ui';
+import { SequencerNav, type PatternMenuAction } from '@/components/sequencer/header';
 import { EmptyState } from '@/components/sequencer/empty-state';
-import { Overview } from '@/components/sequencer/overview';
+import { FloatingActions } from '@/components/sequencer/floating-actions';
 import { StepStrip } from '@/components/sequencer/step-strip';
 
 function laneSubtitle(lane: Lane): string {
@@ -63,7 +57,6 @@ export default function SequencerScreen() {
   const activePatternId = useStore((s) => s.activePatternId);
   useStore((s) => s.mutateVersion);
   const canUndoMutate = getMutateDepth(activePatternId) > 0;
-  const [view, setView] = useState<SequencerView>('lanes');
 
   // Wire the engine (idempotent): store subscription + the shared MIDI port.
   useEffect(() => {
@@ -126,55 +119,39 @@ export default function SequencerScreen() {
         deviceName={outputDevice?.name ?? 'No device'}
         onMenuAction={onMenuAction}
       />
-      <LanesOverviewToggle
-        value={view}
-        onChange={setView}
-        right={
-          lanes.length > 0 ? (
-            <MutateControls canUndo={canUndoMutate} onMutate={mutatePattern} onUndo={undoMutate} />
-          ) : undefined
-        }
-      />
-
-      {lanes.length === 0 ? (
-        <EmptyState onAddLane={addAndEdit} />
-      ) : (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          {view === 'lanes' ? (
-            <>
-              {lanes.map((lane) => (
-                <LaneRow
-                  key={lane.id}
-                  title={lane.name ?? midiNoteName(lane.note)}
-                  subtitle={laneSubtitle(lane)}
-                  muted={lane.muted}
-                  solo={lane.solo}
-                  audible={laneAudible(lane, anySolo)}
-                  onToggleMute={() => toggleMute(lane.id)}
-                  onToggleSolo={() => toggleSolo(lane.id)}
-                  onPressTitle={() => openEditor(lane.id)}
-                >
-                  <StepStrip lane={lane} />
-                </LaneRow>
-              ))}
-              <Pressable onPress={addAndEdit} style={styles.addLane} accessibilityRole="button">
-                <Svg width={17} height={17} viewBox="0 0 24 24">
-                  <Path
-                    d="M12 5v14M5 12h14"
-                    fill="none"
-                    stroke={color.label}
-                    strokeWidth={2.4}
-                    strokeLinecap="round"
-                  />
-                </Svg>
-                <AppText style={styles.addLaneLabel}>Add lane</AppText>
-              </Pressable>
-            </>
-          ) : (
-            <Overview lanes={lanes} />
-          )}
-        </ScrollView>
-      )}
+      {/* The lane list with the floating action bar (Paper 7A-0) hovering
+          above it — add lane / mutate / undo live there, not in a header row
+          or at the list's end. */}
+      <View style={styles.listArea}>
+        {lanes.length === 0 ? (
+          <EmptyState onAddLane={addAndEdit} />
+        ) : (
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+            {lanes.map((lane) => (
+              <LaneRow
+                key={lane.id}
+                title={lane.name ?? midiNoteName(lane.note)}
+                subtitle={laneSubtitle(lane)}
+                muted={lane.muted}
+                solo={lane.solo}
+                audible={laneAudible(lane, anySolo)}
+                onToggleMute={() => toggleMute(lane.id)}
+                onToggleSolo={() => toggleSolo(lane.id)}
+                onPressTitle={() => openEditor(lane.id)}
+              >
+                <StepStrip lane={lane} />
+              </LaneRow>
+            ))}
+          </ScrollView>
+        )}
+        <FloatingActions
+          canMutate={lanes.length > 0}
+          canUndo={canUndoMutate}
+          onAddLane={addAndEdit}
+          onMutate={mutatePattern}
+          onUndo={undoMutate}
+        />
+      </View>
 
       {/* Bottom inset includes the tab bar height inside NativeTabs — keeps
           the transport pinned above it, on the transport's own background. */}
@@ -203,17 +180,8 @@ export default function SequencerScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.ground },
+  listArea: { flex: 1 },
   scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 8 },
-  // Paper 112-0: p 16, top border, centered plus + label.
-  addLane: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: ramp[7],
-  },
-  addLaneLabel: { fontFamily: font.text, fontWeight: '600', fontSize: 15, lineHeight: 18, color: color.label },
+  // Extra bottom padding so the last lane can scroll clear of the floating bar.
+  scrollContent: { paddingBottom: 84 },
 });
