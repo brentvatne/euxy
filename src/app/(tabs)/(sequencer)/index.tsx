@@ -132,7 +132,9 @@ export default function SequencerScreen() {
                 key={lane.id}
                 title={lane.name ?? midiNoteName(lane.note)}
                 subtitle={laneSubtitle(lane)}
-                muted={lane.muted}
+                // M reflects the EFFECTIVE mix: a solo elsewhere mutes this
+                // lane just as surely as its own flag.
+                muted={lane.muted || (anySolo && !lane.solo)}
                 solo={lane.solo}
                 audible={laneAudible(lane, anySolo)}
                 onToggleMute={() => toggleMute(lane.id)}

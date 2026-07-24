@@ -224,7 +224,25 @@ export const useStore = create<AppState>((set, get) => {
     updateLane: (id, patch) => mutateLane(id, (l) => ({ ...l, ...patch })),
     updateGenerator: (id, gen, patch) => mutateLane(id, (l) => ({ ...l, [gen]: { ...l[gen], ...patch } })),
     setLaneOp: (id, op) => mutateLane(id, (l) => ({ ...l, op })),
-    toggleMute: (id) => mutateLane(id, (l) => ({ ...l, muted: !l.muted })),
+    // Mute edits the EFFECTIVE mix. With no solo it's a plain flag flip. While
+    // a lane is soloed every other lane is effectively muted — so tapping M
+    // first materializes that state into real mute flags (solo cleared), then
+    // flips the tapped lane. Soloing Kick and unmuting Hat therefore lands on
+    // exactly what you hear: Kick + Hat unmuted, everyone else muted.
+    toggleMute: (id) =>
+      mutateActive((p) => {
+        const soloed = p.lanes.find((l) => l.solo);
+        if (!soloed) {
+          return { ...p, lanes: p.lanes.map((l) => (l.id === id ? { ...l, muted: !l.muted } : l)) };
+        }
+        return {
+          ...p,
+          lanes: p.lanes.map((l) => {
+            const effectiveMuted = l.id !== soloed.id;
+            return { ...l, solo: false, muted: l.id === id ? !effectiveMuted : effectiveMuted };
+          }),
+        };
+      }),
     // Exclusive solo: soloing a lane un-solos every other lane; tapping the
     // solo'd lane again clears it.
     toggleSolo: (id) =>
