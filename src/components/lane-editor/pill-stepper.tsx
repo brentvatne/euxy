@@ -71,14 +71,17 @@ export function PillStepper({
 }
 
 const styles = StyleSheet.create({
+  // Paper fix (2026-07-23): px 12 + controls gap 8 so the label never
+  // crowds the − glyph (was px 14 / gap 12 → 1px of air at 143pt wide).
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
     backgroundColor: color.surface2,
     borderRadius: 11,
     paddingVertical: 9,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
   },
   pillGrow: { flex: 1 },
   pillCompact: { flexShrink: 0, gap: 10, paddingVertical: 9, paddingHorizontal: 12 },
@@ -89,8 +92,8 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     color: color.label25,
   },
-  controls: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  controlsCompact: { gap: 10 },
+  controls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  controlsCompact: { gap: 8 },
   value: {
     fontFamily: font.display,
     fontWeight: '700',

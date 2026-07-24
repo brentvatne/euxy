@@ -5,10 +5,11 @@
  * length, resolution, note/channel, velocity/gate — is shared between views and
  * wired straight to the store (updateLane / updateGenerator / setLaneOp).
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
+import { midi } from '@/components/midi/runtime';
 import { midiNoteName } from '@/core/note';
 import { useLane } from '@/state/selectors';
 import { useStore } from '@/state/store';
@@ -51,6 +52,24 @@ export default function LaneEditorSheet() {
   const setLaneOp = useStore((s) => s.setLaneOp);
   const removeLane = useStore((s) => s.removeLane);
   const [view, setView] = useState<ViewMode>('steps');
+  const [listening, setListening] = useState(false);
+
+  // Listen: the next inbound note-on (played on the OP-XY) sets this lane's
+  // note. Auto-cancels after 8s or when the sheet unmounts.
+  useEffect(() => {
+    if (!listening || !laneId) return;
+    const unsubscribe = midi.onInbound((e) => {
+      if (e.type === 'noteon') {
+        updateLane(laneId, { note: e.note });
+        setListening(false);
+      }
+    });
+    const timeout = setTimeout(() => setListening(false), 8000);
+    return () => {
+      unsubscribe();
+      clearTimeout(timeout);
+    };
+  }, [listening, laneId, updateLane]);
 
   if (!lane) {
     return (
@@ -204,15 +223,26 @@ export default function LaneEditorSheet() {
                   {midiNoteName(lane.note)} · {lane.note}
                 </AppText>
               </SmallStep>
-              <Pressable style={styles.listen} accessibilityRole="button" accessibilityLabel="Listen for note">
-                <SFSymbol name="mic.fill" size={13} tint={color.ground} />
-                <AppText style={styles.listenLabel}>Listen</AppText>
+              <Pressable
+                style={[styles.listen, listening && styles.listenActive]}
+                onPress={() => setListening((v) => !v)}
+                accessibilityRole="button"
+                accessibilityLabel="Listen for note"
+                accessibilityState={{ selected: listening }}
+              >
+                <SFSymbol name="mic.fill" size={13} tint={listening ? color.label : color.ground} />
+                <AppText style={[styles.listenLabel, listening && styles.listenLabelActive]}>
+                  {listening ? 'Listening…' : 'Listen'}
+                </AppText>
               </Pressable>
             </View>
           </View>
           <Pressable
             style={[styles.cell, styles.cellBottom]}
-            onPress={() => updateLane(id, { channel: (lane.channel + 1) % 16 })}
+            // Tap-cycling caps at 8 (the OP-XY has 8 audio tracks). A channel
+            // above 8 that arrived some other way (inbound capture) is kept
+            // and displayed; the next tap folds back into tracks 1–8.
+            onPress={() => updateLane(id, { channel: (lane.channel + 1) % 8 })}
             accessibilityRole="button"
           >
             <AppText style={styles.cellTitle}>Track · Channel</AppText>
@@ -358,6 +388,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 11,
   },
   listenLabel: { fontFamily: font.text, fontWeight: '700', fontSize: 13, lineHeight: 16, color: color.ground },
+  listenActive: { backgroundColor: color.surface3 },
+  listenLabelActive: { color: color.label },
 
   sliders: { padding: 16, gap: 16 },
   deleteLane: {
