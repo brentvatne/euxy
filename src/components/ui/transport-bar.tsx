@@ -4,17 +4,18 @@
  * store.
  *
  * Jam mode: BPM (left) · skip-to-start / circular play-pause / stop (center) ·
- * Panic (right); app is clock master. Record mode: app is a clock slave, so the
- * center cluster is a passive glowing-red "Recording / locked to device clock"
- * indicator and the BPM label reads `· REC` (see redlines). Panic is always
- * reachable. `playDisabled` dims the play button (empty pattern).
+ * JAM mode pill (right); app is clock master. Record mode: app is a clock
+ * slave, so the center cluster is a passive glowing-red "Recording / locked to
+ * device clock" indicator, the BPM label reads `· REC`, and the pill shows a
+ * red REC. Tapping the pill toggles the clock mode. Panic lives on the MIDI
+ * tab. `playDisabled` dims the play button (empty pattern).
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import type { ClockMode } from '@/state/types';
-import { color, font, space } from '@/theme/tokens';
+import { color, font, ramp, space } from '@/theme/tokens';
 import { AppText } from './text';
-import { IconPanic, IconPause, IconPlay, IconSkipToStart, IconStop } from './icons';
+import { IconPause, IconPlay, IconSkipToStart, IconStop } from './icons';
 
 export interface TransportBarProps {
   playing: boolean;
@@ -24,7 +25,7 @@ export interface TransportBarProps {
   onTogglePlay?: () => void;
   onStop?: () => void;
   onSkipToStart?: () => void;
-  onPanic?: () => void;
+  onToggleMode?: () => void;
   onPressBpm?: () => void;
 }
 
@@ -36,7 +37,7 @@ export function TransportBar({
   onTogglePlay,
   onStop,
   onSkipToStart,
-  onPanic,
+  onToggleMode,
   onPressBpm,
 }: TransportBarProps) {
   const jam = mode === 'jam';
@@ -85,8 +86,20 @@ export function TransportBar({
       )}
 
       <View style={styles.right}>
-        <Pressable onPress={onPanic} hitSlop={space.sm} accessibilityRole="button" accessibilityLabel="Panic — all notes off">
-          <IconPanic size={24} />
+        {/* Mode pill (Paper CO-0 / 1X1-0): JAM in white, REC with the record
+            LED red. Tap toggles the clock mode. */}
+        <Pressable
+          onPress={onToggleMode}
+          disabled={!onToggleMode}
+          hitSlop={space.sm}
+          style={styles.modePill}
+          accessibilityRole="button"
+          accessibilityLabel={jam ? 'Switch to record mode' : 'Switch to jam mode'}
+        >
+          {!jam ? <View style={styles.modeDot} /> : null}
+          <AppText style={[styles.modeLabel, !jam && styles.modeLabelRec]}>
+            {jam ? 'JAM' : 'REC'}
+          </AppText>
         </Pressable>
       </View>
     </View>
@@ -146,4 +159,23 @@ const styles = StyleSheet.create({
   recTitle: { fontFamily: font.text, fontWeight: '600', fontSize: 15, lineHeight: 18, color: '#FFFFFF' },
   recSub: { fontFamily: font.text, fontWeight: '500', fontSize: 12, lineHeight: 16, color: color.label25 },
   right: { flex: 1, alignItems: 'flex-end' },
+  modePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: ramp[7],
+  },
+  modeDot: { width: 7, height: 7, borderRadius: 999, backgroundColor: color.danger },
+  modeLabel: {
+    fontFamily: font.text,
+    fontWeight: '700',
+    fontSize: 11,
+    lineHeight: 13,
+    letterSpacing: 0.88,
+    color: color.label,
+  },
+  modeLabelRec: { color: color.danger },
 });

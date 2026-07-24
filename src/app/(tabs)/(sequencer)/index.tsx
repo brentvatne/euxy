@@ -52,6 +52,7 @@ export default function SequencerScreen() {
   const renameActivePattern = useStore((s) => s.renameActivePattern);
   const clearLanes = useStore((s) => s.clearLanes);
   const resetLanes = useStore((s) => s.resetLanes);
+  const setClockMode = useStore((s) => s.setClockMode);
   const toggleMute = useStore((s) => s.toggleMute);
   const toggleSolo = useStore((s) => s.toggleSolo);
   const selectLane = useStore((s) => s.selectLane);
@@ -174,7 +175,9 @@ export default function SequencerScreen() {
             engine.resetToStart();
           }}
           onSkipToStart={() => engine.resetToStart()}
-          onPanic={() => engine.panic()}
+          onToggleMode={() =>
+            setClockMode(transport.clockMode === 'jam' ? 'record' : 'jam')
+          }
         />
       </View>
     </View>
