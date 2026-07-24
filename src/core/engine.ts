@@ -20,7 +20,7 @@
  * explicit note-offs for every outstanding note.
  */
 import { laneStepAt } from '@/core/euclid';
-import { createMidiPort } from '@/midi/port';
+import { midiOut } from '@/components/midi/runtime';
 import type { InboundEvent, MidiPort } from '@/midi/types';
 import { laneAudible, patternForLane, selectActivePattern } from '@/state/selectors';
 import { useStore } from '@/state/store';
@@ -62,14 +62,18 @@ class Engine {
 
   // ---- lifecycle --------------------------------------------------------
 
-  /** Idempotent: create + init the port, wire inbound (record) + store. */
+  /** Idempotent: adopt the shared runtime port, wire inbound (record) + store. */
   init(): void {
     if (this.initialized) return;
     this.initialized = true;
-    this.port = createMidiPort();
+    // The app-wide singleton port (midi runtime), with sends tagged outbound so
+    // the activity log stays truthful. Device selection is the runtime's job.
+    this.port = midiOut;
     // init() may be async on a real port; the stub resolves immediately. We
     // don't await — sending to an uninitialized/absent output is a safe no-op.
-    void this.port.init?.();
+    // (On web a permission rejection outside a user gesture is swallowed; the
+    // MIDI tab's explicit enable flow owns the real prompt.)
+    this.port.init().catch(() => {});
     this.unsubscribeInbound = this.port.onInbound((e) => this.onInbound(e));
     this.subscribeStore();
   }

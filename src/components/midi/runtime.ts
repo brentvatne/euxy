@@ -18,14 +18,15 @@
 import { useSyncExternalStore } from 'react';
 
 import { createMidiPort } from '@/midi/port';
-import type { InboundEvent, MidiDevice } from '@/midi/types';
+import type { InboundEvent, MidiDevice, MidiPort } from '@/midi/types';
 import { useStore } from '@/state/store';
 
 const MAX_LOG = 100;
 const CLOCK_TIMEOUT_MS = 600;
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const noteName = (n: number) => `${NOTE_NAMES[n % 12]}${Math.floor(n / 12) - 1}`;
+// Same octave convention as core/note.ts (Paper: 36 → C1).
+const noteName = (n: number) => `${NOTE_NAMES[n % 12]}${Math.floor(n / 12) - 2}`;
 const hex = (n: number) => n.toString(16).toUpperCase().padStart(2, '0');
 
 /** Match "OP-XY" / "OP–XY" regardless of dash or case. */
@@ -237,5 +238,23 @@ function subscribe(cb: () => void): () => void {
 export function useMidiRuntime(): MidiSnapshot {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
+
+/**
+ * The SAME singleton port with every send routed through `outbound()`, so the
+ * activity log labels them `→`. The engine consumes this — never its own
+ * `createMidiPort()` — so device selection, latency, and the log stay in sync
+ * app-wide. (Subscriptions/reads delegate to the underlying closures.)
+ */
+export const midiOut: MidiPort = {
+  ...midi,
+  sendNoteOn: (note, velocity, channel, time) =>
+    outbound(() => midi.sendNoteOn(note, velocity, channel, time)),
+  sendNoteOff: (note, channel, time) => outbound(() => midi.sendNoteOff(note, channel, time)),
+  sendClock: (time) => outbound(() => midi.sendClock(time)),
+  sendStart: () => outbound(() => midi.sendStart()),
+  sendContinue: () => outbound(() => midi.sendContinue()),
+  sendStop: () => outbound(() => midi.sendStop()),
+  allNotesOff: (channel) => outbound(() => midi.allNotesOff(channel)),
+};
 
 export { midi, isOpXy };

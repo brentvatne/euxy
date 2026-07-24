@@ -8,12 +8,12 @@
 import { useRef, useState } from 'react';
 import { LayoutChangeEvent, PanResponder, Pressable, StyleSheet, View } from 'react-native';
 
-import { AppText } from '@/components/ui';
+import { AppText, Segmented } from '@/components/ui';
 import { color, radius, space } from '@/theme/tokens';
 import { IconChevronRight, IconChevronUpDown } from './icons';
 
-/** Section-label + secondary-value gray. Exact from Paper (not a token). */
-export const GRAY = '#98989F';
+/** Section-label + secondary-value gray (token `label25`, exact from Paper). */
+export const GRAY = color.label25;
 const OUTER = radius.cell; // 12
 const INNER = 2;
 
@@ -110,29 +110,18 @@ export function PushRow({ pos, label, onPress }: { pos: CellPos; label: string; 
   );
 }
 
-/** Compact white-active Jam/Record toggle (Paper MC-0 — stronger than the shared gray Segmented). */
+/** Compact white-active Jam/Record toggle (Paper MC-0) — the shared Segmented, compact size. */
 export function ClockModeToggle({ value, onChange }: { value: 'jam' | 'record'; onChange: (v: 'jam' | 'record') => void }) {
-  const opts: { v: 'jam' | 'record'; label: string }[] = [
-    { v: 'jam', label: 'Jam' },
-    { v: 'record', label: 'Record' },
-  ];
   return (
-    <View style={styles.toggle}>
-      {opts.map(({ v, label }) => {
-        const active = v === value;
-        return (
-          <Pressable
-            key={v}
-            onPress={() => onChange(v)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: active }}
-            style={[styles.toggleSeg, active && styles.toggleSegActive]}
-          >
-            <AppText style={[styles.toggleText, active ? styles.toggleTextActive : styles.toggleTextInactive]}>{label}</AppText>
-          </Pressable>
-        );
-      })}
-    </View>
+    <Segmented<'jam' | 'record'>
+      size="compact"
+      options={[
+        { label: 'Jam', value: 'jam' },
+        { label: 'Record', value: 'record' },
+      ]}
+      value={value}
+      onChange={onChange}
+    />
   );
 }
 
@@ -210,13 +199,6 @@ const styles = StyleSheet.create({
   badge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingHorizontal: 10, borderRadius: radius.chip },
   badgeDot: { width: 7, height: 7, borderRadius: radius.chip },
   badgeText: { fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.3 },
-
-  toggle: { flexDirection: 'row', padding: 2, borderRadius: 8, backgroundColor: color.surface2 },
-  toggleSeg: { paddingVertical: 5, paddingHorizontal: 14, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
-  toggleSegActive: { backgroundColor: color.label },
-  toggleText: { fontSize: 13, lineHeight: 16 },
-  toggleTextActive: { color: color.ground, fontWeight: '700' },
-  toggleTextInactive: { color: GRAY, fontWeight: '600' },
 
   sliderHit: { height: 22, justifyContent: 'center' },
   sliderTrack: { height: 6, borderRadius: 3, backgroundColor: color.surface2, overflow: 'hidden' },
