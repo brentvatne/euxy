@@ -1,0 +1,241 @@
+/**
+ * MIDI runtime — a singleton wrapper around the platform `MidiPort` shared by
+ * the MIDI screen, the Device-picker sheet, the Enable-MIDI sheet, and the
+ * Activity-log screen. It owns the ephemeral MIDI I/O state (enable/permission,
+ * device lists, the raw activity log, and the clock-RX indicator) that does not
+ * belong in the app store. Device *selection* and latency still live in the
+ * Zustand store (setOutput/setInput/setLatencyOffsetMs) — we bridge to it here.
+ *
+ * Mined from the working PoC (src/components/screen{,.web}.tsx): enable →
+ * enumerate → auto-connect to the OP-XY by name → soft-thru → clock indicator.
+ *
+ * Direction tracking: the web/stub ports emit onRaw for BOTH sends and inbound
+ * with no direction flag, so outbound sends are routed through `outbound()`,
+ * which flips a synchronous flag the onRaw handler reads. (Note in HANDOFF: once
+ * the engine drives this port, its sends should go through `outbound()` too, or
+ * the port should tag direction, for the log arrows to stay correct.)
+ */
+import { useSyncExternalStore } from 'react';
+
+import { createMidiPort } from '@/midi/port';
+import type { InboundEvent, MidiDevice } from '@/midi/types';
+import { useStore } from '@/state/store';
+
+const MAX_LOG = 100;
+const CLOCK_TIMEOUT_MS = 600;
+
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const noteName = (n: number) => `${NOTE_NAMES[n % 12]}${Math.floor(n / 12) - 1}`;
+const hex = (n: number) => n.toString(16).toUpperCase().padStart(2, '0');
+
+/** Match "OP-XY" / "OP–XY" regardless of dash or case. */
+const isOpXy = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '').includes('opxy');
+const opXyFirst = (list: MidiDevice[]) => {
+  const i = list.findIndex((d) => isOpXy(d.name));
+  if (i <= 0) return list;
+  const copy = [...list];
+  const [op] = copy.splice(i, 1);
+  return [op, ...copy];
+};
+
+export interface LogLine {
+  id: number;
+  dir: 'in' | 'out';
+  hex: string;
+  label: string;
+}
+
+export interface MidiSnapshot {
+  supported: boolean;
+  enabled: boolean;
+  error: string | null;
+  outputs: MidiDevice[];
+  inputs: MidiDevice[];
+  log: LogLine[];
+  clockActive: boolean;
+}
+
+// --- singleton port + mutable state ---------------------------------------
+const midi = createMidiPort();
+
+let lineId = 0;
+let sending = false;
+let clockTimer: ReturnType<typeof setTimeout> | null = null;
+let subscribed = false;
+
+let snap: MidiSnapshot = {
+  supported: midi.isSupported(),
+  enabled: false,
+  error: null,
+  outputs: [],
+  inputs: [],
+  log: [],
+  clockActive: false,
+};
+
+const listeners = new Set<() => void>();
+const emit = () => listeners.forEach((l) => l());
+const update = (patch: Partial<MidiSnapshot>) => {
+  snap = { ...snap, ...patch };
+  emit();
+};
+
+/** Human annotation for a raw MIDI message (mirrors the Paper mockup log). */
+function annotate(bytes: number[]): string {
+  const status = bytes[0] ?? 0;
+  if (status >= 0xf8) {
+    const rt: Record<number, string> = { 0xf8: 'clock', 0xfa: 'start', 0xfb: 'continue', 0xfc: 'stop', 0xfe: 'active sensing', 0xff: 'reset' };
+    return rt[status] ?? 'realtime';
+  }
+  const kind = status & 0xf0;
+  const ch = (status & 0x0f) + 1;
+  if (kind === 0x90) return (bytes[2] ?? 0) > 0 ? `note on ${noteName(bytes[1] ?? 0)} ch${ch}` : `note off ${noteName(bytes[1] ?? 0)} ch${ch}`;
+  if (kind === 0x80) return `note off ${noteName(bytes[1] ?? 0)} ch${ch}`;
+  if (kind === 0xb0) {
+    const cc = bytes[1] ?? 0;
+    if (cc === 120) return `CC120 all sound off ch${ch}`;
+    if (cc === 123) return `CC123 all notes off ch${ch}`;
+    return `CC${cc} ch${ch}`;
+  }
+  if (kind === 0xa0) return `aftertouch ch${ch}`;
+  if (kind === 0xc0) return `program ${bytes[1] ?? 0} ch${ch}`;
+  if (kind === 0xe0) return `pitch bend ch${ch}`;
+  if (status === 0xf2) return 'song position';
+  return 'sysex/other';
+}
+
+function pushLine(dir: 'in' | 'out', bytes: number[]) {
+  const line: LogLine = { id: lineId++, dir, hex: bytes.map(hex).join(' '), label: annotate(bytes) };
+  update({ log: [line, ...snap.log].slice(0, MAX_LOG) });
+}
+
+function markClock() {
+  if (!snap.clockActive) update({ clockActive: true });
+  if (clockTimer) clearTimeout(clockTimer);
+  clockTimer = setTimeout(() => update({ clockActive: false }), CLOCK_TIMEOUT_MS);
+}
+
+/** Run a send synchronously flagged as outbound so onRaw labels its direction. */
+function outbound(fn: () => void) {
+  sending = true;
+  try {
+    fn();
+  } finally {
+    sending = false;
+  }
+}
+
+function attachSubscriptions() {
+  if (subscribed) return;
+  subscribed = true;
+
+  midi.onRaw((bytes) => {
+    // Clock (0xF8) and active-sensing (0xFE) are high-rate — never listed; the
+    // clock byte just lights the RX indicator, which auto-clears when it stops.
+    if (bytes[0] === 0xf8) {
+      if (!sending) markClock();
+      return;
+    }
+    if (bytes[0] === 0xfe) return;
+    pushLine(sending ? 'out' : 'in', bytes);
+  });
+
+  // Soft-thru (always on): echo inbound notes back out on their channel so the
+  // OP-XY's own MIDI track sounds through. Reused from the PoC.
+  midi.onInbound((e: InboundEvent) => {
+    if (e.type === 'noteon') outbound(() => midi.sendNoteOn(e.note, e.velocity, e.channel));
+    else if (e.type === 'noteoff') outbound(() => midi.sendNoteOff(e.note, e.channel));
+  });
+
+  midi.onStateChange(refreshDevices);
+}
+
+function refreshDevices() {
+  const outputs = opXyFirst(midi.listOutputs());
+  const inputs = opXyFirst(midi.listInputs());
+  update({ outputs, inputs });
+}
+
+// --- public API ------------------------------------------------------------
+
+/** Enable MIDI (idempotent). On web this must be called from a user gesture. */
+export async function enableMidi(): Promise<boolean> {
+  try {
+    await midi.init();
+  } catch (err: any) {
+    // Web can reject with SecurityError; native/stub won't.
+    update({ error: err?.message ?? 'MIDI permission denied', enabled: false });
+    return false;
+  }
+  attachSubscriptions();
+  const outputs = opXyFirst(midi.listOutputs());
+  const inputs = opXyFirst(midi.listInputs());
+  update({ enabled: true, error: null, outputs, inputs });
+
+  // Auto-connect to the OP-XY by name (fallback: first device). Only sets a
+  // selection if the store doesn't already have a valid one.
+  const store = useStore.getState();
+  const curOut = store.settings.outputId;
+  if (!curOut || !outputs.some((d) => d.id === curOut)) {
+    const pick = (outputs.find((d) => isOpXy(d.name)) ?? outputs[0])?.id ?? null;
+    selectOutput(pick);
+  } else {
+    midi.selectOutput(curOut);
+  }
+  const curIn = store.settings.inputId;
+  if (!curIn || !inputs.some((d) => d.id === curIn)) {
+    const pick = (inputs.find((d) => isOpXy(d.name)) ?? inputs[0])?.id ?? null;
+    selectInput(pick);
+  } else {
+    midi.selectInput(curIn);
+  }
+  return true;
+}
+
+export function selectOutput(id: string | null) {
+  midi.selectOutput(id);
+  useStore.getState().setOutput(id);
+}
+
+export function selectInput(id: string | null) {
+  midi.selectInput(id);
+  useStore.getState().setInput(id);
+}
+
+export function setLatency(ms: number) {
+  midi.setLatencyOffsetMs(ms);
+  useStore.getState().setLatencyOffsetMs(ms);
+}
+
+/** Panic — CC120 + CC123 on active channels + best-effort note-offs. */
+export function panic() {
+  outbound(() => {
+    for (let ch = 0; ch < 8; ch++) midi.allNotesOff(ch);
+  });
+}
+
+/** Diagnostics helper: send a short test note on the given channel. */
+export function sendTestNote(note = 36, velocity = 100, channel = 0) {
+  outbound(() => midi.sendNoteOn(note, velocity, channel));
+  setTimeout(() => outbound(() => midi.sendNoteOff(note, channel)), 160);
+}
+
+export function clearLog() {
+  update({ log: [] });
+}
+
+export function getSnapshot(): MidiSnapshot {
+  return snap;
+}
+
+function subscribe(cb: () => void): () => void {
+  listeners.add(cb);
+  return () => listeners.delete(cb);
+}
+
+/** React hook — re-renders only on runtime state changes. */
+export function useMidiRuntime(): MidiSnapshot {
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
+
+export { midi, isOpXy };
