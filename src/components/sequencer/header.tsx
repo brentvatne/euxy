@@ -75,9 +75,14 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     paddingHorizontal: 16,
   },
-  patternTrigger: { flexShrink: 1 },
-  pattern: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  // flex:1 (not just flexShrink) — the MenuView native host otherwise caps
+  // the title at its own measured width and truncates long pattern names even
+  // with free row space (TestFlight feedback 2026-07-24: "the title is
+  // truncated too aggressively").
+  patternTrigger: { flex: 1, marginRight: 12 },
+  pattern: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
   patternName: {
+    flexShrink: 1,
     fontFamily: font.display,
     fontWeight: '700',
     fontSize: 22,
