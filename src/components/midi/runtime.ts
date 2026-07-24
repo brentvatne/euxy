@@ -149,7 +149,10 @@ function attachSubscriptions() {
   // and device thru + our echo is a feedback loop. Inbound notes are only
   // logged and consumed (Listen, record mode), never re-sent.
 
-  midi.onStateChange(refreshDevices);
+  midi.onStateChange(() => {
+    refreshDevices();
+    reconcileSelection();
+  });
 }
 
 /**
@@ -161,6 +164,36 @@ export function refreshDevices() {
   const outputs = opXyFirst(midi.listOutputs());
   const inputs = opXyFirst(midi.listInputs());
   update({ outputs, inputs });
+}
+
+/**
+ * Re-apply the selection after the device set changes. Endpoint ids change
+ * when a device is replugged, so a stored id can go stale even though "the
+ * same" device is present — and a hot-plugged OP-XY should connect without a
+ * trip to the picker. Existing valid selections are re-bound (the native
+ * layer re-connects the endpoint); a missing selection auto-connects to an
+ * OP-XY by name only, per the auto-connect rule.
+ */
+function reconcileSelection() {
+  const s = useStore.getState();
+  const outputs = midi.listOutputs();
+  const inputs = midi.listInputs();
+
+  const curOut = s.settings.outputId;
+  if (curOut && outputs.some((d) => d.id === curOut)) {
+    midi.selectOutput(curOut);
+  } else {
+    const pick = outputs.find((d) => isOpXy(d.name))?.id ?? null;
+    if (pick !== curOut) selectOutput(pick);
+  }
+
+  const curIn = s.settings.inputId;
+  if (curIn && inputs.some((d) => d.id === curIn)) {
+    midi.selectInput(curIn);
+  } else {
+    const pick = inputs.find((d) => isOpXy(d.name))?.id ?? null;
+    if (pick !== curIn) selectInput(pick);
+  }
 }
 
 // --- public API ------------------------------------------------------------
