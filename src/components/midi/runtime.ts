@@ -8,7 +8,8 @@
  *
  * Mined from the working PoC (src/components/screen{,.web}.tsx): enable →
  * enumerate → auto-connect (OP-XY by name ONLY — other devices are never
- * grabbed automatically) → soft-thru → clock indicator.
+ * grabbed automatically) → clock indicator. The PoC's soft-thru echo was
+ * dropped — see attachSubscriptions.
  *
  * Direction tracking: the web/stub ports emit onRaw for BOTH sends and inbound
  * with no direction flag, so outbound sends are routed through `outbound()`,
@@ -19,7 +20,7 @@
 import { useSyncExternalStore } from 'react';
 
 import { createMidiPort } from '@/midi/port';
-import type { InboundEvent, MidiDevice, MidiPort } from '@/midi/types';
+import type { MidiDevice, MidiPort } from '@/midi/types';
 import { useStore } from '@/state/store';
 
 const MAX_LOG = 100;
@@ -142,12 +143,11 @@ function attachSubscriptions() {
     pushLine(sending ? 'out' : 'in', bytes);
   });
 
-  // Soft-thru (always on): echo inbound notes back out on their channel so the
-  // OP-XY's own MIDI track sounds through. Reused from the PoC.
-  midi.onInbound((e: InboundEvent) => {
-    if (e.type === 'noteon') outbound(() => midi.sendNoteOn(e.note, e.velocity, e.channel));
-    else if (e.type === 'noteoff') outbound(() => midi.sendNoteOff(e.note, e.channel));
-  });
+  // NO soft-thru. The v1 PoC echoed inbound notes back out for monitoring,
+  // but with the engine owning sends that echo turns the OP-XY's own output
+  // (pads, its sequenced tracks, device-side MIDI thru) into ghost notes —
+  // and device thru + our echo is a feedback loop. Inbound notes are only
+  // logged and consumed (Listen, record mode), never re-sent.
 
   midi.onStateChange(refreshDevices);
 }
