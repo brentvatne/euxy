@@ -8,24 +8,19 @@
 export type BoolOp = 'OR' | 'AND' | 'XOR' | 'A>B';
 
 /**
- * Distribute `hits` across `steps` as evenly as possible (Bresenham form).
+ * Distribute `hits` across `steps` as evenly as possible (Bresenham form),
+ * with the FIRST hit anchored on step 0 — the standard Euclidean-rhythm
+ * convention (Toussaint/Bjorklund, and every hardware sequencer): E(4,16)
+ * plays the downbeat at 0/4/8/12. `rotation` shifts from there.
  * Returns an array of 0/1 of length `steps`.
  */
 export function euclid(hits: number, steps: number): number[] {
-  const out: number[] = [];
-  if (steps <= 0) return out;
+  if (steps <= 0) return [];
   const h = Math.max(0, Math.min(Math.floor(hits), steps));
-  let bucket = 0;
-  for (let i = 0; i < steps; i++) {
-    bucket += h;
-    if (bucket >= steps) {
-      bucket -= steps;
-      out.push(1);
-    } else {
-      out.push(0);
-    }
-  }
-  return out;
+  if (h === 0) return new Array(steps).fill(0);
+  // Step i is a hit when the running total i*h crosses a multiple of `steps`,
+  // i.e. (i*h) mod steps wraps below h. i=0 always hits.
+  return Array.from({ length: steps }, (_, i) => ((i * h) % steps < h ? 1 : 0));
 }
 
 /** Read a pattern with rotation applied at read time (positive = shift left). */
