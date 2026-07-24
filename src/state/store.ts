@@ -10,6 +10,7 @@
 import { create } from 'zustand';
 
 import { timing } from '@/theme/tokens';
+import { attachPersistence, loadPersisted } from './persistence';
 import type { CombineOp, Lane, Pattern, Settings, Transport } from './types';
 
 let counter = 0;
@@ -70,6 +71,9 @@ export interface AppState {
   stop: () => void;
   togglePlay: () => void;
   setBpm: (bpm: number) => void;
+  /** Display-only tempo (measured from the device clock in record mode) —
+   * updates the transport readout without touching the pattern's saved bpm. */
+  setTransportBpm: (bpm: number) => void;
   setClockMode: (mode: Transport['clockMode']) => void;
 
   // Lanes (operate on the active pattern) --------------------------------
@@ -114,14 +118,22 @@ export const useStore = create<AppState>((set, get) => {
   const mutateLane = (id: string, fn: (l: Lane) => Lane) =>
     mutateActive((p) => ({ ...p, lanes: p.lanes.map((l) => (l.id === id ? fn(l) : l)) }));
 
-  const seed = seedPattern();
+  // Hydrate from the SQLite KV store when available (sync read; see
+  // persistence.ts). Fresh installs fall back to the seed pattern.
+  const persisted = loadPersisted();
+  const seed = persisted ? null : seedPattern();
+  const patterns = persisted?.patterns ?? [seed!];
 
   return {
-    patterns: [seed],
-    activePatternId: seed.id,
-    transport: { playing: false, bpm: seed.bpm, clockMode: 'jam' },
+    patterns,
+    activePatternId: persisted?.activePatternId ?? patterns[0].id,
+    transport: {
+      playing: false,
+      bpm: persisted?.bpm ?? patterns[0].bpm,
+      clockMode: persisted?.clockMode ?? 'jam',
+    },
     selection: { laneId: null },
-    settings: { outputId: null, inputId: null, latencyOffsetMs: 0 },
+    settings: persisted?.settings ?? { outputId: null, inputId: null, latencyOffsetMs: 0 },
 
     // Transport
     play: () => set((s) => ({ transport: { ...s.transport, playing: true } })),
@@ -132,6 +144,7 @@ export const useStore = create<AppState>((set, get) => {
       set((s) => ({ transport: { ...s.transport, bpm: clamped } }));
       mutateActive((p) => ({ ...p, bpm: clamped }));
     },
+    setTransportBpm: (bpm) => set((s) => ({ transport: { ...s.transport, bpm } })),
     setClockMode: (clockMode) => set((s) => ({ transport: { ...s.transport, clockMode } })),
 
     // Lanes
@@ -242,3 +255,7 @@ export const useStore = create<AppState>((set, get) => {
     renameActivePattern: (name) => mutateActive((p) => ({ ...p, name: name.trim() || p.name })),
   };
 });
+
+// Persist the durable slice on every change (debounced; no-op without the
+// native module).
+attachPersistence(useStore);
