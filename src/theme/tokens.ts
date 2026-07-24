@@ -41,6 +41,7 @@ export const color = {
   // Labels (text)
   label: '#f6f4f4', // primary + active/interactive
   label2: '#afafb3',
+  label25: '#98989F', // section headers / secondary values (exact Paper gray between label2 and label3)
   label3: '#95959a', // secondary
   label4: '#797982', // tertiary
   labelDisabled: '#5A5A5E',
