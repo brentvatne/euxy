@@ -11,7 +11,6 @@
     "backgroundColor": "#000000",
     "ios": {
       "bundleIdentifier": "dev.brent.euxy",
-      "icon": "./assets/expo.icon",
       "appleTeamId": "GQ4S96SE9Z",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -39,7 +38,8 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -50,6 +50,12 @@
       "eas": {
         "projectId": "2ee288d6-807b-4316-8331-d0f5cd5eebe8"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/2ee288d6-807b-4316-8331-d0f5cd5eebe8"
     }
   }
 }

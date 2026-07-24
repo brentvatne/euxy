@@ -4,9 +4,11 @@
  * sequencer and switches to the Sequencer tab. A + in the header opens the New
  * Pattern sheet. Empty state (node 2NR-0) shows when there are no patterns.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Stack, router } from 'expo-router';
+
+import { useObserve } from '@/lib/shims';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AppText, SFSymbol } from '@/components/ui';
@@ -37,6 +39,12 @@ export default function PatternsScreen() {
   const loadPattern = useStore((s) => s.loadPattern);
   const deletePattern = useStore((s) => s.deletePattern);
   const [query, setQuery] = useState('');
+
+  // Per-route TTI for EAS Observe.
+  const { markInteractive } = useObserve();
+  useEffect(() => {
+    markInteractive();
+  }, [markInteractive]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

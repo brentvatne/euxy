@@ -16,6 +16,7 @@ import { laneAudible, useActivePattern, useAnySolo, useSettings } from '@/state/
 import { useStore } from '@/state/store';
 import type { Lane } from '@/state/types';
 import { useMidiRuntime } from '@/components/midi/runtime';
+import { useObserve } from '@/lib/shims';
 import { color, font, ramp } from '@/theme/tokens';
 import { AppText, LaneRow, TransportBar } from '@/components/ui';
 import {
@@ -60,6 +61,12 @@ export default function SequencerScreen() {
   useEffect(() => {
     engine.init();
   }, []);
+
+  // Per-route TTI for EAS Observe.
+  const { markInteractive } = useObserve();
+  useEffect(() => {
+    markInteractive();
+  }, [markInteractive]);
 
   const outputDevice = midi.outputs.find((d) => d.id === settings.outputId);
   const connected = midi.enabled && outputDevice != null;
