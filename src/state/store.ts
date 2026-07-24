@@ -9,6 +9,7 @@
  */
 import { create } from 'zustand';
 
+import { drum } from '@/core/opxy';
 import { timing } from '@/theme/tokens';
 import { makeLane, uid } from './lane';
 import { attachPersistence, loadPersisted } from './persistence';
@@ -63,14 +64,19 @@ function nudgeLane(lane: Lane): Lane {
 
 export { makeLane } from './lane';
 
-/** The default 5-lane kit (names/lengths match Paper 7A-0). Fresh ids per call. */
+/**
+ * The default 5-lane kit (names/lengths match Paper 7A-0). Fresh ids per call.
+ * Drum lanes all target channel 0 — the OP-XY's track 1 drum kit — using the
+ * factory slot notes (kick F2=53, snare G2=55, clap A#2=58, closed hat
+ * C#3=61; see core/opxy.ts). Bass is melodic, on an instrument track.
+ */
 function defaultLanes(): Lane[] {
   return [
-    makeLane({ name: 'Kick', length: 16, genA: { pulses: 4, rotation: 0 }, note: 36, channel: 0 }),
-    makeLane({ name: 'Snare', length: 16, genA: { pulses: 2, rotation: 4 }, note: 38, channel: 1 }),
-    makeLane({ name: 'Hat', length: 16, genA: { pulses: 11, rotation: 0 }, note: 42, channel: 2 }),
-    makeLane({ name: 'Clap', length: 12, genA: { pulses: 5, rotation: 0 }, note: 39, channel: 3 }),
-    makeLane({ name: 'Bass', length: 8, genA: { pulses: 3, rotation: 0 }, note: 48, channel: 4 }),
+    makeLane({ name: 'Kick', length: 16, genA: { pulses: 4, rotation: 0 }, note: drum.kick, channel: 0 }),
+    makeLane({ name: 'Snare', length: 16, genA: { pulses: 2, rotation: 4 }, note: drum.snare, channel: 0 }),
+    makeLane({ name: 'Hat', length: 16, genA: { pulses: 11, rotation: 0 }, note: drum.closedHat, channel: 0 }),
+    makeLane({ name: 'Clap', length: 12, genA: { pulses: 5, rotation: 0 }, note: drum.clap, channel: 0 }),
+    makeLane({ name: 'Bass', length: 8, genA: { pulses: 3, rotation: 0 }, note: 48, channel: 2 }),
   ];
 }
 
