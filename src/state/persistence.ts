@@ -24,6 +24,9 @@ interface Persisted {
   settings: Settings;
   bpm: number;
   clockMode: ClockMode;
+  /** Highest PRESETS_VERSION whose factory patterns were already seeded —
+   * absent on blobs from before presets existed (treated as 0). */
+  presetSeedVersion?: number;
 }
 
 interface KvStore {
@@ -77,6 +80,7 @@ export function attachPersistence(store: {
         settings: s.settings,
         bpm: s.transport.bpm,
         clockMode: s.transport.clockMode,
+        presetSeedVersion: s.presetSeedVersion,
       };
       try {
         storage!.setItemSync(KEY, JSON.stringify(data));

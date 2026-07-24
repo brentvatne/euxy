@@ -10,11 +10,10 @@
 import { create } from 'zustand';
 
 import { timing } from '@/theme/tokens';
+import { makeLane, uid } from './lane';
 import { attachPersistence, loadPersisted } from './persistence';
+import { PRESETS_VERSION, presetPatterns } from './presets';
 import type { CombineOp, Lane, Pattern, Settings, Transport } from './types';
-
-let counter = 0;
-const uid = (prefix: string) => `${prefix}_${(counter++).toString(36)}${Date.now().toString(36)}`;
 
 const rint = (n: number) => Math.floor(Math.random() * n);
 const pickOne = <T,>(arr: readonly T[]): T => arr[rint(arr.length)];
@@ -62,25 +61,7 @@ function nudgeLane(lane: Lane): Lane {
   return { ...lane, trackRot: wrap(lane.trackRot + dir, lane.length) };
 }
 
-/** A new lane with sensible defaults, single-generator (genB.pulses = 0). */
-export function makeLane(overrides: Partial<Lane> = {}): Lane {
-  return {
-    id: uid('lane'),
-    length: 16,
-    genA: { pulses: 4, rotation: 0 },
-    genB: { pulses: 0, rotation: 0 },
-    op: 'OR',
-    trackRot: 0,
-    note: 60,
-    channel: 0,
-    velocity: 100,
-    gateMs: timing.defaultGateMs,
-    resolutionTicks: timing.defaultResolutionTicks,
-    muted: false,
-    solo: false,
-    ...overrides,
-  };
-}
+export { makeLane } from './lane';
 
 /** The default 5-lane kit (names/lengths match Paper 7A-0). Fresh ids per call. */
 function defaultLanes(): Lane[] {
@@ -126,6 +107,9 @@ export interface AppState {
 
   /** Bumped on every mutate/undo so UI depending on history depth re-renders. */
   mutateVersion: number;
+
+  /** Persisted marker: which PRESETS_VERSION has been seeded (see presets.ts). */
+  presetSeedVersion: number;
 
   // Lanes (operate on the active pattern) --------------------------------
   addLane: (overrides?: Partial<Lane>) => string;
@@ -180,7 +164,13 @@ export const useStore = create<AppState>((set, get) => {
   // persistence.ts). Fresh installs fall back to the seed pattern.
   const persisted = loadPersisted();
   const seed = persisted ? null : seedPattern();
-  const patterns = persisted?.patterns ?? [seed!];
+  let patterns = persisted?.patterns ?? [seed!];
+  // Factory presets: append any not-yet-seeded ones exactly once per
+  // PRESETS_VERSION — deleting a preset must never respawn it on relaunch.
+  if ((persisted?.presetSeedVersion ?? 0) < PRESETS_VERSION) {
+    const have = new Set(patterns.map((p) => p.id));
+    patterns = [...patterns, ...presetPatterns().filter((p) => !have.has(p.id))];
+  }
 
   return {
     patterns,
@@ -194,6 +184,7 @@ export const useStore = create<AppState>((set, get) => {
     },
     selection: { laneId: null },
     mutateVersion: 0,
+    presetSeedVersion: PRESETS_VERSION,
     // Merge over defaults so persisted blobs from before a settings field
     // existed hydrate with sane values.
     settings: {
