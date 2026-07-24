@@ -60,10 +60,17 @@ export interface Pattern {
 /** Jam = app is clock master; Record = app slaves to the device's clock. */
 export type ClockMode = 'jam' | 'record';
 
+/** Record-mode lifecycle: armed (waiting for the device) → count-in → recording. */
+export type RecordPhase = 'armed' | 'countin' | 'recording';
+
 export interface Transport {
   playing: boolean;
   bpm: number;
   clockMode: ClockMode;
+  /** Record-mode status shown by the transport (transient, engine-driven). */
+  recordPhase: RecordPhase;
+  /** Current count-in beat (1-based) while recordPhase is 'countin'. */
+  countInBeat: number;
 }
 
 export interface Settings {

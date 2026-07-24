@@ -12,7 +12,7 @@
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import type { ClockMode } from '@/state/types';
+import type { ClockMode, RecordPhase } from '@/state/types';
 import { color, font, ramp, space } from '@/theme/tokens';
 import { AppText } from './text';
 import { IconPause, IconPlay, IconSkipToStart, IconStop } from './icons';
@@ -21,6 +21,9 @@ export interface TransportBarProps {
   playing: boolean;
   bpm: number;
   mode: ClockMode;
+  /** Record-mode lifecycle (Paper "Transport · Record states"). */
+  recordPhase?: RecordPhase;
+  countInBeat?: number;
   playDisabled?: boolean;
   onTogglePlay?: () => void;
   onStop?: () => void;
@@ -33,6 +36,8 @@ export function TransportBar({
   playing,
   bpm,
   mode,
+  recordPhase = 'armed',
+  countInBeat = 0,
   playDisabled = false,
   onTogglePlay,
   onStop,
@@ -44,12 +49,15 @@ export function TransportBar({
   return (
     <View style={styles.bar}>
       <Pressable onPress={onPressBpm} disabled={!onPressBpm} style={styles.bpmCol}>
-        <AppText style={styles.bpmValue} numberOfLines={1}>
-          {bpm.toFixed(1)}
-        </AppText>
-        <AppText style={styles.bpmLabel} numberOfLines={1}>
-          {jam ? 'BPM · JAM' : 'BPM · REC'}
-        </AppText>
+        {/* Meter-style readout: the BPM unit centers under the number. */}
+        <View style={styles.bpmBlock}>
+          <AppText style={styles.bpmValue} numberOfLines={1}>
+            {bpm.toFixed(1)}
+          </AppText>
+          <AppText style={styles.bpmLabel} numberOfLines={1}>
+            BPM
+          </AppText>
+        </View>
       </Pressable>
 
       {jam ? (
@@ -75,12 +83,41 @@ export function TransportBar({
           </Pressable>
         </View>
       ) : (
-        // Paper 1X1-0: glowing 16px red dot + two-line status.
+        // Paper "Transport · Record states": armed (gray ring, instructions) →
+        // count-in (red ring + beat) → recording (solid glowing dot).
         <View style={styles.recIndicator}>
-          <View style={styles.recDot} />
+          {recordPhase === 'recording' ? (
+            <View style={styles.recDot} />
+          ) : (
+            <View
+              style={[
+                styles.recRing,
+                { borderColor: recordPhase === 'countin' ? color.danger : color.label4 },
+              ]}
+            />
+          )}
           <View style={styles.recText}>
-            <AppText style={styles.recTitle}>Recording</AppText>
-            <AppText style={styles.recSub}>locked to device clock</AppText>
+            {recordPhase === 'armed' ? (
+              // The actual button sequence: arm with ● + ▶, then ▶ to start.
+              <View style={styles.armGlyphs}>
+                <View style={styles.armRecordIcon} />
+                <AppText style={styles.armGlyphSep}>+</AppText>
+                <IconPlay size={12} color={color.label} />
+                <AppText style={styles.armGlyphSep}>,</AppText>
+                <IconPlay size={12} color={color.label} />
+              </View>
+            ) : (
+              <AppText style={styles.recTitle}>
+                {recordPhase === 'recording' ? 'Recording' : `Count‑in · ${countInBeat}`}
+              </AppText>
+            )}
+            <AppText style={styles.recSub}>
+              {recordPhase === 'recording'
+                ? 'locked to device clock'
+                : recordPhase === 'countin'
+                  ? 'starts after the bar'
+                  : 'on the OP‑XY to start'}
+            </AppText>
           </View>
         </View>
       )}
@@ -111,6 +148,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    // Matches the jam layout's natural height (52px play button + padding)
+    // so switching between playback and record UIs never shifts the bar.
+    minHeight: 76,
     paddingVertical: space.md,
     paddingHorizontal: 18,
     backgroundColor: '#0A0A0A',
@@ -118,6 +158,7 @@ const styles = StyleSheet.create({
     borderTopColor: color.surface,
   },
   bpmCol: { flex: 1 },
+  bpmBlock: { alignItems: 'center', alignSelf: 'flex-start' },
   bpmValue: {
     fontFamily: font.display,
     fontWeight: '700',
@@ -144,7 +185,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   playDisabled: { backgroundColor: color.surface2 },
-  recIndicator: { flexDirection: 'row', alignItems: 'center', gap: 11, flexShrink: 1 },
+  // Fixed width + left alignment so the dot sits at the same x in every
+  // record state regardless of text length (Paper "Transport · Record states").
+  recIndicator: { flexDirection: 'row', alignItems: 'center', gap: 11, width: 180, flexShrink: 0 },
+  armGlyphs: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  armRecordIcon: { width: 12, height: 12, borderRadius: 999, backgroundColor: color.danger },
+  armGlyphSep: { fontFamily: font.text, fontWeight: '600', fontSize: 14, lineHeight: 18, color: color.label25 },
   recDot: {
     width: 16,
     height: 16,
@@ -155,6 +201,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 0 },
   },
+  recRing: { width: 16, height: 16, borderRadius: 999, borderWidth: 2 },
   recText: { gap: 1 },
   recTitle: { fontFamily: font.text, fontWeight: '600', fontSize: 15, lineHeight: 18, color: '#FFFFFF' },
   recSub: { fontFamily: font.text, fontWeight: '500', fontSize: 12, lineHeight: 16, color: color.label25 },

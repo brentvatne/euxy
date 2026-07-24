@@ -75,6 +75,8 @@ export interface AppState {
    * updates the transport readout without touching the pattern's saved bpm. */
   setTransportBpm: (bpm: number) => void;
   setClockMode: (mode: Transport['clockMode']) => void;
+  /** Engine → UI: record-mode lifecycle for the transport display. */
+  setRecordPhase: (phase: Transport['recordPhase'], countInBeat?: number) => void;
 
   // Lanes (operate on the active pattern) --------------------------------
   addLane: (overrides?: Partial<Lane>) => string;
@@ -132,6 +134,8 @@ export const useStore = create<AppState>((set, get) => {
       playing: false,
       bpm: persisted?.bpm ?? patterns[0].bpm,
       clockMode: persisted?.clockMode ?? 'jam',
+      recordPhase: 'armed',
+      countInBeat: 0,
     },
     selection: { laneId: null },
     // Merge over defaults so persisted blobs from before a settings field
@@ -154,7 +158,12 @@ export const useStore = create<AppState>((set, get) => {
       mutateActive((p) => ({ ...p, bpm: clamped }));
     },
     setTransportBpm: (bpm) => set((s) => ({ transport: { ...s.transport, bpm } })),
-    setClockMode: (clockMode) => set((s) => ({ transport: { ...s.transport, clockMode } })),
+    setClockMode: (clockMode) =>
+      set((s) => ({
+        transport: { ...s.transport, clockMode, recordPhase: 'armed', countInBeat: 0 },
+      })),
+    setRecordPhase: (recordPhase, countInBeat = 0) =>
+      set((s) => ({ transport: { ...s.transport, recordPhase, countInBeat } })),
 
     // Lanes
     addLane: (overrides) => {

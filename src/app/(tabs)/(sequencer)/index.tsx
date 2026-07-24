@@ -168,6 +168,8 @@ export default function SequencerScreen() {
           playing={transport.playing}
           bpm={transport.bpm}
           mode={transport.clockMode}
+          recordPhase={transport.recordPhase}
+          countInBeat={transport.countInBeat}
           playDisabled={lanes.length === 0}
           onTogglePlay={togglePlay}
           onStop={() => {

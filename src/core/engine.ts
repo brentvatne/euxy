@@ -296,8 +296,10 @@ class Engine {
         // The OP-XY counts in a bar after Record+Play while already streaming
         // Start + clock; swallow those ticks so our bar 1 lands on the
         // device's bar 1 (when recording actually begins).
-        const beats = useStore.getState().settings.countInBeats;
-        this.countInTicksRemaining = Math.max(0, Math.round(beats)) * PPQN;
+        const state = useStore.getState();
+        const beats = Math.max(0, Math.round(state.settings.countInBeats));
+        this.countInTicksRemaining = beats * PPQN;
+        state.setRecordPhase(beats > 0 ? 'countin' : 'recording', beats > 0 ? 1 : 0);
         setPlayhead(0, true);
         log('rec start', `count-in=${beats} beats`);
         break;
@@ -306,11 +308,13 @@ class Engine {
         // Continue resumes mid-song — no count-in.
         this.running = true;
         this.countInTicksRemaining = 0;
+        useStore.getState().setRecordPhase('recording');
         setPlayhead(this.currentTick, true);
         break;
       case 'stop':
         this.running = false;
         this.panic();
+        useStore.getState().setRecordPhase('armed');
         // Hold the position (device may Continue) and keep it visible.
         setPlayhead(this.currentTick, this.currentTick > 0);
         log('rec stop', '');
@@ -337,6 +341,15 @@ class Engine {
         if (!this.running) return;
         if (this.countInTicksRemaining > 0) {
           this.countInTicksRemaining -= 1;
+          const st = useStore.getState();
+          if (this.countInTicksRemaining === 0) {
+            st.setRecordPhase('recording');
+          } else {
+            // 1-based beat within the count-in; push only on beat boundaries.
+            const total = Math.max(1, Math.round(st.settings.countInBeats));
+            const beat = total - Math.floor(this.countInTicksRemaining / PPQN);
+            if (beat !== st.transport.countInBeat) st.setRecordPhase('countin', beat);
+          }
           return; // inside the device's count-in — hold at tick 0
         }
         const tick = this.nextScheduleTick;
