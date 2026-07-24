@@ -5,8 +5,8 @@
  * with 1px separators and position-aware corner radii, a white-active compact
  * clock toggle, and a draggable latency slider — is specific to this screen.
  */
-import { useRef, useState } from 'react';
-import { LayoutChangeEvent, PanResponder, Pressable, StyleSheet, View } from 'react-native';
+import { Slider } from '@expo/ui/community/slider';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Segmented } from '@/components/ui';
 import { color, radius, space } from '@/theme/tokens';
@@ -129,44 +129,30 @@ export function ClockModeToggle({ value, onChange }: { value: 'jam' | 'record'; 
   );
 }
 
-/** Draggable latency-offset slider. PanResponder (no extra deps) → works on web + native. */
-export function LatencySlider({ value, min, max, onChange }: { value: number; min: number; max: number; onChange: (v: number) => void }) {
-  const [width, setWidth] = useState(0);
-  const widthRef = useRef(0);
-
-  const toValue = (x: number) => {
-    const w = widthRef.current || 1;
-    const pct = Math.max(0, Math.min(1, x / w));
-    return Math.round(min + pct * (max - min));
-  };
-
-  const pan = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (e) => onChange(toValue(e.nativeEvent.locationX)),
-      onPanResponderMove: (e) => onChange(toValue(e.nativeEvent.locationX)),
-    })
-  ).current;
-
-  const onLayout = (e: LayoutChangeEvent) => {
-    const w = e.nativeEvent.layout.width;
-    widthRef.current = w;
-    setWidth(w);
-  };
-
-  const pct = max > min ? (value - min) / (max - min) : 0;
-  const thumb = 22;
-  const fillW = Math.max(0, Math.min(width, pct * width));
-  const thumbX = Math.max(0, Math.min(width - thumb, pct * width - thumb / 2));
-
+/** Latency-offset slider — @expo/ui's native Slider drop-in (see SliderRow). */
+export function LatencySlider({
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  onChange: (v: number) => void;
+}) {
   return (
-    <View style={styles.sliderHit} onLayout={onLayout} {...pan.panHandlers}>
-      <View style={styles.sliderTrack}>
-        <View style={[styles.sliderFill, { width: fillW }]} />
-      </View>
-      {width > 0 ? <View style={[styles.sliderThumb, { left: thumbX }]} /> : null}
-    </View>
+    <Slider
+      value={value}
+      minimumValue={min}
+      maximumValue={max}
+      step={1}
+      minimumTrackTintColor={color.label}
+      maximumTrackTintColor={color.surface2}
+      thumbTintColor="#FFFFFF"
+      onValueChange={(v) => onChange(Math.round(v))}
+      style={styles.slider}
+    />
   );
 }
 
@@ -205,22 +191,7 @@ const styles = StyleSheet.create({
   badgeDot: { width: 7, height: 7, borderRadius: radius.chip },
   badgeText: { fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.3 },
 
-  sliderHit: { height: 22, justifyContent: 'center' },
-  sliderTrack: { height: 6, borderRadius: 3, backgroundColor: color.surface2, overflow: 'hidden' },
-  sliderFill: { height: 6, borderRadius: 3, backgroundColor: color.label },
-  sliderThumb: {
-    position: 'absolute',
-    top: 0,
-    width: 22,
-    height: 22,
-    borderRadius: radius.chip,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOpacity: 0.5,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 3,
-  },
+  slider: { height: 28 },
 
   logLine: { fontSize: 12, lineHeight: 16 },
   logIdle: { color: color.label },
