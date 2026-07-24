@@ -169,8 +169,11 @@ export default function SequencerScreen() {
           mode={transport.clockMode}
           playDisabled={lanes.length === 0}
           onTogglePlay={togglePlay}
-          onStop={stop}
-          onSkipToStart={stop}
+          onStop={() => {
+            stop();
+            engine.resetToStart();
+          }}
+          onSkipToStart={() => engine.resetToStart()}
           onPanic={() => engine.panic()}
         />
       </View>

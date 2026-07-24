@@ -51,6 +51,8 @@ class Engine {
   private nextTickTimeMs = 0;
   /** Fractional "playing now" tick, for the playhead + query. */
   private currentTick = 0;
+  /** Where the next start() resumes from — pause holds it, stop zeroes it. */
+  private resumeTick = 0;
 
   /** Outstanding notes (for panic + note-off bookkeeping). */
   private active = new Map<string, { note: number; channel: number; timer: ReturnType<typeof setTimeout> }>();
@@ -110,24 +112,27 @@ class Engine {
       const { playing, clockMode } = state.transport;
       if (clockMode !== this.lastMode) {
         this.lastMode = clockMode;
-        // Switching modes must never hang a note.
+        // Switching modes must never hang a note; it also restarts from 0.
         this.panic();
-        // Restart in the new mode if we were playing.
         if (this.running) {
-          this.stop();
+          this.pause();
+          this.resetToStart();
           if (playing) this.start();
         }
       }
       if (playing !== this.lastPlaying) {
         this.lastPlaying = playing;
+        // The transport's play button is play/PAUSE — position is held.
+        // Stop/skip-to-start reset via resetToStart() from the UI.
         if (playing) this.start();
-        else this.stop();
+        else this.pause();
       }
     });
   }
 
   // ---- transport --------------------------------------------------------
 
+  /** Start or RESUME (from `resumeTick`). Resuming sends MIDI Continue. */
   start(): void {
     this.init();
     if (this.running) return;
@@ -135,25 +140,28 @@ class Engine {
     const port = this.port!;
     port.setLatencyOffsetMs(s.settings.latencyOffsetMs);
 
+    const from = this.resumeTick;
     this.running = true;
-    this.nextScheduleTick = 0;
+    this.nextScheduleTick = Math.ceil(from);
     this.nextTickTimeMs = now();
-    this.currentTick = 0;
-    setPlayhead(0, true);
+    this.currentTick = from;
+    setPlayhead(from, true);
 
     if (s.transport.clockMode === 'jam') {
-      port.sendStart();
+      if (from > 0) port.sendContinue();
+      else port.sendStart();
       // Kick the loop immediately, then on the scheduler interval.
       this.tickLoop();
       this.timer = setInterval(() => this.tickLoop(), timing.schedulerIntervalMs);
-      log('start jam', `bpm=${s.transport.bpm}`);
+      log(from > 0 ? 'resume jam' : 'start jam', `bpm=${s.transport.bpm} from=${from.toFixed(1)}`);
     } else {
       // Record: slave to the device clock — wait for inbound 0xF8 / Start.
       log('start record', 'waiting for device clock');
     }
   }
 
-  stop(): void {
+  /** Halt playback but HOLD the position (the transport's pause). */
+  pause(): void {
     if (this.timer != null) {
       clearInterval(this.timer);
       this.timer = null;
@@ -165,9 +173,24 @@ class Engine {
       this.port.sendStop();
     }
     this.panic();
-    setPlayhead(0, false);
+    this.resumeTick = this.currentTick;
+    // Keep the playhead VISIBLE at the held position while paused.
+    setPlayhead(this.currentTick, this.currentTick > 0);
+    if (wasRunning) log('pause', `at=${this.currentTick.toFixed(1)}`);
+  }
+
+  /** Rewind to tick 0 — live while playing, or clears a held pause position. */
+  resetToStart(): void {
+    this.resumeTick = 0;
     this.currentTick = 0;
-    if (wasRunning) log('stop', '');
+    if (this.running) {
+      this.nextScheduleTick = 0;
+      this.nextTickTimeMs = now();
+      setPlayhead(0, true);
+    } else {
+      setPlayhead(0, false);
+    }
+    log('reset', '');
   }
 
   /** CC120 + CC123 on active channels + explicit note-offs for outstanding. */
@@ -277,7 +300,8 @@ class Engine {
       case 'stop':
         this.running = false;
         this.panic();
-        setPlayhead(this.currentTick, false);
+        // Hold the position (device may Continue) and keep it visible.
+        setPlayhead(this.currentTick, this.currentTick > 0);
         log('rec stop', '');
         break;
       case 'clock': {
