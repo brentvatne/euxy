@@ -341,3 +341,24 @@ progressive disclosure of Listen/mutate/record rather than a tutorial
 dump. Then mock the chosen flow in Paper plus a couple of alternatives
 (e.g. zero-screen "learn by doing" with coach marks vs. a device-first
 pairing wizard) before implementing.
+
+Guiding rule: the onboarding must explain everything in the app that is
+NON-OBVIOUS. Current inventory of non-obvious things:
+
+- Step fills are the OP-XY key ramp — position, not state; the LEDs
+  alone show what's sequenced (and the travelling light is the playhead,
+  going dark when it crosses a hit).
+- Two generators per lane and what the combine ops mean (especially XOR:
+  both generators hitting = silence); the attribution dots in the editor.
+- Listen: play a note from the OP-XY aux track to set it — the channel
+  you send on selects the track, and euxy echoes it back so you hear the
+  target track; it stays engaged for browsing.
+- Solo = everyone else muted (the M lights say so), and touching mute
+  while soloing dissolves the solo into plain mutes.
+- Jam vs Record clock modes (who is the clock master), count-in.
+- Polymeter: lanes of different lengths drift apart and realign at the
+  LCM — that's a feature, and the preset "Ambient Drift" shows it off.
+- Mutate nudges ~60% of lanes one small step (KeyStep-style) with undo;
+  Randomize re-rolls the rhythm only — note & track stay.
+- Track · Channel maps a lane to an OP-XY track (channel n = track n).
+- Panic lives on the MIDI tab.
