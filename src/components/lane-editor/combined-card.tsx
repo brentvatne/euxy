@@ -1,10 +1,12 @@
 /**
- * CombinedCard — the Lane Editor's pinned pattern readout (Paper 02w · Lane
- * Editor D / 02w-b scrolled). OP-XY key model: each step's FILL shade shows
- * which generator pulses there, and a prominent top-centered light marks the
- * steps the COMBINED pattern actually plays — with XOR you can literally see a
- * both-generator step glow brightest yet stay silent. Steps wrap at 16 per row
- * and never shrink; the editor never shows a playhead here.
+ * CombinedCard — the Lane Editor's pinned pattern readout (Paper "02 · Lane
+ * Editor", gradient revision). Cells sweep the OP-XY sequencer-key ramp
+ * exactly like the sequencer strips (fills never encode anything), a
+ * prominent top-centered light marks the steps the COMBINED pattern actually
+ * plays, and a thin attribution row under each grid row shows which generator
+ * pulses on each step — G1 as the brighter left dot, G2 as the dimmer right
+ * dot (with XOR you can see a both-dot step stay lightless). Steps wrap at 16
+ * per row and never shrink; the editor never shows a playhead here.
  */
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -12,25 +14,21 @@ import { StyleSheet, View } from 'react-native';
 import { generator, withRotation } from '@/core/euclid';
 import { patternForLane } from '@/state/selectors';
 import type { Lane } from '@/state/types';
-import { color } from '@/theme/tokens';
-
-/** Paper-exact fills (02w, 2026-07-24): pulse-source shade per step. */
-const FILL = {
-  empty: '#26262b',
-  g2: '#40404a',
-  g1: '#8b8b94',
-  both: '#a9a9b0',
-} as const;
+import { color, keyRamp } from '@/theme/tokens';
 
 const PER_ROW = 16;
 const GAP = 3;
 const CELL_H = 30;
 
+/** Attribution dots (Paper 02x concept C): G1 bright, G2 dim. */
+const G1_DOT = '#98989F';
+const G2_DOT = '#5B5D63';
+
 export function CombinedCard({ lane }: { lane: Lane }) {
   const n = lane.length;
   const combined = patternForLane(lane);
-  // Shade sources are whole-track rotated like the combined row, so each
-  // step's fill matches the pattern actually shown.
+  // Generator sources are whole-track rotated like the combined row, so each
+  // step's attribution matches the pattern actually shown.
   const aRot = withRotation(generator(lane.genA.pulses, n, lane.genA.rotation), lane.trackRot);
   const bRot =
     lane.genB.pulses > 0
@@ -44,20 +42,36 @@ export function CombinedCard({ lane }: { lane: Lane }) {
     rows.push(Array.from({ length: Math.min(PER_ROW, n - i) }, (_, j) => i + j));
   }
 
-  const fill = (i: number) =>
-    aRot[i] && bRot[i] ? FILL.both : aRot[i] ? FILL.g1 : bRot[i] ? FILL.g2 : FILL.empty;
-
   return (
     <View style={styles.card}>
       <View style={styles.grid} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
         {cellW > 0
           ? rows.map((row, r) => (
-              <View key={r} style={styles.gridRow}>
-                {row.map((i) => (
-                  <View key={i} style={[styles.cell, { width: cellW, backgroundColor: fill(i) }]}>
-                    {combined[i] ? <View style={styles.light} /> : null}
-                  </View>
-                ))}
+              <View key={r} style={styles.rowPair}>
+                <View style={styles.gridRow}>
+                  {row.map((i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.cell,
+                        {
+                          width: cellW,
+                          backgroundColor: keyRamp[Math.floor((i % PER_ROW) / 2)],
+                        },
+                      ]}
+                    >
+                      {combined[i] ? <View style={styles.light} /> : null}
+                    </View>
+                  ))}
+                </View>
+                <View style={styles.gridRow}>
+                  {row.map((i) => (
+                    <View key={i} style={[styles.attrSlot, { width: cellW }]}>
+                      {aRot[i] ? <View style={[styles.attrDot, styles.attrG1]} /> : null}
+                      {bRot[i] ? <View style={[styles.attrDot, styles.attrG2]} /> : null}
+                    </View>
+                  ))}
+                </View>
               </View>
             ))
           : null}
@@ -68,16 +82,27 @@ export function CombinedCard({ lane }: { lane: Lane }) {
 
 // Paper "02 · Lane Editor": card #232325 r12 p10, NO header (the grid speaks
 // for itself); cells 30 tall r3 gap 3, 16/row; light 6px white, dark ring,
-// glow, top-centered 3px from the top.
+// glow, top-centered 3px from the top; attribution row 3px dots, 4px tall.
 const styles = StyleSheet.create({
   card: {
     backgroundColor: color.stepEmptyDim,
     borderRadius: 12,
     padding: 10,
   },
-  grid: { gap: GAP },
+  grid: { gap: 12 },
+  rowPair: { gap: 5 },
   gridRow: { flexDirection: 'row', gap: GAP },
   cell: { height: CELL_H, borderRadius: 3, alignItems: 'center', paddingTop: 3 },
+  attrSlot: {
+    height: 4,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 2,
+  },
+  attrDot: { width: 3, height: 3, borderRadius: 999 },
+  attrG1: { backgroundColor: G1_DOT },
+  attrG2: { backgroundColor: G2_DOT },
   light: {
     width: 6,
     height: 6,

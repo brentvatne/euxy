@@ -415,7 +415,10 @@ const styles = StyleSheet.create({
   // disappears under it; the shadow only exists once scrolled.
   pinned: {
     paddingHorizontal: 12,
-    paddingBottom: 12,
+    // Breathing room between the sheet nav and the card (Brent 2026-07-24 —
+    // the top of the sheet read as crowded), and under it before the form.
+    paddingTop: 14,
+    paddingBottom: 14,
     backgroundColor: color.surface,
     zIndex: 1,
   },

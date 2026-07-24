@@ -30,7 +30,9 @@ function laneSubtitle(lane: Lane): string {
       ? `E(${lane.genA.pulses},${lane.length})+E(${lane.genB.pulses},${lane.length})`
       : `E(${lane.genA.pulses},${lane.length})`;
   const steps = lane.length > 16 ? ` · ${lane.length} steps` : '';
-  return `${midiNoteName(lane.note)} · ${gens} ⟳${lane.trackRot}${steps}`;
+  // ⇥ (U+21E5, "rightwards arrow to bar") = track rotation — a shift, not a
+  // refresh; Brent's pick over the old ⟳.
+  return `${midiNoteName(lane.note)} · ${gens} ⇥${lane.trackRot}${steps}`;
 }
 
 export default function SequencerScreen() {
