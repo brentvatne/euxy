@@ -53,6 +53,8 @@ export interface Pattern {
   /** Default step resolution new lanes inherit (ticks per step). */
   baseResolutionTicks: number;
   lanes: Lane[];
+  /** Last-edit timestamp (ms epoch) — drives "edited just now" in the library. */
+  updatedAt: number;
 }
 
 /** Jam = app is clock master; Record = app slaves to the device's clock. */

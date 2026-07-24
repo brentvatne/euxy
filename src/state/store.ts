@@ -35,6 +35,17 @@ export function makeLane(overrides: Partial<Lane> = {}): Lane {
   };
 }
 
+/** The default 5-lane kit (names/lengths match Paper 7A-0). Fresh ids per call. */
+function defaultLanes(): Lane[] {
+  return [
+    makeLane({ name: 'Kick', length: 16, genA: { pulses: 4, rotation: 0 }, note: 36, channel: 0 }),
+    makeLane({ name: 'Snare', length: 16, genA: { pulses: 2, rotation: 4 }, note: 38, channel: 1 }),
+    makeLane({ name: 'Hat', length: 16, genA: { pulses: 11, rotation: 0 }, note: 42, channel: 2 }),
+    makeLane({ name: 'Clap', length: 12, genA: { pulses: 5, rotation: 0 }, note: 39, channel: 3 }),
+    makeLane({ name: 'Bass', length: 8, genA: { pulses: 3, rotation: 0 }, note: 48, channel: 4 }),
+  ];
+}
+
 /** Seed pattern: mixed lengths to show polymeter (they realign only at the LCM). */
 function seedPattern(): Pattern {
   return {
@@ -42,13 +53,8 @@ function seedPattern(): Pattern {
     name: 'Untitled',
     bpm: 120,
     baseResolutionTicks: timing.defaultResolutionTicks,
-    lanes: [
-      makeLane({ id: 'lane_kick', name: 'Kick', length: 16, genA: { pulses: 4, rotation: 0 }, note: 36, channel: 0 }),
-      makeLane({ id: 'lane_snare', name: 'Snare', length: 16, genA: { pulses: 2, rotation: 4 }, note: 38, channel: 1 }),
-      makeLane({ id: 'lane_hat', name: 'Hat', length: 16, genA: { pulses: 11, rotation: 0 }, note: 42, channel: 2 }),
-      makeLane({ id: 'lane_perc', name: 'Perc', length: 12, genA: { pulses: 5, rotation: 0 }, note: 39, channel: 3 }),
-      makeLane({ id: 'lane_bass', name: 'Bass', length: 8, genA: { pulses: 3, rotation: 0 }, note: 48, channel: 4 }),
-    ],
+    updatedAt: Date.now(),
+    lanes: defaultLanes(),
   };
 }
 
@@ -75,6 +81,10 @@ export interface AppState {
   toggleMute: (id: string) => void;
   toggleSolo: (id: string) => void;
   reorderLanes: (from: number, to: number) => void;
+  /** Remove every lane from the active pattern. */
+  clearLanes: () => void;
+  /** Replace the active pattern's lanes with the default 5-lane kit. */
+  resetLanes: () => void;
 
   // Selection ------------------------------------------------------------
   selectLane: (id: string | null) => void;
@@ -92,10 +102,12 @@ export interface AppState {
 }
 
 export const useStore = create<AppState>((set, get) => {
-  /** Apply a transform to the active pattern immutably. */
+  /** Apply a transform to the active pattern immutably (stamps updatedAt). */
   const mutateActive = (fn: (p: Pattern) => Pattern) =>
     set((s) => ({
-      patterns: s.patterns.map((p) => (p.id === s.activePatternId ? fn(p) : p)),
+      patterns: s.patterns.map((p) =>
+        p.id === s.activePatternId ? { ...fn(p), updatedAt: Date.now() } : p,
+      ),
     }));
 
   /** Apply a patch to one lane of the active pattern. */
@@ -135,7 +147,23 @@ export const useStore = create<AppState>((set, get) => {
     updateGenerator: (id, gen, patch) => mutateLane(id, (l) => ({ ...l, [gen]: { ...l[gen], ...patch } })),
     setLaneOp: (id, op) => mutateLane(id, (l) => ({ ...l, op })),
     toggleMute: (id) => mutateLane(id, (l) => ({ ...l, muted: !l.muted })),
-    toggleSolo: (id) => mutateLane(id, (l) => ({ ...l, solo: !l.solo })),
+    // Exclusive solo: soloing a lane un-solos every other lane; tapping the
+    // solo'd lane again clears it.
+    toggleSolo: (id) =>
+      mutateActive((p) => ({
+        ...p,
+        lanes: p.lanes.map((l) =>
+          l.id === id ? { ...l, solo: !l.solo } : l.solo ? { ...l, solo: false } : l,
+        ),
+      })),
+    clearLanes: () => {
+      mutateActive((p) => ({ ...p, lanes: [] }));
+      set({ selection: { laneId: null } });
+    },
+    resetLanes: () => {
+      mutateActive((p) => ({ ...p, lanes: defaultLanes() }));
+      set({ selection: { laneId: null } });
+    },
     reorderLanes: (from, to) =>
       mutateActive((p) => {
         const lanes = [...p.lanes];
@@ -161,6 +189,7 @@ export const useStore = create<AppState>((set, get) => {
         bpm: opts?.bpm ?? 120,
         baseResolutionTicks: opts?.baseResolutionTicks ?? timing.defaultResolutionTicks,
         lanes: [],
+        updatedAt: Date.now(),
       };
       set((s) => ({
         patterns: [...s.patterns, pattern],
@@ -182,10 +211,33 @@ export const useStore = create<AppState>((set, get) => {
       }),
     deletePattern: (id) =>
       set((s) => {
-        if (s.patterns.length <= 1) return {}; // keep at least one
         const patterns = s.patterns.filter((p) => p.id !== id);
-        const activePatternId = s.activePatternId === id ? patterns[0].id : s.activePatternId;
-        return { patterns, activePatternId };
+        // Deleting the last pattern seeds a fresh empty one — every pattern is
+        // deletable, and the app always has an active pattern.
+        if (patterns.length === 0) {
+          const fresh: Pattern = {
+            id: uid('pattern'),
+            name: 'Untitled',
+            bpm: 120,
+            baseResolutionTicks: timing.defaultResolutionTicks,
+            lanes: [],
+            updatedAt: Date.now(),
+          };
+          return {
+            patterns: [fresh],
+            activePatternId: fresh.id,
+            transport: { ...s.transport, bpm: fresh.bpm, playing: false },
+            selection: { laneId: null },
+          };
+        }
+        if (s.activePatternId !== id) return { patterns };
+        // The active pattern went away — fall to the first and stop playback.
+        return {
+          patterns,
+          activePatternId: patterns[0].id,
+          transport: { ...s.transport, bpm: patterns[0].bpm, playing: false },
+          selection: { laneId: null },
+        };
       }),
     renameActivePattern: (name) => mutateActive((p) => ({ ...p, name: name.trim() || p.name })),
   };
