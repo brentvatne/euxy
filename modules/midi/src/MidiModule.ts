@@ -9,7 +9,8 @@ declare class MidiModule extends NativeModule<MidiModuleEvents> {
   getInputs(): MidiNativeDevice[];
   selectOutput(id: string): void;
   selectInput(id: string): void;
-  send(bytes: number[]): void;
+  /** Send raw bytes, optionally scheduled `delayMs` into the future. */
+  send(bytes: number[], delayMs?: number): void;
   getTimestamp(): number;
 }
 

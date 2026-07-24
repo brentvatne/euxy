@@ -72,11 +72,36 @@ final class MidiManager {
     }
   }
 
-  func send(_ bytes: [UInt8]) {
+  private static let timebase: mach_timebase_info_data_t = {
+    var info = mach_timebase_info_data_t()
+    mach_timebase_info(&info)
+    return info
+  }()
+
+  /// Host time `delayMs` in the future, or 0 (= "now") for non-positive delays.
+  private func hostTime(afterMs delayMs: Double) -> MIDITimeStamp {
+    guard delayMs > 0 else { return 0 }
+    let nanos = delayMs * 1_000_000.0
+    let ticks = nanos * Double(Self.timebase.denom) / Double(Self.timebase.numer)
+    return mach_absolute_time() + MIDITimeStamp(ticks)
+  }
+
+  /// Send raw bytes, optionally scheduled `delayMs` into the future. CoreMIDI
+  /// timestamps give sample-accurate delivery — critical for note-offs, which
+  /// the JS scheduler stamps ahead of time (a note-off sent immediately after
+  /// its note-on is a ~0ms gate the device may not voice at all).
+  func send(_ bytes: [UInt8], afterMs delayMs: Double = 0) {
     guard connectedDestination != 0, !bytes.isEmpty else { return }
     var packetList = MIDIPacketList()
     let packet = MIDIPacketListInit(&packetList)
-    _ = MIDIPacketListAdd(&packetList, 1024, packet, 0, bytes.count, bytes)
+    _ = MIDIPacketListAdd(
+      &packetList,
+      MemoryLayout<MIDIPacketList>.size,
+      packet,
+      hostTime(afterMs: delayMs),
+      bytes.count,
+      bytes
+    )
     MIDISend(outputPort, connectedDestination, &packetList)
   }
 

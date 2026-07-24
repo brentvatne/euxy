@@ -26,8 +26,39 @@ export function createMidiPort(): MidiPort {
   });
   Native.addListener('onDevicesChanged', () => stateCbs.forEach((cb) => cb()));
 
-  const send = (bytes: number[]) => {
-    Native.send(bytes);
+  const nowMs = (): number =>
+    typeof performance !== 'undefined' && typeof performance.now === 'function'
+      ? performance.now()
+      : Date.now();
+
+  // Native scheduled sends (CoreMIDI timestamps) need the newer module that
+  // accepts (bytes, delayMs). On older builds that call throws on arity —
+  // detect once and fall back to a JS timer, which is jittery but VASTLY
+  // better than dropping the delay: the engine stamps note-offs ahead of
+  // time, and sending them immediately collapses every gate to ~0ms (notes
+  // barely/never voice on the device).
+  let nativeDelaySupported = true;
+  const dispatch = (bytes: number[], delayMs: number) => {
+    if (delayMs > 0 && nativeDelaySupported) {
+      try {
+        Native.send(bytes, delayMs);
+        return;
+      } catch {
+        nativeDelaySupported = false;
+      }
+    }
+    if (delayMs > 4) {
+      setTimeout(() => Native.send(bytes), delayMs);
+    } else {
+      Native.send(bytes);
+    }
+  };
+
+  const send = (bytes: number[], time?: number) => {
+    // `time` is in the JS high-res clock domain (same clock the engine used),
+    // so the relative delay is timebase-independent.
+    const delay = time != null ? time - nowMs() : 0;
+    dispatch(bytes, delay);
     rawCbs.forEach((cb) => cb(bytes, Native.getTimestamp()));
   };
 
@@ -47,10 +78,10 @@ export function createMidiPort(): MidiPort {
     selectOutput: (id) => {
       if (id) Native.selectOutput(id);
     },
-    sendNoteOn: (note, velocity, channel) =>
-      send([0x90 | (channel & 0x0f), note & 0x7f, velocity & 0x7f]),
-    sendNoteOff: (note, channel) => send([0x80 | (channel & 0x0f), note & 0x7f, 0]),
-    sendClock: () => send([0xf8]),
+    sendNoteOn: (note, velocity, channel, time) =>
+      send([0x90 | (channel & 0x0f), note & 0x7f, velocity & 0x7f], time),
+    sendNoteOff: (note, channel, time) => send([0x80 | (channel & 0x0f), note & 0x7f, 0], time),
+    sendClock: (time) => send([0xf8], time),
     sendStart: () => send([0xfa]),
     sendContinue: () => send([0xfb]),
     sendStop: () => send([0xfc]),
