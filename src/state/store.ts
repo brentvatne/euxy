@@ -16,6 +16,52 @@ import type { CombineOp, Lane, Pattern, Settings, Transport } from './types';
 let counter = 0;
 const uid = (prefix: string) => `${prefix}_${(counter++).toString(36)}${Date.now().toString(36)}`;
 
+const rint = (n: number) => Math.floor(Math.random() * n);
+const pickOne = <T,>(arr: readonly T[]): T => arr[rint(arr.length)];
+const wrap = (v: number, n: number) => ((v % n) + n) % n;
+
+/**
+ * Mutation undo history, per pattern id. Lives OUTSIDE the zustand state so it
+ * is never persisted (persistence.ts serializes an explicit field list, but a
+ * deep snapshot stack has no business in renders either). `mutateVersion` in
+ * the store is bumped on every push/pop so subscribers re-derive depth.
+ */
+const MUTATE_HISTORY_MAX = 32;
+const mutateStacks = new Map<string, Lane[][]>();
+
+/** History depth for a pattern — pair with `mutateVersion` for reactivity. */
+export function getMutateDepth(patternId: string): number {
+  return mutateStacks.get(patternId)?.length ?? 0;
+}
+
+/** One small musical nudge: rotate/±pulse a generator, or rotate the track. */
+function nudgeLane(lane: Lane): Lane {
+  const dir = Math.random() < 0.5 ? -1 : 1;
+  const r = Math.random();
+  if (r < 0.4) {
+    return { ...lane, genA: { ...lane.genA, rotation: wrap(lane.genA.rotation + dir, lane.length) } };
+  }
+  if (r < 0.65) {
+    return {
+      ...lane,
+      genA: { ...lane.genA, pulses: Math.min(lane.length, Math.max(1, lane.genA.pulses + dir)) },
+    };
+  }
+  if (r < 0.8 && lane.genB.pulses > 0) {
+    return { ...lane, genB: { ...lane.genB, rotation: wrap(lane.genB.rotation + dir, lane.length) } };
+  }
+  if (r < 0.9) {
+    return {
+      ...lane,
+      genB: {
+        ...lane.genB,
+        pulses: Math.min(Math.floor(lane.length / 2), Math.max(0, lane.genB.pulses + dir)),
+      },
+    };
+  }
+  return { ...lane, trackRot: wrap(lane.trackRot + dir, lane.length) };
+}
+
 /** A new lane with sensible defaults, single-generator (genB.pulses = 0). */
 export function makeLane(overrides: Partial<Lane> = {}): Lane {
   return {
@@ -78,6 +124,9 @@ export interface AppState {
   /** Engine → UI: record-mode lifecycle for the transport display. */
   setRecordPhase: (phase: Transport['recordPhase'], countInBeat?: number) => void;
 
+  /** Bumped on every mutate/undo so UI depending on history depth re-renders. */
+  mutateVersion: number;
+
   // Lanes (operate on the active pattern) --------------------------------
   addLane: (overrides?: Partial<Lane>) => string;
   removeLane: (id: string) => void;
@@ -91,6 +140,12 @@ export interface AppState {
   clearLanes: () => void;
   /** Replace the active pattern's lanes with the default 5-lane kit. */
   resetLanes: () => void;
+  /** Re-roll one lane's generative params (pulses/rotation/genB/op). */
+  randomizeLane: (id: string) => void;
+  /** Nudge the active pattern slightly (KeyStep-style mutate); undoable. */
+  mutateActivePattern: () => void;
+  /** Step back one mutation on the active pattern. */
+  undoMutate: () => void;
 
   // Selection ------------------------------------------------------------
   selectLane: (id: string | null) => void;
@@ -138,6 +193,7 @@ export const useStore = create<AppState>((set, get) => {
       countInBeat: 0,
     },
     selection: { laneId: null },
+    mutateVersion: 0,
     // Merge over defaults so persisted blobs from before a settings field
     // existed hydrate with sane values.
     settings: {
@@ -194,6 +250,56 @@ export const useStore = create<AppState>((set, get) => {
     resetLanes: () => {
       mutateActive((p) => ({ ...p, lanes: defaultLanes() }));
       set({ selection: { laneId: null } });
+    },
+    randomizeLane: (id) =>
+      mutateLane(id, (l) => {
+        // Fresh roll of the generative params; note/channel/name/timing stay.
+        const genBOn = Math.random() < 0.4;
+        return {
+          ...l,
+          genA: { pulses: 1 + rint(l.length), rotation: rint(l.length) },
+          genB: genBOn
+            ? { pulses: 1 + rint(Math.max(1, Math.floor(l.length / 2))), rotation: rint(l.length) }
+            : { pulses: 0, rotation: 0 },
+          op: genBOn ? pickOne(['OR', 'AND', 'XOR', 'A>B'] as const) : l.op,
+          trackRot: 0,
+        };
+      }),
+    mutateActivePattern: () => {
+      const s = get();
+      const p = s.patterns.find((x) => x.id === s.activePatternId);
+      if (!p || p.lanes.length === 0) return;
+      // Snapshot BEFORE mutating so undo restores exactly this state.
+      const stack = mutateStacks.get(p.id) ?? [];
+      stack.push(p.lanes.map((l) => ({ ...l, genA: { ...l.genA }, genB: { ...l.genB } })));
+      if (stack.length > MUTATE_HISTORY_MAX) stack.shift();
+      mutateStacks.set(p.id, stack);
+      // Each press nudges ~60% of lanes by one small step — variations stay
+      // recognizably related to the source pattern (the KeyStep model).
+      const eligible = (l: Lane) => l.length > 1;
+      let touched = 0;
+      let lanes = p.lanes.map((l) => {
+        if (!eligible(l) || Math.random() >= 0.6) return l;
+        touched += 1;
+        return nudgeLane(l);
+      });
+      if (touched === 0) {
+        // Never a dead press: force one nudge on a random eligible lane.
+        const idxs = lanes.map((l, i) => (eligible(l) ? i : -1)).filter((i) => i >= 0);
+        if (idxs.length > 0) {
+          const i = pickOne(idxs);
+          lanes = lanes.map((l, j) => (j === i ? nudgeLane(l) : l));
+        }
+      }
+      mutateActive((pp) => ({ ...pp, lanes }));
+      set((st) => ({ mutateVersion: st.mutateVersion + 1 }));
+    },
+    undoMutate: () => {
+      const s = get();
+      const lanes = mutateStacks.get(s.activePatternId)?.pop();
+      if (!lanes) return;
+      mutateActive((pp) => ({ ...pp, lanes }));
+      set((st) => ({ mutateVersion: st.mutateVersion + 1 }));
     },
     reorderLanes: (from, to) =>
       mutateActive((p) => {

@@ -13,7 +13,7 @@ import Svg, { Path } from 'react-native-svg';
 import { engine } from '@/core/engine';
 import { midiNoteName } from '@/core/note';
 import { laneAudible, useActivePattern, useAnySolo, useSettings } from '@/state/selectors';
-import { useStore } from '@/state/store';
+import { getMutateDepth, useStore } from '@/state/store';
 import type { Lane } from '@/state/types';
 import { useMidiRuntime } from '@/components/midi/runtime';
 import { useObserve } from '@/lib/shims';
@@ -21,6 +21,7 @@ import { color, font, ramp } from '@/theme/tokens';
 import { AppText, LaneRow, TransportBar } from '@/components/ui';
 import {
   LanesOverviewToggle,
+  MutateControls,
   SequencerNav,
   type PatternMenuAction,
   type SequencerView,
@@ -56,6 +57,12 @@ export default function SequencerScreen() {
   const toggleMute = useStore((s) => s.toggleMute);
   const toggleSolo = useStore((s) => s.toggleSolo);
   const selectLane = useStore((s) => s.selectLane);
+  const mutatePattern = useStore((s) => s.mutateActivePattern);
+  const undoMutate = useStore((s) => s.undoMutate);
+  // mutateVersion bumps on every mutate/undo, re-deriving the history depth.
+  const activePatternId = useStore((s) => s.activePatternId);
+  useStore((s) => s.mutateVersion);
+  const canUndoMutate = getMutateDepth(activePatternId) > 0;
   const [view, setView] = useState<SequencerView>('lanes');
 
   // Wire the engine (idempotent): store subscription + the shared MIDI port.
@@ -119,7 +126,15 @@ export default function SequencerScreen() {
         deviceName={outputDevice?.name ?? 'No device'}
         onMenuAction={onMenuAction}
       />
-      <LanesOverviewToggle value={view} onChange={setView} />
+      <LanesOverviewToggle
+        value={view}
+        onChange={setView}
+        right={
+          lanes.length > 0 ? (
+            <MutateControls canUndo={canUndoMutate} onMutate={mutatePattern} onUndo={undoMutate} />
+          ) : undefined
+        }
+      />
 
       {lanes.length === 0 ? (
         <EmptyState onAddLane={addAndEdit} />
