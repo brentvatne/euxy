@@ -2,6 +2,9 @@
 # matches an existing build for a profile, skip building — production ships as
 # an OTA update instead. Only a changed native fingerprint triggers real
 # builds, and a fresh production build auto-submits to TestFlight.
+# EXCEPTION: while the production update channel is PAUSED (e.g. a release is
+# fenced off for external beta), an OTA would never deliver — so a paused
+# channel forces a real production build even when the fingerprint matches.
 # Pattern: https://docs.expo.dev/eas/workflows/examples/ (deploy to production)
 name: Deploy
 
@@ -14,6 +17,20 @@ jobs:
     name: Fingerprint
     type: fingerprint
     environment: production
+
+  check_channel:
+    name: Check production channel pause state
+    outputs:
+      paused: ${{ steps.check.outputs.paused }}
+    steps:
+      - uses: eas/checkout
+      - id: check
+        name: Read isPaused from eas channel:view
+        run: |
+          PAUSED=$(npx --yes eas-cli@latest channel:view production --json --non-interactive \
+            | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).currentPage.isPaused===true))")
+          echo "production channel paused: $PAUSED"
+          set-output paused "$PAUSED"
 
   get_dev_build:
     name: Check for existing dev-simulator build
@@ -42,8 +59,10 @@ jobs:
 
   build_prod:
     name: Build iOS production
-    needs: [get_prod_build]
-    if: ${{ !needs.get_prod_build.outputs.build_id }}
+    needs: [get_prod_build, check_channel]
+    # Build when the fingerprint is new — or when the channel is paused, since
+    # the OTA path below is a dead end then.
+    if: ${{ !needs.get_prod_build.outputs.build_id || needs.check_channel.outputs.paused == 'true' }}
     type: build
     params:
       platform: ios
@@ -58,8 +77,8 @@ jobs:
 
   publish_update:
     name: Publish OTA update (fingerprint unchanged)
-    needs: [get_prod_build]
-    if: ${{ needs.get_prod_build.outputs.build_id }}
+    needs: [get_prod_build, check_channel]
+    if: ${{ needs.get_prod_build.outputs.build_id && needs.check_channel.outputs.paused != 'true' }}
     type: update
     params:
       branch: production
