@@ -7,9 +7,10 @@ import { ThemeProvider } from 'expo-router/react-navigation';
 import { Stack } from 'expo-router/stack';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { enableMidi } from '@/components/midi/runtime';
 import { KeyboardProvider } from '@/components/ui/keyboard';
 import {
   configureObserve,
@@ -55,6 +56,15 @@ const sheetOptions = {
 
 function RootLayout() {
   useUpdatePrompt();
+
+  // Bring MIDI up at launch. Enabling is what attaches the hot-plug listener,
+  // the health watchdog, and OP-XY autoconnect — leaving it to the MIDI tab's
+  // mount meant a launch straight into the Sequencer never noticed a device
+  // plugged in later. (Web still needs its explicit enable tap: permission
+  // prompts require a user gesture there.)
+  useEffect(() => {
+    if (Platform.OS !== 'web') void enableMidi();
+  }, []);
 
   // App-level TTI: no splash-blocking work exists (store hydration is a sync
   // SQLite read), so the app is interactive as soon as the root mounts.

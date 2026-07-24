@@ -18,6 +18,7 @@
  * the port should tag direction, for the log arrows to stay correct.)
  */
 import { useSyncExternalStore } from 'react';
+import { AppState } from 'react-native';
 
 import { createMidiPort } from '@/midi/port';
 import type { MidiDevice, MidiPort } from '@/midi/types';
@@ -25,6 +26,8 @@ import { useStore } from '@/state/store';
 
 const MAX_LOG = 100;
 const CLOCK_TIMEOUT_MS = 600;
+/** Device-list watchdog cadence — enumeration is a cheap sync native call. */
+const WATCHDOG_MS = 3000;
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 // Same octave convention as core/note.ts (Paper: 36 → C1).
@@ -153,14 +156,43 @@ function attachSubscriptions() {
     refreshDevices();
     reconcileSelection();
   });
+
+  // Health monitoring, belt & braces. CoreMIDI's setup notifications have
+  // proven flaky on hardware (missed hot-plugs), so the event above is the
+  // fast path, not the only path:
+  //  1. Foregrounding re-checks — plug/unplug most often happens while the
+  //     app is backgrounded, where notifications may never be delivered.
+  //  2. A low-rate watchdog re-enumerates and compares; any drift (device
+  //     appeared, vanished, or changed endpoint id on replug) refreshes the
+  //     UI and re-runs selection — which reconnects an OP-XY automatically
+  //     and visibly disconnects a device that's gone.
+  AppState.addEventListener('change', (state) => {
+    if (state === 'active') {
+      refreshDevices();
+      reconcileSelection();
+    }
+  });
+  setInterval(() => {
+    if (deviceSignature() !== lastDeviceSig) {
+      refreshDevices();
+      reconcileSelection();
+    }
+  }, WATCHDOG_MS);
 }
 
+/** Fingerprint of the CURRENT native device set, for watchdog drift checks. */
+const deviceSignature = () =>
+  [...midi.listOutputs(), ...midi.listInputs()].map((d) => `${d.id}:${d.name}`).join('|');
+let lastDeviceSig = '';
+
 /**
- * Re-enumerate the device lists. Fired on port state changes; screens also
- * call it on focus / when opening the device picker so a device plugged in
- * while the app was elsewhere shows up without waiting for an event.
+ * Re-enumerate the device lists. Fired on port state changes, on foreground,
+ * by the watchdog, and by screens on focus / when opening the device picker —
+ * so a device plugged in while the app was elsewhere shows up without waiting
+ * for an event.
  */
 export function refreshDevices() {
+  lastDeviceSig = deviceSignature();
   const outputs = opXyFirst(midi.listOutputs());
   const inputs = opXyFirst(midi.listInputs());
   update({ outputs, inputs });

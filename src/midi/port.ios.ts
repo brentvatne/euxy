@@ -71,19 +71,20 @@ export function createMidiPort(): MidiPort {
   return {
     isSupported: () => true,
     init: async () => {
-      const outs = Native.getOutputs();
-      if (outs[0]) Native.selectOutput(outs[0].id);
-      const ins = Native.getInputs();
-      if (ins[0]) Native.selectInput(ins[0].id);
+      // Enumerating forces the native client's setup (so device notifications
+      // start flowing). SELECTION stays the runtime's job — grabbing outs[0]
+      // here bound a random device (IAC bus, network session) that the
+      // OP-XY-only autoconnect would then never clear, because a null
+      // selection used to be a no-op below.
+      Native.getOutputs();
+      Native.getInputs();
     },
     listInputs: () => Native.getInputs(),
     listOutputs: () => Native.getOutputs(),
-    selectInput: (id) => {
-      if (id) Native.selectInput(id);
-    },
-    selectOutput: (id) => {
-      if (id) Native.selectOutput(id);
-    },
+    // '' parses to endpoint 0 natively = disconnect, so deselecting truly
+    // unbinds (an unplugged device's sends stop dead instead of dangling).
+    selectInput: (id) => Native.selectInput(id ?? ''),
+    selectOutput: (id) => Native.selectOutput(id ?? ''),
     sendNoteOn: (note, velocity, channel, time) =>
       send([0x90 | (channel & 0x0f), note & 0x7f, velocity & 0x7f], time),
     sendNoteOff: (note, channel, time) => send([0x80 | (channel & 0x0f), note & 0x7f, 0], time),
