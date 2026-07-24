@@ -6,6 +6,7 @@
  * re-render). Reuses shared primitives + tokens.
  */
 import { useEffect, useState } from 'react';
+import { router } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -65,6 +66,7 @@ export default function EngineProof() {
   const setBpm = useStore((s) => s.setBpm);
   const toggleMute = useStore((s) => s.toggleMute);
   const toggleSolo = useStore((s) => s.toggleSolo);
+  const selectLane = useStore((s) => s.selectLane);
 
   // Wire the engine's store subscription + MIDI port up once.
   useEffect(() => {
@@ -116,6 +118,10 @@ export default function EngineProof() {
               solo={lane.solo}
               onToggleMute={() => toggleMute(lane.id)}
               onToggleSolo={() => toggleSolo(lane.id)}
+              onPressTitle={() => {
+                selectLane(lane.id);
+                router.push('/lane-editor');
+              }}
             >
               <LaneStrip lane={lane} />
             </LaneRow>
