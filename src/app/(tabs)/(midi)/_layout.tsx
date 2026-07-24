@@ -20,6 +20,7 @@ export default function MidiStack() {
       }}
     >
       <Stack.Screen name="index" options={{ title: 'MIDI' }} />
+      <Stack.Screen name="activity-log" options={{ title: 'Activity Log', headerLargeTitle: false }} />
     </Stack>
   );
 }
