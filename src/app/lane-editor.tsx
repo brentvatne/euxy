@@ -20,15 +20,16 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native';
 
-import { midi } from '@/components/midi/runtime';
+import { midi, midiOut } from '@/components/midi/runtime';
 import { midiNoteName } from '@/core/note';
 import { useLane } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import type { CombineOp } from '@/state/types';
-import { color, font, radius, space } from '@/theme/tokens';
+import { color, font, radius, ramp, space } from '@/theme/tokens';
 import { AppText, SFSymbol, SheetHeader } from '@/components/ui';
 import { KeyboardAwareScrollView } from '@/components/ui/keyboard';
 import { CombinedCard } from '@/components/lane-editor/combined-card';
+import { NotePads } from '@/components/lane-editor/note-pads';
 import { PickerBar } from '@/components/lane-editor/picker-bar';
 import { SliderRow } from '@/components/lane-editor/slider-row';
 
@@ -87,6 +88,8 @@ export default function LaneEditorSheet() {
   // Less-used numeric fields live as compact value rows; tapping one expands
   // an inline slider beneath it (progressive disclosure, Paper "More" group).
   const [expanded, setExpanded] = useState<'velocity' | 'gate' | null>(null);
+  // Note entry: tapping the Note cell expands the inline pad grid (Paper 02c).
+  const [padsOpen, setPadsOpen] = useState(false);
   // The pinned card's drop shadow appears only once content scrolls under it.
   const [scrolled, setScrolled] = useState(false);
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -94,17 +97,26 @@ export default function LaneEditorSheet() {
     if (isScrolled !== scrolled) setScrolled(isScrolled);
   };
 
-  // Listen: the next inbound note-on (played on the OP-XY) sets this lane's
-  // note. Auto-cancels after 8s or when the sheet unmounts.
+  // Listen: while engaged, notes played from the OP-XY's aux track set this
+  // lane's note AND its track (the inbound channel selects the track), and
+  // each note is echoed straight back out on that channel so the device
+  // plays it from the target track — you hear what you're setting. Stays
+  // engaged so you can browse notes; auto-cancels after 8s of silence or
+  // when the sheet unmounts. (This scoped echo is safe — the old ghost-note
+  // problem came from blanket soft-thru of ALL inbound traffic, always.)
   useEffect(() => {
     if (!listening || !laneId) return;
+    let timeout = setTimeout(() => setListening(false), 8000);
     const unsubscribe = midi.onInbound((e) => {
       if (e.type === 'noteon') {
-        updateLane(laneId, { note: e.note });
-        setListening(false);
+        midiOut.sendNoteOn(e.note, e.velocity, e.channel);
+        updateLane(laneId, { note: e.note, channel: e.channel });
+        clearTimeout(timeout);
+        timeout = setTimeout(() => setListening(false), 8000);
+      } else if (e.type === 'noteoff') {
+        midiOut.sendNoteOff(e.note, e.channel);
       }
     });
-    const timeout = setTimeout(() => setListening(false), 8000);
     return () => {
       unsubscribe();
       clearTimeout(timeout);
@@ -219,31 +231,57 @@ export default function LaneEditorSheet() {
 
         <Section title="Sound">
           <View style={styles.cells}>
-            <View style={[styles.cell, styles.cellFirst]}>
+            <Pressable
+              style={[styles.cell, styles.cellFirst]}
+              onPress={() => setPadsOpen((v) => !v)}
+              accessibilityRole="button"
+              accessibilityLabel="Note"
+              accessibilityState={{ expanded: padsOpen }}
+            >
               <AppText style={styles.cellTitle}>Note</AppText>
               <View style={styles.cellRight}>
-                <SmallStep
-                  onDown={() => updateLane(id, { note: Math.max(0, lane.note - 1) })}
-                  onUp={() => updateLane(id, { note: Math.min(127, lane.note + 1) })}
-                >
-                  <AppText style={styles.cellValue}>
-                    {midiNoteName(lane.note)} · {lane.note}
-                  </AppText>
-                </SmallStep>
+                <AppText style={[styles.cellValue, padsOpen && styles.cellValueActive]}>
+                  {midiNoteName(lane.note)} · {lane.note}
+                </AppText>
                 <Pressable
-                  style={[styles.listen, listening && styles.listenActive]}
+                  style={[
+                    styles.listen,
+                    padsOpen && styles.listenMuted,
+                    listening && styles.listenActive,
+                  ]}
                   onPress={() => setListening((v) => !v)}
                   accessibilityRole="button"
                   accessibilityLabel="Listen for note"
                   accessibilityState={{ selected: listening }}
                 >
-                  <SFSymbol name="mic.fill" size={13} tint={listening ? color.label : color.ground} />
-                  <AppText style={[styles.listenLabel, listening && styles.listenLabelActive]}>
+                  <SFSymbol
+                    name="mic.fill"
+                    size={13}
+                    tint={listening ? color.label : padsOpen ? color.label3 : color.ground}
+                  />
+                  <AppText
+                    style={[
+                      styles.listenLabel,
+                      padsOpen && styles.listenLabelMuted,
+                      listening && styles.listenLabelActive,
+                    ]}
+                  >
                     {listening ? 'Listening…' : 'Listen'}
                   </AppText>
                 </Pressable>
+                {padsOpen ? (
+                  <SFSymbol name="chevron.up" size={12} tint={color.label3} />
+                ) : null}
               </View>
-            </View>
+            </Pressable>
+            {padsOpen ? (
+              <NotePads
+                note={lane.note}
+                velocity={lane.velocity}
+                channel={lane.channel}
+                onSelect={(note) => updateLane(id, { note })}
+              />
+            ) : null}
             <Pressable
               style={[styles.cell, styles.cellLast]}
               // Tap-cycling caps at 8 (the OP-XY has 8 audio tracks). A channel
@@ -261,6 +299,10 @@ export default function LaneEditorSheet() {
               </View>
             </Pressable>
           </View>
+          <AppText style={styles.groupFootnote}>
+            Listen — play a note from the OP‑XY's aux track to set it. The channel you send on
+            selects the track, and euxy echoes the note back so you hear it played from that track.
+          </AppText>
         </Section>
 
         <Section title="More">
@@ -362,29 +404,6 @@ export default function LaneEditorSheet() {
   );
 }
 
-/** Wraps a readout with tap-up / long-press-down affordances via ± hit zones. */
-function SmallStep({
-  onDown,
-  onUp,
-  children,
-}: {
-  onDown: () => void;
-  onUp: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <View style={styles.smallStep}>
-      <Pressable onPress={onDown} hitSlop={12} accessibilityRole="button" accessibilityLabel="Decrease note">
-        <SFSymbol name="minus" size={14} tint={color.label3} />
-      </Pressable>
-      {children}
-      <Pressable onPress={onUp} hitSlop={12} accessibilityRole="button" accessibilityLabel="Increase note">
-        <SFSymbol name="plus" size={14} tint={color.label3} />
-      </Pressable>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.surface },
   grabberSpace: { height: 13 },
@@ -422,6 +441,15 @@ const styles = StyleSheet.create({
   sectionBody: { gap: 14 },
 
   cells: { gap: 1 },
+  // iOS grouped-list footer (Paper 02: 13/18 label4, slight inset).
+  groupFootnote: {
+    fontFamily: font.text,
+    fontSize: 13,
+    lineHeight: 18,
+    color: color.label4,
+    paddingHorizontal: 4,
+    paddingTop: 8,
+  },
   cell: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -438,6 +466,8 @@ const styles = StyleSheet.create({
   cellRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   cellRightTight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   cellValue: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: color.label25 },
+  // Paper 02c: the value reads primary while the pad grid is open.
+  cellValueActive: { color: color.label },
   nameInput: {
     flex: 1,
     marginLeft: 16,
@@ -448,7 +478,6 @@ const styles = StyleSheet.create({
     color: color.label,
     padding: 0,
   },
-  smallStep: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   listen: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -461,6 +490,9 @@ const styles = StyleSheet.create({
   listenLabel: { fontFamily: font.text, fontWeight: '700', fontSize: 13, lineHeight: 16, color: color.ground },
   listenActive: { backgroundColor: color.surface3 },
   listenLabelActive: { color: color.label },
+  // Paper 02c: Listen recedes while the pad grid is the primary input.
+  listenMuted: { backgroundColor: ramp[6] },
+  listenLabelMuted: { color: color.label3 },
 
   actions: { paddingHorizontal: 16, paddingTop: 26, gap: 10 },
   actionBtn: {
