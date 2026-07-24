@@ -1,11 +1,13 @@
 /**
- * Pinned transport bar. Values pulled from Paper node CO-0. Presentational —
- * screens wire it to the store.
+ * Pinned transport bar. Values pulled from Paper node CO-0 (jam), 1X1-0
+ * (record) and 22T-0 (disabled play). Presentational — screens wire it to the
+ * store.
  *
  * Jam mode: BPM (left) · skip-to-start / circular play-pause / stop (center) ·
  * Panic (right); app is clock master. Record mode: app is a clock slave, so the
- * center cluster is replaced by a passive "Recording · locked to device clock"
- * indicator and BPM reads `· REC` (see redlines). Panic is always reachable.
+ * center cluster is a passive glowing-red "Recording / locked to device clock"
+ * indicator and the BPM label reads `· REC` (see redlines). Panic is always
+ * reachable. `playDisabled` dims the play button (empty pattern).
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -18,6 +20,7 @@ export interface TransportBarProps {
   playing: boolean;
   bpm: number;
   mode: ClockMode;
+  playDisabled?: boolean;
   onTogglePlay?: () => void;
   onStop?: () => void;
   onSkipToStart?: () => void;
@@ -29,6 +32,7 @@ export function TransportBar({
   playing,
   bpm,
   mode,
+  playDisabled = false,
   onTogglePlay,
   onStop,
   onSkipToStart,
@@ -54,14 +58,15 @@ export function TransportBar({
           </Pressable>
           <Pressable
             onPress={onTogglePlay}
-            style={styles.play}
+            disabled={playDisabled}
+            style={[styles.play, playDisabled && styles.playDisabled]}
             accessibilityRole="button"
             accessibilityLabel={playing ? 'Pause' : 'Play'}
           >
             {playing ? (
               <IconPause size={24} color={color.ground} />
             ) : (
-              <IconPlay size={24} color={color.ground} />
+              <IconPlay size={24} color={playDisabled ? color.labelDisabled : color.ground} />
             )}
           </Pressable>
           <Pressable onPress={onStop} hitSlop={space.sm} accessibilityLabel="Stop">
@@ -69,11 +74,13 @@ export function TransportBar({
           </Pressable>
         </View>
       ) : (
+        // Paper 1X1-0: glowing 16px red dot + two-line status.
         <View style={styles.recIndicator}>
           <View style={styles.recDot} />
-          <AppText variant="footnote" tone="secondary">
-            Recording · locked to device clock
-          </AppText>
+          <View style={styles.recText}>
+            <AppText style={styles.recTitle}>Recording</AppText>
+            <AppText style={styles.recSub}>locked to device clock</AppText>
+          </View>
         </View>
       )}
 
@@ -112,7 +119,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 12,
     letterSpacing: 0.8,
-    color: '#98989F',
+    color: color.label25,
   },
   buttons: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
   play: {
@@ -123,7 +130,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  recIndicator: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexShrink: 1 },
-  recDot: { width: 12, height: 12, borderRadius: 999, backgroundColor: color.danger },
+  playDisabled: { backgroundColor: color.surface2 },
+  recIndicator: { flexDirection: 'row', alignItems: 'center', gap: 11, flexShrink: 1 },
+  recDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 999,
+    backgroundColor: color.danger,
+    shadowColor: color.danger,
+    shadowOpacity: 0.7,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  recText: { gap: 1 },
+  recTitle: { fontFamily: font.text, fontWeight: '600', fontSize: 15, lineHeight: 18, color: '#FFFFFF' },
+  recSub: { fontFamily: font.text, fontWeight: '500', fontSize: 12, lineHeight: 16, color: color.label25 },
   right: { flex: 1, alignItems: 'flex-end' },
 });

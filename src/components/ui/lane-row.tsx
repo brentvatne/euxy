@@ -15,6 +15,8 @@ export interface LaneRowProps {
   subtitle?: string;
   muted?: boolean;
   solo?: boolean;
+  /** Lights the accent bar white; dimmed lanes get #606069 (Paper ZZ-0). */
+  audible?: boolean;
   onToggleMute?: () => void;
   onToggleSolo?: () => void;
   onPressTitle?: () => void;
@@ -26,6 +28,7 @@ export function LaneRow({
   subtitle,
   muted = false,
   solo = false,
+  audible = !muted,
   onToggleMute,
   onToggleSolo,
   onPressTitle,
@@ -35,7 +38,7 @@ export function LaneRow({
     <View style={styles.row}>
       <View style={styles.header}>
         <Pressable onPress={onPressTitle} disabled={!onPressTitle} style={styles.titleGroup}>
-          <View style={[styles.accent, { backgroundColor: muted ? color.label4 : color.label }]} />
+          <View style={[styles.accent, { backgroundColor: audible ? color.label : ramp[4] }]} />
           <View style={styles.textBlock}>
             <AppText style={styles.title}>{title}</AppText>
             {subtitle ? <AppText style={styles.subtitle}>{subtitle}</AppText> : null}
