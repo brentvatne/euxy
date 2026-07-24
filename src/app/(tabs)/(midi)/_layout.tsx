@@ -10,16 +10,20 @@ import { color } from '@/theme/tokens';
 export default function MidiStack() {
   return (
     <Stack
+      // Correct iOS large-title recipe: the header is TRANSPARENT and the
+      // scroll view supplies the background (contentInsetAdjustmentBehavior
+      // "automatic"). An opaque headerStyle/headerLargeStyle makes the
+      // large→small collapse fight the scroll view and stutter.
       screenOptions={{
         headerLargeTitle: true,
-        headerTransparent: false,
+        headerTransparent: true,
         headerShadowVisible: false,
+        headerLargeTitleShadowVisible: false,
         headerBlurEffect: 'none',
+        headerLargeStyle: { backgroundColor: 'transparent' },
         headerTintColor: color.label,
         headerLargeTitleStyle: { color: color.label },
         headerTitleStyle: { color: color.label },
-        headerLargeStyle: { backgroundColor: color.ground },
-        headerStyle: { backgroundColor: color.ground },
       }}
     >
       <Stack.Screen name="index" options={{ title: 'MIDI' }} />
