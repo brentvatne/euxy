@@ -10,9 +10,12 @@ export default function PatternsStack() {
     <Stack
       screenOptions={{
         headerLargeTitle: true,
-        headerTransparent: true,
+        headerTransparent: false,
         headerShadowVisible: false,
         headerBlurEffect: 'none',
+        headerTintColor: color.label,
+        headerLargeTitleStyle: { color: color.label },
+        headerTitleStyle: { color: color.label },
         headerLargeStyle: { backgroundColor: color.ground },
         headerStyle: { backgroundColor: color.ground },
       }}
