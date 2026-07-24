@@ -12,13 +12,12 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { sendTestNote } from '@/components/midi/runtime';
 import { midiNoteName } from '@/core/note';
+import { DRUM_KIT_HI, DRUM_KIT_LO, drumSlotName } from '@/core/opxy';
 import { color, font } from '@/theme/tokens';
 import { AppText } from '@/components/ui';
 
 /** Semitone offsets within an octave that are sharps (darker pads). */
 const SHARPS = new Set([1, 3, 6, 8, 10]);
-/** Highest C that can start the window's bottom row (top row may clip >127). */
-const MAX_BASE = 108;
 
 export interface NotePadsProps {
   note: number;
@@ -29,10 +28,17 @@ export interface NotePadsProps {
 
 export function NotePads({ note, velocity, channel, onSelect }: NotePadsProps) {
   // Window anchors on the octave containing the current note (bottom row).
+  // A note inside the OP-XY drum-kit range anchors on F instead of C, so the
+  // window lands exactly on the kit (F2–E4) and paging respects its edges.
+  const anchor = note >= DRUM_KIT_LO && note <= DRUM_KIT_HI ? 5 : 0;
+  const maxBase = 108 + anchor; // highest anchored bottom row (top may clip >127)
   const [base, setBase] = useState(() =>
-    Math.max(0, Math.min(Math.floor(note / 12) * 12, MAX_BASE)),
+    Math.max(anchor, Math.min(note - (((note % 12) - anchor + 12) % 12), maxBase)),
   );
   const topEnd = Math.min(base + 23, 127);
+  // TE's conventional role for this slot ("usually kick") — teaches the
+  // factory drum-kit mapping in place; hidden outside the kit range.
+  const slotName = drumSlotName(note);
 
   const pick = (n: number) => {
     onSelect(n);
@@ -44,11 +50,19 @@ export function NotePads({ note, velocity, channel, onSelect }: NotePadsProps) {
       {/* Top row = upper octave, bottom row = base octave (low notes low). */}
       <PadRow base={base + 12} note={note} onPick={pick} />
       <PadRow base={base} note={note} onPick={pick} />
+      {slotName ? (
+        <View style={styles.readout}>
+          <AppText style={styles.readoutValue}>
+            {midiNoteName(note)} · {note}
+          </AppText>
+          <AppText style={styles.readoutHint}> · usually {slotName}</AppText>
+        </View>
+      ) : null}
       <View style={styles.pager}>
         <Pressable
-          style={[styles.pagerBtn, base === 0 && styles.pagerBtnDisabled]}
-          disabled={base === 0}
-          onPress={() => setBase((b) => Math.max(0, b - 12))}
+          style={[styles.pagerBtn, base === anchor && styles.pagerBtnDisabled]}
+          disabled={base === anchor}
+          onPress={() => setBase((b) => Math.max(anchor, b - 12))}
           accessibilityRole="button"
           accessibilityLabel="Octave down"
         >
@@ -58,9 +72,9 @@ export function NotePads({ note, velocity, channel, onSelect }: NotePadsProps) {
           octaves · {midiNoteName(base)} – {midiNoteName(topEnd)}
         </AppText>
         <Pressable
-          style={[styles.pagerBtn, base === MAX_BASE && styles.pagerBtnDisabled]}
-          disabled={base === MAX_BASE}
-          onPress={() => setBase((b) => Math.min(MAX_BASE, b + 12))}
+          style={[styles.pagerBtn, base === maxBase && styles.pagerBtnDisabled]}
+          disabled={base === maxBase}
+          onPress={() => setBase((b) => Math.min(maxBase, b + 12))}
           accessibilityRole="button"
           accessibilityLabel="Octave up"
         >
@@ -149,6 +163,10 @@ const styles = StyleSheet.create({
     lineHeight: 10,
     color: color.label4,
   },
+  // Slot readout (Paper 02y concept C): value bright, TE convention dimmed.
+  readout: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  readoutValue: { fontFamily: font.text, fontWeight: '600', fontSize: 13, lineHeight: 16, color: color.label },
+  readoutHint: { fontFamily: font.text, fontWeight: '600', fontSize: 13, lineHeight: 16, color: color.label4 },
   pager: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   pagerBtn: {
     width: 40,
