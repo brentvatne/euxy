@@ -327,3 +327,17 @@ fade, like a real LED's phosphor tail). Applies to: sequenced-step lights when
 a pattern edit adds/removes them, the travelling playhead light entering a
 step, and the M/S light bars. Reanimated on the UI thread; must stay
 zero-re-render like the rest of the playhead path.
+
+### Onboarding flow
+
+First-run onboarding is currently nothing — the app drops you on the
+Sequencer with a seeded pattern. Design a real flow: research onboarding
+patterns from comparable apps (music tools, hardware companions, MIDI
+utilities) using the Mobbin MCP (`search_flows` / `search_screens` for
+"onboarding"), distill what fits euxy — likely candidates: a 2–3 screen
+intro (what euxy is, connect your OP-XY, pick a preset to start from),
+an inline "enable MIDI" moment tied to the permission gesture, and
+progressive disclosure of Listen/mutate/record rather than a tutorial
+dump. Then mock the chosen flow in Paper plus a couple of alternatives
+(e.g. zero-screen "learn by doing" with coach marks vs. a device-first
+pairing wizard) before implementing.
