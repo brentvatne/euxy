@@ -1,9 +1,12 @@
 /**
- * StepStrip — a lane's step blocks with the OP-XY light convention (Paper
- * WV-0/ZZ-0 2026-07-24 revision): every SEQUENCED step carries a steady white
- * LED at its top-center (like the hardware's key lights), and the playhead is
- * the light travelling the grid — on an empty step the light appears; where it
- * crosses a sequenced step it becomes a prominent BLACK dot. No cyan.
+ * StepStrip — a lane's step blocks in the full OP-XY hardware convention
+ * (Paper "01 · Sequencer" gradient revision): block fills always sweep the
+ * sequencer-key ramp (`keyRamp`, 8 shades × 2 slots per 16-slot row) exactly
+ * like the device's key row — fills never encode the sequence. Every
+ * SEQUENCED step carries a steady white LED at its top-center (the key
+ * lights), and the playhead is the light travelling the grid — on an empty
+ * step the light appears; where it crosses a sequenced step it becomes a
+ * prominent BLACK dot. No cyan.
  *
  * ALL steps are always visible (no horizontal scrolling): like the Lane
  * Editor's combined card, a lane wraps at 16 steps per row, and every lane
@@ -22,7 +25,7 @@ import Animated, { useAnimatedStyle, useDerivedValue } from 'react-native-reanim
 import { playheadPlaying, playheadTick } from '@/core/playhead';
 import { patternForLane } from '@/state/selectors';
 import type { Lane } from '@/state/types';
-import { color } from '@/theme/tokens';
+import { keyRamp } from '@/theme/tokens';
 
 const PER_ROW = 16;
 const GAP = 4;
@@ -63,7 +66,10 @@ export function StepStrip({ lane }: StepStripProps) {
                   style={[
                     styles.block,
                     { width: blockW },
-                    { backgroundColor: pattern[i] ? color.stepHit : color.stepEmpty },
+                    // Fill = the OP-XY key ramp for this row slot (hardware
+                    // convention: fills never encode the sequence — the LEDs
+                    // do). Every 16-slot row sweeps the full ramp.
+                    { backgroundColor: keyRamp[Math.floor((i % PER_ROW) / 2)] },
                   ]}
                 >
                   {pattern[i] ? <Led /> : null}

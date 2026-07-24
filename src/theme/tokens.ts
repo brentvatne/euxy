@@ -28,6 +28,25 @@ export const ramp = {
   8: '#000000', // ground
 } as const;
 
+/**
+ * OP-XY sequencer-key ramp — the exact fills of the 16 sequencer keys in
+ * Teenage Engineering's own product artwork (assets.teenage.engineering
+ * 6734baca…_opt.svg): 8 shades, each spanning a PAIR of adjacent keys, so a
+ * 16-step row sweeps the full ramp dark → light. The artwork's first pair is
+ * pure #000; we lift it to #16161D so those cells stay visible on the app's
+ * black ground. Step fills use `keyRamp[Math.floor((slot % 16) / 2)]`.
+ */
+export const keyRamp = [
+  '#16161D', // pair 1-2 (#000 in the TE artwork)
+  '#20242A',
+  '#42444A',
+  '#5B5D63',
+  '#73757A',
+  '#83858B',
+  '#A4A5AC',
+  '#C5C6CD', // pair 15-16 — tops out below the keyboard-key gray, never white
+] as const;
+
 export const color = {
   // Surfaces
   ground: '#000000', // app background (also OLED-friendly)
