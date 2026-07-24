@@ -7,11 +7,15 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "euxy",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#000000",
     "ios": {
       "bundleIdentifier": "dev.brent.euxy",
       "icon": "./assets/expo.icon",
-      "appleTeamId": "GQ4S96SE9Z"
+      "appleTeamId": "GQ4S96SE9Z",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {

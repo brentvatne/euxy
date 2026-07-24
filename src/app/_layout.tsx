@@ -8,6 +8,7 @@ import { Stack } from 'expo-router/stack';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { KeyboardProvider } from '@/components/ui/keyboard';
 import { navTheme } from '@/theme/navigation';
 import { color } from '@/theme/tokens';
 
@@ -21,13 +22,14 @@ const sheetOptions = {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
+      <KeyboardProvider>
       <ThemeProvider value={navTheme}>
         <StatusBar style="light" />
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.ground } }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen
             name="lane-editor"
-            options={{ ...sheetOptions, sheetAllowedDetents: [0.6, 1.0] }}
+            options={{ ...sheetOptions, sheetAllowedDetents: [1.0] }}
           />
           <Stack.Screen
             name="device-picker"
@@ -43,6 +45,7 @@ export default function RootLayout() {
           />
         </Stack>
       </ThemeProvider>
+      </KeyboardProvider>
     </SafeAreaProvider>
   );
 }

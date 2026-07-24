@@ -4,6 +4,9 @@
     "appVersionSource": "remote"
   },
   "build": {
+    "production": {
+
+    },
     "sim": {
       "ios": {
         "simulator": true
