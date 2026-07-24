@@ -13,9 +13,8 @@ import ReanimatedSwipeable, {
 
 import { AppText, SFSymbol } from '@/components/ui';
 import type { Pattern } from '@/state/types';
-import { color, radius, space } from '@/theme/tokens';
+import { color, font, radius, space } from '@/theme/tokens';
 import { PatternGlyph } from './pattern-glyph';
-import { resolutionLabel } from './resolution';
 
 export interface PatternRowProps {
   pattern: Pattern;
@@ -24,25 +23,25 @@ export interface PatternRowProps {
   last: boolean;
   onPress: () => void;
   onDelete: () => void;
-  /** Delete is suppressed for the final remaining pattern (must keep >= 1). */
-  canDelete: boolean;
 }
 
 function laneWord(n: number) {
   return n === 1 ? 'lane' : 'lanes';
 }
 
-function PatternRowImpl({
-  pattern,
-  active,
-  first,
-  last,
-  onPress,
-  onDelete,
-  canDelete,
-}: PatternRowProps) {
+/** "edited just now" → "edited 5m ago" → … (Paper GR-0 row metadata). */
+function editedLabel(updatedAt: number): string {
+  const s = Math.max(0, (Date.now() - updatedAt) / 1000);
+  if (s < 60) return 'edited just now';
+  if (s < 3600) return `edited ${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `edited ${Math.floor(s / 3600)}h ago`;
+  const days = Math.floor(s / 86400);
+  return days === 1 ? 'edited yesterday' : `edited ${days}d ago`;
+}
+
+function PatternRowImpl({ pattern, active, first, last, onPress, onDelete }: PatternRowProps) {
   const swipeRef = useRef<SwipeableMethods>(null);
-  const subtitle = `${pattern.lanes.length} ${laneWord(pattern.lanes.length)} · ${pattern.bpm} BPM · ${resolutionLabel(pattern.baseResolutionTicks)}`;
+  const subtitle = `${pattern.lanes.length} ${laneWord(pattern.lanes.length)} · ${pattern.bpm} BPM · ${editedLabel(pattern.updatedAt)}`;
 
   const cornerStyle = {
     borderTopLeftRadius: first ? radius.cell : radius.step - 2,
@@ -72,10 +71,9 @@ function PatternRowImpl({
       ref={swipeRef}
       friction={2}
       rightThreshold={40}
-      enabled={canDelete}
       overshootRight={false}
       containerStyle={[styles.swipeContainer, cornerStyle]}
-      renderRightActions={canDelete ? renderRightActions : undefined}
+      renderRightActions={renderRightActions}
     >
       <Pressable
         onPress={onPress}
@@ -87,15 +85,15 @@ function PatternRowImpl({
           <PatternGlyph />
         </View>
         <View style={styles.textCol}>
-          <AppText variant="headline" numberOfLines={1}>
+          <AppText style={styles.name} numberOfLines={1}>
             {pattern.name}
           </AppText>
-          <AppText variant="footnote" tone="secondary" numberOfLines={1}>
+          <AppText style={styles.sub} numberOfLines={1}>
             {subtitle}
           </AppText>
         </View>
         {active ? <View style={styles.activeDot} /> : null}
-        <SFSymbol name="chevron.right" size={14} tint={color.labelDisabled} />
+        <SFSymbol name="chevron.right" size={16} tint={color.labelDisabled} />
       </Pressable>
     </ReanimatedSwipeable>
   );
@@ -126,6 +124,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   textCol: { flex: 1, gap: 2 },
+  // Paper KL-0: name semibold 16/20 white; sub regular 13/16 label25.
+  name: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: '#FFFFFF' },
+  sub: { fontFamily: font.text, fontWeight: '400', fontSize: 13, lineHeight: 16, color: color.label25 },
   activeDot: {
     width: 8,
     height: 8,

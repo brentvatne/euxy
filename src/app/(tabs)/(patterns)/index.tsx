@@ -79,7 +79,6 @@ export default function PatternsScreen() {
               active={p.id === activeId}
               first={i === 0}
               last={i === filtered.length - 1}
-              canDelete={patterns.length > 1}
               onPress={() => openPattern(p.id)}
               onDelete={() => deletePattern(p.id)}
             />
