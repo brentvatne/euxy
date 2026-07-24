@@ -267,3 +267,63 @@ Remaining OP-XY behaviors to confirm before or at build start:
 - **Note capture:** "Listen for note" button → captures incoming OP-XY pad press
 - **Sound:** none in-browser; OP-XY is sole sound source; app is pure MIDI controller
 - **MIDI abstraction:** identical interface across web and iOS; no platform-specific logic above the MIDI layer
+
+---
+
+## Backlog — future features (2026-07-24)
+
+### Pattern sharing via barcode
+
+Share a pattern by generating a scannable code that encodes ALL of its
+parameters (name, bpm, per-lane: length, genA/genB pulses+rotation, op,
+trackRot, note, channel, velocity, gate, resolution). The full parameter set
+is tiny (~30–60 bytes binary), so it fits comfortably in a QR code — and even
+a Code-128-style 1D barcode is feasible for single lanes. Flow: Patterns →
+share sheet renders the code (on-brand: dot-matrix QR echoes the app icon);
+scanning (camera or photo import) imports the pattern. Encode as versioned
+compact binary → base45/base64url, so codes stay dense and future fields can
+be appended without breaking old codes. No server, no account — patterns
+travel as pixels.
+
+### Latency calibration
+
+Today `latencyOffsetMs` is a manual slider. Candidate auto-calibration paths:
+
+1. **MIDI round-trip (automatic):** enable the OP-XY's MIDI thru (or target an
+   aux track that echoes), send a marker note, timestamp the echo's wire
+   arrival (we already carry wire timestamps for BPM estimation), and set the
+   offset to round-trip/2 minus native send latency. Repeat N times, take the
+   median, discard outliers.
+2. **Flam-null by ear (assisted):** play a steady metronome note from euxy and
+   the same from the OP-XY's own sequencer at the same BPM; the user drags the
+   offset until the flam disappears. Works even when thru is off — this is the
+   Rocksmith/audio-engine calibration pattern adapted to MIDI.
+3. **Record-loopback check:** in record mode, quantize-record one euxy lane
+   into the OP-XY and read back where its notes landed relative to the grid
+   (the device reports positions via recorded playback); the systematic bias
+   IS the latency. Requires no user judgment, but needs a recording pass.
+
+Ship 2 first (zero hardware assumptions), then 1 as "auto" where thru is
+available.
+
+### Manual step overrides
+
+Let the user tap individual steps to force a hit ON or OFF on top of the
+generated pattern (per-lane override mask: `forced: Set<step>`,
+`suppressed: Set<step>` applied after the generator combine). The euclidean
+engine stays the source of the groove; overrides are surgical exceptions —
+add the one snare drag a track needs, or kill a collision, without giving up
+generative editing. Overrides rotate with trackRot, clamp/clear when the lane
+length changes, and randomize/mutate leaves them alone (they're deliberate).
+UI: tap a step in the Lane Editor's combined card (add = forced light,
+remove = dimmed slot); a "clear overrides" affordance appears when any exist.
+
+### Light on/off micro-animation
+
+The step LEDs currently snap between states. Add a subtle turn-on/turn-off
+animation — a quick brightness bloom on ignition (~80–120ms ease-out, slight
+glow-radius overshoot) and a softer decay when a light goes out (~150–250ms
+fade, like a real LED's phosphor tail). Applies to: sequenced-step lights when
+a pattern edit adds/removes them, the travelling playhead light entering a
+step, and the M/S light bars. Reanimated on the UI thread; must stay
+zero-re-render like the rest of the playhead path.
