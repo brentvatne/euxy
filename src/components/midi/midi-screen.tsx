@@ -6,28 +6,44 @@
  * (enable → pick output/input → watch traffic → panic; send a test note from
  * the Activity-log screen).
  */
-import { router } from 'expo-router';
-import { useEffect } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/ui';
 import { IconPanic } from '@/components/ui/icons';
+import { useObserve } from '@/lib/shims';
 import { useSettings, useTransport } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import { color, radius, space } from '@/theme/tokens';
 import { Cell, ClockModeToggle, ConnectionBadge, GRAY, Group, LatencySlider, LogPreview, PushRow, SectionHeader, ValueRow } from './components';
 import { IconDevice } from './icons';
-import { enableMidi, panic, setLatency, useMidiRuntime } from './runtime';
+import { enableMidi, panic, refreshDevices, setLatency, useMidiRuntime } from './runtime';
 
 const LATENCY_MIN = -120;
 const LATENCY_MAX = 120;
 const fmtLatency = (ms: number) => `${ms > 0 ? '+' : ''}${ms} ms`;
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const noteName = (n: number) => `${NOTE_NAMES[n % 12]}${Math.floor(n / 12) - 1}`;
+// Same octave convention as core/note.ts (Paper: 36 → C1).
+const noteName = (n: number) => `${NOTE_NAMES[n % 12]}${Math.floor(n / 12) - 2}`;
 
 export default function MidiScreen() {
   const rt = useMidiRuntime();
+
+  // Re-enumerate whenever the tab gains focus — a device plugged in while
+  // the user was on another screen shows up without an OS state event.
+  useFocusEffect(
+    useCallback(() => {
+      refreshDevices();
+    }, []),
+  );
+
+  // Per-route TTI for EAS Observe.
+  const { markInteractive } = useObserve();
+  useEffect(() => {
+    markInteractive();
+  }, [markInteractive]);
   const settings = useSettings();
   const transport = useTransport();
   const setClockMode = useStore((s) => s.setClockMode);
@@ -85,6 +101,13 @@ export default function MidiScreen() {
           <LatencySlider value={settings.latencyOffsetMs} min={LATENCY_MIN} max={LATENCY_MAX} onChange={setLatency} />
         </Cell>
       </Group>
+      {/* Mode explainer — what the selected clock mode means and how to use
+          the app + device together in it. */}
+      <AppText style={styles.sectionFooter}>
+        {transport.clockMode === 'jam'
+          ? 'Jam — euxy is the clock master. Press Play in the Sequencer and euxy drives the OP‑XY over MIDI clock while you tweak lanes live.'
+          : 'Record — the OP‑XY is the clock master and euxy follows its clock, so the Sequencer has no Play button. Hold Record and press Play on the OP‑XY: euxy plays its lanes in sync and the device captures them into its own sequencer.'}
+      </AppText>
 
       {/* DIAGNOSTICS */}
       <SectionHeader>Diagnostics</SectionHeader>
@@ -141,6 +164,13 @@ const styles = StyleSheet.create({
 
   latencyCell: { flexDirection: 'column', alignItems: 'stretch', gap: 10, paddingVertical: 14 },
   latencyHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionFooter: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: GRAY,
+    paddingHorizontal: space.xl + space.md,
+    paddingTop: 8,
+  },
   latencyValue: { fontSize: 16, lineHeight: 20, fontWeight: '600', color: GRAY },
 
   logCell: { flexDirection: 'column', alignItems: 'stretch', gap: 3, paddingVertical: 12 },

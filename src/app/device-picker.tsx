@@ -4,12 +4,13 @@
  * with a checkmark, and wires setOutput / setInput through the runtime. Includes
  * a "None" row to disconnect. Presented with router.push('/device-picker?kind=…').
  */
+import { useEffect } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/ui';
 import { IconBus, IconCheck, IconClose, IconDevice, IconNone, IconUsb } from '@/components/midi/icons';
-import { selectInput, selectOutput, useMidiRuntime } from '@/components/midi/runtime';
+import { refreshDevices, selectInput, selectOutput, useMidiRuntime } from '@/components/midi/runtime';
 import { useSettings } from '@/state/selectors';
 import { color, radius, space } from '@/theme/tokens';
 import type { MidiDevice } from '@/midi/types';
@@ -28,6 +29,11 @@ export default function DevicePickerSheet() {
   const isInput = kind === 'input';
   const rt = useMidiRuntime();
   const settings = useSettings();
+
+  // Devices plugged in since the last enumeration should appear on open.
+  useEffect(() => {
+    refreshDevices();
+  }, []);
 
   const devices = isInput ? rt.inputs : rt.outputs;
   const selectedId = isInput ? settings.inputId : settings.outputId;

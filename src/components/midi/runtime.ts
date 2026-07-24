@@ -7,7 +7,8 @@
  * Zustand store (setOutput/setInput/setLatencyOffsetMs) — we bridge to it here.
  *
  * Mined from the working PoC (src/components/screen{,.web}.tsx): enable →
- * enumerate → auto-connect to the OP-XY by name → soft-thru → clock indicator.
+ * enumerate → auto-connect (OP-XY by name ONLY — other devices are never
+ * grabbed automatically) → soft-thru → clock indicator.
  *
  * Direction tracking: the web/stub ports emit onRaw for BOTH sends and inbound
  * with no direction flag, so outbound sends are routed through `outbound()`,
@@ -151,7 +152,12 @@ function attachSubscriptions() {
   midi.onStateChange(refreshDevices);
 }
 
-function refreshDevices() {
+/**
+ * Re-enumerate the device lists. Fired on port state changes; screens also
+ * call it on focus / when opening the device picker so a device plugged in
+ * while the app was elsewhere shows up without waiting for an event.
+ */
+export function refreshDevices() {
   const outputs = opXyFirst(midi.listOutputs());
   const inputs = opXyFirst(midi.listInputs());
   update({ outputs, inputs });
@@ -173,20 +179,19 @@ export async function enableMidi(): Promise<boolean> {
   const inputs = opXyFirst(midi.listInputs());
   update({ enabled: true, error: null, outputs, inputs });
 
-  // Auto-connect to the OP-XY by name (fallback: first device). Only sets a
-  // selection if the store doesn't already have a valid one.
+  // Auto-connect ONLY to an OP-XY by name — never grab some other device
+  // (IAC bus, random interface); anything else is a manual pick in the
+  // device sheet. A valid existing selection in the store is kept as-is.
   const store = useStore.getState();
   const curOut = store.settings.outputId;
   if (!curOut || !outputs.some((d) => d.id === curOut)) {
-    const pick = (outputs.find((d) => isOpXy(d.name)) ?? outputs[0])?.id ?? null;
-    selectOutput(pick);
+    selectOutput(outputs.find((d) => isOpXy(d.name))?.id ?? null);
   } else {
     midi.selectOutput(curOut);
   }
   const curIn = store.settings.inputId;
   if (!curIn || !inputs.some((d) => d.id === curIn)) {
-    const pick = (inputs.find((d) => isOpXy(d.name)) ?? inputs[0])?.id ?? null;
-    selectInput(pick);
+    selectInput(inputs.find((d) => isOpXy(d.name))?.id ?? null);
   } else {
     midi.selectInput(curIn);
   }

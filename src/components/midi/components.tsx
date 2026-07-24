@@ -32,7 +32,11 @@ function cornerStyle(pos: CellPos) {
   }
 }
 
-/** Uppercase grouped-list section header. */
+/**
+ * Grouped-list section header, current-iOS style (Settings "My Devices"):
+ * title case, ~20pt semibold, secondary gray, sitting close above its group —
+ * NOT the legacy small-caps letterspaced header.
+ */
 export function SectionHeader({ children, first = false }: { children: string; first?: boolean }) {
   return (
     <View style={[styles.section, first && styles.sectionFirst]}>
@@ -183,9 +187,10 @@ export function LogPreview({ lines }: { lines: { id: number; dir: 'in' | 'out'; 
 }
 
 const styles = StyleSheet.create({
-  section: { paddingTop: 20, paddingBottom: 7, paddingLeft: space.xl + space.md, paddingRight: space.lg },
+  // iOS Settings-style header: aligned with the group's edge, body-size semibold.
+  section: { paddingTop: 24, paddingBottom: 8, paddingHorizontal: space.lg },
   sectionFirst: { paddingTop: space.sm },
-  sectionText: { fontSize: 13, lineHeight: 16, fontWeight: '500', letterSpacing: 0.3, color: GRAY, textTransform: 'uppercase' },
+  sectionText: { fontSize: 17, lineHeight: 22, fontWeight: '600', color: color.label3 },
 
   group: { paddingHorizontal: space.lg, gap: 1 },
   cell: { backgroundColor: color.surface },
