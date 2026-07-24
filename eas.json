@@ -5,7 +5,8 @@
   },
   "build": {
     "production": {
-      "channel": "production"
+      "channel": "production",
+      "autoIncrement": true
     },
     "sim": {
       "ios": {
