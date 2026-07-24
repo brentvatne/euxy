@@ -10,7 +10,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { AppText } from '@/components/ui';
+import { AppText, Segmented } from '@/components/ui';
 import { IconPanic } from '@/components/ui/icons';
 import { useObserve } from '@/lib/shims';
 import { useSettings, useTransport } from '@/state/selectors';
@@ -47,6 +47,7 @@ export default function MidiScreen() {
   const settings = useSettings();
   const transport = useTransport();
   const setClockMode = useStore((s) => s.setClockMode);
+  const setCountInBeats = useStore((s) => s.setCountInBeats);
   const lanes = useStore((s) => (s.patterns.find((p) => p.id === s.activePatternId) ?? s.patterns[0]).lanes);
 
   // Native/stub can enable without a gesture; web requires the Enable-MIDI tap.
@@ -93,6 +94,18 @@ export default function MidiScreen() {
           <AppText style={styles.rowLabel}>Clock mode</AppText>
           <ClockModeToggle value={transport.clockMode} onChange={setClockMode} />
         </Cell>
+        <Cell pos="middle">
+          <AppText style={styles.rowLabel}>Count-in</AppText>
+          <Segmented<'0' | '4'>
+            size="compact"
+            options={[
+              { label: 'Off', value: '0' },
+              { label: '1 bar', value: '4' },
+            ]}
+            value={settings.countInBeats > 0 ? '4' : '0'}
+            onChange={(v) => setCountInBeats(v === '4' ? 4 : 0)}
+          />
+        </Cell>
         <Cell pos="last" contentStyle={styles.latencyCell}>
           <View style={styles.latencyHead}>
             <AppText style={styles.rowLabel}>Latency offset</AppText>
@@ -106,7 +119,7 @@ export default function MidiScreen() {
       <AppText style={styles.sectionFooter}>
         {transport.clockMode === 'jam'
           ? 'Jam — euxy is the clock master. Press Play in the Sequencer and euxy drives the OP‑XY over MIDI clock while you tweak lanes live.'
-          : 'Record — the OP‑XY is the clock master and euxy follows its clock, so the Sequencer has no Play button. Hold Record and press Play on the OP‑XY: euxy plays its lanes in sync and the device captures them into its own sequencer.'}
+          : 'Record — the OP‑XY is the clock master and euxy follows its clock, so the Sequencer has no Play button. Hold Record and press Play on the OP‑XY: euxy waits out the count‑in, then plays its lanes in sync while the device captures them into its own sequencer.'}
       </AppText>
 
       {/* DIAGNOSTICS */}

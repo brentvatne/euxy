@@ -97,6 +97,7 @@ export interface AppState {
   setOutput: (id: string | null) => void;
   setInput: (id: string | null) => void;
   setLatencyOffsetMs: (ms: number) => void;
+  setCountInBeats: (beats: number) => void;
 
   // Patterns -------------------------------------------------------------
   newPattern: (opts?: { name?: string; bpm?: number; baseResolutionTicks?: number }) => string;
@@ -133,7 +134,15 @@ export const useStore = create<AppState>((set, get) => {
       clockMode: persisted?.clockMode ?? 'jam',
     },
     selection: { laneId: null },
-    settings: persisted?.settings ?? { outputId: null, inputId: null, latencyOffsetMs: 0 },
+    // Merge over defaults so persisted blobs from before a settings field
+    // existed hydrate with sane values.
+    settings: {
+      outputId: null,
+      inputId: null,
+      latencyOffsetMs: 0,
+      countInBeats: 4,
+      ...persisted?.settings,
+    },
 
     // Transport
     play: () => set((s) => ({ transport: { ...s.transport, playing: true } })),
@@ -193,6 +202,7 @@ export const useStore = create<AppState>((set, get) => {
     setOutput: (outputId) => set((s) => ({ settings: { ...s.settings, outputId } })),
     setInput: (inputId) => set((s) => ({ settings: { ...s.settings, inputId } })),
     setLatencyOffsetMs: (latencyOffsetMs) => set((s) => ({ settings: { ...s.settings, latencyOffsetMs } })),
+    setCountInBeats: (countInBeats) => set((s) => ({ settings: { ...s.settings, countInBeats } })),
 
     // Patterns
     newPattern: (opts) => {

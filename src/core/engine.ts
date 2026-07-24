@@ -67,6 +67,9 @@ class Engine {
   private clockIntervalMs = 0;
   private lastBpmPushMs = 0;
 
+  /** Clock ticks left to swallow for the device's record count-in. */
+  private countInTicksRemaining = 0;
+
   // ---- lifecycle --------------------------------------------------------
 
   /** Idempotent: adopt the shared runtime port, wire inbound (record) + store. */
@@ -286,15 +289,23 @@ class Engine {
     const mode = useStore.getState().transport.clockMode;
     if (mode !== 'record') return;
     switch (e.type) {
-      case 'start':
+      case 'start': {
         this.running = true;
         this.nextScheduleTick = 0;
         this.currentTick = 0;
+        // The OP-XY counts in a bar after Record+Play while already streaming
+        // Start + clock; swallow those ticks so our bar 1 lands on the
+        // device's bar 1 (when recording actually begins).
+        const beats = useStore.getState().settings.countInBeats;
+        this.countInTicksRemaining = Math.max(0, Math.round(beats)) * PPQN;
         setPlayhead(0, true);
-        log('rec start', '');
+        log('rec start', `count-in=${beats} beats`);
         break;
+      }
       case 'continue':
+        // Continue resumes mid-song — no count-in.
         this.running = true;
+        this.countInTicksRemaining = 0;
         setPlayhead(this.currentTick, true);
         break;
       case 'stop':
@@ -324,6 +335,10 @@ class Engine {
         }
 
         if (!this.running) return;
+        if (this.countInTicksRemaining > 0) {
+          this.countInTicksRemaining -= 1;
+          return; // inside the device's count-in — hold at tick 0
+        }
         const tick = this.nextScheduleTick;
         this.scheduleTick(tick, nowMs);
         this.nextScheduleTick += 1;

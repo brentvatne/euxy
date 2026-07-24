@@ -72,6 +72,13 @@ export interface Settings {
   inputId: string | null;
   /** Manual latency compensation applied to outgoing MIDI, in ms. */
   latencyOffsetMs: number;
+  /**
+   * Record-mode count-in, in beats. The OP-XY counts a bar ("1 2 3 4") after
+   * Record+Play before it starts recording, streaming Start + clock the whole
+   * time — euxy skips this many beats of inbound clock so its bar 1 lands on
+   * the device's bar 1. 0 = device count-in disabled.
+   */
+  countInBeats: number;
 }
 
 export interface Selection {
