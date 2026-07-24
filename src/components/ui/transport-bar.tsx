@@ -148,9 +148,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    // Matches the jam layout's natural height (52px play button + padding)
-    // so switching between playback and record UIs never shifts the bar.
-    minHeight: 76,
+    // FIXED height (Paper rows: 77 = 1px top border + 12px padding + 52px play
+    // button + 12px padding) so switching between the playback and record UIs
+    // can never reflow the screen — a minHeight of 76 let jam mode (77 natural)
+    // sit 1px taller than record mode (clamped to 76), jiggling the lane list
+    // on every mode toggle.
+    height: 77,
     paddingVertical: space.md,
     paddingHorizontal: 18,
     backgroundColor: '#0A0A0A',
