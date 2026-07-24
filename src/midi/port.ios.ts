@@ -21,7 +21,13 @@ export function createMidiPort(): MidiPort {
     for (const msg of splitMidiMessages(bytes)) {
       rawCbs.forEach((cb) => cb(msg, timestamp));
       const parsed = parseMidi(msg);
-      if (parsed) inboundCbs.forEach((cb) => cb(parsed));
+      // Carry the native arrival stamp: consumers measuring time BETWEEN
+      // events (tempo from clock spacing) must not re-stamp at JS fan-out,
+      // where a coalesced packet's messages all land "simultaneously".
+      if (parsed) {
+        parsed.time = timestamp;
+        inboundCbs.forEach((cb) => cb(parsed));
+      }
     }
   });
   Native.addListener('onDevicesChanged', () => stateCbs.forEach((cb) => cb()));

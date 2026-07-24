@@ -29,6 +29,11 @@ import { setPlayhead } from './playhead';
 
 const PPQN = timing.ppqn; // 24
 
+/** Tempo window: 48 ticks = 2 beats (~1s at 120 BPM) — steady but responsive. */
+const TEMPO_WINDOW_TICKS = 48;
+/** Don't report until half a beat has been observed (avoids a wild first read). */
+const TEMPO_MIN_TICKS = 13;
+
 /** High-resolution clock shared with the MidiPort timestamp domain. */
 const now = (): number =>
   typeof performance !== 'undefined' && typeof performance.now === 'function'
@@ -62,9 +67,23 @@ class Engine {
   private lastPlaying = false;
   private lastMode: 'jam' | 'record' = 'jam';
 
-  /** Inbound-clock tempo measurement (record mode): EMA of tick spacing. */
-  private lastClockAtMs = 0;
-  private clockIntervalMs = 0;
+  /**
+   * Inbound-clock tempo measurement (record mode): a rolling window of clock
+   * arrival stamps, BPM = ticks spanned / elapsed time across the window.
+   *
+   * The previous per-interval EMA read 120 BPM as ~226 on hardware. Cause:
+   * it stamped ticks at JS fan-out time, and whenever the JS thread stalls
+   * (React commits, bridge congestion) the queued ticks flush together with
+   * ~0ms spacing — each burst drags the EMA far below the true interval and
+   * recurring stalls keep it there (~2× BPM). The fix is twofold: stamps come
+   * from the port's wire-arrival clock (InboundEvent.time — the CoreMIDI read
+   * callback, immune to JS scheduling), and the estimator is a window whose
+   * value depends only on its endpoints, so intra-window burstiness cancels.
+   * CoreMIDI-level coalescing (several 0xF8 sharing one packet stamp) can
+   * still smear an endpoint by up to a tick, so estimates only anchor on
+   * packet-LEADING ticks (stamp strictly newer than the tick before).
+   */
+  private clockStamps: number[] = [];
   private lastBpmPushMs = 0;
 
   /** Clock ticks left to swallow for the device's record count-in. */
@@ -320,20 +339,32 @@ class Engine {
         log('rec stop', '');
         break;
       case 'clock': {
-        // Measure the device tempo from tick spacing even while stopped —
-        // many devices stream clock continuously. 24 ticks per quarter.
-        const nowMs = now();
-        if (this.lastClockAtMs > 0) {
-          const dt = nowMs - this.lastClockAtMs;
-          if (dt > 0 && dt < 1000) {
-            this.clockIntervalMs =
-              this.clockIntervalMs === 0 ? dt : this.clockIntervalMs * 0.9 + dt * 0.1;
+        // Measure the device tempo even while stopped — many devices stream
+        // clock continuously. 24 ticks per quarter. See clockStamps for why
+        // this is a window, not an EMA.
+        const at = e.time ?? now();
+        const prev = this.clockStamps[this.clockStamps.length - 1];
+        // A transport gap or a clock-domain jump invalidates the window.
+        // (500ms ≈ a tick at 5 BPM — far beyond any musical spacing.)
+        if (prev != null && (at < prev || at - prev > 500)) this.clockStamps.length = 0;
+        this.clockStamps.push(at);
+        if (this.clockStamps.length > TEMPO_WINDOW_TICKS) {
+          let removed = this.clockStamps.shift()!;
+          // Keep the window's first tick packet-leading (see clockStamps):
+          // a stamp equal to the one just removed rode the same packet.
+          while (this.clockStamps.length > 1 && this.clockStamps[0] === removed) {
+            removed = this.clockStamps.shift()!;
           }
         }
-        this.lastClockAtMs = nowMs;
-        if (this.clockIntervalMs > 0 && nowMs - this.lastBpmPushMs > 500) {
+        const n = this.clockStamps.length;
+        const elapsed = at - this.clockStamps[0];
+        const nowMs = now();
+        // Anchor only on packet-leading ticks (at > prev) — a trailing
+        // coalesced tick under-measures elapsed by up to a full interval.
+        const leading = prev == null || at > prev;
+        if (leading && n >= TEMPO_MIN_TICKS && elapsed > 0 && nowMs - this.lastBpmPushMs > 500) {
           this.lastBpmPushMs = nowMs;
-          const bpm = Math.round((60000 / (this.clockIntervalMs * PPQN)) * 10) / 10;
+          const bpm = Math.round(((60000 * (n - 1)) / (elapsed * PPQN)) * 10) / 10;
           const s = useStore.getState();
           if (Math.abs(bpm - s.transport.bpm) >= 0.5) s.setTransportBpm(bpm);
         }

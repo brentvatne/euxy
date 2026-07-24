@@ -36,7 +36,11 @@ export function createMidiPort(): MidiPort {
     const bytes: number[] = Array.from(ev.data as Uint8Array);
     emitRaw(bytes);
     const parsed = parseMidi(bytes);
-    if (parsed) inboundCbs.forEach((cb) => cb(parsed));
+    if (parsed) {
+      // Browser event stamp (performance.now domain) — see InboundEvent.time.
+      if (typeof ev.timeStamp === 'number') parsed.time = ev.timeStamp;
+      inboundCbs.forEach((cb) => cb(parsed));
+    }
   };
 
   const attachInput = () => {
