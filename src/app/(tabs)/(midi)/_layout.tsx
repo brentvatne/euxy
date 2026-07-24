@@ -26,7 +26,7 @@ export default function MidiStack() {
         headerTitleStyle: { color: color.label },
       }}
     >
-      <Stack.Screen name="index" options={{ title: 'MIDI' }} />
+      <Stack.Screen name="midi" options={{ title: 'MIDI' }} />
       <Stack.Screen name="activity-log" options={{ title: 'Activity Log', headerLargeTitle: false }} />
     </Stack>
   );

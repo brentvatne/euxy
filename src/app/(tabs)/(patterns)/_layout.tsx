@@ -22,7 +22,7 @@ export default function PatternsStack() {
         headerTitleStyle: { color: color.label },
       }}
     >
-      <Stack.Screen name="index" options={{ title: 'Patterns' }} />
+      <Stack.Screen name="patterns" options={{ title: 'Patterns' }} />
     </Stack>
   );
 }

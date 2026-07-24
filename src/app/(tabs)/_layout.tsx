@@ -7,6 +7,10 @@ import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
 import { TINT } from '@/theme/navigation';
 
+// Only (sequencer) has an index route, so "/" (the launch URL) is unambiguous
+// and the app always opens on the Sequencer. The other tabs own /patterns and
+// /midi. (unstable_settings.initialRouteName does NOT disambiguate colliding
+// group index routes — the first alphabetical group wins.)
 export default function TabsLayout() {
   return (
     <NativeTabs tintColor={TINT}>
