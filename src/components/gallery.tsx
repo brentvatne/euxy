@@ -4,8 +4,11 @@
  * data so we can eyeball tokens, spacing, contrast, and hit targets on the sim.
  */
 import { useState } from 'react';
+import { router } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { useStore } from '@/state/store';
 
 import { laneStepAt } from '@/core/euclid';
 import { midiNoteName } from '@/core/note';
@@ -36,6 +39,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export default function Gallery() {
   const insets = useSafeAreaInsets();
   const lanes = useLanes();
+  const selectLane = useStore((s) => s.selectLane);
+  const openEditor = (id: string) => {
+    selectLane(id);
+    router.push('/lane-editor');
+  };
   const [view, setView] = useState<'lanes' | 'overview'>('lanes');
   const [playhead, setPlayhead] = useState(0);
   const [tempo, setTempo] = useState(120);
@@ -111,6 +119,7 @@ export default function Gallery() {
               subtitle={`T${lane.channel + 1} · ${midiNoteName(lane.note)} · ${lane.genA.pulses}/${lane.length}`}
               muted={lane.muted}
               solo={lane.solo}
+              onPressTitle={() => openEditor(lane.id)}
             >
               {pat.map((hit, i) => (
                 <StepBlock key={i} hit={!!hit} active={i === active} grow />
