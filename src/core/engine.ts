@@ -60,6 +60,11 @@ class Engine {
   private lastPlaying = false;
   private lastMode: 'jam' | 'record' = 'jam';
 
+  /** Inbound-clock tempo measurement (record mode): EMA of tick spacing. */
+  private lastClockAtMs = 0;
+  private clockIntervalMs = 0;
+  private lastBpmPushMs = 0;
+
   // ---- lifecycle --------------------------------------------------------
 
   /** Idempotent: adopt the shared runtime port, wire inbound (record) + store. */
@@ -276,9 +281,27 @@ class Engine {
         log('rec stop', '');
         break;
       case 'clock': {
+        // Measure the device tempo from tick spacing even while stopped —
+        // many devices stream clock continuously. 24 ticks per quarter.
+        const nowMs = now();
+        if (this.lastClockAtMs > 0) {
+          const dt = nowMs - this.lastClockAtMs;
+          if (dt > 0 && dt < 1000) {
+            this.clockIntervalMs =
+              this.clockIntervalMs === 0 ? dt : this.clockIntervalMs * 0.9 + dt * 0.1;
+          }
+        }
+        this.lastClockAtMs = nowMs;
+        if (this.clockIntervalMs > 0 && nowMs - this.lastBpmPushMs > 500) {
+          this.lastBpmPushMs = nowMs;
+          const bpm = Math.round((60000 / (this.clockIntervalMs * PPQN)) * 10) / 10;
+          const s = useStore.getState();
+          if (Math.abs(bpm - s.transport.bpm) >= 0.5) s.setTransportBpm(bpm);
+        }
+
         if (!this.running) return;
         const tick = this.nextScheduleTick;
-        this.scheduleTick(tick, now());
+        this.scheduleTick(tick, nowMs);
         this.nextScheduleTick += 1;
         this.currentTick = tick;
         setPlayhead(tick, true);

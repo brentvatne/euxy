@@ -1,5 +1,79 @@
 import type { InboundEvent } from './types';
 
+/**
+ * Split a raw MIDI byte stream into individually framed messages.
+ *
+ * A CoreMIDI packet routinely carries SEVERAL messages: realtime bytes ride in
+ * the same packet as other traffic (`F8 FA` = clock + start — how a Start
+ * arrives from a device that's already sending clock), multiple clocks batch
+ * together (`F8 F8 F8` = three ticks), and realtime bytes may interleave in
+ * the middle of a channel message. Feeding an unsplit packet to `parseMidi`
+ * silently drops everything after the first message — which ate the OP-XY's
+ * Start events. Handles running status and skips sysex payloads.
+ */
+export function splitMidiMessages(bytes: readonly number[]): number[][] {
+  const out: number[][] = [];
+  let current: number[] = [];
+  let expected = 0;
+  let runningStatus = 0;
+  let inSysex = false;
+
+  const dataLen = (status: number): number => {
+    if (status >= 0xf0) {
+      if (status === 0xf1 || status === 0xf3) return 1;
+      if (status === 0xf2) return 2;
+      return 0;
+    }
+    const kind = status & 0xf0;
+    return kind === 0xc0 || kind === 0xd0 ? 1 : 2;
+  };
+
+  for (const b of bytes) {
+    // Realtime (>= 0xF8): standalone, legal ANYWHERE — even mid-message.
+    if (b >= 0xf8) {
+      out.push([b]);
+      continue;
+    }
+    if (b === 0xf0) {
+      inSysex = true;
+      current = [];
+      expected = 0;
+      continue;
+    }
+    if (b === 0xf7) {
+      inSysex = false;
+      continue;
+    }
+    if (inSysex) continue; // sysex payload — not ours to parse
+
+    if (b & 0x80) {
+      // New status byte starts a message (cancels any partial one).
+      current = [b];
+      expected = dataLen(b);
+      if (b < 0xf0) runningStatus = b;
+      else runningStatus = 0; // system common cancels running status
+      if (expected === 0) {
+        out.push(current);
+        current = [];
+      }
+      continue;
+    }
+
+    // Data byte.
+    if (current.length === 0) {
+      if (!runningStatus) continue; // stray data with no status — drop
+      current = [runningStatus];
+      expected = dataLen(runningStatus);
+    }
+    current.push(b);
+    if (current.length - 1 >= expected) {
+      out.push(current);
+      current = [];
+    }
+  }
+  return out;
+}
+
 /** Parse one inbound MIDI message (already framed) into a typed event. */
 export function parseMidi(bytes: readonly number[]): InboundEvent | null {
   if (bytes.length === 0) return null;

@@ -6,7 +6,7 @@
  * Requires a dev/prebuilt client (the native module isn't in Expo Go).
  */
 import Native from '../../modules/midi/src/MidiModule';
-import { parseMidi } from './parse';
+import { parseMidi, splitMidiMessages } from './parse';
 import type { InboundEvent, MidiPort } from './types';
 
 export function createMidiPort(): MidiPort {
@@ -15,9 +15,14 @@ export function createMidiPort(): MidiPort {
   const rawCbs = new Set<(bytes: number[], time: number) => void>();
 
   Native.addListener('onMidiMessage', ({ bytes, timestamp }) => {
-    rawCbs.forEach((cb) => cb(bytes, timestamp));
-    const parsed = parseMidi(bytes);
-    if (parsed) inboundCbs.forEach((cb) => cb(parsed));
+    // One CoreMIDI packet can hold many MIDI messages (e.g. clock + start in
+    // the same packet, or several clock ticks) — split before fan-out or
+    // everything after the first message is silently dropped.
+    for (const msg of splitMidiMessages(bytes)) {
+      rawCbs.forEach((cb) => cb(msg, timestamp));
+      const parsed = parseMidi(msg);
+      if (parsed) inboundCbs.forEach((cb) => cb(parsed));
+    }
   });
   Native.addListener('onDevicesChanged', () => stateCbs.forEach((cb) => cb()));
 
