@@ -1,0 +1,17 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- euxy icon, layer 2 of 2: the lit dot-matrix "e" cells (#F6F4F4). -->
+  <rect x="314" y="174" width="116" height="116" rx="21" fill="#F6F4F4"/>
+  <rect x="454" y="174" width="116" height="116" rx="21" fill="#F6F4F4"/>
+  <rect x="594" y="174" width="116" height="116" rx="21" fill="#F6F4F4"/>
+  <rect x="174" y="314" width="116" height="116" rx="21" fill="#F6F4F4"/>
+  <rect x="734" y="314" width="116" height="116" rx="21" fill="#F6F4F4"/>
+  <rect x="174" y="454" width="116" height="116" rx="21" fill="#F6F4F4"/>
+  <rect x="314" y="454" width="116" height="116" rx="21" fill="#F6F4F4"/>
+  <rect x="454" y="454" width="116" height="116" rx="21" fill="#F6F4F4"/>
+  <rect x="594" y="454" width="116" height="116" rx="21" fill="#F6F4F4"/>
+  <rect x="734" y="454" width="116" height="116" rx="21" fill="#F6F4F4"/>
+  <rect x="174" y="594" width="116" height="116" rx="21" fill="#F6F4F4"/>
+  <rect x="314" y="734" width="116" height="116" rx="21" fill="#F6F4F4"/>
+  <rect x="454" y="734" width="116" height="116" rx="21" fill="#F6F4F4"/>
+  <rect x="594" y="734" width="116" height="116" rx="21" fill="#F6F4F4"/>
+</svg>

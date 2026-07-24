@@ -1,0 +1,14 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- euxy icon, layer 1 of 2: the unlit dot-matrix cells (#17171C). -->
+  <rect x="174" y="174" width="116" height="116" rx="21" fill="#17171C"/>
+  <rect x="734" y="174" width="116" height="116" rx="21" fill="#17171C"/>
+  <rect x="314" y="314" width="116" height="116" rx="21" fill="#17171C"/>
+  <rect x="454" y="314" width="116" height="116" rx="21" fill="#17171C"/>
+  <rect x="594" y="314" width="116" height="116" rx="21" fill="#17171C"/>
+  <rect x="314" y="594" width="116" height="116" rx="21" fill="#17171C"/>
+  <rect x="454" y="594" width="116" height="116" rx="21" fill="#17171C"/>
+  <rect x="594" y="594" width="116" height="116" rx="21" fill="#17171C"/>
+  <rect x="734" y="594" width="116" height="116" rx="21" fill="#17171C"/>
+  <rect x="174" y="734" width="116" height="116" rx="21" fill="#17171C"/>
+  <rect x="734" y="734" width="116" height="116" rx="21" fill="#17171C"/>
+</svg>

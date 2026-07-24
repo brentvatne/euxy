@@ -14,7 +14,8 @@
       "appleTeamId": "GQ4S96SE9Z",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "icon": "./assets/euxy.icon"
     },
     "android": {
       "adaptiveIcon": {
