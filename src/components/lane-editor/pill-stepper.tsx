@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     fontSize: 13,
     lineHeight: 16,
-    color: color.label3,
+    color: color.label25,
   },
   controls: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   controlsCompact: { gap: 10 },

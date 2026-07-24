@@ -1,29 +1,26 @@
 /**
- * usePlayhead — a lightweight, editor-only playhead. The real sequencer drives
- * the playhead off the engine tick on the UI thread; the Lane Editor has no
- * engine bound, so this advances a step index off wall-clock while the transport
- * is playing and parks at step 0 when stopped. Local state only — never touches
- * the store, so it costs nothing when the sheet is closed.
+ * usePlayhead — the lane-local playhead step, derived from the ENGINE's global
+ * tick (core/playhead Reanimated shared values), not wall-clock. The reaction
+ * runs on the UI thread and only crosses to JS (a re-render) when the derived
+ * step index actually changes — i.e. at step rate, not tick rate. Parks at
+ * step 0 while the transport is stopped.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
+import { runOnJS, useAnimatedReaction } from 'react-native-reanimated';
 
-import type { Transport } from '@/state/types';
+import { playheadPlaying, playheadTick } from '@/core/playhead';
 
-export function usePlayhead(length: number, resolutionTicks: number, transport: Transport): number {
+export function usePlayhead(length: number, resolutionTicks: number): number {
   const [step, setStep] = useState(0);
-  const ref = useRef(0);
-  useEffect(() => {
-    if (!transport.playing || length <= 0) {
-      ref.current = 0;
-      setStep(0);
-      return;
-    }
-    const stepMs = Math.max(30, (60000 / transport.bpm) * (resolutionTicks / 24));
-    const id = setInterval(() => {
-      ref.current = (ref.current + 1) % length;
-      setStep(ref.current);
-    }, stepMs);
-    return () => clearInterval(id);
-  }, [transport.playing, transport.bpm, resolutionTicks, length]);
+  useAnimatedReaction(
+    () => {
+      if (length <= 0 || resolutionTicks <= 0 || !playheadPlaying.value) return 0;
+      return Math.floor(playheadTick.value / resolutionTicks) % length;
+    },
+    (cur, prev) => {
+      if (cur !== prev) runOnJS(setStep)(cur);
+    },
+    [length, resolutionTicks],
+  );
   return length > 0 ? step % length : 0;
 }

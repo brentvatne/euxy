@@ -5,7 +5,7 @@
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { color, HIT_TARGET, space } from '@/theme/tokens';
+import { color, font, HIT_TARGET, space } from '@/theme/tokens';
 import { AppText } from './text';
 
 export interface SheetHeaderProps {
@@ -29,10 +29,8 @@ export function SheetHeader({
     <View style={styles.header}>
       <View style={styles.side}>
         {onCancel ? (
-          <Pressable onPress={onCancel} hitSlop={space.sm} accessibilityRole="button">
-            <AppText variant="body" tone="secondary">
-              {cancelLabel}
-            </AppText>
+          <Pressable onPress={onCancel} hitSlop={space.md} accessibilityRole="button">
+            <AppText style={styles.cancel}>{cancelLabel}</AppText>
           </Pressable>
         ) : null}
       </View>
@@ -66,9 +64,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     minHeight: HIT_TARGET + space.sm,
-    paddingHorizontal: space.lg,
+    paddingHorizontal: space.xl, // Paper sheet nav: px 20
   },
   side: { flex: 1, justifyContent: 'center' },
   right: { alignItems: 'flex-end' },
   center: { flex: 2, alignItems: 'center' },
+  // Paper 16G-0: Cancel is 17/22 regular in the label25 gray (not label3).
+  cancel: { fontFamily: font.text, fontSize: 17, lineHeight: 22, fontWeight: '400', color: color.label25 },
 });

@@ -7,14 +7,16 @@
  */
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { midiNoteName } from '@/core/note';
 import { useLane } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import type { CombineOp } from '@/state/types';
 import { color, font, radius, space } from '@/theme/tokens';
-import { AppText, Segmented, SFSymbol, SheetHeader } from '@/components/ui';
+import { AppText, SFSymbol, SheetHeader } from '@/components/ui';
+import { KeyboardAwareScrollView } from '@/components/ui/keyboard';
+import { ViewToggle } from '@/components/lane-editor/view-toggle';
 import { PillStepper } from '@/components/lane-editor/pill-stepper';
 import { PickerBar } from '@/components/lane-editor/picker-bar';
 import { SliderRow } from '@/components/lane-editor/slider-row';
@@ -47,11 +49,13 @@ export default function LaneEditorSheet() {
   const updateLane = useStore((s) => s.updateLane);
   const updateGenerator = useStore((s) => s.updateGenerator);
   const setLaneOp = useStore((s) => s.setLaneOp);
+  const removeLane = useStore((s) => s.removeLane);
   const [view, setView] = useState<ViewMode>('steps');
 
   if (!lane) {
     return (
       <View style={styles.root}>
+        <View style={styles.grabberSpace} />
         <SheetHeader title="Edit Lane" onDone={() => router.back()} />
         <View style={styles.empty}>
           <AppText tone="secondary">No lane selected.</AppText>
@@ -74,33 +78,36 @@ export default function LaneEditorSheet() {
 
   return (
     <View style={styles.root}>
+      {/* Paper 16Z-0: 13px "sheet top" band the native grabber floats over. */}
+      <View style={styles.grabberSpace} />
       <SheetHeader title="Edit Lane" onCancel={() => router.back()} onDone={() => router.back()} />
 
       <View style={styles.toggle}>
-        <Segmented<ViewMode>
-          options={[
-            { label: 'Steps', value: 'steps' },
-            { label: 'Graph', value: 'graph' },
-          ]}
-          value={view}
-          onChange={setView}
-        />
+        <ViewToggle value={view} onChange={setView} />
       </View>
 
-      <ScrollView
+      {/* collapsable={false} keeps this wrapper in the native tree so the
+          ScrollView is NOT a direct child of the screen content wrapper —
+          react-native-screens' formSheet "frame correction" finds direct-child
+          scroll views and forces them to the full sheet frame (origin 0),
+          which painted the scroll content OVER the header and toggle and
+          swallowed their taps. See RNSScreen.mm
+          applyFrameCorrectionForDescendantScrollView. */}
+      <View style={styles.scroll} collapsable={false}>
+      {/* KeyboardAwareScrollView (RNKC) reveals the focused Name field instead
+          of letting the keyboard cover it. ONE keyboard owner per screen. */}
+      <KeyboardAwareScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        bottomOffset={24}
       >
-        {/* View slot — fixed height so toggling Steps/Graph never shifts the
-            controls below; content is centered within it. */}
-        <View style={styles.viewSlot}>
-          {view === 'steps' ? (
-            <StepsView lane={lane} transport={transport} />
-          ) : (
-            <GraphView lane={lane} transport={transport} />
-          )}
-        </View>
+        {/* Views size themselves (Paper: Steps 12E-0 and Graph DR-0 differ). */}
+        {view === 'steps' ? (
+          <StepsView lane={lane} transport={transport} />
+        ) : (
+          <GraphView lane={lane} />
+        )}
 
         {/* Generators */}
         <View style={styles.genControls}>
@@ -171,9 +178,22 @@ export default function LaneEditorSheet() {
           />
         </View>
 
-        {/* Note / Track · Channel */}
+        {/* Name / Note / Track · Channel */}
         <View style={styles.groupCell}>
           <View style={[styles.cell, styles.cellTop]}>
+            <AppText style={styles.cellTitle}>Name</AppText>
+            <TextInput
+              value={lane.name ?? ''}
+              onChangeText={(t) => updateLane(id, { name: t || undefined })}
+              placeholder={midiNoteName(lane.note)}
+              placeholderTextColor={color.labelDisabled}
+              style={styles.nameInput}
+              returnKeyType="done"
+              autoCapitalize="words"
+              accessibilityLabel="Lane name"
+            />
+          </View>
+          <View style={[styles.cell, styles.cellMid]}>
             <AppText style={styles.cellTitle}>Note</AppText>
             <View style={styles.cellRight}>
               <SmallStep
@@ -224,7 +244,20 @@ export default function LaneEditorSheet() {
             formatValue={(v) => `${v} ms`}
           />
         </View>
-      </ScrollView>
+
+        {/* Delete lane — the one destructive action in the editor. */}
+        <Pressable
+          style={styles.deleteLane}
+          accessibilityRole="button"
+          onPress={() => {
+            removeLane(id);
+            router.back();
+          }}
+        >
+          <AppText style={styles.deleteLaneLabel}>Delete lane</AppText>
+        </Pressable>
+      </KeyboardAwareScrollView>
+      </View>
     </View>
   );
 }
@@ -254,11 +287,11 @@ function SmallStep({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.surface },
+  grabberSpace: { height: 13 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  toggle: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 8 },
+  toggle: { paddingHorizontal: 20, paddingBottom: 4 },
   scroll: { flex: 1 },
-  content: { paddingTop: 8, paddingBottom: space.xxl },
-  viewSlot: { paddingHorizontal: 16, paddingBottom: 4, minHeight: 362, justifyContent: 'center' },
+  content: { paddingBottom: space.xxl },
 
   genControls: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 4, gap: 10 },
   genRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -273,8 +306,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 11,
     lineHeight: 14,
-    letterSpacing: 0.5,
-    color: color.label3,
+    letterSpacing: 0.44,
+    color: color.label25,
   },
 
   section: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, gap: 8 },
@@ -283,8 +316,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 12,
     lineHeight: 16,
-    letterSpacing: 0.5,
-    color: color.label3,
+    letterSpacing: 0.48,
+    color: color.label25,
     paddingLeft: 2,
   },
 
@@ -298,11 +331,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   cellTop: { borderTopLeftRadius: radius.cell, borderTopRightRadius: radius.cell, borderBottomLeftRadius: 2, borderBottomRightRadius: 2 },
+  cellMid: { borderRadius: 2 },
   cellBottom: { borderBottomLeftRadius: radius.cell, borderBottomRightRadius: radius.cell, borderTopLeftRadius: 2, borderTopRightRadius: 2 },
+  nameInput: {
+    flex: 1,
+    marginLeft: 16,
+    textAlign: 'right',
+    fontFamily: font.text,
+    fontWeight: '600',
+    fontSize: 16,
+    color: color.label,
+    padding: 0,
+  },
   cellTitle: { fontFamily: font.text, fontSize: 16, lineHeight: 20, color: color.label },
   cellRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   cellRightTight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  cellValue: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: color.label3 },
+  cellValue: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: color.label25 },
   smallStep: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   listen: {
     flexDirection: 'row',
@@ -316,4 +360,13 @@ const styles = StyleSheet.create({
   listenLabel: { fontFamily: font.text, fontWeight: '700', fontSize: 13, lineHeight: 16, color: color.ground },
 
   sliders: { padding: 16, gap: 16 },
+  deleteLane: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    paddingVertical: 13,
+    borderRadius: radius.cell,
+    backgroundColor: color.surface2,
+    alignItems: 'center',
+  },
+  deleteLaneLabel: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: color.danger },
 });

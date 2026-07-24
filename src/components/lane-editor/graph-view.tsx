@@ -14,7 +14,7 @@ import Svg, { Line, Polygon, Rect } from 'react-native-svg';
 import { generator } from '@/core/euclid';
 import { midiNoteName } from '@/core/note';
 import { color, font } from '@/theme/tokens';
-import type { Lane, Transport } from '@/state/types';
+import type { Lane } from '@/state/types';
 import { AppText } from '@/components/ui';
 import { usePlayhead } from './use-playhead';
 
@@ -42,13 +42,13 @@ function polyPoints(pattern: number[], r: number): string {
     .join(' ');
 }
 
-export function GraphView({ lane, transport }: { lane: Lane; transport: Transport }) {
+export function GraphView({ lane }: { lane: Lane }) {
   const n = lane.length;
   const genA = generator(lane.genA.pulses, n, lane.genA.rotation);
   const hasB = lane.genB.pulses > 0;
   const genB = hasB ? generator(lane.genB.pulses, n, lane.genB.rotation) : [];
 
-  const playStep = usePlayhead(n, lane.resolutionTicks, transport);
+  const playStep = usePlayhead(n, lane.resolutionTicks);
   const [px, py] = pointAt(playStep, n, R_OUTER);
 
   const aPoly = polyPoints(genA, R_OUTER);
@@ -56,6 +56,8 @@ export function GraphView({ lane, transport }: { lane: Lane; transport: Transpor
 
   return (
     <View style={styles.panel}>
+      {/* Paper 117-0 lays a flat #FFFFFF17 wash over the #08080A panel. */}
+      <View style={styles.wash} pointerEvents="none" />
       <View style={styles.readout}>
         <AppText style={styles.mono}>steps {n}</AppText>
         <AppText style={styles.mono}>
@@ -75,8 +77,8 @@ export function GraphView({ lane, transport }: { lane: Lane; transport: Transpor
           {lane.genA.pulses >= 2 ? (
             <Polygon points={aPoly} fill="none" stroke={GEN1} strokeWidth={1.5} />
           ) : null}
-          {/* playhead spoke */}
-          <Line x1={C} y1={C} x2={px} y2={py} stroke={color.playhead} strokeWidth={2} opacity={0.9} />
+          {/* playhead spoke — white in Paper; only the pixel is cyan */}
+          <Line x1={C} y1={C} x2={px} y2={py} stroke={color.label} strokeWidth={2} />
 
           {/* gen 1 ring pixels */}
           {genA.map((hit, i) => {
@@ -135,19 +137,33 @@ function Legend({ swatch, label }: { swatch: string; label: string }) {
   return (
     <View style={styles.legendItem}>
       <View style={[styles.legendSwatch, { backgroundColor: swatch }]} />
-      <AppText style={styles.mono}>{label}</AppText>
+      <AppText style={styles.legendLabel}>{label}</AppText>
     </View>
   );
 }
 
+// Exact values from Paper 117-0: panel mx 16 / mt 8 / mb 4, min-h 346, py 16,
+// px 18, radius 12, #08080A + a flat #FFFFFF17 wash.
 const styles = StyleSheet.create({
   panel: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 4,
     backgroundColor: color.displayBg,
     borderRadius: 12,
     minHeight: 346,
     paddingVertical: 16,
     paddingHorizontal: 18,
     gap: 8,
+    overflow: 'hidden',
+  },
+  wash: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,255,255,0.09)',
   },
   readout: { flexDirection: 'row', justifyContent: 'space-between' },
   mono: { fontFamily: font.mono, fontSize: 12, lineHeight: 16, color: MONO_LABEL },
@@ -158,4 +174,5 @@ const styles = StyleSheet.create({
   legend: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendSwatch: { width: 9, height: 9, borderRadius: 1 },
+  legendLabel: { fontFamily: font.mono, fontSize: 11, lineHeight: 14, color: color.label3 },
 });

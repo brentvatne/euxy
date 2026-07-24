@@ -91,7 +91,7 @@ export function SliderRow({
 const styles = StyleSheet.create({
   row: { gap: space.sm },
   head: { flexDirection: 'row', justifyContent: 'space-between' },
-  label: { fontFamily: font.text, fontWeight: '500', fontSize: 14, lineHeight: 18, color: color.label3 },
+  label: { fontFamily: font.text, fontWeight: '500', fontSize: 14, lineHeight: 18, color: color.label25 },
   value: { fontFamily: font.text, fontWeight: '600', fontSize: 14, lineHeight: 18, color: color.label },
   hit: { height: THUMB, justifyContent: 'center' },
   track: { height: TRACK_H, borderRadius: 3, backgroundColor: color.surface2, overflow: 'hidden' },

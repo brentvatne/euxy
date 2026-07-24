@@ -75,5 +75,5 @@ const styles = StyleSheet.create({
   segmentActive: { backgroundColor: color.label },
   label: { fontFamily: font.text, lineHeight: 16, textAlign: 'center' },
   labelActive: { color: color.ground, fontWeight: '700' },
-  labelInactive: { color: color.label3, fontWeight: '600' },
+  labelInactive: { color: color.label25, fontWeight: '600' },
 });
