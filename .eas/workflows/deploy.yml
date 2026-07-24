@@ -1,0 +1,66 @@
+# On every push to main: fingerprint the native project. If the fingerprint
+# matches an existing build for a profile, skip building — production ships as
+# an OTA update instead. Only a changed native fingerprint triggers real
+# builds, and a fresh production build auto-submits to TestFlight.
+# Pattern: https://docs.expo.dev/eas/workflows/examples/ (deploy to production)
+name: Deploy
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  fingerprint:
+    name: Fingerprint
+    type: fingerprint
+    environment: production
+
+  get_dev_build:
+    name: Check for existing dev-simulator build
+    needs: [fingerprint]
+    type: get-build
+    params:
+      fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
+      profile: development-simulator
+
+  get_prod_build:
+    name: Check for existing production build
+    needs: [fingerprint]
+    type: get-build
+    params:
+      fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
+      profile: production
+
+  build_dev:
+    name: Build iOS dev simulator
+    needs: [get_dev_build]
+    if: ${{ !needs.get_dev_build.outputs.build_id }}
+    type: build
+    params:
+      platform: ios
+      profile: development-simulator
+
+  build_prod:
+    name: Build iOS production
+    needs: [get_prod_build]
+    if: ${{ !needs.get_prod_build.outputs.build_id }}
+    type: build
+    params:
+      platform: ios
+      profile: production
+
+  submit_prod:
+    name: Submit to TestFlight
+    needs: [build_prod]
+    type: submit
+    params:
+      build_id: ${{ needs.build_prod.outputs.build_id }}
+
+  publish_update:
+    name: Publish OTA update (fingerprint unchanged)
+    needs: [get_prod_build]
+    if: ${{ needs.get_prod_build.outputs.build_id }}
+    type: update
+    params:
+      branch: production
+      platform: ios
