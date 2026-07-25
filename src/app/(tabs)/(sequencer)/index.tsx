@@ -212,6 +212,8 @@ export default function SequencerScreen() {
           onToggleMode={() =>
             setClockMode(transport.clockMode === 'jam' ? 'record' : 'jam')
           }
+          // §10: the BPM readout opens the Tempo sheet (edits apply live).
+          onPressBpm={() => router.push('/tempo')}
         />
       </View>
     </View>

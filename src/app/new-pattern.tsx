@@ -15,16 +15,19 @@ import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native
 import { router } from 'expo-router';
 
 import { AppText, SFSymbol, SheetHeader } from '@/components/ui';
+import { IconClear, IconDice } from '@/components/ui/icons';
+import { Key } from '@/components/ui/key';
 import { haptics } from '@/lib/shims';
+import { generatePatternName } from '@/lib/pattern-names';
 import { allChipNames, randomChipName, type ChipName } from '@/components/patterns/chips';
 import { IconPicker } from '@/components/patterns/icon-picker';
 import { ResolutionPicker } from '@/components/patterns/resolution-picker';
-import { usePatterns } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import { color, radius, space, timing } from '@/theme/tokens';
 
-const BPM_MIN = 20;
-const BPM_MAX = 300;
+/** Tempo bounds — shared with the Tempo sheet (app/tempo.tsx). */
+export const BPM_MIN = 20;
+export const BPM_MAX = 300;
 
 /** Chip size for the horizontal ICON row (the grid's 76 is too tall here). */
 const ICON_CHIP_SIZE = 56;
@@ -33,14 +36,12 @@ const ICON_CHIP_STRIDE = ICON_CHIP_SIZE + 6 + 10;
 
 export default function NewPatternSheet() {
   const newPattern = useStore((s) => s.newPattern);
-  const patterns = usePatterns();
 
-  const suggestedName = useMemo(
-    () => `Untitled ${String(patterns.length + 1).padStart(2, '0')}`,
-    [patterns.length],
-  );
-
-  const [name, setName] = useState(suggestedName);
+  // §9: names are GENERATED, never "Untitled N". The sheet opens with a
+  // suggestion pre-filled; dice rerolls it, × clears back to the placeholder
+  // (which stays the latest suggestion so a blank Create still lands on it).
+  const [suggestion, setSuggestion] = useState(() => generatePatternName());
+  const [name, setName] = useState(suggestion);
   const [icon, setIcon] = useState<ChipName>(() => randomChipName());
   const [bpm, setBpm] = useState(120);
   const [ticks, setTicks] = useState<number>(timing.defaultResolutionTicks);
@@ -55,9 +56,19 @@ export default function NewPatternSheet() {
 
   const create = () => {
     haptics.success();
-    newPattern({ name: name.trim() || suggestedName, icon, bpm, baseResolutionTicks: ticks });
+    newPattern({ name: name.trim() || suggestion, icon, bpm, baseResolutionTicks: ticks });
     router.back();
   };
+
+  // Dice: a fresh suggestion replaces whatever's in the field (never repeats
+  // the current name); × clears to the placeholder. Neither disables (§9).
+  const rerollName = () => {
+    haptics.selection();
+    const next = generatePatternName(name.trim() || suggestion);
+    setSuggestion(next);
+    setName(next);
+  };
+  const clearName = () => setName('');
 
   const adjustBpm = (delta: number) => {
     const next = Math.max(BPM_MIN, Math.min(BPM_MAX, bpm + delta));
@@ -69,6 +80,9 @@ export default function NewPatternSheet() {
 
   return (
     <View style={styles.root}>
+      {/* §9 header padding: same 13px "sheet top" band as the Edit Lane sheet
+          (Paper 16Z-0) — the native grabber floats over it. */}
+      <View style={styles.grabberSpace} />
       <SheetHeader
         title="New Pattern"
         onCancel={() => router.back()}
@@ -78,11 +92,13 @@ export default function NewPatternSheet() {
 
       <View style={styles.body}>
         <Field label="Name">
+          {/* Paper 8OY-0 name-field row: input + 30px × key + 30px dice key
+              (dice = the 5-pip mutate glyph: one vocabulary for "random"). */}
           <View style={styles.inputCell}>
             <TextInput
               value={name}
               onChangeText={setName}
-              placeholder={suggestedName}
+              placeholder={suggestion}
               placeholderTextColor={color.label4}
               selectionColor={color.label}
               style={styles.input}
@@ -91,6 +107,25 @@ export default function NewPatternSheet() {
               autoCorrect={false}
               onSubmitEditing={create}
             />
+            <Key
+              onPress={clearName}
+              hitSlop={7} // 30px key → 44px hit target
+              style={styles.fieldKey}
+              accessibilityRole="button"
+              accessibilityLabel="Clear name"
+            >
+              <IconClear size={11} />
+            </Key>
+            <Key
+              onPress={rerollName}
+              haptic="none" // rerollName fires haptics.selection() itself
+              hitSlop={7}
+              style={styles.fieldKey}
+              accessibilityRole="button"
+              accessibilityLabel="New name suggestion"
+            >
+              <IconDice size={14} />
+            </Key>
           </View>
         </Field>
 
@@ -178,21 +213,35 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.surface },
+  grabberSpace: { height: 13 },
   body: { paddingHorizontal: space.lg, paddingTop: space.sm, gap: space.lg },
   field: { gap: space.sm },
   fieldLabel: { marginLeft: 2 },
+  // Paper 8OY-0: pl 16 / pr 12, gap 10, keys trail the flexed input.
   inputCell: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     backgroundColor: color.surface2,
     borderRadius: radius.cell,
-    paddingHorizontal: space.lg,
+    paddingLeft: space.lg,
+    paddingRight: space.md,
     height: 52,
-    justifyContent: 'center',
   },
   input: {
+    flex: 1,
     color: color.label,
     fontSize: 16,
     fontFamily: 'SF Pro Text',
     padding: 0,
+  },
+  fieldKey: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    backgroundColor: color.surface3,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tempoCell: {
     flexDirection: 'row',

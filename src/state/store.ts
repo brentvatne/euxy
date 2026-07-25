@@ -184,6 +184,13 @@ export interface AppState {
   setPatternIcon: (id: string, icon: string) => void;
   /** Set the active pattern's chip glyph (components/patterns/chips.ts name). */
   setActivePatternIcon: (icon: string) => void;
+  /**
+   * Set the active pattern's base resolution (ticks per step at 24 PPQN).
+   * The base is only the DEFAULT grid for NEW lanes (addLane reads it) —
+   * every lane carries its own resolutionTicks, so changing the base never
+   * rewrites or re-quantizes lanes already in the pattern.
+   */
+  setBaseResolution: (ticks: number) => void;
   /** Restore one factory preset to its shipped state (re-adds it if deleted). */
   resetPreset: (id: string) => void;
   /** Restore all factory presets, including deleted ones. */
@@ -475,6 +482,7 @@ export const useStore = create<AppState>((set, get) => {
     renameActivePattern: (name) => get().renamePattern(get().activePatternId, name),
     setPatternIcon: (id, icon) => mutatePattern(id, (p) => ({ ...p, icon })),
     setActivePatternIcon: (icon) => get().setPatternIcon(get().activePatternId, icon),
+    setBaseResolution: (ticks) => mutateActive((p) => ({ ...p, baseResolutionTicks: ticks })),
     // Factory resets replace content in place (same pattern id, fresh lane
     // ids) so the active/selection ids stay valid; a deleted preset is
     // re-appended. This is also the escape hatch for installs that seeded
