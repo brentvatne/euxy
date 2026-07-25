@@ -66,6 +66,30 @@ web/                      own package.json (react-native-audio-api lives
   assets/sounds/          ~24 CC0 one-shots + LICENSES.md
 ```
 
+### Status: W0 SHIPPED + more (2026-07-25) — https://euxy.expo.app is LIVE
+
+Built and deployed in one pass (uncommitted): `web/` scaffold, home page
+with all 15 factory presets playable (synth voices — W1 sample kit still
+pending), `/p` decoding + playing real shared patterns with the app's
+playhead language, AASA served with `content-type: application/json`,
+production deploy claiming euxy.expo.app. Also landed app-side:
+`src/core/share-codec.ts` (round-trips all presets; 2000-iteration fuzz
+clean; URLs 137–156 chars) and `src/core/lane-pattern.ts` (patternForLane
+extracted from selectors, re-exported for compatibility). The app-side
+native build (associatedDomains entitlement) is now UNBLOCKED.
+
+**One repo-mechanics correction learned the hard way:** `expo export`
+does NOT crawl out-of-root `watchFolders` (the dev server does — verified
+on SDK 57 / Metro 0.84.4; feedback submitted to Expo). Shared modules are
+therefore **copied, not watched**: `web/scripts/sync-shared.mjs` copies
+the allow-list from `../src` into `web/shared/` (generated, gitignored)
+before every start/export/typecheck; the `@/` alias maps to `web/shared/`
+with src's layout so the shared modules' internal `@/` imports resolve
+unchanged. Bonus: `web/` is self-contained at export time, which EAS
+deploy workers want anyway. Purity stays self-enforcing (web tsc fails on
+impure imports). The section below predates this — read "watchFolders"
+as "the sync script".
+
 ### Repo mechanics (decided 2026-07-25, Brent's "does a web dir work?" question)
 
 **Standalone nested app — NOT bun workspaces.** Workspaces would hoist

@@ -522,6 +522,16 @@ Detect and display the mismatch:
 
 ## Backlog — future features (2026-07-24)
 
+### Animation audit via the improve-animations skill (2026-07-25)
+
+Run the `improve-animations` agent skill over the codebase for a senior
+motion-advisor pass: a prioritized audit of every animation (capsule,
+LED grid, washes, sheets, transport) with self-contained fix plans.
+Cross-check its findings against our locked motion principles 1–7
+(especially interruptibility and zero-idle-frames) — the principles win
+where they conflict; anything it flags that the principles don't cover
+is candidate principle material.
+
 ### Web OP-XY placeholder site (researched 2026-07-25)
 
 A minimal website that stands in for an OP-XY: receives euxy's MIDI over
@@ -547,6 +557,28 @@ a real OP-XY via Web MIDI), and the AASA well-known files the app's
 universal links need. Web MIDI OUT is now in scope (it was this section's
 open question 1) because the sharing brief asks for desktop-web playback
 to hardware. Build order and route map live in the web plan.
+
+### OG images for euxy.expo.app (2026-07-25)
+
+Every page currently unfurls with text-only meta. Generate proper Open
+Graph images (1200×630) for the site's pages — **design them in Paper
+first**, then export/generate the assets:
+
+- **Home** — the euxy identity card: dot-matrix "e" chip + wordmark +
+  tagline on display-black; the brand unfurl for any link to the site.
+- **`/p` (shared patterns, generic)** — a share-card-styled frame that
+  says "a euxy pattern" (lane-grid texture + QR motif) without naming a
+  specific pattern — with `web.output: "static"` every /p link unfurls
+  with this ONE image. Per-pattern OG images (name + real lane grid,
+  like the in-app ShareCard) need `web.output: "server"` or an API
+  route — note in web-plan.md; design the template now so the server
+  upgrade is drop-in.
+- **/privacy** (and future pages) — can reuse the home card.
+
+Implementation: static PNGs in `web/public/og/` + `og:image` /
+`twitter:card` tags per route via expo-router `Head`. The Paper-designed
+cards should reuse the share-card language (chip glyphs, keyRamp lane
+grid, Space Mono captions) so unfurls read unmistakably as euxy.
 
 ### Tab bar hide/show (ideas, 2026-07-24)
 

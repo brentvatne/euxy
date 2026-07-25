@@ -1,6 +1,14 @@
 # Pattern sharing via QR — research
 
-**Date:** 2026-07-25 · **Status:** research complete, awaiting decisions
+**Date:** 2026-07-25 · **Status:** BUILT (app side JS complete 2026-07-25;
+PNG export + universal links activate with the next dev build — until then
+Share Card falls back to sharing the bare link, and links open via euxy://
+only). Implemented: `src/core/share-codec.ts` + `lane-pattern.ts`,
+`store.importPattern`, `src/app/{share-pattern,p}.tsx` sheets, ShareCard
+Skia component (`components/patterns/share-card.tsx`, QR = pure-JS
+`qrcode/lib/core/qrcode` byte-segment → rounded-module dot-matrix render),
+"Share…" in the pattern menu, shims for expo-sharing/file-system/clipboard.
+Web side live at euxy.expo.app (see web-plan.md).
 **Roadmap origin:** ROADMAP.md backlog → "Pattern sharing via barcode"
 
 Share a pattern from the pattern header menu: a "Share…" item opens a form
