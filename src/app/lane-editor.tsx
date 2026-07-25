@@ -229,7 +229,7 @@ export default function LaneEditorSheet() {
         <Section title="Sound">
           <View style={styles.cells}>
             <Pressable
-              style={[styles.cell, styles.cellFirst]}
+              style={({ pressed }) => [styles.cell, styles.cellFirst, pressed && styles.pressedDim]}
               onPress={() => setPadsOpen((v) => !v)}
               accessibilityRole="button"
               accessibilityLabel="Note"
@@ -241,10 +241,11 @@ export default function LaneEditorSheet() {
                   {midiNoteName(lane.note)} · {lane.note}
                 </AppText>
                 <Pressable
-                  style={[
+                  style={({ pressed }) => [
                     styles.listen,
                     padsOpen && styles.listenMuted,
                     listening && styles.listenActive,
+                    pressed && styles.pressedDim,
                   ]}
                   onPress={() => setListening((v) => !v)}
                   accessibilityRole="button"
@@ -280,7 +281,7 @@ export default function LaneEditorSheet() {
               />
             ) : null}
             <Pressable
-              style={[styles.cell, styles.cellLast]}
+              style={({ pressed }) => [styles.cell, styles.cellLast, pressed && styles.pressedDim]}
               // Tap-cycling caps at 8 (the OP-XY has 8 audio tracks). A channel
               // above 8 that arrived some other way (inbound capture) is kept
               // and displayed; the next tap folds back into tracks 1–8.
@@ -359,7 +360,11 @@ export default function LaneEditorSheet() {
 
         {/* Randomize — re-rolls the rhythm only; note/track/timing stay. */}
         <View style={styles.actions}>
-          <Pressable style={styles.actionBtn} accessibilityRole="button" onPress={() => randomizeLane(id)}>
+          <Pressable
+            style={({ pressed }) => [styles.actionBtn, pressed && styles.pressedDim]}
+            accessibilityRole="button"
+            onPress={() => randomizeLane(id)}
+          >
             <SFSymbol name="dice" size={16} tint={color.label} />
             <AppText style={styles.actionLabel}>Randomize</AppText>
           </Pressable>
@@ -367,7 +372,7 @@ export default function LaneEditorSheet() {
             Randomize re-rolls the rhythm only — note & track stay.
           </AppText>
           <Pressable
-            style={styles.actionBtn}
+            style={({ pressed }) => [styles.actionBtn, pressed && styles.pressedDim]}
             accessibilityRole="button"
             onPress={() => {
               removeLane(id);
@@ -497,4 +502,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   deleteLabel: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: color.danger },
+  // Press-down feedback for cells/rows (dim, not travel — wide surfaces).
+  pressedDim: { opacity: 0.65 },
 });

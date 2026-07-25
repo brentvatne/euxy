@@ -26,6 +26,7 @@ function HeaderAddButton() {
     <Pressable
       onPress={() => router.push('/new-pattern')}
       hitSlop={space.md}
+      style={({ pressed }) => (pressed ? styles.pressedDim : undefined)}
       accessibilityRole="button"
       accessibilityLabel="New pattern"
     >
@@ -112,7 +113,7 @@ export default function PatternsScreen() {
         {patterns.length > 0 && !query.trim() ? (
           <Pressable
             onPress={confirmRestoreAll}
-            style={styles.restoreAll}
+            style={({ pressed }) => [styles.restoreAll, pressed && styles.pressedDim]}
             accessibilityRole="button"
           >
             <AppText style={styles.restoreAllLabel}>Restore factory presets</AppText>
@@ -192,4 +193,5 @@ const styles = StyleSheet.create({
   // iOS grouped-list footer action: quiet text button under the list.
   restoreAll: { alignItems: 'center', paddingVertical: 18 },
   restoreAllLabel: { fontSize: 13, lineHeight: 18, color: color.label3, fontWeight: '500' },
+  pressedDim: { opacity: 0.65 },
 });

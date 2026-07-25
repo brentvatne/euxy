@@ -41,7 +41,11 @@ export function LaneRow({
   return (
     <View style={styles.row}>
       <View style={styles.header}>
-        <Pressable onPress={onPressTitle} disabled={!onPressTitle} style={styles.titleGroup}>
+        <Pressable
+          onPress={onPressTitle}
+          disabled={!onPressTitle}
+          style={({ pressed }) => [styles.titleGroup, pressed && styles.pressedDim]}
+        >
           <View style={[styles.accent, { backgroundColor: audible ? color.label : ramp[4] }]} />
           <View style={styles.textBlock}>
             <AppText style={styles.title}>{title}</AppText>
@@ -53,8 +57,13 @@ export function LaneRow({
           <MSButton label="S" active={solo} onPress={onToggleSolo} />
         </View>
       </View>
-      {/* The step grid is the lane's face — tapping it opens the editor too. */}
-      <Pressable onPress={onPressTitle} disabled={!onPressTitle} style={styles.steps}>
+      {/* The step grid is the lane's face — tapping it opens the editor too;
+          pressing dims it so the whole surface reads as interactive. */}
+      <Pressable
+        onPress={onPressTitle}
+        disabled={!onPressTitle}
+        style={({ pressed }) => [styles.steps, pressed && styles.pressedDim]}
+      >
         {children}
       </Pressable>
     </View>
@@ -117,4 +126,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
   },
   steps: { flexDirection: 'row', gap: 4 },
+  // Press-down feedback for large surfaces (concept H's "face one shade
+  // darker", as dim — travel would warp wide rows).
+  pressedDim: { opacity: 0.65 },
 });

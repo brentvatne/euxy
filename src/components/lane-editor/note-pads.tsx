@@ -60,7 +60,7 @@ export function NotePads({ note, velocity, channel, onSelect }: NotePadsProps) {
       ) : null}
       <View style={styles.pager}>
         <Pressable
-          style={[styles.pagerBtn, base === anchor && styles.pagerBtnDisabled]}
+          style={({ pressed }) => [styles.pagerBtn, base === anchor && styles.pagerBtnDisabled, pressed && styles.pressedDim]}
           disabled={base === anchor}
           onPress={() => setBase((b) => Math.max(anchor, b - 12))}
           accessibilityRole="button"
@@ -72,7 +72,7 @@ export function NotePads({ note, velocity, channel, onSelect }: NotePadsProps) {
           octaves · {midiNoteName(base)} – {midiNoteName(topEnd)}
         </AppText>
         <Pressable
-          style={[styles.pagerBtn, base === maxBase && styles.pagerBtnDisabled]}
+          style={({ pressed }) => [styles.pagerBtn, base === maxBase && styles.pagerBtnDisabled, pressed && styles.pressedDim]}
           disabled={base === maxBase}
           onPress={() => setBase((b) => Math.min(maxBase, b + 12))}
           accessibilityRole="button"
@@ -103,10 +103,11 @@ function PadRow({
         return (
           <Pressable
             key={n}
-            style={[
+            style={({ pressed }) => [
               styles.pad,
               SHARPS.has(i) && styles.padSharp,
               selected && styles.padSelected,
+              pressed && styles.pressedDim,
             ]}
             onPress={() => onPick(n)}
             accessibilityRole="button"
@@ -177,6 +178,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pagerBtnDisabled: { opacity: 0.4 },
+  pressedDim: { opacity: 0.65 },
   pagerGlyph: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: color.label },
   pagerLabel: {
     fontFamily: font.text,
