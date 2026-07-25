@@ -11,6 +11,7 @@ import { create } from 'zustand';
 
 import { randomChipName } from '@/components/patterns/chips';
 import { drum } from '@/core/opxy';
+import type { SharedPattern } from '@/core/share-codec';
 import { timing } from '@/theme/tokens';
 import { makeLane, uid } from './lane';
 import { attachPersistence, loadPersisted } from './persistence';
@@ -193,6 +194,9 @@ export interface AppState {
     icon?: string;
   }) => string;
   loadPattern: (id: string) => void;
+  /** Add a decoded shared pattern (share-codec) to the library and select it.
+   * Fresh ids throughout; returns the new pattern id. */
+  importPattern: (shared: SharedPattern) => string;
   deletePattern: (id: string) => void;
   /** Rename any pattern by id (blank names keep the old one). */
   renamePattern: (id: string, name: string) => void;
@@ -471,6 +475,30 @@ export const useStore = create<AppState>((set, get) => {
         // Every pattern gets a distinct glyph with zero effort (icon-picker
         // spec) — the New Pattern sheet passes a deliberate pick through here.
         icon: opts?.icon ?? randomChipName(),
+      };
+      discardSnapshot();
+      noteLoaded(pattern);
+      set((s) => ({
+        patterns: [...s.patterns, pattern],
+        activePatternId: pattern.id,
+        transport: { ...s.transport, bpm: pattern.bpm, playing: false },
+        selection: { laneId: null },
+        snapshotActive: false,
+      }));
+      return pattern.id;
+    },
+    importPattern: (shared) => {
+      const pattern: Pattern = {
+        id: uid('pattern'),
+        name: shared.name,
+        bpm: shared.bpm,
+        baseResolutionTicks: shared.baseResolutionTicks,
+        // makeLane assigns fresh ids and fills muted/solo (stripped by the
+        // codec); every field the payload carries was already clamped by
+        // decodePattern — the untrusted-input boundary.
+        lanes: shared.lanes.map((lane) => makeLane({ ...lane })),
+        updatedAt: Date.now(),
+        icon: shared.icon ?? randomChipName(),
       };
       discardSnapshot();
       noteLoaded(pattern);

@@ -11,17 +11,11 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { CHIPS, chipForPattern, type ChipName } from '@/components/patterns/chips';
+import { effectiveChipName, type ChipName } from '@/components/patterns/chips';
 import { IconPicker } from '@/components/patterns/icon-picker';
 import { AppText, SheetHeader } from '@/components/ui';
 import { useStore } from '@/state/store';
 import { color, font, space } from '@/theme/tokens';
-
-/** The pattern's effective glyph NAME (falls back like the chip render does). */
-function effectiveChipName(pattern: { id: string; icon?: string }): ChipName {
-  const shades = chipForPattern(pattern);
-  return (Object.keys(CHIPS) as ChipName[]).find((n) => CHIPS[n] === shades)!;
-}
 
 export default function ChangeIconSheet() {
   const { patternId } = useLocalSearchParams<{ patternId?: string }>();

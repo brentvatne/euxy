@@ -102,3 +102,43 @@ try {
  * builds without the native module — callers render their solid fallback. */
 export const GlassView = liquidGlass ? GlassViewImpl : null;
 export const liquidGlassAvailable = liquidGlass && GlassViewImpl != null;
+
+// --- Sharing (expo-sharing + expo-file-system) --------------------------
+// Writes a base64 PNG to cache and opens the share sheet. Both packages are
+// native; on builds that predate them callers fall back to sharing the bare
+// link through RN's built-in Share API (see canSharePng).
+
+let sharePngImpl: ((base64: string, filename: string) => Promise<void>) | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const fileSystem = require('expo-file-system');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const sharing = require('expo-sharing');
+  sharePngImpl = async (base64: string, filename: string) => {
+    const file = new fileSystem.File(fileSystem.Paths.cache, filename);
+    if (file.exists) file.delete();
+    file.write(base64, { encoding: 'base64' });
+    await sharing.shareAsync(file.uri, { UTI: 'public.png', mimeType: 'image/png' });
+  };
+} catch {
+  console.warn('[euxy] expo-sharing/file-system missing — card export disabled on this build.');
+}
+
+export const canSharePng = sharePngImpl != null;
+export const sharePng = (base64: string, filename: string): Promise<void> =>
+  sharePngImpl ? sharePngImpl(base64, filename) : Promise.resolve();
+
+// --- Clipboard (expo-clipboard) ------------------------------------------
+
+let clipboardImpl: ((text: string) => Promise<void>) | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const clipboard = require('expo-clipboard');
+  clipboardImpl = (text: string) => clipboard.setStringAsync(text).then(() => {});
+} catch {
+  console.warn('[euxy] expo-clipboard missing — copy link falls back to the share sheet.');
+}
+
+export const canCopyToClipboard = clipboardImpl != null;
+export const copyToClipboard = (text: string): Promise<void> =>
+  clipboardImpl ? clipboardImpl(text) : Promise.resolve();

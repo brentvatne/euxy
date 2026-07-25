@@ -77,6 +77,15 @@ export function chipForPattern(pattern: Pick<Pattern, 'id' | 'icon'>): string {
   return CHIPS[CHIP_NAMES[h % CHIP_NAMES.length]];
 }
 
+/** The pattern's effective glyph NAME (resolving the ASSIGNED/hash fallbacks
+ * exactly like the chip render). Share encoding needs the NAME — curated
+ * preset glyphs live in the id-keyed ASSIGNED map, and ids don't travel in a
+ * share payload. */
+export function effectiveChipName(pattern: Pick<Pattern, 'id' | 'icon'>): ChipName {
+  const shades = chipForPattern(pattern);
+  return CHIP_NAMES.find((n) => CHIPS[n] === shades)!;
+}
+
 export function allChipNames(): ChipName[] {
   return [...CHIP_NAMES];
 }

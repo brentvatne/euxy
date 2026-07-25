@@ -114,6 +114,9 @@ export default function SequencerScreen() {
       case 'icon':
         router.push('/change-icon');
         break;
+      case 'share':
+        router.push('/share-pattern');
+        break;
       case 'revert':
         revertToLoaded();
         break;

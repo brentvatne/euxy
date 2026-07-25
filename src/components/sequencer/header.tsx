@@ -12,7 +12,7 @@ import { color, font } from '@/theme/tokens';
 import { AppText } from '@/components/ui';
 import { LedChip } from '@/components/patterns/led-chip';
 
-export type PatternMenuAction = 'new' | 'rename' | 'icon' | 'revert' | 'clear';
+export type PatternMenuAction = 'new' | 'rename' | 'icon' | 'share' | 'revert' | 'clear';
 
 export function SequencerNav({
   patternName,
@@ -37,6 +37,7 @@ export function SequencerNav({
           { id: 'new', title: 'New pattern', image: 'plus' },
           { id: 'rename', title: 'Rename', image: 'pencil' },
           { id: 'icon', title: 'Change Icon…', image: 'square.grid.3x3' },
+          { id: 'share', title: 'Share…', image: 'square.and.arrow.up' },
           // §15: reverting to what YOU loaded, not factory lanes — swap
           // semantics, so picking it again undoes it.
           { id: 'revert', title: 'Revert to loaded', image: 'arrow.counterclockwise' },

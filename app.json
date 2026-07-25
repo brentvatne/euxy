@@ -12,6 +12,9 @@
     "ios": {
       "bundleIdentifier": "dev.brent.euxy",
       "appleTeamId": "GQ4S96SE9Z",
+      "associatedDomains": [
+        "applinks:euxy.expo.app"
+      ],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
@@ -40,7 +43,8 @@
           "imageWidth": 276
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

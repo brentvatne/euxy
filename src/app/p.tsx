@@ -1,0 +1,110 @@
+/**
+ * /p?d=<payload> — a shared pattern arriving via universal link
+ * (https://euxy.expo.app/p?d=…) or the euxy:// scheme. Decodes the payload
+ * (untrusted — decodePattern clamps and throws), previews it, and imports on
+ * confirm. Malformed links get a friendly error, never a crash.
+ */
+import { router, useLocalSearchParams } from 'expo-router';
+import { useMemo } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
+
+import { chipForPattern } from '@/components/patterns/chips';
+import { LedChip } from '@/components/patterns/led-chip';
+import { AppText, SheetHeader } from '@/components/ui';
+import { decodePattern, type SharedPattern } from '@/core/share-codec';
+import { haptics } from '@/lib/shims';
+import { useStore } from '@/state/store';
+import { color, font, space } from '@/theme/tokens';
+
+export default function ImportPatternSheet() {
+  const { d } = useLocalSearchParams<{ d?: string }>();
+  const importPattern = useStore((s) => s.importPattern);
+  const shared = useMemo<SharedPattern | null>(() => {
+    if (typeof d !== 'string' || !d) return null;
+    try {
+      return decodePattern(d);
+    } catch {
+      return null;
+    }
+  }, [d]);
+
+  const add = () => {
+    if (!shared) return;
+    importPattern(shared);
+    haptics.success();
+    // The imported pattern is now active — land on the sequencer.
+    router.dismissTo('/(tabs)/(sequencer)');
+  };
+
+  if (!shared) {
+    return (
+      <View style={styles.root}>
+        <View style={styles.grabberSpace} />
+        <SheetHeader title="" onDone={() => router.back()} />
+        <View style={styles.center}>
+          <AppText style={styles.title}>This link didn't decode</AppText>
+          <AppText style={styles.body}>
+            The pattern data in this link is missing or damaged. Ask for a fresh QR code — the
+            whole pattern travels inside the link, so a complete one always works.
+          </AppText>
+        </View>
+      </View>
+    );
+  }
+
+  const steps = Math.max(...shared.lanes.map((l) => l.length));
+  const laneNames = shared.lanes.map((l) => l.name ?? `Ch ${l.channel + 1}`).join(' · ');
+  return (
+    <View style={styles.root}>
+      <View style={styles.grabberSpace} />
+      <SheetHeader title="Shared Pattern" onCancel={() => router.back()} />
+      <View style={styles.content}>
+        <View style={styles.identity}>
+          <LedChip shades={chipForPattern({ id: 'shared', icon: shared.icon })} size={44} />
+          <View style={styles.titles}>
+            <AppText style={styles.title}>{shared.name}</AppText>
+            <AppText style={styles.stats}>
+              {shared.lanes.length} LANES · {shared.bpm} BPM · {steps} STEPS
+            </AppText>
+          </View>
+        </View>
+        <AppText style={styles.body} numberOfLines={2}>
+          {laneNames}
+        </AppText>
+        <Pressable
+          onPress={add}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.key, pressed && styles.pressed]}
+        >
+          <AppText style={styles.keyLabel}>Add to Library</AppText>
+        </Pressable>
+        <AppText style={styles.footnote}>
+          added as a new pattern — nothing in your library is replaced
+        </AppText>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: color.surface },
+  grabberSpace: { height: 13 },
+  content: { paddingHorizontal: space.xl, paddingTop: 14, gap: 16 },
+  center: { paddingHorizontal: space.xl, paddingTop: 24, gap: 10 },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  titles: { gap: 2, flexShrink: 1 },
+  title: { fontFamily: font.text, fontWeight: '600', fontSize: 20, lineHeight: 25, color: color.label },
+  stats: { fontFamily: font.mono, fontSize: 11, lineHeight: 14, letterSpacing: 0.6, color: color.label25 },
+  body: { fontFamily: font.text, fontSize: 14, lineHeight: 19, color: color.label2 },
+  key: {
+    height: 50,
+    borderRadius: 12,
+    backgroundColor: color.label,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  pressed: { transform: [{ scale: 0.97 }] },
+  keyLabel: { fontFamily: font.text, fontWeight: '600', fontSize: 17, lineHeight: 22, color: '#101014' },
+  footnote: { fontFamily: font.text, fontSize: 12, lineHeight: 16, color: '#6E6E76', textAlign: 'center' },
+});
