@@ -29,8 +29,22 @@ import { Led } from '@/components/ui/led';
 const PER_ROW = 16;
 const GAP = 3;
 const CELL_H = 30;
+const CARD_PAD = 10;
+const GRID_GAP = 12;
 /** Row pitch: cells (30) + rowPair gap (5) + attribution row (4) + grid gap (12). */
-const ROW_PITCH = CELL_H + 5 + 4 + 12;
+const ROW_PITCH = CELL_H + 5 + 4 + GRID_GAP;
+
+/**
+ * The card's height for a lane length, from the same constants the grid
+ * renders with. The lane editor sizes its scroll spacer with this in the SAME
+ * React commit that adds/removes a grid row, so the native offset
+ * compensation (maintainVisibleContentPosition) lands in one transaction —
+ * measuring via onLayout would lag a frame and double-jump the form.
+ */
+export function combinedCardHeight(steps: number): number {
+  const rows = Math.max(1, Math.ceil(steps / PER_ROW));
+  return CARD_PAD * 2 + rows * ROW_PITCH - GRID_GAP;
+}
 /** Curtain sweep across all 16 columns (concept J, ~350ms). */
 const SWEEP_MS = 350;
 
@@ -214,9 +228,9 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: color.stepEmptyDim,
     borderRadius: 12,
-    padding: 10,
+    padding: CARD_PAD,
   },
-  grid: { gap: 12 },
+  grid: { gap: GRID_GAP },
   rowPair: { gap: 5 },
   gridRow: { flexDirection: 'row', gap: GAP },
   cell: { height: CELL_H, borderRadius: 3, alignItems: 'center', paddingTop: 3 },
