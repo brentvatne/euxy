@@ -1,14 +1,22 @@
 /**
- * New Pattern sheet (Paper node 2AH-0). Name / tempo / base-resolution form
- * presented as a form sheet. Create (header or the primary button) calls
- * newPattern({ name, bpm, baseResolutionTicks }) — which also makes it the
- * active pattern — then dismisses back to the Patterns list.
+ * New Pattern sheet (Paper node 2AH-0). Name / icon / tempo / base-resolution
+ * form presented as a form sheet. Create (header or the primary button) calls
+ * newPattern({ name, icon, bpm, baseResolutionTicks }) — which also makes it
+ * the active pattern — then dismisses back to the Patterns list.
+ *
+ * The ICON group is the shared picker as one sideways-scrolling row: the
+ * sheet's 0.6 detent can't host the 5-row grid, and a horizontal strip keeps
+ * every glyph reachable without burying the Tempo/Create controls. The
+ * default is a shuffled glyph (icon-picker spec: every pattern gets a
+ * distinct icon with zero effort), pre-selected and scrolled into view.
  */
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { AppText, SFSymbol, SheetHeader } from '@/components/ui';
+import { allChipNames, randomChipName, type ChipName } from '@/components/patterns/chips';
+import { IconPicker } from '@/components/patterns/icon-picker';
 import { ResolutionPicker } from '@/components/patterns/resolution-picker';
 import { usePatterns } from '@/state/selectors';
 import { useStore } from '@/state/store';
@@ -16,6 +24,11 @@ import { color, radius, space, timing } from '@/theme/tokens';
 
 const BPM_MIN = 20;
 const BPM_MAX = 300;
+
+/** Chip size for the horizontal ICON row (the grid's 76 is too tall here). */
+const ICON_CHIP_SIZE = 56;
+/** One chip slot's stride in the row: chip + slot border/padding + gap. */
+const ICON_CHIP_STRIDE = ICON_CHIP_SIZE + 6 + 10;
 
 export default function NewPatternSheet() {
   const newPattern = useStore((s) => s.newPattern);
@@ -27,11 +40,20 @@ export default function NewPatternSheet() {
   );
 
   const [name, setName] = useState(suggestedName);
+  const [icon, setIcon] = useState<ChipName>(() => randomChipName());
   const [bpm, setBpm] = useState(120);
   const [ticks, setTicks] = useState<number>(timing.defaultResolutionTicks);
 
+  // Land the row's initial scroll on the shuffled default (a peek of the
+  // previous chip signals there's more to the left).
+  const initialIconOffset = useMemo(() => {
+    const index = allChipNames().indexOf(icon);
+    return { x: Math.max(0, index * ICON_CHIP_STRIDE - space.lg), y: 0 };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial only
+  }, []);
+
   const create = () => {
-    newPattern({ name: name.trim() || suggestedName, bpm, baseResolutionTicks: ticks });
+    newPattern({ name: name.trim() || suggestedName, icon, bpm, baseResolutionTicks: ticks });
     router.back();
   };
 
@@ -63,6 +85,23 @@ export default function NewPatternSheet() {
               onSubmitEditing={create}
             />
           </View>
+        </Field>
+
+        <Field label="Icon">
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentOffset={initialIconOffset}
+            contentContainerStyle={styles.iconRow}
+            style={styles.iconStrip}
+          >
+            <IconPicker
+              selected={icon}
+              onSelect={setIcon}
+              horizontal
+              size={ICON_CHIP_SIZE}
+            />
+          </ScrollView>
         </Field>
 
         <Field label="Tempo">
@@ -161,6 +200,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   disabled: { opacity: 0.35 },
+  // Bleed the strip to the sheet edges so chips scroll under them; content
+  // padding restores the body's gutter at rest.
+  iconStrip: { marginHorizontal: -space.lg },
+  iconRow: { paddingHorizontal: space.lg },
   tempoValue: { minWidth: 52, textAlign: 'center' },
   createBtn: {
     marginTop: space.sm,
