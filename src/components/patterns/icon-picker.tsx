@@ -1,15 +1,13 @@
 /**
- * IconPicker — the 24-glyph chip grid ("Sheet · Change icon" / New Pattern
- * ICON group): big readable chips (4 per row) straight on the sheet surface,
- * selected = 2px light ring, with a Shuffle affordance in the label row.
- * Shared by the Change-icon sheet and (later) the New Pattern sheet.
+ * IconPicker — the 30-glyph chip grid ("Sheet · Change icon" / New Pattern
+ * ICON group, simplified 2026-07-24 design: no label row, no Shuffle —
+ * creation still shuffles the default silently): big readable chips
+ * (4 per row, Brent's call over the 6-per-row mock) straight on the sheet.
+ * The HOST provides scrolling — 30 glyphs don't fit a form sheet.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { AppText } from '@/components/ui';
-import { Key } from '@/components/ui/key';
-import { color, font } from '@/theme/tokens';
-import { allChipNames, CHIPS, randomChipName, type ChipName } from './chips';
+import { allChipNames, CHIPS, type ChipName } from './chips';
 import { LedChip } from './led-chip';
 
 /** Big enough that the glyphs actually read (~44px of LED grid per chip). */
@@ -24,16 +22,6 @@ export function IconPicker({
 }) {
   return (
     <View>
-      <View style={styles.labelRow}>
-        <AppText style={styles.label}>Icon</AppText>
-        <Key
-          onPress={() => onSelect(randomChipName())}
-          accessibilityRole="button"
-          accessibilityLabel="Shuffle icon"
-        >
-          <AppText style={styles.shuffle}>Shuffle</AppText>
-        </Key>
-      </View>
       <View style={styles.grid}>
         {allChipNames().map((name) => {
           const isSelected = name === selected;
@@ -60,15 +48,6 @@ export function IconPicker({
 }
 
 const styles = StyleSheet.create({
-  labelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-    paddingBottom: 8,
-  },
-  label: { fontFamily: font.text, fontWeight: '600', fontSize: 13, lineHeight: 16, color: color.label3 },
-  shuffle: { fontFamily: font.text, fontWeight: '600', fontSize: 13, lineHeight: 16, color: color.label },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

@@ -8,6 +8,7 @@
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion } from 'react-native-reanimated';
 
+import { bootChipProgress } from '@/components/boot-signal';
 import { playheadPlaying, playheadTick } from '@/core/playhead';
 import { CHIP_SHADE_COLORS } from './chips';
 
@@ -17,39 +18,76 @@ export function LedChip({
   shades,
   size = 40,
   playing = false,
+  relightOnBoot = false,
 }: {
   /** 25 shade digits, row-major (see chips.ts). */
   shades: string;
   size?: number;
   /** Enables the now-playing sweep (active pattern + transport running). */
   playing?: boolean;
+  /** Header chip only: lit cells type on from `bootChipProgress` as the boot
+   * grid decays — the glyph's identity arriving in its header slot. */
+  relightOnBoot?: boolean;
 }) {
   const unit = (size * 0.58) / 22; // grid occupies ~58% of the chip, centered
   const cell = 3.2 * unit;
   const gap = unit;
   const grid = cell * 5 + gap * 4;
   const reduceMotion = useReducedMotion();
+  let litIndex = 0;
 
   return (
     <View style={[styles.chip, { width: size, height: size, borderRadius: size * 0.24 }]}>
       <View style={{ width: grid, height: grid }}>
         {Array.from({ length: 5 }, (_, r) => (
           <View key={r} style={[styles.row, { gap, marginTop: r === 0 ? 0 : gap }]}>
-            {Array.from({ length: 5 }, (_, c) => (
-              <View
-                key={c}
-                style={{
-                  width: cell,
-                  height: cell,
-                  borderRadius: cell * 0.3,
-                  backgroundColor: CHIP_SHADE_COLORS[Number(shades[r * 5 + c])],
-                }}
-              />
-            ))}
+            {Array.from({ length: 5 }, (_, c) => {
+              const shade = Number(shades[r * 5 + c]);
+              const cellStyle = {
+                width: cell,
+                height: cell,
+                borderRadius: cell * 0.3,
+                backgroundColor: CHIP_SHADE_COLORS[shade],
+              };
+              if (relightOnBoot && shade > 0 && !reduceMotion) {
+                return (
+                  <RelightCell
+                    key={c}
+                    orderIndex={litIndex++}
+                    style={cellStyle}
+                    dimColor={CHIP_SHADE_COLORS[0]}
+                  />
+                );
+              }
+              return <View key={c} style={cellStyle} />;
+            })}
           </View>
         ))}
         {playing && !reduceMotion ? <Sweep cellW={cell} gap={gap} height={grid} /> : null}
       </View>
+    </View>
+  );
+}
+
+/** A lit cell gated on the boot handoff: dim until its turn, then instant on
+ * (the relight is a type-on — LEDs light up, they don't move). */
+function RelightCell({
+  orderIndex,
+  style,
+  dimColor,
+}: {
+  orderIndex: number;
+  style: { width: number; height: number; borderRadius: number; backgroundColor: string };
+  dimColor: string;
+}) {
+  // Order over ~14 lit cells max; scale by a nominal 14 so the whole glyph
+  // types on within one bootChipProgress sweep regardless of density.
+  const litStyle = useAnimatedStyle(() => ({
+    opacity: bootChipProgress.value * 14 > orderIndex ? 1 : 0,
+  }));
+  return (
+    <View style={[style, { backgroundColor: dimColor }]}>
+      <Animated.View style={[StyleSheet.absoluteFill, { borderRadius: style.borderRadius, backgroundColor: style.backgroundColor }, litStyle]} />
     </View>
   );
 }

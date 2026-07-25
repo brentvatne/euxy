@@ -346,9 +346,66 @@ add the pattern glyph chip to the header — see "Sequencer header chip" under
 "Preset icon picker" below (28px chip left of the title, mocked on the
 "01 · Sequencer" Paper board).
 
+### 5. Preset library v2 shipped in code — follow-ups (2026-07-24)
+
+`src/state/presets.ts` now has TEN new percussion-only presets (PRESETS_VERSION
+bumped to 2, append-only seeding): Bembé, Bossa Nova, Dembow, Motorik,
+Two-Step, Halftime, Shuffle, Aksak, Three Over Four, Samba. Every lane's
+onsets were verified against `core/euclid.ts` (script: session scratchpad
+`verify_presets.ts`). Notable recipes: dembow snare = `E(3,8) A>B E(1,8)`
+(tresillo minus downbeat); bembé bell = `E(7,12) r7`; bossa clave =
+`E(5,16) r10`; two-step kick = two single-pulse gens OR'd; halftime roll =
+12-step lane at 1/32 resolution (36-tick polymeter). v1 presets de-tonalized:
+Ambient Drift + Broken Machine's melodic lanes moved to kit percussion
+(lowTom/triangle/chi/metal, ch 0); the two remaining ch-2 lanes are
+single-pitch subs (note 36, renamed "Sub") — rhythmic on any patch.
+TODO: audition all 15 presets on the OP-XY (velocities/gates especially the
+1/8T lanes and the 1/32 roll); assign glyphs when `Pattern.icon` lands.
+
+### 6. Icon picker — design simplified + MUST scroll (2026-07-24)
+
+Paper designs updated: the Change-icon sheet lost its "Icon" header title and
+pattern-name subtitle (now just Cancel/Done + the grid); the grid card lost
+its ICON label row and the Shuffle affordance (creation still shuffles the
+default silently). IMPLEMENTATION REQUIREMENT: the glyph grid is NOT
+scrollable in the current design/mock and must be — 30 glyphs now, 6 per row
+= 5 rows; the sheet shows 2. Make the grid a horizontally paged or vertically
+scrollable region inside the sheet (the "swipe for more" hint stays).
+
+### 7. Six new glyphs — extend the registry (2026-07-24)
+
+"Preset icons — assortment" Row 5 adds: 25 bell, 26 motorik, 27 two-step,
+28 aksak, 29 three-four, 30 samba (same language: greys + one #F6F4F4 pixel).
+`presetGlyphs.ts` should ship all 30; hash fallback becomes `% 30`.
+Preset→glyph mapping: bembé→bell · bossa→clave 3–2 · dembow→dembow ·
+motorik→motorik · two-step→two-step · halftime→roll · shuffle→swing ·
+aksak→aksak · three-over-four→three-four · samba→samba · house→four-on-floor.
+
 ---
 
 ## Backlog — future features (2026-07-24)
+
+### Melodic sequencing (research, 2026-07-24)
+
+Figure out how euxy can do melodic sequencing without giving up the
+generative core. The presets are now deliberately tonality-free; melody
+should arrive as a designed feature, not an accident. Directions to evaluate:
+
+- **Note-per-step lane variant:** a lane gains a pitch sequence (scale-locked
+  degree list) that the Euclidean hits index into — hit N plays degree N.
+  The rhythm stays generative; pitch becomes a parallel loop (à la
+  arpeggiator/SH-101 style). Rotation then shifts rhythm against melody.
+- **Euclidean pitch walks:** map a second generator to pitch movement
+  (e.g. up a degree on genB hits, reset on bar) — fully generative melody.
+- **Scale/key as pattern-level setting** so all melodic lanes agree; OP-XY
+  tracks are multi-timbral so a lane keeps targeting one track/channel.
+- **Chord stabs:** one lane triggering fixed intervals (root+5th, triads) —
+  cheapest melodic win, no per-step pitch data.
+
+Constraints: keep the lane data model append-only (persisted patterns must
+survive), keep randomize/mutate meaningful for pitch (lockable via the
+Randomize lock modal), and keep the step-strip visualization honest (pitch
+could ride the existing key-ramp fills).
 
 ### Pattern sharing via barcode
 

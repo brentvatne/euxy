@@ -1,5 +1,5 @@
 /**
- * Pattern chip glyphs — Paper "Preset icons — assortment": 24 5×5 LED grids,
+ * Pattern chip glyphs — Paper "Preset icons — assortment": 30 5×5 LED grids,
  * one per pattern. Each glyph is 25 shade digits (row-major): 0 rest-dim,
  * 1 lit, 2 light. Extracted 1:1 from the artboard's SVGs.
  */
@@ -32,6 +32,12 @@ export const CHIPS = {
   breaks: '1001001000000020010010010',
   oneDrop: '0000000000000000020000000',
   roll: '0000000000101120000000000',
+  bell: '0020001110011101111100100',
+  motorik: '0000000000111120000000000',
+  twoStep: '0200001000000100001000000',
+  aksak: '0020000100110100000100000',
+  threeFour: '0000010201000001101100000',
+  samba: '0010002010000110001100000',
 } as const;
 
 export type ChipName = keyof typeof CHIPS;
@@ -42,11 +48,24 @@ const CHIP_NAMES = Object.keys(CHIPS) as ChipName[];
  * id to a stable pick from the assortment. */
 const ASSIGNED: Record<string, ChipName> = {
   pattern_seed: 'euxy',
-  preset_lofi: 'swing',
+  // ROADMAP "Six new glyphs" mapping, with two collision resolutions:
+  // bossa takes clave (per the map), so cinquillo moves to tresillo (its
+  // family); shuffle takes swing, so lo-fi moves to oneDrop.
+  preset_lofi: 'oneDrop',
   preset_ambient: 'bloom',
   preset_house: 'fourOnFloor',
   preset_idm: 'polymeter',
-  preset_cinquillo: 'clave',
+  preset_cinquillo: 'tresillo',
+  preset_bembe: 'bell',
+  preset_bossa: 'clave',
+  preset_dembow: 'dembow',
+  preset_motorik: 'motorik',
+  preset_twostep: 'twoStep',
+  preset_halftime: 'roll',
+  preset_shuffle: 'swing',
+  preset_aksak: 'aksak',
+  preset_hemiola: 'threeFour',
+  preset_samba: 'samba',
 };
 
 export function chipForPattern(pattern: Pick<Pattern, 'id' | 'icon'>): string {

@@ -6,8 +6,11 @@
  * cell by cell (30ms stagger, instant attack) over it, holds ~150ms, and
  * fades itself out while the UI appears underneath — one continuous power-on.
  *
- * The typed glyph is picked at random from the 24-chip registry each launch:
- * frame 0 is the unlit grid, so the splash PNG is glyph-agnostic.
+ * The typed glyph is the SELECTED PATTERN'S icon — the boot reads persisted
+ * state (hydration is synchronous) and the same glyph then RELIGHTS inside
+ * the sequencer-header chip as the grid decays (~150ms overlap): identity
+ * arriving in its header slot. Random glyph only as a first-launch fallback;
+ * frame 0 is the unlit grid, so the splash PNG is glyph-agnostic either way.
  * Reduced Motion skips straight to the crossfade.
  */
 import * as SplashScreen from 'expo-splash-screen';
@@ -22,8 +25,10 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { CHIPS } from '@/components/patterns/chips';
+import { bootChipProgress } from '@/components/boot-signal';
+import { CHIPS, chipForPattern } from '@/components/patterns/chips';
 import { LedGrid, litCount, typeOnOrder } from '@/components/ui/led-grid';
+import { useStore } from '@/state/store';
 
 // Keep the native splash up until our first frame is rendered underneath it.
 void SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -35,16 +40,27 @@ const FADE_MS = 250;
 
 const GLYPHS = Object.values(CHIPS);
 
+/** The glyph the app boots into: the active pattern's icon. */
+function bootGlyph(): string {
+  const s = useStore.getState();
+  const active = s.patterns.find((p) => p.id === s.activePatternId);
+  if (active) return chipForPattern(active);
+  return GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
+}
+
 export function BootSplash() {
   const [done, setDone] = useState(false);
   const reduceMotion = useReducedMotion();
-  const glyph = useMemo(() => GLYPHS[Math.floor(Math.random() * GLYPHS.length)], []);
+  const glyph = useMemo(bootGlyph, []);
   const order = useMemo(() => typeOnOrder(glyph), [glyph]);
   const progress = useSharedValue(0);
   const opacity = useSharedValue(1);
 
   useEffect(() => {
     // Our identical frame is mounted — drop the native splash and power on.
+    // The header chip starts dark (hidden behind this opaque overlay) and
+    // relights as we decay out.
+    bootChipProgress.value = 0;
     SplashScreen.hide();
     const cells = litCount(glyph);
     const typeMs = reduceMotion ? 0 : cells * STAGGER_MS;
@@ -61,6 +77,11 @@ export function BootSplash() {
           if (finished) runOnJS(setDone)(true);
         },
       );
+      // Handoff: the same glyph types on in the header chip while the big
+      // grid fades (~150ms overlap with the decay).
+      bootChipProgress.value = reduceMotion
+        ? 1
+        : withTiming(1, { duration: 200, easing: Easing.linear });
     }, typeMs + HOLD_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps

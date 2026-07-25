@@ -44,7 +44,7 @@ export function SequencerNav({
         style={styles.patternTrigger}
       >
         <View style={styles.pattern} accessibilityRole="button" accessibilityLabel={`Pattern ${patternName} — menu`}>
-          <LedChip shades={patternChip} size={28} />
+          <LedChip shades={patternChip} size={28} relightOnBoot />
           <AppText style={styles.patternName} numberOfLines={1}>
             {patternName}
           </AppText>

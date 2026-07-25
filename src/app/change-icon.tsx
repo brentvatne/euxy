@@ -6,7 +6,7 @@
  */
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { CHIPS, chipForPattern, type ChipName } from '@/components/patterns/chips';
 import { IconPicker } from '@/components/patterns/icon-picker';
@@ -32,21 +32,21 @@ export default function ChangeIconSheet() {
     <View style={styles.root}>
       <View style={styles.grabberSpace} />
       <SheetHeader
-        title="Icon"
+        title=""
         onCancel={() => router.back()}
         onDone={() => {
           if (selected) setActivePatternIcon(selected);
           router.back();
         }}
       />
-      <AppText style={styles.subtitle} numberOfLines={1}>
-        {pattern.name}
-      </AppText>
-      {/* Plain View, NOT a ScrollView: the content fits, and a direct-child
-          scroll view triggers react-native-screens' formSheet frame
-          correction, which paints it over the header (see lane-editor). */}
-      <View style={styles.content}>
-        <IconPicker selected={selected} onSelect={setSelected} />
+      {/* 30 glyphs need scrolling. collapsable={false} wrapper keeps the
+          ScrollView OUT of direct-child position — react-native-screens'
+          formSheet frame correction otherwise paints it over the header
+          (same workaround as lane-editor). */}
+      <View style={styles.flex} collapsable={false}>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <IconPicker selected={selected} onSelect={setSelected} />
+        </ScrollView>
       </View>
     </View>
   );
@@ -54,6 +54,7 @@ export default function ChangeIconSheet() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.surface },
+  flex: { flex: 1 },
   grabberSpace: { height: 13 },
   subtitle: {
     textAlign: 'center',
