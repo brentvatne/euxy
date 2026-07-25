@@ -65,7 +65,9 @@ export default function TempoSheet() {
       <SheetHeader onCancel={cancel} onDone={() => router.back()} />
 
       <View style={styles.body}>
-        <Field label="Tempo">
+        {/* No "Tempo" header — the sheet IS tempo (Brent: redundant). The
+            cell leads the body directly; Base Resolution keeps its header. */}
+        <View>
           <View style={styles.tempoCell}>
             <AppText variant="body">BPM</AppText>
             <View style={styles.tempoControls}>
@@ -94,9 +96,9 @@ export default function TempoSheet() {
               </Pressable>
             </View>
           </View>
-        </Field>
+        </View>
 
-        <Field label="Base resolution">
+        <Field label="Base Resolution">
           <ResolutionPicker value={ticks} onChange={changeResolution} />
         </Field>
 
@@ -117,13 +119,12 @@ export default function TempoSheet() {
   );
 }
 
-/** Same field group idiom as the New Pattern sheet (label + cell, gap 8). */
+/** Section headers match the Edit Lane sheet (Brent: that one is correct) —
+ * title case, 17/22 semibold label3 — NOT the New Pattern micro-caps. */
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <View style={styles.field}>
-      <AppText variant="caption" tone="secondary" uppercase style={styles.fieldLabel}>
-        {label}
-      </AppText>
+      <AppText style={styles.fieldLabel}>{label}</AppText>
       {children}
     </View>
   );
@@ -132,9 +133,17 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.surface },
   grabberSpace: { height: 13 },
-  body: { paddingHorizontal: space.lg, paddingTop: space.sm, gap: space.lg },
+  // xxl group gap — the sections need air between them (Brent).
+  body: { paddingHorizontal: space.lg, paddingTop: space.sm, gap: space.xxl },
   field: { gap: space.sm },
-  fieldLabel: { marginLeft: 2 },
+  fieldLabel: {
+    fontFamily: font.text,
+    fontWeight: '600',
+    fontSize: 17,
+    lineHeight: 22,
+    color: color.label3,
+    marginLeft: 2,
+  },
   // Cloned from the New Pattern sheet's TEMPO row (Paper 8O4-0).
   tempoCell: {
     flexDirection: 'row',

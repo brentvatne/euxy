@@ -23,7 +23,7 @@ import { allChipNames, randomChipName, type ChipName } from '@/components/patter
 import { IconPicker } from '@/components/patterns/icon-picker';
 import { ResolutionPicker } from '@/components/patterns/resolution-picker';
 import { useStore } from '@/state/store';
-import { color, radius, space, timing } from '@/theme/tokens';
+import { color, font, radius, space, timing } from '@/theme/tokens';
 
 /** Tempo bounds — shared with the Tempo sheet (app/tempo.tsx). */
 export const BPM_MIN = 20;
@@ -182,7 +182,7 @@ export default function NewPatternSheet() {
           </View>
         </Field>
 
-        <Field label="Base resolution">
+        <Field label="Base Resolution">
           <ResolutionPicker value={ticks} onChange={setTicks} />
         </Field>
 
@@ -200,12 +200,12 @@ export default function NewPatternSheet() {
   );
 }
 
+/** Section headers match the Edit Lane sheet (Brent: that one is correct) —
+ * title case, 17/22 semibold label3 — NOT small-caps micro labels. */
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <View style={styles.field}>
-      <AppText variant="caption" tone="secondary" uppercase style={styles.fieldLabel}>
-        {label}
-      </AppText>
+      <AppText style={styles.fieldLabel}>{label}</AppText>
       {children}
     </View>
   );
@@ -214,9 +214,17 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.surface },
   grabberSpace: { height: 13 },
-  body: { paddingHorizontal: space.lg, paddingTop: space.sm, gap: space.lg },
+  // xxl group gap — the sections need air between them (Brent).
+  body: { paddingHorizontal: space.lg, paddingTop: space.sm, gap: space.xxl },
   field: { gap: space.sm },
-  fieldLabel: { marginLeft: 2 },
+  fieldLabel: {
+    fontFamily: font.text,
+    fontWeight: '600',
+    fontSize: 17,
+    lineHeight: 22,
+    color: color.label3,
+    marginLeft: 2,
+  },
   // Paper 8OY-0: pl 16 / pr 12, gap 10, keys trail the flexed input.
   inputCell: {
     flexDirection: 'row',
