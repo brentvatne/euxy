@@ -99,6 +99,9 @@ export function TransportBar({
             onPress={onTogglePlay}
             disabled={playDisabled}
             ack
+            // Transport-grade key — the heaviest click in the app (OP-XY
+            // tactility: this is the button you feel without looking).
+            haptic="medium"
             style={[styles.play, playDisabled && styles.playDisabled]}
             accessibilityRole="button"
             accessibilityLabel={playing ? 'Pause' : 'Play'}

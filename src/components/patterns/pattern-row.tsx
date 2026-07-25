@@ -17,6 +17,7 @@ import ReanimatedSwipeable, {
 } from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 import { AppText, SFSymbol } from '@/components/ui';
+import { haptics } from '@/lib/shims';
 import type { Pattern } from '@/state/types';
 import { color, font, radius, space } from '@/theme/tokens';
 import { chipForPattern } from './chips';
@@ -73,6 +74,7 @@ function PatternRowImpl({ pattern, active, playing = false, first, last, onPress
           accessibilityRole="button"
           accessibilityLabel={`Reset ${pattern.name} to factory`}
           onPress={() => {
+            haptics.impact('light');
             swipeRef.current?.close();
             onReset();
           }}
@@ -87,6 +89,7 @@ function PatternRowImpl({ pattern, active, playing = false, first, last, onPress
         accessibilityRole="button"
         accessibilityLabel={`Delete ${pattern.name}`}
         onPress={() => {
+          haptics.warning();
           swipeRef.current?.close();
           onDelete();
         }}
@@ -119,6 +122,7 @@ function PatternRowImpl({ pattern, active, playing = false, first, last, onPress
             swipeRef.current?.close();
             return;
           }
+          haptics.selection();
           onPress();
         }}
         // Same swipe guard as tap: a drag must never double as a long-press.

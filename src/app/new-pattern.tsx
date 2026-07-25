@@ -15,6 +15,7 @@ import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native
 import { router } from 'expo-router';
 
 import { AppText, SFSymbol, SheetHeader } from '@/components/ui';
+import { haptics } from '@/lib/shims';
 import { allChipNames, randomChipName, type ChipName } from '@/components/patterns/chips';
 import { IconPicker } from '@/components/patterns/icon-picker';
 import { ResolutionPicker } from '@/components/patterns/resolution-picker';
@@ -53,12 +54,18 @@ export default function NewPatternSheet() {
   }, []);
 
   const create = () => {
+    haptics.success();
     newPattern({ name: name.trim() || suggestedName, icon, bpm, baseResolutionTicks: ticks });
     router.back();
   };
 
-  const adjustBpm = (delta: number) =>
-    setBpm((b) => Math.max(BPM_MIN, Math.min(BPM_MAX, b + delta)));
+  const adjustBpm = (delta: number) => {
+    const next = Math.max(BPM_MIN, Math.min(BPM_MAX, bpm + delta));
+    if (next !== bpm) {
+      haptics.selection();
+      setBpm(next);
+    }
+  };
 
   return (
     <View style={styles.root}>

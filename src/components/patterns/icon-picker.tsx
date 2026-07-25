@@ -9,6 +9,7 @@
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { haptics } from '@/lib/shims';
 import { allChipNames, CHIPS, type ChipName } from './chips';
 import { LedChip } from './led-chip';
 
@@ -36,7 +37,10 @@ export function IconPicker({
           return (
             <Pressable
               key={name}
-              onPress={() => onSelect(name)}
+              onPress={() => {
+                if (!isSelected) haptics.selection();
+                onSelect(name);
+              }}
               accessibilityRole="button"
               accessibilityLabel={`Icon ${name}`}
               accessibilityState={{ selected: isSelected }}

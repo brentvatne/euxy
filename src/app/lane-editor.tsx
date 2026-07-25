@@ -22,6 +22,7 @@ import {
 
 import { midi, midiOut } from '@/components/midi/runtime';
 import { midiNoteName } from '@/core/note';
+import { haptics } from '@/lib/shims';
 import { useLane } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import type { CombineOp } from '@/state/types';
@@ -233,7 +234,10 @@ export default function LaneEditorSheet() {
           <View style={styles.cells}>
             <Pressable
               style={({ pressed }) => [styles.cell, styles.cellFirst, pressed && styles.pressedDim]}
-              onPress={() => setPadsOpen((v) => !v)}
+              onPress={() => {
+                haptics.selection();
+                setPadsOpen((v) => !v);
+              }}
               accessibilityRole="button"
               accessibilityLabel="Note"
               accessibilityState={{ expanded: padsOpen }}
@@ -250,7 +254,10 @@ export default function LaneEditorSheet() {
                     listening && styles.listenActive,
                     pressed && styles.pressedDim,
                   ]}
-                  onPress={() => setListening((v) => !v)}
+                  onPress={() => {
+                    haptics.impact('light');
+                    setListening((v) => !v);
+                  }}
                   accessibilityRole="button"
                   accessibilityLabel="Listen for note"
                   accessibilityState={{ selected: listening }}
@@ -288,7 +295,10 @@ export default function LaneEditorSheet() {
               // Tap-cycling caps at 8 (the OP-XY has 8 audio tracks). A channel
               // above 8 that arrived some other way (inbound capture) is kept
               // and displayed; the next tap folds back into tracks 1–8.
-              onPress={() => updateLane(id, { channel: (lane.channel + 1) % 8 })}
+              onPress={() => {
+                haptics.selection();
+                updateLane(id, { channel: (lane.channel + 1) % 8 });
+              }}
               accessibilityRole="button"
             >
               <AppText style={styles.cellTitle}>Track · Channel</AppText>
@@ -367,6 +377,8 @@ export default function LaneEditorSheet() {
             style={({ pressed }) => [styles.actionBtn, pressed && styles.pressedDim]}
             accessibilityRole="button"
             onPress={() => {
+              // A roll is a commitment — heavier than a browse tick.
+              haptics.impact('medium');
               randomizeLane(id);
               setWashNonce((v) => v + 1);
             }}
@@ -381,6 +393,7 @@ export default function LaneEditorSheet() {
             style={({ pressed }) => [styles.actionBtn, pressed && styles.pressedDim]}
             accessibilityRole="button"
             onPress={() => {
+              haptics.warning();
               removeLane(id);
               router.back();
             }}

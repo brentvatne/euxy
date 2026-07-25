@@ -498,6 +498,26 @@ the menu is used again (second "Revert to loaded" tap restores it — free,
 because swap). Presets note: for an unmodified factory preset, "Revert to
 loaded" and the old reset coincide, so nothing is lost by replacing it.
 
+### 16. Record mode — surface device↔pattern BPM mismatch (Brent 2026-07-24)
+
+In Record mode the OP-XY's incoming MIDI clock is the tempo truth; the
+pattern's stored BPM may not match what the device is actually running.
+Detect and display the mismatch:
+
+- **Estimate incoming BPM** from wire timestamps of `0xF8` ticks (we already
+  carry these for BPM estimation): median inter-tick interval over the last
+  ~48 ticks (2 beats) → BPM. Median, not mean — clock jitter is real.
+- **Mismatch condition:** |device − pattern| > max(1 BPM, 1.5%) sustained
+  for >2s (hysteresis both ways so the indicator never flickers; MIDI clock
+  has inherent variance and "close" must count as matching).
+- **Display:** the transport BPM block shows the DEVICE tempo in Record mode
+  (it's the truth), with a small secondary line when mismatched — e.g.
+  `122.7` big, `pattern 124` small beneath (grey palette only, no warning
+  color; the mismatch is information, not an error). The Sheet · Tempo
+  (§10) shows both values in Record mode and offers "Set pattern BPM to
+  device" as a one-tap adoption.
+- Matches → no annotation at all; the common case stays clean.
+
 ---
 
 ## Backlog — future features (2026-07-24)
@@ -918,12 +938,25 @@ zero-re-render like the rest of the playhead path.
 ### Haptic language (2026-07-25)
 
 The tactile companion to the LED motion system: presses already LOOK like
-hardware keys — they should feel like them. `expo-haptics` is being added by
-the float-bar work (routed through the `src/lib/shims.ts` try/require
+hardware keys — they should feel like them. **Why it matters (Brent): on
+the OP-XY everything has a very tactile feel — haptics make using the app
+feel like interacting with the device.** `expo-haptics` is in
+(`chore(deps)` on main, routed through the `src/lib/shims.ts` try/require
 pattern; it's a NATIVE dep, so haptics only fire from the first build that
 includes it — sims never vibrate regardless).
 
-First touchpoints (decided with the snapshot key): light impact on revert,
+**FIRST PASS WIRED (2026-07-25):** `Key`/`KeyEase` click light on press-IN
+(hardware keys click on the way down; `haptic` prop: light/medium/none) —
+covers transport, floating actions, M/S; transport play = medium. Selection
+ticks: segmented, stepper, note pads + octave pager, icon-picker chips,
+pattern-row tap, lane title/strip taps, Track·Channel cycle, Note-cell
+expand, New-Pattern BPM ±. Impacts: Listen toggle, header +, empty-state
+CTA, preset Reset (light); lane-editor Randomize (medium). Notifications:
+Delete lane / Delete pattern (warning), Restore-all + Create pattern
+(success). NOT wired: native menus (MenuView), sliders (@expo/ui may tick
+natively — check before doubling up), sheet Cancel/Done.
+
+Snapshot-key touchpoints (float-bar branch): light impact on revert,
 success notification on keep, selection ticks at the keep-ring quarters.
 
 Then design the full inventory deliberately, mirroring the LED principles:

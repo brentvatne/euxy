@@ -46,3 +46,43 @@ try {
 export const configureObserve = (options: unknown) => observeConfigure(options);
 export const wrapWithObserveRoot = observeRootWrap;
 export const useObserve: UseObserve = (...args) => useObserveImpl(...args);
+
+type ImpactStyle = 'light' | 'medium' | 'heavy' | 'soft' | 'rigid';
+type HapticsApi = {
+  /** Key-press weight feedback (defaults to light). */
+  impact: (style?: ImpactStyle) => void;
+  /** Browsing tick — pickers, pads, steppers, list taps. */
+  selection: () => void;
+  success: () => void;
+  warning: () => void;
+};
+
+const noHaptics: HapticsApi = { impact: () => {}, selection: () => {}, success: () => {}, warning: () => {} };
+let hapticsImpl = noHaptics;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const h = require('expo-haptics');
+  const impactStyles: Record<ImpactStyle, unknown> = {
+    light: h.ImpactFeedbackStyle.Light,
+    medium: h.ImpactFeedbackStyle.Medium,
+    heavy: h.ImpactFeedbackStyle.Heavy,
+    soft: h.ImpactFeedbackStyle.Soft,
+    rigid: h.ImpactFeedbackStyle.Rigid,
+  };
+  // Fire-and-forget: feedback must never throw into a press handler.
+  hapticsImpl = {
+    impact: (style = 'light') => void h.impactAsync(impactStyles[style]).catch(() => {}),
+    selection: () => void h.selectionAsync().catch(() => {}),
+    success: () => void h.notificationAsync(h.NotificationFeedbackType.Success).catch(() => {}),
+    warning: () => void h.notificationAsync(h.NotificationFeedbackType.Warning).catch(() => {}),
+  };
+} catch {
+  console.warn('[euxy] expo-haptics native module missing — haptics disabled on this build.');
+}
+
+export const haptics: HapticsApi = {
+  impact: (style) => hapticsImpl.impact(style),
+  selection: () => hapticsImpl.selection(),
+  success: () => hapticsImpl.success(),
+  warning: () => hapticsImpl.warning(),
+};

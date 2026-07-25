@@ -9,6 +9,7 @@
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { haptics } from '@/lib/shims';
 import { color, font, HIT_TARGET, radius, ramp, space } from '@/theme/tokens';
 import { Key } from './key';
 import { Led } from './led';
@@ -42,7 +43,10 @@ export function LaneRow({
     <View style={styles.row}>
       <View style={styles.header}>
         <Pressable
-          onPress={onPressTitle}
+          onPress={() => {
+            haptics.selection();
+            onPressTitle?.();
+          }}
           disabled={!onPressTitle}
           style={({ pressed }) => [styles.titleGroup, pressed && styles.pressedDim]}
         >
@@ -60,7 +64,10 @@ export function LaneRow({
       {/* The step grid is the lane's face — tapping it opens the editor too;
           pressing dims it so the whole surface reads as interactive. */}
       <Pressable
-        onPress={onPressTitle}
+        onPress={() => {
+          haptics.selection();
+          onPressTitle?.();
+        }}
         disabled={!onPressTitle}
         style={({ pressed }) => [styles.steps, pressed && styles.pressedDim]}
       >

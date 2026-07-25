@@ -12,6 +12,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { sendTestNote } from '@/components/midi/runtime';
 import { midiNoteName } from '@/core/note';
+import { haptics } from '@/lib/shims';
 import { DRUM_KIT_HI, DRUM_KIT_LO, drumSlotName } from '@/core/opxy';
 import { color, font } from '@/theme/tokens';
 import { AppText } from '@/components/ui';
@@ -41,6 +42,7 @@ export function NotePads({ note, velocity, channel, onSelect }: NotePadsProps) {
   const slotName = drumSlotName(note);
 
   const pick = (n: number) => {
+    haptics.selection();
     onSelect(n);
     sendTestNote(n, velocity, channel);
   };
@@ -62,7 +64,10 @@ export function NotePads({ note, velocity, channel, onSelect }: NotePadsProps) {
         <Pressable
           style={({ pressed }) => [styles.pagerBtn, base === anchor && styles.pagerBtnDisabled, pressed && styles.pressedDim]}
           disabled={base === anchor}
-          onPress={() => setBase((b) => Math.max(anchor, b - 12))}
+          onPress={() => {
+            haptics.selection();
+            setBase((b) => Math.max(anchor, b - 12));
+          }}
           accessibilityRole="button"
           accessibilityLabel="Octave down"
         >
@@ -74,7 +79,10 @@ export function NotePads({ note, velocity, channel, onSelect }: NotePadsProps) {
         <Pressable
           style={({ pressed }) => [styles.pagerBtn, base === maxBase && styles.pagerBtnDisabled, pressed && styles.pressedDim]}
           disabled={base === maxBase}
-          onPress={() => setBase((b) => Math.min(maxBase, b + 12))}
+          onPress={() => {
+            haptics.selection();
+            setBase((b) => Math.min(maxBase, b + 12));
+          }}
           accessibilityRole="button"
           accessibilityLabel="Octave up"
         >
