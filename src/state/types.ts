@@ -55,6 +55,9 @@ export interface Pattern {
   lanes: Lane[];
   /** Last-edit timestamp (ms epoch) — drives "edited just now" in the library. */
   updatedAt: number;
+  /** Chip glyph name (components/patterns/chips.ts). Absent on old patterns —
+   * they fall back to a stable hash pick, no migration needed. */
+  icon?: string;
 }
 
 /** Jam = app is clock master; Record = app slaves to the device's clock. */

@@ -9,6 +9,7 @@
  */
 import { create } from 'zustand';
 
+import { randomChipName } from '@/components/patterns/chips';
 import { drum } from '@/core/opxy';
 import { timing } from '@/theme/tokens';
 import { makeLane, uid } from './lane';
@@ -151,6 +152,8 @@ export interface AppState {
   loadPattern: (id: string) => void;
   deletePattern: (id: string) => void;
   renameActivePattern: (name: string) => void;
+  /** Set the active pattern's chip glyph (components/patterns/chips.ts name). */
+  setActivePatternIcon: (icon: string) => void;
   /** Restore one factory preset to its shipped state (re-adds it if deleted). */
   resetPreset: (id: string) => void;
   /** Restore all factory presets, including deleted ones. */
@@ -347,6 +350,9 @@ export const useStore = create<AppState>((set, get) => {
         baseResolutionTicks: opts?.baseResolutionTicks ?? timing.defaultResolutionTicks,
         lanes: [],
         updatedAt: Date.now(),
+        // Every pattern gets a distinct glyph with zero effort (icon-picker
+        // spec) — the picker lets you change it deliberately.
+        icon: randomChipName(),
       };
       set((s) => ({
         patterns: [...s.patterns, pattern],
@@ -397,6 +403,7 @@ export const useStore = create<AppState>((set, get) => {
         };
       }),
     renameActivePattern: (name) => mutateActive((p) => ({ ...p, name: name.trim() || p.name })),
+    setActivePatternIcon: (icon) => mutateActive((p) => ({ ...p, icon })),
     // Factory resets replace content in place (same pattern id, fresh lane
     // ids) so the active/selection ids stay valid; a deleted preset is
     // re-appended. This is also the escape hatch for installs that seeded

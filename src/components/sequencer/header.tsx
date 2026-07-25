@@ -10,16 +10,21 @@ import Svg, { Path } from 'react-native-svg';
 
 import { color, font } from '@/theme/tokens';
 import { AppText } from '@/components/ui';
+import { LedChip } from '@/components/patterns/led-chip';
 
-export type PatternMenuAction = 'new' | 'rename' | 'reset' | 'clear';
+export type PatternMenuAction = 'new' | 'rename' | 'icon' | 'reset' | 'clear';
 
 export function SequencerNav({
   patternName,
+  patternChip,
   connected,
   deviceName,
   onMenuAction,
 }: {
   patternName: string;
+  /** The pattern's glyph shades (chips.ts) — identity continuity with the
+   * Patterns list, shown left of the title inside the menu trigger. */
+  patternChip: string;
   connected: boolean;
   deviceName: string;
   onMenuAction: (action: PatternMenuAction) => void;
@@ -31,13 +36,15 @@ export function SequencerNav({
         actions={[
           { id: 'new', title: 'New pattern', image: 'plus' },
           { id: 'rename', title: 'Rename', image: 'pencil' },
-          { id: 'reset', title: 'Reset to default lanes', image: 'arrow.counterclockwise' },
+          { id: 'icon', title: 'Change Icon…', image: 'square.grid.3x3' },
+          { id: 'reset', title: 'Reset to default', image: 'arrow.counterclockwise' },
           { id: 'clear', title: 'Clear all lanes', image: 'trash', attributes: { destructive: true } },
         ]}
         onPressAction={({ nativeEvent }) => onMenuAction(nativeEvent.event as PatternMenuAction)}
         style={styles.patternTrigger}
       >
         <View style={styles.pattern} accessibilityRole="button" accessibilityLabel={`Pattern ${patternName} — menu`}>
+          <LedChip shades={patternChip} size={28} />
           <AppText style={styles.patternName} numberOfLines={1}>
             {patternName}
           </AppText>
@@ -80,7 +87,11 @@ const styles = StyleSheet.create({
   // with free row space (TestFlight feedback 2026-07-24: "the title is
   // truncated too aggressively").
   patternTrigger: { flex: 1, marginRight: 12 },
-  pattern: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
+  // alignSelf STRETCH, not flex-start: the SwiftUI menu host centers a child
+  // smaller than itself and RN's flex-start never wins — stretching the label
+  // to fill the host leaves SwiftUI nothing to center, so text left-aligns.
+  // (Side effect, intended: the whole strip left of the pill opens the menu.)
+  pattern: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch' },
   patternName: {
     flexShrink: 1,
     fontFamily: font.display,

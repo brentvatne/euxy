@@ -49,10 +49,19 @@ const ASSIGNED: Record<string, ChipName> = {
   preset_cinquillo: 'clave',
 };
 
-export function chipForPattern(pattern: Pick<Pattern, 'id'>): string {
+export function chipForPattern(pattern: Pick<Pattern, 'id' | 'icon'>): string {
+  if (pattern.icon && pattern.icon in CHIPS) return CHIPS[pattern.icon as ChipName];
   const assigned = ASSIGNED[pattern.id];
   if (assigned) return CHIPS[assigned];
   let h = 0;
   for (let i = 0; i < pattern.id.length; i++) h = (h * 31 + pattern.id.charCodeAt(i)) >>> 0;
   return CHIPS[CHIP_NAMES[h % CHIP_NAMES.length]];
+}
+
+export function allChipNames(): ChipName[] {
+  return [...CHIP_NAMES];
+}
+
+export function randomChipName(): ChipName {
+  return CHIP_NAMES[Math.floor(Math.random() * CHIP_NAMES.length)];
 }

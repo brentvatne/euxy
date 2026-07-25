@@ -94,6 +94,10 @@ function RootLayout() {
             options={{ ...sheetOptions, sheetAllowedDetents: [0.6] }}
           />
           <Stack.Screen
+            name="change-icon"
+            options={{ ...sheetOptions, sheetAllowedDetents: [0.75] }}
+          />
+          <Stack.Screen
             name="enable-midi"
             options={{ ...sheetOptions, sheetAllowedDetents: [0.6] }}
           />

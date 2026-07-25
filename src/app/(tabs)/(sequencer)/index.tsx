@@ -19,6 +19,7 @@ import { useMidiRuntime } from '@/components/midi/runtime';
 import { useObserve } from '@/lib/shims';
 import { color } from '@/theme/tokens';
 import { LaneRow, TransportBar } from '@/components/ui';
+import { chipForPattern } from '@/components/patterns/chips';
 import { SequencerNav, type PatternMenuAction } from '@/components/sequencer/header';
 import { EmptyState } from '@/components/sequencer/empty-state';
 import { FloatingActions } from '@/components/sequencer/floating-actions';
@@ -103,6 +104,9 @@ export default function SequencerScreen() {
       case 'rename':
         renamePattern();
         break;
+      case 'icon':
+        router.push('/change-icon');
+        break;
       case 'reset':
         resetLanes();
         break;
@@ -117,6 +121,7 @@ export default function SequencerScreen() {
       <View style={{ paddingTop: insets.top }} />
       <SequencerNav
         patternName={pattern.name}
+        patternChip={chipForPattern(pattern)}
         connected={connected}
         deviceName={outputDevice?.name ?? 'No device'}
         onMenuAction={onMenuAction}
