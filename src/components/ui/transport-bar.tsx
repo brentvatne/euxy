@@ -10,11 +10,26 @@
  * red REC. Tapping the pill toggles the clock mode. Panic lives on the MIDI
  * tab. `playDisabled` dims the play button (empty pattern).
  */
+import { useEffect } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import Animated, {
+  Easing,
+  ReduceMotion,
+  cancelAnimation,
+  useAnimatedReaction,
+  useAnimatedStyle,
+  useDerivedValue,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { BeatTicker } from './beat-ticker';
 import { Key } from './key';
 
+import { playheadPlaying, playheadTick } from '@/core/playhead';
 import type { ClockMode, RecordPhase } from '@/state/types';
 import { color, font, ramp, space } from '@/theme/tokens';
 import { AppText } from './text';
@@ -134,23 +149,163 @@ export function TransportBar({
       )}
 
       <View style={styles.right}>
-        {/* Mode pill (Paper CO-0 / 1X1-0): JAM in white, REC with the record
-            LED red. Tap toggles the clock mode. */}
-        <Key
-          onPress={onToggleMode}
-          disabled={!onToggleMode}
-          hitSlop={space.sm}
-          style={styles.modePill}
-          accessibilityRole="button"
-          accessibilityLabel={jam ? 'Switch to record mode' : 'Switch to jam mode'}
-        >
-          {!jam ? <View style={styles.modeDot} /> : null}
-          <AppText style={[styles.modeLabel, !jam && styles.modeLabelRec]}>
-            {jam ? 'JAM' : 'REC'}
-          </AppText>
-        </Key>
+        <ModePill jam={jam} recordPhase={recordPhase} bpm={bpm} onToggleMode={onToggleMode} />
       </View>
     </View>
+  );
+}
+
+/**
+ * Mode pill (Paper CO-0 / 1X1-0) with the concept-I armed states:
+ *  - JAM: the pill's border breathes on a ~2.2s inhale/exhale cycle — slow
+ *    standby, not alarm. Opacity-only over a pre-lit ring.
+ *  - REC: the red dot blinks 8th notes. While the device clock actually runs
+ *    (recording) the blink is quantized off `playheadTick` (12 ticks per
+ *    8th); while armed / counting in the clock is held, so a wall-clock
+ *    repeat at the displayed tempo carries the same rate (the count-in's
+ *    clock). Disarming decays the dot out (~380ms) instead of cutting it.
+ * Key press behavior (travel + spring) is untouched — this only adds layers.
+ */
+function ModePill({
+  jam,
+  recordPhase,
+  bpm,
+  onToggleMode,
+}: {
+  jam: boolean;
+  recordPhase: RecordPhase;
+  bpm: number;
+  onToggleMode?: () => void;
+}) {
+  const rec = !jam;
+  const recording = rec && recordPhase === 'recording';
+
+  // --- JAM breathing border -----------------------------------------------
+  const breathe = useSharedValue(0);
+  const borderOn = useSharedValue(jam ? 1 : 0);
+  useEffect(() => {
+    borderOn.value = withTiming(jam ? 1 : 0, {
+      duration: 250,
+      reduceMotion: ReduceMotion.System,
+    });
+    if (jam) {
+      breathe.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.sin) }),
+          withTiming(0, { duration: 1100, easing: Easing.inOut(Easing.sin) }),
+        ),
+        -1,
+        false,
+        undefined,
+        ReduceMotion.System,
+      );
+    } else {
+      cancelAnimation(breathe);
+      breathe.value = withTiming(0, { duration: 250, reduceMotion: ReduceMotion.System });
+    }
+    return () => cancelAnimation(breathe);
+  }, [jam, breathe, borderOn]);
+  const breatheStyle = useAnimatedStyle(() => ({
+    opacity: borderOn.value * (0.2 + 0.55 * breathe.value),
+  }));
+
+  // --- REC dot: attack / blink / disarm decay ------------------------------
+  const dotOn = useSharedValue(rec ? 1 : 0); // brightness envelope
+  const dotW = useSharedValue(rec ? 1 : 0); // layout collapse (non-rhythmic)
+  useEffect(() => {
+    if (rec) {
+      cancelAnimation(dotOn);
+      dotOn.value = 1; // LEDs attack instantly
+      dotW.value = withTiming(1, { duration: 120, reduceMotion: ReduceMotion.System });
+    } else {
+      // Disarm: decay the light first, then collapse the slot.
+      dotOn.value = withTiming(0, {
+        duration: 380,
+        easing: Easing.out(Easing.quad),
+        reduceMotion: ReduceMotion.System,
+      });
+      dotW.value = withDelay(
+        320,
+        withTiming(0, { duration: 160, reduceMotion: ReduceMotion.System }),
+      );
+    }
+  }, [rec, dotOn, dotW]);
+
+  // Recording: quantize the tick to integer 8ths FIRST, then decay per event.
+  const recordingSV = useSharedValue(0);
+  useEffect(() => {
+    recordingSV.value = recording ? 1 : 0;
+  }, [recording, recordingSV]);
+  const blinkSV = useSharedValue(1);
+  const eighth = useDerivedValue(() =>
+    recordingSV.value === 1 && playheadPlaying.value
+      ? Math.floor(playheadTick.value / 12)
+      : -1,
+  );
+  useAnimatedReaction(
+    () => eighth.value,
+    (cur, prev) => {
+      if (cur === prev) return;
+      if (cur === -1) {
+        blinkSV.value = withTiming(1, { duration: 200, reduceMotion: ReduceMotion.System });
+        return;
+      }
+      if (cur % 2 === 0) {
+        blinkSV.value = 1; // instant attack on the downbeat 8th
+        blinkSV.value = withTiming(0.2, {
+          duration: 180,
+          easing: Easing.out(Easing.quad),
+          reduceMotion: ReduceMotion.System,
+        });
+      }
+    },
+  );
+
+  // Armed / count-in: the sequencer clock is held, so blink on a wall-clock
+  // repeat at the displayed tempo — one lit-and-decayed 8th per 8th.
+  const pulse = useSharedValue(1);
+  useEffect(() => {
+    if (!rec || recording) {
+      cancelAnimation(pulse);
+      pulse.value = 1;
+      return;
+    }
+    const eighthMs = 30000 / Math.max(20, Math.min(300, bpm));
+    pulse.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 0 }),
+        withTiming(0.2, { duration: eighthMs * 0.9, easing: Easing.out(Easing.quad) }),
+        withTiming(0.2, { duration: eighthMs * 1.1 }),
+      ),
+      -1,
+      false,
+      undefined,
+      ReduceMotion.System,
+    );
+    return () => cancelAnimation(pulse);
+  }, [rec, recording, bpm, pulse]);
+
+  const dotStyle = useAnimatedStyle(() => ({
+    opacity: dotOn.value * (recordingSV.value === 1 ? blinkSV.value : pulse.value),
+    width: 7 * dotW.value,
+    marginRight: 6 * dotW.value,
+  }));
+
+  return (
+    <Key
+      onPress={onToggleMode}
+      disabled={!onToggleMode}
+      hitSlop={space.sm}
+      style={styles.modePill}
+      accessibilityRole="button"
+      accessibilityLabel={jam ? 'Switch to record mode' : 'Switch to jam mode'}
+    >
+      <Animated.View pointerEvents="none" style={[styles.breatheRing, breatheStyle]} />
+      <Animated.View style={[styles.modeDot, dotStyle]} />
+      <AppText style={[styles.modeLabel, !jam && styles.modeLabelRec]}>
+        {jam ? 'JAM' : 'REC'}
+      </AppText>
+    </Key>
   );
 }
 
@@ -229,11 +384,23 @@ const styles = StyleSheet.create({
   modePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    // No static gap — the REC dot carries an ANIMATED marginRight so its slot
+    // can collapse smoothly when disarming decays it out (concept I).
     paddingVertical: 7,
     paddingHorizontal: 12,
     borderRadius: 999,
     backgroundColor: ramp[7],
+  },
+  // Concept I: pre-lit standby ring — only its opacity breathes (trail grey).
+  breatheRing: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#6E6E76',
   },
   modeDot: { width: 7, height: 7, borderRadius: 999, backgroundColor: color.danger },
   modeLabel: {
