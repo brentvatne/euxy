@@ -522,6 +522,23 @@ Detect and display the mismatch:
 
 ## Backlog — future features (2026-07-24)
 
+### Web OP-XY placeholder site (researched 2026-07-25)
+
+A minimal website that stands in for an OP-XY: receives euxy's MIDI over
+USB (iPhone → Mac via IDAM → Web MIDI in Chrome/Edge/Firefox) and
+synthesizes the drum kit with Web Audio; also plays the factory presets
+standalone. Reuses the repo's pure modules (euclid, presets, opxy map,
+parse, port.web) — new code is a sample-playback voice table (CC0 pack:
+TR-808 Fischer + VCSL, ~24 one-shots <500KB, synth Sub for tonal
+channels) + a lookahead scheduler. Lives in `web/` as its OWN minimal Expo app (Brent:
+Expo, not Vite) with react-native-audio-api in the web package only —
+NEVER in euxy's package.json, so it can't touch the iOS native build or
+fingerprint (escape hatch if that changes:
+`expo.autolinking.ios.exclude`). Synth written against the standard Web
+Audio interface so the same module later powers an in-app preview mode.
+Deploys via EAS Hosting. Full findings, voice recipes, MVP slice and open
+questions: `docs/design/web-opxy-placeholder.md`.
+
 ### Tab bar hide/show (ideas, 2026-07-24)
 
 Reclaim the tab bar's vertical space while jamming. Candidate mechanisms:
