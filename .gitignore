@@ -44,3 +44,6 @@ example
 
 # EAS Simulator session (carries a token)
 .env.eas-simulator
+
+# Internal tooling notes (carries a capability URL — purged from history 2026-07-25)
+SETUP-TRACING.md
