@@ -22,18 +22,24 @@ const pickOne = <T,>(arr: readonly T[]): T => arr[rint(arr.length)];
 const wrap = (v: number, n: number) => ((v % n) + n) % n;
 
 /**
- * Mutation undo history, per pattern id. Lives OUTSIDE the zustand state so it
- * is never persisted (persistence.ts serializes an explicit field list, but a
- * deep snapshot stack has no business in renders either). `mutateVersion` in
- * the store is bumped on every push/pop so subscribers re-derive depth.
+ * Snapshot / temp mode (floating-capsule E spec): ONE deep copy of the active
+ * pattern's lanes, taken silently by the first dice press. Lives OUTSIDE the
+ * zustand state so it is never persisted (persistence.ts serializes an
+ * explicit field list, and a deep lane copy has no business in renders).
+ * `snapshotActive` in the store mirrors its existence for the UI; revert is a
+ * SWAP (live ↔ snapshot), so a stray tap is never fatal.
  */
-const MUTATE_HISTORY_MAX = 32;
-const mutateStacks = new Map<string, Lane[][]>();
+let snapshotLanes: Lane[] | null = null;
+let snapshotPatternId: string | null = null;
 
-/** History depth for a pattern — pair with `mutateVersion` for reactivity. */
-export function getMutateDepth(patternId: string): number {
-  return mutateStacks.get(patternId)?.length ?? 0;
-}
+const cloneLanes = (lanes: Lane[]): Lane[] =>
+  lanes.map((l) => ({ ...l, genA: { ...l.genA }, genB: { ...l.genB } }));
+
+/** Pattern switch/load/delete keeps whatever is live — the snapshot goes. */
+const discardSnapshot = () => {
+  snapshotLanes = null;
+  snapshotPatternId = null;
+};
 
 /** One small musical nudge: rotate/±pulse a generator, or rotate the track. */
 function nudgeLane(lane: Lane): Lane {
@@ -112,8 +118,15 @@ export interface AppState {
   /** Engine → UI: record-mode lifecycle for the transport display. */
   setRecordPhase: (phase: Transport['recordPhase'], countInBeat?: number) => void;
 
-  /** Bumped on every mutate/undo so UI depending on history depth re-renders. */
+  /** Bumped on every mutate/revert so step strips re-diff their patterns. */
   mutateVersion: number;
+
+  /** True while a dice snapshot exists for the active pattern (temp mode). */
+  snapshotActive: boolean;
+
+  /** Grid-wide one-shot FX signal (revert wash / keep stamp) the step strips
+   * subscribe to — state-driven, never the clock. Nonce dedupes triggers. */
+  gridFx: { nonce: number; kind: 'revert' | 'stamp' } | null;
 
   /** Persisted marker: which PRESETS_VERSION has been seeded (see presets.ts). */
   presetSeedVersion: number;
@@ -133,10 +146,14 @@ export interface AppState {
   resetLanes: () => void;
   /** Re-roll one lane's generative params (pulses/rotation/genB/op). */
   randomizeLane: (id: string) => void;
-  /** Nudge the active pattern slightly (KeyStep-style mutate); undoable. */
+  /** Nudge the active pattern slightly (KeyStep-style mutate). The first
+   * press silently snapshots the pattern; re-rolls ride the live side. */
   mutateActivePattern: () => void;
-  /** Step back one mutation on the active pattern. */
-  undoMutate: () => void;
+  /** Swap live lanes ↔ snapshot (tap the snapshot key). Non-destructive both
+   * ways — tap again to swap back. */
+  revertSnapshot: () => void;
+  /** Keep the live side and discard the snapshot (long-press completes). */
+  keepSnapshot: () => void;
 
   // Selection ------------------------------------------------------------
   selectLane: (id: string | null) => void;
@@ -146,6 +163,7 @@ export interface AppState {
   setInput: (id: string | null) => void;
   setLatencyOffsetMs: (ms: number) => void;
   setCountInBeats: (beats: number) => void;
+  setFloatBarCorner: (corner: 'left' | 'right') => void;
 
   // Patterns -------------------------------------------------------------
   newPattern: (opts?: {
@@ -208,6 +226,8 @@ export const useStore = create<AppState>((set, get) => {
     },
     selection: { laneId: null },
     mutateVersion: 0,
+    snapshotActive: false,
+    gridFx: null,
     presetSeedVersion: PRESETS_VERSION,
     // Merge over defaults so persisted blobs from before a settings field
     // existed hydrate with sane values.
@@ -216,6 +236,7 @@ export const useStore = create<AppState>((set, get) => {
       inputId: null,
       latencyOffsetMs: 0,
       countInBeats: 4,
+      floatBarCorner: 'right',
       ...persisted?.settings,
     },
 
@@ -302,11 +323,12 @@ export const useStore = create<AppState>((set, get) => {
       const s = get();
       const p = s.patterns.find((x) => x.id === s.activePatternId);
       if (!p || p.lanes.length === 0) return;
-      // Snapshot BEFORE mutating so undo restores exactly this state.
-      const stack = mutateStacks.get(p.id) ?? [];
-      stack.push(p.lanes.map((l) => ({ ...l, genA: { ...l.genA }, genB: { ...l.genB } })));
-      if (stack.length > MUTATE_HISTORY_MAX) stack.shift();
-      mutateStacks.set(p.id, stack);
+      // First press with no snapshot: deep-copy BEFORE rolling, silently.
+      // While engaged, further presses re-roll the live side only.
+      if (!snapshotLanes || snapshotPatternId !== p.id) {
+        snapshotLanes = cloneLanes(p.lanes);
+        snapshotPatternId = p.id;
+      }
       // Each press nudges ~60% of lanes by one small step — variations stay
       // recognizably related to the source pattern (the KeyStep model).
       const eligible = (l: Lane) => l.length > 1;
@@ -325,14 +347,34 @@ export const useStore = create<AppState>((set, get) => {
         }
       }
       mutateActive((pp) => ({ ...pp, lanes }));
-      set((st) => ({ mutateVersion: st.mutateVersion + 1 }));
+      set((st) => ({ mutateVersion: st.mutateVersion + 1, snapshotActive: true }));
     },
-    undoMutate: () => {
+    revertSnapshot: () => {
       const s = get();
-      const lanes = mutateStacks.get(s.activePatternId)?.pop();
-      if (!lanes) return;
-      mutateActive((pp) => ({ ...pp, lanes }));
-      set((st) => ({ mutateVersion: st.mutateVersion + 1 }));
+      const p = s.patterns.find((x) => x.id === s.activePatternId);
+      if (!p || !snapshotLanes || snapshotPatternId !== p.id) return;
+      // SWAP live ↔ snapshot: the outgoing live side becomes the new snapshot,
+      // so tapping again swaps straight back.
+      const live = cloneLanes(p.lanes);
+      const restored = snapshotLanes;
+      snapshotLanes = live;
+      mutateActive((pp) => ({ ...pp, lanes: restored }));
+      // mutateVersion bump keeps the strips' flicker-bloom diff working;
+      // gridFx carries the capsule-origin reverse wash.
+      set((st) => ({
+        mutateVersion: st.mutateVersion + 1,
+        gridFx: { nonce: (st.gridFx?.nonce ?? 0) + 1, kind: 'revert' },
+      }));
+    },
+    keepSnapshot: () => {
+      if (!snapshotLanes) return;
+      snapshotLanes = null;
+      snapshotPatternId = null;
+      // The pattern is stamped: every sequenced LED pulses once, in sync.
+      set((st) => ({
+        snapshotActive: false,
+        gridFx: { nonce: (st.gridFx?.nonce ?? 0) + 1, kind: 'stamp' },
+      }));
     },
     reorderLanes: (from, to) =>
       mutateActive((p) => {
@@ -351,6 +393,8 @@ export const useStore = create<AppState>((set, get) => {
     setInput: (inputId) => set((s) => ({ settings: { ...s.settings, inputId } })),
     setLatencyOffsetMs: (latencyOffsetMs) => set((s) => ({ settings: { ...s.settings, latencyOffsetMs } })),
     setCountInBeats: (countInBeats) => set((s) => ({ settings: { ...s.settings, countInBeats } })),
+    setFloatBarCorner: (floatBarCorner) =>
+      set((s) => ({ settings: { ...s.settings, floatBarCorner } })),
 
     // Patterns
     newPattern: (opts) => {
@@ -365,11 +409,13 @@ export const useStore = create<AppState>((set, get) => {
         // spec) — the New Pattern sheet passes a deliberate pick through here.
         icon: opts?.icon ?? randomChipName(),
       };
+      discardSnapshot();
       set((s) => ({
         patterns: [...s.patterns, pattern],
         activePatternId: pattern.id,
         transport: { ...s.transport, bpm: pattern.bpm, playing: false },
         selection: { laneId: null },
+        snapshotActive: false,
       }));
       return pattern.id;
     },
@@ -377,14 +423,17 @@ export const useStore = create<AppState>((set, get) => {
       set((s) => {
         const p = s.patterns.find((x) => x.id === id);
         if (!p) return {};
+        discardSnapshot();
         return {
           activePatternId: id,
           transport: { ...s.transport, bpm: p.bpm, playing: false },
           selection: { laneId: null },
+          snapshotActive: false,
         };
       }),
     deletePattern: (id) =>
       set((s) => {
+        if (snapshotPatternId === id) discardSnapshot();
         const patterns = s.patterns.filter((p) => p.id !== id);
         // Deleting the last pattern seeds a fresh empty one — every pattern is
         // deletable, and the app always has an active pattern.
@@ -402,6 +451,7 @@ export const useStore = create<AppState>((set, get) => {
             activePatternId: fresh.id,
             transport: { ...s.transport, bpm: fresh.bpm, playing: false },
             selection: { laneId: null },
+            snapshotActive: false,
           };
         }
         if (s.activePatternId !== id) return { patterns };
@@ -411,6 +461,7 @@ export const useStore = create<AppState>((set, get) => {
           activePatternId: patterns[0].id,
           transport: { ...s.transport, bpm: patterns[0].bpm, playing: false },
           selection: { laneId: null },
+          snapshotActive: false,
         };
       }),
     renamePattern: (id, name) => mutatePattern(id, (p) => ({ ...p, name: name.trim() || p.name })),

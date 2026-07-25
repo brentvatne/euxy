@@ -89,6 +89,9 @@ export interface Settings {
    * the device's bar 1. 0 = device count-in disabled.
    */
   countInBeats: number;
+  /** Which bottom corner the floating capsule is docked in (drag to move).
+   * Absent on old blobs — the store defaults it to 'right'. */
+  floatBarCorner: 'left' | 'right';
 }
 
 export interface Selection {
