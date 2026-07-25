@@ -20,6 +20,7 @@ import {
   useUpdates,
   wrapWithObserveRoot,
 } from '@/lib/shims';
+import { useShotRig } from '@/lib/shot-rig';
 import { navTheme } from '@/theme/navigation';
 import { color } from '@/theme/tokens';
 
@@ -57,6 +58,8 @@ const sheetOptions = {
 
 function RootLayout() {
   useUpdatePrompt();
+  // Simulator screenshot staging (no-op unless the host set the flag).
+  useShotRig();
 
   // Bring MIDI up at launch. Enabling is what attaches the hot-plug listener,
   // the health watchdog, and OP-XY autoconnect — leaving it to the MIDI tab's
@@ -105,6 +108,12 @@ function RootLayout() {
             name="tempo"
             options={{ ...sheetOptions, sheetAllowedDetents: [0.45] }}
           />
+          <Stack.Screen
+            name="share-pattern"
+            options={{ ...sheetOptions, sheetAllowedDetents: [0.9] }}
+          />
+          {/* /p — shared patterns arriving via universal link or euxy:// */}
+          <Stack.Screen name="p" options={{ ...sheetOptions, sheetAllowedDetents: [0.45] }} />
         </Stack>
         {/* LED power-on: a pure LAYER over the live app — the Stack above
             always renders (never conditionally hidden behind the boot), so
