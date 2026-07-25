@@ -71,7 +71,13 @@ export function TransportBar({
   const jam = mode === 'jam';
   return (
     <View style={styles.bar}>
-      <Pressable onPress={onPressBpm} disabled={!onPressBpm} style={styles.bpmCol}>
+      <Pressable
+        onPress={onPressBpm}
+        disabled={!onPressBpm}
+        style={({ pressed }) => [styles.bpmCol, pressed && styles.pressedDim]}
+        accessibilityRole="button"
+        accessibilityLabel="Edit tempo"
+      >
         {/* Meter-style readout: the BPM unit centers under the number. */}
         <View style={styles.bpmBlock}>
           <AppText style={styles.bpmValue} numberOfLines={1}>
@@ -341,6 +347,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -8 },
   },
   bpmCol: { flex: 1 },
+  pressedDim: { opacity: 0.65 },
   bpmBlock: { alignItems: 'center', alignSelf: 'flex-start' },
   bpmValue: {
     fontFamily: font.display,

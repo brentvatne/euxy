@@ -101,6 +101,10 @@ function RootLayout() {
             name="enable-midi"
             options={{ ...sheetOptions, sheetAllowedDetents: [0.6] }}
           />
+          <Stack.Screen
+            name="tempo"
+            options={{ ...sheetOptions, sheetAllowedDetents: [0.45] }}
+          />
         </Stack>
         {/* LED power-on: a pure LAYER over the live app — the Stack above
             always renders (never conditionally hidden behind the boot), so
