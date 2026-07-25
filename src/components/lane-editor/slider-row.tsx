@@ -6,8 +6,10 @@
  * hand-rolled PanResponder/track math.
  */
 import { Slider } from '@expo/ui/community/slider';
+import { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { haptics } from '@/lib/shims';
 import { color, font, space } from '@/theme/tokens';
 import { AppText } from '@/components/ui';
 
@@ -20,6 +22,9 @@ export interface SliderRowProps {
   onChange: (value: number) => void;
   /** Formats the trailing value readout (defaults to the raw number). */
   formatValue?: (value: number) => string;
+  /** Landmark values that get a harder, detent-like haptic while dragging
+   * (e.g. 16/32/48/64 on Steps) — every other step ticks like an encoder. */
+  accentValues?: readonly number[];
 }
 
 export function SliderRow({
@@ -30,7 +35,14 @@ export function SliderRow({
   step = 1,
   onChange,
   formatValue,
+  accentValues,
 }: SliderRowProps) {
+  // Encoder feel: one selection tick per stepped value crossed, a rigid
+  // detent on landmarks. The ref gates repeat events at the same step.
+  const lastTicked = useRef(value);
+  useEffect(() => {
+    lastTicked.current = value;
+  }, [value]);
   // SwiftUI's Slider asserts on an EMPTY range (min == max) — at Steps = 1
   // the rotate sliders got 0…0 and crash-looped the sheet (TestFlight 1.2.0
   // (6)). Give the native control a non-empty range and disable it instead.
@@ -51,7 +63,15 @@ export function SliderRow({
         minimumTrackTintColor="#EBEBEB"
         maximumTrackTintColor={color.surface2}
         thumbTintColor={color.label}
-        onValueChange={(v) => onChange(Math.round(v / step) * step)}
+        onValueChange={(v) => {
+          const next = Math.round(v / step) * step;
+          if (next !== lastTicked.current) {
+            lastTicked.current = next;
+            if (accentValues?.includes(next)) haptics.impact('rigid');
+            else haptics.selection();
+          }
+          onChange(next);
+        }}
         style={styles.slider}
       />
     </View>

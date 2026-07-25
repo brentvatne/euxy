@@ -220,7 +220,15 @@ export default function LaneEditorSheet() {
             onChange={(op) => setLaneOp(id, op)}
             size={13}
           />
-          <SliderRow label="Steps" value={lane.length} min={1} max={64} onChange={setLength} />
+          <SliderRow
+            label="Steps"
+            value={lane.length}
+            min={1}
+            max={64}
+            onChange={setLength}
+            // Bar-multiple landmarks land with a harder detent (encoder feel).
+            accentValues={[16, 32, 48, 64]}
+          />
           <SliderRow
             label="Track rotate"
             value={lane.trackRot}
