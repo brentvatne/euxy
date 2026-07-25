@@ -1,10 +1,11 @@
 /**
  * Change-icon form sheet (Paper "Sheet · Change icon"): Cancel / Icon / Done
- * over the active pattern's name, then the shared 24-glyph picker. Selection
- * is staged locally — Done commits, Cancel discards. Opened from the pattern
- * title menu ("Change Icon…", after Rename).
+ * over the pattern's name, then the shared glyph picker. Selection is staged
+ * locally — Done commits, Cancel discards. Opened from the pattern title menu
+ * ("Change Icon…", after Rename) for the active pattern, or from a Patterns
+ * row long-press with an explicit `patternId` param targeting any pattern.
  */
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
@@ -21,8 +22,11 @@ function effectiveChipName(pattern: { id: string; icon?: string }): ChipName {
 }
 
 export default function ChangeIconSheet() {
-  const pattern = useStore((s) => s.patterns.find((p) => p.id === s.activePatternId));
-  const setActivePatternIcon = useStore((s) => s.setActivePatternIcon);
+  const { patternId } = useLocalSearchParams<{ patternId?: string }>();
+  const pattern = useStore((s) =>
+    s.patterns.find((p) => p.id === (patternId ?? s.activePatternId)),
+  );
+  const setPatternIcon = useStore((s) => s.setPatternIcon);
   const initial = useMemo(() => (pattern ? effectiveChipName(pattern) : null), [pattern?.id]);
   const [selected, setSelected] = useState<ChipName | null>(initial);
 
@@ -35,7 +39,7 @@ export default function ChangeIconSheet() {
         title=""
         onCancel={() => router.back()}
         onDone={() => {
-          if (selected) setActivePatternIcon(selected);
+          if (selected) setPatternIcon(pattern.id, selected);
           router.back();
         }}
       />
