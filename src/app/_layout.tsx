@@ -10,6 +10,7 @@ import { useEffect, useRef } from 'react';
 import { Alert, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { BootSplash } from '@/components/boot-splash';
 import { enableMidi } from '@/components/midi/runtime';
 import { KeyboardProvider } from '@/components/ui/keyboard';
 import {
@@ -97,6 +98,9 @@ function RootLayout() {
             options={{ ...sheetOptions, sheetAllowedDetents: [0.6] }}
           />
         </Stack>
+        {/* LED power-on: covers the app until the type-on finishes, starting
+            from a frame identical to the native splash. */}
+        <BootSplash />
       </ThemeProvider>
       </KeyboardProvider>
     </SafeAreaProvider>
