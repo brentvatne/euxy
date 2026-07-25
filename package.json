@@ -49,6 +49,7 @@
   },
   "scripts": {
     "start": "expo start",
+    "deploy:web": "cd web && bun run deploy",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "ios": "expo run:ios",

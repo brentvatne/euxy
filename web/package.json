@@ -7,7 +7,8 @@
     "sync": "node scripts/sync-shared.mjs",
     "start": "node scripts/sync-shared.mjs && expo start --web",
     "export": "node scripts/sync-shared.mjs && expo export --platform web",
-    "typecheck": "node scripts/sync-shared.mjs && tsc --noEmit"
+    "typecheck": "node scripts/sync-shared.mjs && tsc --noEmit",
+    "deploy": "node scripts/sync-shared.mjs && expo export --platform web && node scripts/check-dist.mjs && npx --yes eas-cli deploy --prod --non-interactive"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.7",

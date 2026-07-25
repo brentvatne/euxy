@@ -22,21 +22,21 @@ export function PatternPlayer({ pattern }: { pattern: PlayerPattern }) {
   const [tick, setTick] = useState(-1);
   const schedulerRef = useRef<PatternScheduler | null>(null);
 
-  // Pattern switch mid-playback: swap the scheduler and KEEP PLAYING
-  // (hardware-style pattern change). Stopped stays stopped.
+  // The scheduler's lifetime is derived from (playing, pattern): switching
+  // patterns mid-playback tears down the old scheduler and starts the new
+  // pattern from the top, still playing. (Don't gate on the ref — the
+  // cleanup runs before the next effect body and had nulled it, which left
+  // the button on "Stop" with no audio.)
   useEffect(() => {
-    if (schedulerRef.current) {
-      schedulerRef.current.stop();
-      schedulerRef.current = null;
-      const next = new PatternScheduler(getAudioContext(), pattern);
-      schedulerRef.current = next;
-      next.start();
-    }
+    if (!playing) return;
+    const scheduler = new PatternScheduler(getAudioContext(), pattern);
+    schedulerRef.current = scheduler;
+    scheduler.start();
     return () => {
-      schedulerRef.current?.stop();
-      schedulerRef.current = null;
+      scheduler.stop();
+      if (schedulerRef.current === scheduler) schedulerRef.current = null;
     };
-  }, [pattern]);
+  }, [playing, pattern]);
 
   useEffect(() => {
     if (!playing) return;
@@ -59,15 +59,13 @@ export function PatternPlayer({ pattern }: { pattern: PlayerPattern }) {
 
   const toggle = () => {
     if (playing) {
-      schedulerRef.current?.stop();
-      schedulerRef.current = null;
       setPlaying(false);
       setTick(-1);
       return;
     }
-    const scheduler = new PatternScheduler(getAudioContext(), pattern);
-    schedulerRef.current = scheduler;
-    scheduler.start();
+    // Create/resume the AudioContext synchronously in the gesture — the
+    // effect above starts the scheduler after render.
+    getAudioContext();
     setPlaying(true);
   };
 
