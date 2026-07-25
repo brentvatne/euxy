@@ -26,6 +26,7 @@ import { playheadPlaying, playheadTick } from '@/core/playhead';
 import { patternForLane } from '@/state/selectors';
 import type { Lane } from '@/state/types';
 import { keyRamp } from '@/theme/tokens';
+import { Led as LedBase } from '@/components/ui/led';
 
 const PER_ROW = 16;
 const GAP = 4;
@@ -38,9 +39,10 @@ export interface StepStripProps {
   lane: Lane;
 }
 
-/** Steady sequenced-step light (Paper: 5px white, dark ring, soft glow). */
+/** Steady sequenced-step light (Paper: 5px white, dark ring, soft glow).
+ * Instant on, ~300ms phosphor decay off (LED-motion principle 1). */
 function Led() {
-  return <View style={styles.led} />;
+  return <LedBase style={styles.led} />;
 }
 
 export function StepStrip({ lane }: StepStripProps) {

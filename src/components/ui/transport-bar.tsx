@@ -12,6 +12,8 @@
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { Key } from './key';
+
 import type { ClockMode, RecordPhase } from '@/state/types';
 import { color, font, ramp, space } from '@/theme/tokens';
 import { AppText } from './text';
@@ -62,12 +64,13 @@ export function TransportBar({
 
       {jam ? (
         <View style={styles.buttons}>
-          <Pressable onPress={onSkipToStart} hitSlop={space.sm} accessibilityLabel="Skip to start">
+          <Key onPress={onSkipToStart} hitSlop={space.sm} accessibilityLabel="Skip to start">
             <IconSkipToStart size={24} />
-          </Pressable>
-          <Pressable
+          </Key>
+          <Key
             onPress={onTogglePlay}
             disabled={playDisabled}
+            ack
             style={[styles.play, playDisabled && styles.playDisabled]}
             accessibilityRole="button"
             accessibilityLabel={playing ? 'Pause' : 'Play'}
@@ -77,10 +80,10 @@ export function TransportBar({
             ) : (
               <IconPlay size={24} color={playDisabled ? color.labelDisabled : color.ground} />
             )}
-          </Pressable>
-          <Pressable onPress={onStop} hitSlop={space.sm} accessibilityLabel="Stop">
+          </Key>
+          <Key onPress={onStop} hitSlop={space.sm} accessibilityLabel="Stop">
             <IconStop size={22} />
-          </Pressable>
+          </Key>
         </View>
       ) : (
         // Paper "Transport · Record states": armed (gray ring, instructions) →
@@ -125,7 +128,7 @@ export function TransportBar({
       <View style={styles.right}>
         {/* Mode pill (Paper CO-0 / 1X1-0): JAM in white, REC with the record
             LED red. Tap toggles the clock mode. */}
-        <Pressable
+        <Key
           onPress={onToggleMode}
           disabled={!onToggleMode}
           hitSlop={space.sm}
@@ -137,7 +140,7 @@ export function TransportBar({
           <AppText style={[styles.modeLabel, !jam && styles.modeLabelRec]}>
             {jam ? 'JAM' : 'REC'}
           </AppText>
-        </Pressable>
+        </Key>
       </View>
     </View>
   );

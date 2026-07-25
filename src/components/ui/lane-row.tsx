@@ -10,6 +10,8 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { color, font, HIT_TARGET, radius, ramp, space } from '@/theme/tokens';
+import { Key } from './key';
+import { Led } from './led';
 import { AppText } from './text';
 
 export interface LaneRowProps {
@@ -51,14 +53,17 @@ export function LaneRow({
           <MSButton label="S" active={solo} onPress={onToggleSolo} />
         </View>
       </View>
-      <View style={styles.steps}>{children}</View>
+      {/* The step grid is the lane's face — tapping it opens the editor too. */}
+      <Pressable onPress={onPressTitle} disabled={!onPressTitle} style={styles.steps}>
+        {children}
+      </Pressable>
     </View>
   );
 }
 
 function MSButton({ label, active, onPress }: { label: string; active: boolean; onPress?: () => void }) {
   return (
-    <Pressable
+    <Key
       onPress={onPress}
       disabled={!onPress}
       style={styles.ms}
@@ -67,8 +72,12 @@ function MSButton({ label, active, onPress }: { label: string; active: boolean; 
       accessibilityState={{ selected: active }}
     >
       <AppText style={[styles.msLabel, active && styles.msLabelActive]}>{label}</AppText>
-      <View style={[styles.msBar, active && styles.msBarActive]} />
-    </Pressable>
+      {/* Dim bar always present; the lit bar is an LED — instant on, phosphor
+          decay off (mounted conditionally so the exiting animation runs). */}
+      <View style={styles.msBar}>
+        {active ? <Led style={[StyleSheet.absoluteFill, styles.msBarActive]} /> : null}
+      </View>
+    </Key>
   );
 }
 
@@ -100,6 +109,7 @@ const styles = StyleSheet.create({
   msLabelActive: { color: '#FFFFFF' },
   msBar: { width: 14, height: 3, borderRadius: 2, backgroundColor: '#26262b' },
   msBarActive: {
+    borderRadius: 2,
     backgroundColor: '#FFFFFF',
     shadowColor: '#FFFFFF',
     shadowOpacity: 0.95,

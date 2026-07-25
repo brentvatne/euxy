@@ -5,10 +5,12 @@
  * transport so the actions stay under the thumb while jamming.
  */
 import type { ComponentProps } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
+import Animated, { FadeInDown, FadeOutDown, ReduceMotion } from 'react-native-reanimated';
 
 import { color, ramp } from '@/theme/tokens';
 import { SFSymbol } from '@/components/ui';
+import { Key } from '@/components/ui/key';
 
 type SymbolName = ComponentProps<typeof SFSymbol>['name'];
 
@@ -26,11 +28,17 @@ export function FloatingActions({
   onUndo: () => void;
 }) {
   return (
-    <View style={styles.bar} pointerEvents="box-none">
+    <Animated.View
+      // Mounted only while lanes exist — ease in/out of the empty state.
+      entering={FadeInDown.duration(200).reduceMotion(ReduceMotion.System)}
+      exiting={FadeOutDown.duration(150).reduceMotion(ReduceMotion.System)}
+      style={styles.bar}
+      pointerEvents="box-none"
+    >
       <ActionButton label="Add lane" icon="plus" onPress={onAddLane} />
       <ActionButton label="Mutate pattern" icon="shuffle" onPress={onMutate} disabled={!canMutate} />
       <ActionButton label="Undo mutation" icon="arrow.uturn.backward" onPress={onUndo} disabled={!canUndo} />
-    </View>
+    </Animated.View>
   );
 }
 
@@ -46,16 +54,16 @@ function ActionButton({
   disabled?: boolean;
 }) {
   return (
-    <Pressable
+    <Key
       onPress={onPress}
       disabled={disabled}
-      style={({ pressed }) => [styles.btn, pressed && styles.btnPressed]}
+      style={styles.btn}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled }}
     >
       <SFSymbol name={icon} size={16} tint={disabled ? color.label4 : color.label} />
-    </Pressable>
+    </Key>
   );
 }
 
@@ -84,5 +92,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  btnPressed: { opacity: 0.6 },
 });

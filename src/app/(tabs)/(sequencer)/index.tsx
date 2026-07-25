@@ -148,13 +148,16 @@ export default function SequencerScreen() {
             ))}
           </ScrollView>
         )}
-        <FloatingActions
-          canMutate={lanes.length > 0}
-          canUndo={canUndoMutate}
-          onAddLane={addAndEdit}
-          onMutate={mutatePattern}
-          onUndo={undoMutate}
-        />
+        {/* Hidden in the empty state — its own Add-lane CTA owns that screen. */}
+        {lanes.length > 0 ? (
+          <FloatingActions
+            canMutate
+            canUndo={canUndoMutate}
+            onAddLane={addAndEdit}
+            onMutate={mutatePattern}
+            onUndo={undoMutate}
+          />
+        ) : null}
       </View>
 
       {/* Bottom inset includes the tab bar height inside NativeTabs — keeps

@@ -15,6 +15,7 @@ import { generator, withRotation } from '@/core/euclid';
 import { patternForLane } from '@/state/selectors';
 import type { Lane } from '@/state/types';
 import { color, keyRamp } from '@/theme/tokens';
+import { Led } from '@/components/ui/led';
 
 const PER_ROW = 16;
 const GAP = 3;
@@ -60,7 +61,7 @@ export function CombinedCard({ lane }: { lane: Lane }) {
                         },
                       ]}
                     >
-                      {combined[i] ? <View style={styles.light} /> : null}
+                      {combined[i] ? <Led style={styles.light} /> : null}
                     </View>
                   ))}
                 </View>
