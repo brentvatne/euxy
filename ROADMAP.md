@@ -426,6 +426,16 @@ on swipe). Fix: reveal actions on partial swipe, require an explicit tap
 (or a deliberate full-swipe) to trigger; verify with the standard
 SwipeableListItem/ReanimatedSwipeable reveal behavior.
 
+### 12. Lane-row subtitle — drop the euclid params (Brent 2026-07-24)
+
+Sequencer lane rows currently subtitle with `C1 · E(4,16) ⇥0 · 12 steps`.
+The E(k,n)/rotation/steps notation is engine-speak and the step strip
+already SHOWS the rhythm. New format: **note · Track N** (e.g.
+`C1 · Track 1`, track = channel + 1) — the two facts you actually need when
+scanning lanes. Paper boards 01/01b/01c already updated to the new format;
+change `lane-row.tsx` to match. Euclid params remain visible in the Lane
+Editor where they're editable.
+
 ---
 
 ## Backlog — future features (2026-07-24)
@@ -479,22 +489,28 @@ Full spec on the board ("E · CHOSEN" strip + gesture/animation card):
   light pixel landing last; concept J's reroll wash sweeps the lane grid
   FROM the capsule (origin-anchored) at the same moment. Dice glyph replaces
   the shuffle icon — one vocabulary with Lane Editor Randomize.
-- **A/B PILL** (lead candidate 2026-07-24; superseded the temp-key +
-  revert/keep chips, which superseded the 5s undo chip — evolution mocked on
-  the board). First dice press snapshots the pattern silently (ONE deep copy
-  in the store — no undo stack), then rolls; the capsule grows a small pill
-  holding two dots: GHOST (outline = the snapshot) and LIVE (lit = now).
-  Tap a dot to make that reality live — a NON-DESTRUCTIVE toggle both ways
-  (under the hood it's just swapping two pattern objects). The live dot
-  ticks with the beat; switching plays the reroll wash toward the tapped
-  state. KEEP is not an action: whatever is live persists — the pill
-  dissolves on pattern switch/quit; a dice press re-rolls the live side
-  (fresh snapshot from it); manual edits ride the live side. Capsule stays
-  2 resident keys (+ · dice) + the pill only while a snapshot exists.
-  Alternatives mocked alongside: "ghost diff in the grid" (outline LEDs show
-  WHAT the other reality would change — great companion, could ship later)
-  and Brent's tap=revert/long-press=keep single key with a hold-fill ring
-  (mocked but not recommended: destructive action on the lightest gesture).
+- **SNAPSHOT KEY — DECIDED (Brent 2026-07-24): tap = revert, long-press =
+  keep.** First dice press snapshots the pattern silently (ONE deep copy in
+  the store — no undo stack), then rolls; a third key with a GHOST dot
+  (outline) appears in the capsule while a snapshot exists. TAP = revert:
+  swaps live pattern ↔ snapshot. Because revert is a SWAP, a stray tap is
+  never fatal — tap again to swap back. LONG-PRESS = keep: an LED ring fills
+  clockwise around the key (~500ms, faint tick at each quarter); release
+  early = ring drains back, nothing happens. Pattern switch/quit = keep
+  whatever is live; dice press while engaged re-rolls the live side; manual
+  edits ride the live side.
+  **Resolution animations (both must be satisfying):** REVERT — key travel
+  down, ghost dot fills solid for one beat, reverse reroll wash ripples the
+  grid from the capsule outward (LEDs flip with phosphor decay trails), dot
+  relaxes back to outline; light haptic. KEEP — on ring completion it POPS:
+  bright ack flash, the ring's light drains into the dice key's light pixel,
+  the key collapses and the capsule springs shut, and every sequenced LED on
+  the grid does ONE synchronized soft pulse — the pattern is stamped;
+  success haptic.
+  (Evolution mocked on the board: 5s undo chip → temp key + revert/keep
+  chips → A/B pill → this. "Ghost diff in the grid" survives as a
+  display-only future companion: outline LEDs showing what revert would
+  change.)
 - **Key travel** (concept H) — every press: scale 0.96 + darken in,
   spring release + one-frame LED ack. The + rotates 90° while pressed and
   hands off to the existing lane slide-in.

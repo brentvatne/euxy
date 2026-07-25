@@ -9,7 +9,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/ui';
-import { ConnectionGlyph } from '@/components/midi/connection-glyph';
 import { IconBus, IconCheck, IconClose, IconDevice, IconNone, IconUsb } from '@/components/midi/icons';
 import { refreshDevices, selectInput, selectOutput, useMidiRuntime } from '@/components/midi/runtime';
 import { useSettings } from '@/state/selectors';
@@ -91,9 +90,7 @@ export default function DevicePickerSheet() {
           );
         })}
         {devices.length === 0 ? (
-          // LED-motion F: the searching radar sweeps while we wait for a device.
           <View style={styles.searching}>
-            <ConnectionGlyph connected={false} />
             <AppText style={styles.hint}>No {isInput ? 'inputs' : 'outputs'} found — connect the OP–XY over USB-C.</AppText>
           </View>
         ) : null}
