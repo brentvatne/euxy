@@ -4,9 +4,10 @@
   "main": "expo-router/entry",
   "private": true,
   "scripts": {
-    "start": "expo start --web",
-    "export": "expo export --platform web",
-    "typecheck": "tsc --noEmit"
+    "sync": "node scripts/sync-shared.mjs",
+    "start": "node scripts/sync-shared.mjs && expo start --web",
+    "export": "node scripts/sync-shared.mjs && expo export --platform web",
+    "typecheck": "node scripts/sync-shared.mjs && tsc --noEmit"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.7",

@@ -22,8 +22,16 @@ export function PatternPlayer({ pattern }: { pattern: PlayerPattern }) {
   const [tick, setTick] = useState(-1);
   const schedulerRef = useRef<PatternScheduler | null>(null);
 
-  // Stop (and reset) whenever the pattern changes.
+  // Pattern switch mid-playback: swap the scheduler and KEEP PLAYING
+  // (hardware-style pattern change). Stopped stays stopped.
   useEffect(() => {
+    if (schedulerRef.current) {
+      schedulerRef.current.stop();
+      schedulerRef.current = null;
+      const next = new PatternScheduler(getAudioContext(), pattern);
+      schedulerRef.current = next;
+      next.start();
+    }
     return () => {
       schedulerRef.current?.stop();
       schedulerRef.current = null;

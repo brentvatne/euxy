@@ -12,15 +12,19 @@ import type { SharedLane } from '@/core/share-codec';
 import { color, keyRamp } from '@/theme/tokens';
 import { MONO } from './ui';
 
-const CELL = 18;
+const CELL = 22;
 const GAP = 2;
 
 function Cell({ fill, hit, playhead }: { fill: string; hit: boolean; playhead: boolean }) {
+  // App playhead language: the travelling light occupies the LED slot on
+  // empty steps; crossing a hit it REPLACES the steady LED with a prominent
+  // black dot in the same slot (never both at once).
+  const blackDot = playhead && hit;
   return (
     <View style={[styles.cell, { backgroundColor: fill }]}>
-      {hit && <View style={styles.led} />}
-      {playhead && !hit && <View style={[styles.led, styles.playheadLight]} />}
-      {playhead && hit && <View style={styles.blackDot} />}
+      {hit && !blackDot && <View style={styles.led} />}
+      {playhead && !hit && <View style={styles.led} />}
+      {blackDot && <View style={styles.blackDot} />}
     </View>
   );
 }
@@ -69,11 +73,11 @@ const styles = StyleSheet.create({
   grid: { gap: 6 },
   laneRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   label: {
-    width: 64,
+    width: 78,
     flexShrink: 0,
     fontFamily: MONO,
-    fontSize: 9,
-    lineHeight: 12,
+    fontSize: 11,
+    lineHeight: 14,
     letterSpacing: 0.4,
     color: '#6E6E76',
   },
@@ -82,21 +86,21 @@ const styles = StyleSheet.create({
   led: {
     position: 'absolute',
     top: 3,
-    left: (CELL - 4) / 2,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
+    left: (CELL - 5) / 2,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
     backgroundColor: '#FFFFFF',
     boxShadow: '0 0 5px rgba(255,255,255,1), 0 0 2px rgba(255,255,255,0.95)',
   },
-  playheadLight: { top: (CELL - 4) / 2 },
   blackDot: {
+    // Centered on the LED slot (led is 5px at top 3 → center y = 5.5).
     position: 'absolute',
-    top: (CELL - 6) / 2,
-    left: (CELL - 6) / 2,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    top: 1.5,
+    left: (CELL - 8) / 2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: color.displayBg,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',

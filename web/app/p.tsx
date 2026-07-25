@@ -6,15 +6,22 @@
  */
 import { Link, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { CHIPS } from '@/components/patterns/chips';
 import { decodePattern, type SharedPattern } from '@/core/share-codec';
 import { color } from '@/theme/tokens';
+import { setFavicon } from '../lib/favicon';
 import { PatternPlayer } from '../components/pattern-player';
 import { LedChip, MonoLabel, SANS } from '../components/ui';
 
 export default function SharedPatternPage() {
   const { d } = useLocalSearchParams<{ d?: string }>();
+  // The static prerender is built with NO query string, so rendering the
+  // error state before hydration bakes a "didn't decode" flash into p.html.
+  // Stay neutral until mounted on the client, where params are real.
+  const [ready, setReady] = useState(false);
+  useEffect(() => setReady(true), []);
   const pattern = useMemo<SharedPattern | null>(() => {
     if (typeof d !== 'string' || !d) return null;
     try {
@@ -23,6 +30,12 @@ export default function SharedPatternPage() {
       return null;
     }
   }, [d]);
+
+  useEffect(() => {
+    if (pattern) setFavicon(CHIPS[(pattern.icon ?? 'euxy') as keyof typeof CHIPS] ?? CHIPS.euxy);
+  }, [pattern]);
+
+  if (!ready) return <View style={styles.blank} />;
 
   if (!pattern) {
     return (
@@ -48,7 +61,7 @@ export default function SharedPatternPage() {
       </Head>
       <View style={styles.column}>
         <View style={styles.identity}>
-          <LedChip name={pattern.icon} size={44} />
+          <LedChip name={pattern.icon} size={50} />
           <View style={{ gap: 2, flexShrink: 1 }}>
             <Text style={styles.title}>{pattern.name}</Text>
             <MonoLabel>
@@ -76,11 +89,12 @@ export default function SharedPatternPage() {
 }
 
 const styles = StyleSheet.create({
+  blank: { flex: 1 },
   page: { alignItems: 'center', paddingVertical: 56, paddingHorizontal: 20 },
-  column: { width: '100%', maxWidth: 620, gap: 28 },
+  column: { width: '100%', maxWidth: 680, gap: 30 },
   identity: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  title: { fontFamily: SANS, fontSize: 24, fontWeight: '700', color: color.label },
-  body: { fontFamily: SANS, fontSize: 15, lineHeight: 22, color: color.label2 },
+  title: { fontFamily: SANS, fontSize: 28, fontWeight: '700', color: color.label },
+  body: { fontFamily: SANS, fontSize: 17, lineHeight: 26, color: color.label2 },
   cta: { gap: 10 },
   errorPage: {
     flex: 1,
@@ -93,5 +107,5 @@ const styles = StyleSheet.create({
     marginInline: 'auto',
   },
   homeLink: { paddingVertical: 8 },
-  homeLinkLabel: { fontFamily: SANS, fontSize: 15, color: color.label25 },
+  homeLinkLabel: { fontFamily: SANS, fontSize: 16, color: color.label25 },
 });

@@ -1,6 +1,6 @@
 import { Slot } from 'expo-router';
 import Head from 'expo-router/head';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type ViewStyle } from 'react-native';
 import { color } from '@/theme/tokens';
 
 export default function Layout() {
@@ -15,12 +15,39 @@ export default function Layout() {
           property="og:description"
           content="Generative euclidean rhythms for the OP-XY. Scan a shared pattern and hear it right here."
         />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* Space Mono self-hosted + preloaded so mono text renders in the
+            right font from the FIRST paint — the Google-CSS route swapped
+            the font in late and shifted every mono label (Brent's report). */}
         <link
-          href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap"
-          rel="stylesheet"
+          rel="preload"
+          href="/fonts/space-mono-400.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
         />
+        <link
+          rel="preload"
+          href="/fonts/space-mono-700.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        <style>{`
+          @font-face {
+            font-family: 'Space Mono';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url(/fonts/space-mono-400.woff2) format('woff2');
+          }
+          @font-face {
+            font-family: 'Space Mono';
+            font-style: normal;
+            font-weight: 700;
+            font-display: swap;
+            src: url(/fonts/space-mono-700.woff2) format('woff2');
+          }
+        `}</style>
       </Head>
       <Slot />
     </View>
@@ -31,7 +58,7 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: color.ground,
-    // @ts-expect-error web-only unit
-    minHeight: '100vh',
-  },
+    // react-native-web accepts viewport units; RN's types don't know them.
+    minHeight: '100vh' as unknown as number,
+  } satisfies ViewStyle,
 });
