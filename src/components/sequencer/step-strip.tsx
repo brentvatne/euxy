@@ -27,6 +27,8 @@ import { patternForLane } from '@/state/selectors';
 import type { Lane } from '@/state/types';
 import { keyRamp } from '@/theme/tokens';
 import { Led as LedBase } from '@/components/ui/led';
+import { SKIA_STRIP_GLOW } from '@/lib/flags';
+import { StepStripGlow } from './step-strip-skia';
 
 const PER_ROW = 16;
 const GAP = 4;
@@ -74,13 +76,20 @@ export function StepStrip({ lane }: StepStripProps) {
                     { backgroundColor: keyRamp[Math.floor((i % PER_ROW) / 2)] },
                   ]}
                 >
-                  {pattern[i] ? <Led /> : null}
+                  {/* Skia path draws the steady LEDs itself (with real bloom). */}
+                  {pattern[i] && !SKIA_STRIP_GLOW ? <Led /> : null}
                 </View>
               ))}
             </View>
           ))
         : null}
-      {blockW > 0 ? <TravellingLight lane={lane} pattern={pattern} blockW={blockW} /> : null}
+      {blockW > 0 ? (
+        SKIA_STRIP_GLOW ? (
+          <StepStripGlow lane={lane} pattern={pattern} blockW={blockW} width={width} />
+        ) : (
+          <TravellingLight lane={lane} pattern={pattern} blockW={blockW} />
+        )
+      ) : null}
     </View>
   );
 }
