@@ -53,8 +53,9 @@ export default function SequencerScreen() {
   const toggleSolo = useStore((s) => s.toggleSolo);
   const selectLane = useStore((s) => s.selectLane);
   const mutatePattern = useStore((s) => s.mutateActivePattern);
-  // Snapshot / temp mode: the capsule's ghost key exists while this is true.
+  // Temp mode: the capsule's resident temp key lights while this is true.
   const snapshotActive = useStore((s) => s.snapshotActive);
+  const armSnapshot = useStore((s) => s.armSnapshot);
   const revertSnapshot = useStore((s) => s.revertSnapshot);
   const keepSnapshot = useStore((s) => s.keepSnapshot);
 
@@ -185,6 +186,7 @@ export default function SequencerScreen() {
             snapshotActive={snapshotActive}
             onAddLane={addAndEdit}
             onMutate={mutatePattern}
+            onArm={armSnapshot}
             onRevert={revertSnapshot}
             onKeep={keepSnapshot}
           />

@@ -22,12 +22,14 @@ const pickOne = <T,>(arr: readonly T[]): T => arr[rint(arr.length)];
 const wrap = (v: number, n: number) => ((v % n) + n) % n;
 
 /**
- * Snapshot / temp mode (floating-capsule E spec): ONE deep copy of the active
- * pattern's lanes, taken silently by the first dice press. Lives OUTSIDE the
- * zustand state so it is never persisted (persistence.ts serializes an
- * explicit field list, and a deep lane copy has no business in renders).
- * `snapshotActive` in the store mirrors its existence for the UI; revert is a
- * SWAP (live ↔ snapshot), so a stray tap is never fatal.
+ * Snapshot / temp mode (floating-capsule, Brent's corrected semantics
+ * 2026-07-25): ONE deep copy of the active pattern's lanes, armed EXPLICITLY
+ * by tapping the temp key — dice rolls, lane edits, adds/deletes all ride the
+ * live side while armed. Lives OUTSIDE the zustand state so it is never
+ * persisted (persistence.ts serializes an explicit field list, and a deep
+ * lane copy has no business in renders). `snapshotActive` in the store
+ * mirrors its existence for the UI. Tap while armed = restore + disarm
+ * (temp is a bail-out); long-press = keep the live side + disarm.
  */
 let snapshotLanes: Lane[] | null = null;
 let snapshotPatternId: string | null = null;
@@ -146,13 +148,13 @@ export interface AppState {
   resetLanes: () => void;
   /** Re-roll one lane's generative params (pulses/rotation/genB/op). */
   randomizeLane: (id: string) => void;
-  /** Nudge the active pattern slightly (KeyStep-style mutate). The first
-   * press silently snapshots the pattern; re-rolls ride the live side. */
+  /** Nudge the active pattern slightly (KeyStep-style mutate). */
   mutateActivePattern: () => void;
-  /** Swap live lanes ↔ snapshot (tap the snapshot key). Non-destructive both
-   * ways — tap again to swap back. */
+  /** Temp key tap while disarmed: store away the current lanes. */
+  armSnapshot: () => void;
+  /** Temp key tap while armed: restore the stored lanes and disarm. */
   revertSnapshot: () => void;
-  /** Keep the live side and discard the snapshot (long-press completes). */
+  /** Keep the live side, discard the snapshot, disarm (long-press). */
   keepSnapshot: () => void;
 
   // Selection ------------------------------------------------------------
@@ -323,12 +325,6 @@ export const useStore = create<AppState>((set, get) => {
       const s = get();
       const p = s.patterns.find((x) => x.id === s.activePatternId);
       if (!p || p.lanes.length === 0) return;
-      // First press with no snapshot: deep-copy BEFORE rolling, silently.
-      // While engaged, further presses re-roll the live side only.
-      if (!snapshotLanes || snapshotPatternId !== p.id) {
-        snapshotLanes = cloneLanes(p.lanes);
-        snapshotPatternId = p.id;
-      }
       // Each press nudges ~60% of lanes by one small step — variations stay
       // recognizably related to the source pattern (the KeyStep model).
       const eligible = (l: Lane) => l.length > 1;
@@ -349,20 +345,28 @@ export const useStore = create<AppState>((set, get) => {
       mutateActive((pp) => ({ ...pp, lanes }));
       set((st) => ({ mutateVersion: st.mutateVersion + 1, snapshotActive: true }));
     },
+    armSnapshot: () => {
+      const s = get();
+      const p = s.patterns.find((x) => x.id === s.activePatternId);
+      if (!p) return;
+      snapshotLanes = cloneLanes(p.lanes);
+      snapshotPatternId = p.id;
+      set({ snapshotActive: true });
+    },
     revertSnapshot: () => {
       const s = get();
       const p = s.patterns.find((x) => x.id === s.activePatternId);
       if (!p || !snapshotLanes || snapshotPatternId !== p.id) return;
-      // SWAP live ↔ snapshot: the outgoing live side becomes the new snapshot,
-      // so tapping again swaps straight back.
-      const live = cloneLanes(p.lanes);
+      // Restore the stored state AND disarm (Brent: temp is a bail-out —
+      // tap brings the old state back and turns temp off).
       const restored = snapshotLanes;
-      snapshotLanes = live;
+      discardSnapshot();
       mutateActive((pp) => ({ ...pp, lanes: restored }));
       // mutateVersion bump keeps the strips' flicker-bloom diff working;
       // gridFx carries the capsule-origin reverse wash.
       set((st) => ({
         mutateVersion: st.mutateVersion + 1,
+        snapshotActive: false,
         gridFx: { nonce: (st.gridFx?.nonce ?? 0) + 1, kind: 'revert' },
       }));
     },

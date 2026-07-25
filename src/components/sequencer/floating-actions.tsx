@@ -2,14 +2,15 @@
  * FloatingActions — the Sequencer's floating capsule, rebuilt per the decided
  * E spec (Paper "Floating bar — concepts" → "E · CHOSEN" + gesture/animation
  * card; chrome from the canonical "01 · Sequencer" bar): add lane · dice ·
- * snapshot key. The capsule is ALIVE:
+ * temp key. The capsule is ALIVE:
  *
  *   • Dice press scatters the 5 pips (~250ms of shuffled frames, instant
  *     attack each) while concept J's reroll wash sweeps the lane grid FROM
  *     the capsule (step-strip owns the wash; the store carries the signal).
- *   • First dice press silently snapshots the pattern; a ghost-dot key
- *     appears while the snapshot exists. Tap = revert (a swap — tap again to
- *     swap back); long-press fills an LED ring (~500ms) = keep.
+ *   • Temp is a resident key (Brent's corrected semantics 2026-07-25): tap
+ *     stores the current state away and the dot lights; every edit then
+ *     rides live; tap again restores that state and disarms (a bail-out);
+ *     long-press fills an LED ring (~500ms) = keep the edits + disarm.
  *   • While playing, the capsule breathes: dims to 60% two beats after the
  *     last touch; the dice's light pixel ticks the downbeat. All clock-synced
  *     motion derives from playheadTick on the UI thread — nothing re-renders
@@ -81,9 +82,12 @@ const ALL_CELLS: ReadonlyArray<readonly [number, number]> = [
   [0, 2], [1, 2], [2, 2],
 ];
 
-// Snapshot key hold: ring fills over 500ms; release ≤250ms reads as a tap.
+// Temp key hold: the ring waits RING_DELAY_MS before it starts filling —
+// a simple tap never flashes it (Brent) — then fills over HOLD_MS; keep
+// fires at RING_DELAY_MS + HOLD_MS. Release ≤250ms reads as a tap.
 const HOLD_MS = 500;
 const TAP_MS = 250;
+const RING_DELAY_MS = 150;
 const RING_R = 21;
 const RING_C = 2 * Math.PI * RING_R;
 
@@ -91,6 +95,9 @@ const SPRING = { damping: 18, stiffness: 260, reduceMotion: ReduceMotion.System 
 // Drag settle — near-critical (ζ≈0.9) so the capsule lands with one tight
 // settle instead of a wobble (Brent: drag felt too bouncy).
 const SNAP = { damping: 34, stiffness: 340, reduceMotion: ReduceMotion.System };
+// Seconds of "flight" a release velocity projects forward when picking the
+// landing corner — a real throw goes where it was headed.
+const THROW_PROJECTION_S = 0.18;
 
 /** One scatter press: 3–4 frames of random pip cells (5 distinct per frame). */
 function rollScatterFrames(): number[][][] {
@@ -111,6 +118,7 @@ export function FloatingActions({
   snapshotActive,
   onAddLane,
   onMutate,
+  onArm,
   onRevert,
   onKeep,
 }: {
@@ -119,9 +127,11 @@ export function FloatingActions({
    * race) — only later appearances (empty→lanes) animate in. */
   animateMount: boolean;
   canMutate: boolean;
+  /** Temp mode armed — the resident temp key renders lit. */
   snapshotActive: boolean;
   onAddLane: () => void;
   onMutate: () => void;
+  onArm: () => void;
   onRevert: () => void;
   onKeep: () => void;
 }) {
@@ -188,12 +198,16 @@ export function FloatingActions({
     })
     .onEnd((e) => {
       lift.value = withTiming(0, { duration: 160 });
-      // Snap to the nearest bottom corner; the corner persists.
+      // The capsule is THROWABLE: pick the corner from where the flick is
+      // HEADED (release position projected ~180ms along the gesture
+      // velocity), not just where the finger lets go, and feed the velocity
+      // into the settle springs so the throw carries through the landing.
       const center = screenW - MARGIN - barW / 2 + anchorX.value + tx.value;
-      const left = center < screenW / 2;
+      const projected = center + e.velocityX * THROW_PROJECTION_S;
+      const left = projected < screenW / 2;
       anchorX.value = withSpring(left ? -(screenW - barW - MARGIN * 2) : 0, SNAP);
-      tx.value = withSpring(0, SNAP);
-      ty.value = withSpring(0, SNAP);
+      tx.value = withSpring(0, { ...SNAP, velocity: e.velocityX });
+      ty.value = withSpring(0, { ...SNAP, velocity: e.velocityY });
       runOnJS(setFloatBarCorner)(left ? 'left' : 'right');
     });
 
@@ -209,14 +223,16 @@ export function FloatingActions({
     <>
       <AddKey onPress={onAddLane} />
       <DiceKey disabled={!canMutate} reducedMotion={reducedMotion} onMutate={onMutate} />
-      {snapshotActive ? (
-        <SnapshotKey
-          beatMs={60000 / bpm}
-          reducedMotion={reducedMotion}
-          onRevert={onRevert}
-          onKeep={onKeep}
-        />
-      ) : null}
+      {/* Temp is a RESIDENT key (Brent's corrected semantics): tap to hold
+          the current state away, tap again to jump back, long-press to keep. */}
+      <TempKey
+        engaged={snapshotActive}
+        beatMs={60000 / bpm}
+        reducedMotion={reducedMotion}
+        onArm={onArm}
+        onRevert={onRevert}
+        onKeep={onKeep}
+      />
     </>
   );
 
@@ -385,21 +401,27 @@ function Pip({
 }
 
 /**
- * Snapshot key — ghost outline dot while a snapshot exists. TAP = revert
- * (swap; the dot fills solid for one beat while the reverse wash ripples the
- * grid). LONG-PRESS = keep: the LED ring fills clockwise over ~500ms with a
- * selection tick at each quarter; completing it pops, drains into the dice's
- * light pixel and collapses the key. Early release drains the ring back —
- * nothing happens.
+ * Temp key — a RESIDENT third key (Brent's corrected semantics 2026-07-25).
+ * Disarmed: ghost outline dot; a TAP stores the current state away and arms
+ * (dot lights solid). Armed: every edit — dice rolls, lane params, adds,
+ * deletes — rides the live side; TAP restores the stored state and DISARMS
+ * (the bail-out); LONG-PRESS = keep the edits: the LED ring waits 150ms
+ * (taps never flash it), fills clockwise over ~500ms with a selection tick
+ * at each quarter; completing it pops, drains into the dice's light pixel
+ * and the key un-lights. Early release drains the ring back — nothing.
  */
-function SnapshotKey({
+function TempKey({
+  engaged,
   beatMs,
   reducedMotion,
+  onArm,
   onRevert,
   onKeep,
 }: {
+  engaged: boolean;
   beatMs: number;
   reducedMotion: boolean;
+  onArm: () => void;
   onRevert: () => void;
   onKeep: () => void;
 }) {
@@ -407,7 +429,7 @@ function SnapshotKey({
   const ringTick = useSharedValue(0);
   const flash = useSharedValue(0);
   const drain = useSharedValue(0);
-  const dotFill = useSharedValue(0);
+  const dotPulse = useSharedValue(0);
 
   const pressStart = useRef(0);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -418,6 +440,17 @@ function SnapshotKey({
   };
   useEffect(() => clearTimers, []);
 
+  // The key survives keep now (resident) — reset the one-shot state so the
+  // next arm starts clean.
+  useEffect(() => {
+    if (!engaged) {
+      completed.current = false;
+      progress.value = 0;
+      drain.value = 0;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engaged]);
+
   const fireKeep = () => {
     completed.current = true;
     haptics.success();
@@ -427,7 +460,7 @@ function SnapshotKey({
     }
     // The pop: bright ack flash, then the ring's light drains into the dice
     // key's light pixel; the store keep lands as the drain finishes and the
-    // key collapses (exiting) while the capsule springs shut (layout).
+    // dot relaxes back to its ghost outline.
     flash.value = 1;
     flash.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.quad) });
     drain.value = withDelay(120, withTiming(1, { duration: 220, easing: Easing.in(Easing.quad) }));
@@ -437,8 +470,13 @@ function SnapshotKey({
   const onPressIn = () => {
     if (completed.current) return;
     pressStart.current = Date.now();
+    // The keep ring only exists while armed — a disarmed press is just a key.
+    if (!engaged) return;
     progress.value = 0;
-    progress.value = withTiming(1, { duration: HOLD_MS, easing: Easing.linear });
+    progress.value = withDelay(
+      RING_DELAY_MS,
+      withTiming(1, { duration: HOLD_MS, easing: Easing.linear }),
+    );
     // Faint tick at each ring quarter (selection haptic + a brightness blip).
     [0.25, 0.5, 0.75].forEach((q) => {
       timers.current.push(
@@ -446,24 +484,31 @@ function SnapshotKey({
           haptics.selection();
           ringTick.value = 1;
           ringTick.value = withTiming(0, { duration: 150 });
-        }, HOLD_MS * q),
+        }, RING_DELAY_MS + HOLD_MS * q),
       );
     });
-    timers.current.push(setTimeout(fireKeep, HOLD_MS));
+    timers.current.push(setTimeout(fireKeep, RING_DELAY_MS + HOLD_MS));
   };
 
   const onPressOut = () => {
     if (completed.current) return;
     clearTimers();
+    if (!engaged) {
+      // ARM: store the current state away. Any release arms — there is no
+      // hold gesture while disarmed.
+      haptics.impact('light');
+      onArm();
+      return;
+    }
     const dt = Date.now() - pressStart.current;
     // Drain the ring back regardless — only a completed fill keeps.
     progress.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.quad) });
     if (dt > TAP_MS) return; // abandoned hold: nothing happens
-    // TAP = revert. The ghost dot fills solid for one beat (transport bpm)
-    // while step-strip plays the reverse wash off the store's gridFx nonce.
+    // TAP = jump back (swap). The lit dot blips brighter for one beat while
+    // step-strip plays the reverse wash off the store's gridFx nonce.
     haptics.impact('light');
     if (!reducedMotion) {
-      dotFill.value = withSequence(
+      dotPulse.value = withSequence(
         withTiming(1, { duration: 0 }),
         withDelay(beatMs, withTiming(0, { duration: 300, easing: Easing.out(Easing.quad) })),
       );
@@ -485,31 +530,43 @@ function SnapshotKey({
     opacity: drain.value === 0 ? 0 : 1 - 0.7 * drain.value,
     transform: [{ translateX: -(KEY_SIZE + KEY_GAP) * drain.value }],
   }));
-  const fillStyle = useAnimatedStyle(() => ({ opacity: dotFill.value }));
+  // Armed = solid lit dot (instant on, phosphor decay off — LED language);
+  // the pulse layer blips brighter on a jump-back.
+  const fillStyle = useAnimatedStyle(() => ({
+    opacity: withTiming(engaged ? 1 : 0, {
+      duration: engaged ? 0 : 300,
+      easing: Easing.out(Easing.quad),
+      reduceMotion: ReduceMotion.System,
+    }),
+  }));
+  const pulseStyle = useAnimatedStyle(() => ({
+    opacity: 0.9 * dotPulse.value,
+    transform: [{ scale: 1 + 0.5 * dotPulse.value }],
+  }));
 
   return (
-    // Safe to always animate the mount: snapshotActive is never persisted,
-    // so this key cannot exist on a cold boot's initial render (the race
-    // animateMount guards against) — it only ever appears after a dice press.
-    <Animated.View
-      entering={FadeInDown.duration(180).reduceMotion(ReduceMotion.System)}
-      exiting={FadeOutDown.duration(150).reduceMotion(ReduceMotion.System)}
+    <Key
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      // Press-in stays silent: this key's haptics ARE its resolutions
+      // (light = arm/jump-back, selection = ring quarters, success = keep).
+      haptic="none"
+      style={styles.btn}
+      accessibilityRole="button"
+      accessibilityLabel="Temp"
+      accessibilityState={{ selected: engaged }}
+      accessibilityHint={
+        engaged
+          ? 'Tap to restore the held state and turn temp off. Hold to keep the current pattern.'
+          : 'Tap to hold the current state so you can experiment.'
+      }
     >
-      <Key
-        onPressIn={onPressIn}
-        onPressOut={onPressOut}
-        // Press-in stays silent: this key's haptics ARE its resolutions
-        // (light = revert, selection = ring quarters, success = keep).
-        haptic="none"
-        style={styles.btn}
-        accessibilityRole="button"
-        accessibilityLabel="Snapshot"
-        accessibilityHint="Tap to swap with the saved snapshot. Hold to keep the current pattern."
-      >
-        {/* Ghost dot (Paper: 11px outline, 1.5px #8E8E93) + its solid fill. */}
-        <View style={styles.ghostDot}>
-          <Animated.View pointerEvents="none" style={[styles.ghostDotFill, fillStyle]} />
-        </View>
+      {/* Ghost dot (Paper: 11px outline, 1.5px #8E8E93); lit solid while
+          armed, with a brighter pulse on jump-back. */}
+      <View style={styles.ghostDot}>
+        <Animated.View pointerEvents="none" style={[styles.ghostDotFill, fillStyle]} />
+        <Animated.View pointerEvents="none" style={[styles.ghostDotFill, styles.ghostDotPulse, pulseStyle]} />
+      </View>
         {/* Keep ring — starts at 12 o'clock, fills clockwise. */}
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.ring, ringStyle]}>
           <Svg width={KEY_SIZE} height={KEY_SIZE} viewBox={`0 0 ${KEY_SIZE} ${KEY_SIZE}`}>
@@ -526,10 +583,9 @@ function SnapshotKey({
             />
           </Svg>
         </Animated.View>
-        <Animated.View pointerEvents="none" style={[styles.flash, flashStyle]} />
-        <Animated.View pointerEvents="none" style={[styles.drainDot, drainStyle]} />
-      </Key>
-    </Animated.View>
+      <Animated.View pointerEvents="none" style={[styles.flash, flashStyle]} />
+      <Animated.View pointerEvents="none" style={[styles.drainDot, drainStyle]} />
+    </Key>
   );
 }
 
@@ -610,6 +666,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: 999,
     backgroundColor: color.label,
+  },
+  // Jump-back blip: a hot white glow over the lit dot.
+  ghostDotPulse: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#FFFFFF',
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
   },
   ring: {
     transform: [{ rotate: '-90deg' }],
