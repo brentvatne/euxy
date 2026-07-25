@@ -365,7 +365,15 @@ export const useStore = create<AppState>((set, get) => {
     revertSnapshot: () => {
       const s = get();
       const p = s.patterns.find((x) => x.id === s.activePatternId);
-      if (!p || !snapshotLanes || snapshotPatternId !== p.id) return;
+      if (!p || !snapshotLanes || snapshotPatternId !== p.id) {
+        // Armed with nothing to restore (corrupt/stale state): just disarm
+        // so the key never sticks lit.
+        if (s.snapshotActive) {
+          discardSnapshot();
+          set({ snapshotActive: false });
+        }
+        return;
+      }
       // Restore the stored state AND disarm (Brent: temp is a bail-out —
       // tap brings the old state back and turns temp off).
       const restored = snapshotLanes;
@@ -380,13 +388,16 @@ export const useStore = create<AppState>((set, get) => {
       }));
     },
     keepSnapshot: () => {
-      if (!snapshotLanes) return;
-      snapshotLanes = null;
-      snapshotPatternId = null;
-      // The pattern is stamped: every sequenced LED pulses once, in sync.
+      // ALWAYS disarm — even if the snapshot went missing (a lit key must
+      // never dead-end); the stamp only fires when something was kept.
+      const hadSnapshot = snapshotLanes != null;
+      discardSnapshot();
       set((st) => ({
         snapshotActive: false,
-        gridFx: { nonce: (st.gridFx?.nonce ?? 0) + 1, kind: 'stamp' },
+        // The pattern is stamped: every sequenced LED pulses once, in sync.
+        gridFx: hadSnapshot
+          ? { nonce: (st.gridFx?.nonce ?? 0) + 1, kind: 'stamp' }
+          : st.gridFx,
       }));
     },
     reorderLanes: (from, to) =>

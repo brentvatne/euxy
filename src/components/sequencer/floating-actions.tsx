@@ -501,6 +501,13 @@ function TempKey({
       return;
     }
     const dt = Date.now() - pressStart.current;
+    // Releasing right AT completion must still keep: the JS fireKeep timer
+    // can lose that race to onPressOut's clearTimers by a few ms, which
+    // showed a full ring that then drained (Brent's report).
+    if (dt >= RING_DELAY_MS + HOLD_MS - 40) {
+      fireKeep();
+      return;
+    }
     // Drain the ring back regardless — only a completed fill keeps.
     progress.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.quad) });
     if (dt > TAP_MS) return; // abandoned hold: nothing happens
