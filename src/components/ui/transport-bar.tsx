@@ -12,6 +12,7 @@
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { BeatTicker } from './beat-ticker';
 import { Key } from './key';
 
 import type { ClockMode, RecordPhase } from '@/state/types';
@@ -59,6 +60,13 @@ export function TransportBar({
           <AppText style={styles.bpmLabel} numberOfLines={1}>
             BPM
           </AppText>
+          {/* Concept E: the LED beat strip walks 1-2-3-4 off the playhead
+              clock; during the record count-in (clock held at 0) it walks the
+              count-in beat instead, and it blinks 8ths while recording. */}
+          <BeatTicker
+            countInBeat={!jam && recordPhase === 'countin' ? countInBeat : 0}
+            recording={!jam && recordPhase === 'recording'}
+          />
         </View>
       </Pressable>
 
