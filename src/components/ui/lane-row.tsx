@@ -7,6 +7,7 @@
  * step strip (children) below. Presentational only — step sizing/playhead
  * live in the Sequencer.
  */
+import { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { haptics } from '@/lib/shims';
@@ -78,6 +79,12 @@ export function LaneRow({
 }
 
 function MSButton({ label, active, onPress }: { label: string; active: boolean; onPress?: () => void }) {
+  // A bar lit in the row's FIRST render (e.g. a muted lane on boot) must not
+  // bloom — only live toggles ignite (see ui/led.tsx).
+  const initialRender = useRef(true);
+  useEffect(() => {
+    initialRender.current = false;
+  }, []);
   return (
     <Key
       onPress={onPress}
@@ -88,10 +95,13 @@ function MSButton({ label, active, onPress }: { label: string; active: boolean; 
       accessibilityState={{ selected: active }}
     >
       <AppText style={[styles.msLabel, active && styles.msLabelActive]}>{label}</AppText>
-      {/* Dim bar always present; the lit bar is an LED — instant on, phosphor
-          decay off (mounted conditionally so the exiting animation runs). */}
+      {/* Dim bar always present; the lit bar is an LED — instant on with the
+          ignition bloom, phosphor decay off (mounted conditionally so the
+          exiting animation runs). */}
       <View style={styles.msBar}>
-        {active ? <Led style={[StyleSheet.absoluteFill, styles.msBarActive]} /> : null}
+        {active ? (
+          <Led ignite={!initialRender.current} style={[StyleSheet.absoluteFill, styles.msBarActive]} />
+        ) : null}
       </View>
     </Key>
   );

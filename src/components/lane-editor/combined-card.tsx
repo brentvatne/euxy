@@ -8,7 +8,7 @@
  * dot (with XOR you can see a both-dot step stay lightless). Steps wrap at 16
  * per row and never shrink; the editor never shows a playhead here.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
@@ -76,6 +76,13 @@ export function CombinedCard({
   const [width, setWidth] = useState(0);
   const cellW = width > 0 ? (width - GAP * (PER_ROW - 1)) / PER_ROW : 0;
 
+  // LEDs in the card's FIRST render must not run the ignition bloom — only
+  // lights added by live edits (slider drags) ignite (see ui/led.tsx).
+  const initialRender = useRef(true);
+  useEffect(() => {
+    initialRender.current = false;
+  }, []);
+
   // Reroll wash (concept J): a one-shot mounted per nonce; every animation in
   // it is precomputed on mount (withDelay/withSequence), so nothing runs per
   // frame in JS. Reduced Motion skips straight to the settled new pattern.
@@ -113,7 +120,9 @@ export function CombinedCard({
                         },
                       ]}
                     >
-                      {combined[i] ? <Led style={styles.light} /> : null}
+                      {combined[i] ? (
+                        <Led ignite={!initialRender.current} style={styles.light} />
+                      ) : null}
                     </View>
                   ))}
                 </View>
