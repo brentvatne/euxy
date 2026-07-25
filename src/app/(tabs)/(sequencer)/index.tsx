@@ -178,6 +178,9 @@ export default function SequencerScreen() {
         {/* Hidden in the empty state — its own Add-lane CTA owns that screen. */}
         {lanes.length > 0 ? (
           <FloatingActions
+            // Same cold-boot rule as the lanes above: no mount animation on
+            // the screen's first render (it can stick invisible).
+            animateMount={!initialRender.current}
             canMutate
             snapshotActive={snapshotActive}
             onAddLane={addAndEdit}

@@ -104,6 +104,7 @@ function rollScatterFrames(): number[][][] {
 }
 
 export function FloatingActions({
+  animateMount,
   canMutate,
   snapshotActive,
   onAddLane,
@@ -111,6 +112,10 @@ export function FloatingActions({
   onRevert,
   onKeep,
 }: {
+  /** False while the host screen is on its INITIAL render: a mount `entering`
+   * there can stick the capsule invisible on cold boot (the wave-2 lane-list
+   * race) — only later appearances (empty→lanes) animate in. */
+  animateMount: boolean;
   canMutate: boolean;
   snapshotActive: boolean;
   onAddLane: () => void;
@@ -229,27 +234,35 @@ export function FloatingActions({
         <TuckSliver corner={corner} onRestore={() => setTucked(false)} />
       ) : (
         <GestureDetector gesture={pan}>
+          {/* Outer view owns mount/layout animations; the inner one owns the
+              drag transform + breathing opacity (a layout animation would
+              overwrite them on a shared view). */}
           <Animated.View
-            // Mounted only while lanes exist — ease in/out of the empty state.
-            entering={FadeInDown.duration(200).reduceMotion(ReduceMotion.System)}
+            // Mounted only while lanes exist — ease in/out of the empty
+            // state, but NEVER on the screen's initial render (cold-boot
+            // stuck-invisible race; see animateMount).
+            entering={
+              animateMount ? FadeInDown.duration(200).reduceMotion(ReduceMotion.System) : undefined
+            }
             exiting={FadeOutDown.duration(150).reduceMotion(ReduceMotion.System)}
             // The capsule springs shut when the snapshot key collapses.
             layout={LinearTransition.springify().damping(18).stiffness(220).reduceMotion(
               ReduceMotion.System,
             )}
-            style={[styles.barAnchor, dragStyle, breatheStyle]}
+            style={styles.barAnchor}
             onLayout={(e) => setBarW(e.nativeEvent.layout.width)}
-            onTouchStart={relight}
           >
-            {liquidGlassAvailable && GlassView ? (
-              // Real material refracts the playhead LEDs sweeping beneath it;
-              // the rim + tint match the Paper mock (rgba(28,28,34,.55)).
-              <GlassView glassEffectStyle="regular" style={[styles.bar, styles.barGlass]}>
-                {keys}
-              </GlassView>
-            ) : (
-              <View style={[styles.bar, styles.barSolid]}>{keys}</View>
-            )}
+            <Animated.View style={[dragStyle, breatheStyle]} onTouchStart={relight}>
+              {liquidGlassAvailable && GlassView ? (
+                // Real material refracts the playhead LEDs sweeping beneath
+                // it; the rim + tint match the Paper mock (rgba(28,28,34,.55)).
+                <GlassView glassEffectStyle="regular" style={[styles.bar, styles.barGlass]}>
+                  {keys}
+                </GlassView>
+              ) : (
+                <View style={[styles.bar, styles.barSolid]}>{keys}</View>
+              )}
+            </Animated.View>
           </Animated.View>
         </GestureDetector>
       )}
@@ -486,6 +499,9 @@ function SnapshotKey({
   const fillStyle = useAnimatedStyle(() => ({ opacity: dotFill.value }));
 
   return (
+    // Safe to always animate the mount: snapshotActive is never persisted,
+    // so this key cannot exist on a cold boot's initial render (the race
+    // animateMount guards against) — it only ever appears after a dice press.
     <Animated.View
       entering={FadeInDown.duration(180).reduceMotion(ReduceMotion.System)}
       exiting={FadeOutDown.duration(150).reduceMotion(ReduceMotion.System)}
