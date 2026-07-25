@@ -2,7 +2,7 @@
  * Activity Log — pushed from the MIDI tab's Diagnostics section. Shows the raw
  * inbound/outbound MIDI byte stream (hex + annotation) for debugging. High-rate
  * clock (0xF8) and active-sensing (0xFE) are filtered from the list; incoming
- * clock instead lights a "CLOCK RX" indicator in the header. A test-note button
+ * clock instead lights a "Clock" indicator in the header. A test-note button
  * lets the web tester verify the output link.
  */
 import { Stack } from 'expo-router/stack';
@@ -18,7 +18,7 @@ function ClockIndicator({ active }: { active: boolean }) {
     <View style={styles.clockTag}>
       <View style={[styles.clockDot, { backgroundColor: active ? color.playhead : color.label4, opacity: active ? 1 : 0.4 }]} />
       <AppText mono style={[styles.clockText, { color: active ? color.playhead : color.label4 }]}>
-        CLOCK RX
+        Clock
       </AppText>
     </View>
   );
@@ -85,9 +85,18 @@ const styles = StyleSheet.create({
   in: { color: color.label3 },
   idle: { color: color.label4 },
 
-  clockTag: { flexDirection: 'row', alignItems: 'center', gap: 5, marginRight: space.md },
+  // The header wraps this view in the iOS 26 glass pill — the horizontal
+  // padding is what gives the pill its side air (without it the text hugs
+  // the capsule edge).
+  clockTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 2,
+    paddingHorizontal: 12,
+  },
   clockDot: { width: 7, height: 7, borderRadius: radius.chip },
-  clockText: { fontSize: 11, letterSpacing: 0.5 },
+  clockText: { fontSize: 12, lineHeight: 16 },
 
   hint: { fontSize: 12, lineHeight: 16, color: color.label4, paddingHorizontal: space.xs },
 });
