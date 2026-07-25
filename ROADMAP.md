@@ -763,6 +763,14 @@ plus **"Splash v2 — LED boot 1024"** (new splash asset) and
 4. Idle motion is rare and slow (one twinkle every few seconds); playing
    motion is dense and synced. Never both at once.
 5. Reduced Motion: freeze to settled frames.
+6. **A stopped screen produces ZERO animation frames** (perf pass
+   2026-07-25): any infinite `withRepeat` forces 60fps frame production
+   forever — the JAM pill's standby breathe alone measured ~22% of a core
+   on an idle sim. Continuous loops may only run while the playhead is
+   running (frames are being produced anyway); stopped states get settled
+   frames. Known deliberate exceptions: REC-armed blink (transient,
+   load-bearing), empty-state twinkle (rare screen — revisit if it ever
+   bothers).
 
 **The concepts:**
 

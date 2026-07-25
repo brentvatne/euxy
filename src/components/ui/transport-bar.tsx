@@ -163,7 +163,13 @@ export function TransportBar({
       )}
 
       <View style={styles.right}>
-        <ModePill jam={jam} recordPhase={recordPhase} bpm={bpm} onToggleMode={onToggleMode} />
+        <ModePill
+          jam={jam}
+          playing={playing}
+          recordPhase={recordPhase}
+          bpm={bpm}
+          onToggleMode={onToggleMode}
+        />
       </View>
     </View>
   );
@@ -171,8 +177,10 @@ export function TransportBar({
 
 /**
  * Mode pill (Paper CO-0 / 1X1-0) with the concept-I armed states:
- *  - JAM: the pill's border breathes on a ~2.2s inhale/exhale cycle — slow
- *    standby, not alarm. Opacity-only over a pre-lit ring.
+ *  - JAM: while PLAYING the pill's border breathes on a ~2.2s inhale/exhale
+ *    cycle; stopped = a still half-lit ring (an idle infinite repeat cost
+ *    ~22% of a core — perf pass 2026-07-25). Opacity-only over a pre-lit
+ *    ring.
  *  - REC: the red dot blinks 8th notes. While the device clock actually runs
  *    (recording) the blink is quantized off `playheadTick` (12 ticks per
  *    8th); while armed / counting in the clock is held, so a wall-clock
@@ -182,11 +190,13 @@ export function TransportBar({
  */
 function ModePill({
   jam,
+  playing,
   recordPhase,
   bpm,
   onToggleMode,
 }: {
   jam: boolean;
+  playing: boolean;
   recordPhase: RecordPhase;
   bpm: number;
   onToggleMode?: () => void;
@@ -202,7 +212,11 @@ function ModePill({
       duration: 250,
       reduceMotion: ReduceMotion.System,
     });
-    if (jam) {
+    // Breathe only WHILE PLAYING: an infinite repeat forces 60fps frame
+    // production forever — measured ~22% of a core on an otherwise idle sim.
+    // Playing already animates every frame (playhead), so the marginal cost
+    // is ~0; stopped = a still standby ring (the capsule's rule too).
+    if (jam && playing) {
       breathe.value = withRepeat(
         withSequence(
           withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.sin) }),
@@ -215,10 +229,10 @@ function ModePill({
       );
     } else {
       cancelAnimation(breathe);
-      breathe.value = withTiming(0, { duration: 250, reduceMotion: ReduceMotion.System });
+      breathe.value = withTiming(jam ? 0.5 : 0, { duration: 250, reduceMotion: ReduceMotion.System });
     }
     return () => cancelAnimation(breathe);
-  }, [jam, breathe, borderOn]);
+  }, [jam, playing, breathe, borderOn]);
   const breatheStyle = useAnimatedStyle(() => ({
     opacity: borderOn.value * (0.2 + 0.55 * breathe.value),
   }));
