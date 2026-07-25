@@ -593,6 +593,18 @@ Full spec on the board ("E · CHOSEN" strip + gesture/animation card):
   chips → A/B pill → this. "Ghost diff in the grid" survives as a
   display-only future companion: outline LEDs showing what revert would
   change.)
+  **CORRECTED + SHIPPED (Brent 2026-07-25, after using it): TEMP is a
+  RESIDENT key** — always in the capsule, not dice-triggered. Ghost outline
+  dot when disarmed; TAP stores the current state away and lights the dot;
+  every edit (dice, lane params, add/remove lanes) rides live; TAP again
+  RESTORES the stored state AND DISARMS (temp is a bail-out, not a swap
+  toggle); LONG-PRESS = keep the edits + disarm (ring waits 150ms before
+  filling so plain taps never flash it, then ~500ms + quarter ticks).
+  Dice no longer auto-snapshots. Also shipped: flick-down tuck REMOVED
+  (Brent's call), drag settle tightened to near-critical (ζ≈0.9), and the
+  capsule is THROWABLE — landing corner picked from the release point
+  projected ~180ms along gesture velocity, velocity fed into the settle
+  springs.
 - **Key travel** (concept H) — every press: scale 0.96 + darken in,
   spring release + one-frame LED ack. The + rotates 90° while pressed and
   hands off to the existing lane slide-in.
@@ -651,9 +663,24 @@ samples (mostly note-off-insensitive) or only sustained patches; do 2 shapes
 
 ### Melodic sequencing (research, 2026-07-24)
 
-Figure out how euxy can do melodic sequencing without giving up the
-generative core. The presets are now deliberately tonality-free; melody
-should arrive as a designed feature, not an accident. Directions to evaluate:
+**RESEARCH DONE (2026-07-25): see `docs/design/melodic-sequencing-research.md`**
+— prior-art survey (Torso T-1, Marbles, Metropolix, Elektron, Live 12 Seed…),
+four design candidates with append-only Lane deltas, and a recommendation:
+**pattern-level Scale + per-lane pitch POOL (scale-degree list indexed by
+Euclidean hits, SH-101/T-1 model); randomness at roll time (generate-then-
+freeze) so patterns stay deterministic/shareable without seeds; chords =
+stack entries in the pool, not a separate mode.** Key hardware finding: the
+OP-XY does NOT scale-quantize incoming MIDI (scale lives in the Brain aux
+track) — euxy must own quantization. UI: "Pitch" section in the Lane Editor
+between Sound and More (NotePads reused, out-of-scale pads dimmed) + a 12th
+default-locked chip in the Randomize lock modal. Presets stay tonality-free
+until a deliberate PRESETS_VERSION 3. Six hardware-test questions for Brent
+in the doc, led by Brain-vs-live-MIDI transposition behavior.
+
+Original framing: figure out how euxy can do melodic sequencing without
+giving up the generative core. The presets are now deliberately
+tonality-free; melody should arrive as a designed feature, not an accident.
+Directions to evaluate:
 
 - **Note-per-step lane variant:** a lane gains a pitch sequence (scale-locked
   degree list) that the Euclidean hits index into — hit N plays degree N.
