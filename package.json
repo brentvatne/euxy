@@ -11,6 +11,7 @@
     "expo-device": "~57.0.1",
     "expo-font": "~57.0.1",
     "expo-glass-effect": "~57.0.1",
+    "expo-haptics": "~57.0.1",
     "expo-image": "~57.0.1",
     "expo-linking": "~57.0.4",
     "expo-observe": "~57.0.8",
