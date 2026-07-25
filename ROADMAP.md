@@ -753,11 +753,14 @@ subtitle + the same grid). The 24 glyphs live on "Preset icons — assortment".
 Board **"Splash — boot sequence"** shows the five states: static splash PNG
 (unlit grid) → rows 1–2 typed on (~150ms) → crossbar (~300ms) → "e" settled
 (~450ms, holds 150ms) → UI fades in while the grid decays out (250ms); total
-boot ≈ 850ms. Timing spec (on the board): cells light row-by-row left-to-
-right, 14 cells × 30ms stagger, instant attack per cell; one progress shared
-value drives everything (cell i lights when progress × 14 > i); backgrounding
-plays the reverse at 2× speed; Reduced Motion skips straight to the
-crossfade. The splash PNG and the app's first frame must be pixel-identical:
+boot ≈ 900ms. Timing spec (UPDATED 2026-07-25): the type-on always completes
+in a FIXED 500ms total — one cell (or a small group, pairs above ~14 lit
+cells) per step, per-step interval = 500 / steps, so the rhythm adapts to the
+glyph's density; instant attack per cell; one progress shared value drives
+everything via a grouped order array; backgrounding plays the reverse at 2×
+speed; Reduced Motion skips straight to the crossfade. IMPLEMENTED (wave2):
+layout-gated native-splash hide (sequencer onLayout + 2s failsafe) and the
+fixed-500ms adaptive type-on. The splash PNG and the app's first frame must be pixel-identical:
 grid 276px wide, centered, 44px cells, radius 9, gap 14, #1A1A1F on #08080A.
 Asset: "Splash v2 — LED boot 1024". Native change (splash swap) → needs a
 build; the boot component itself is JS.
