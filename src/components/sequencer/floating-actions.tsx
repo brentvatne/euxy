@@ -41,8 +41,9 @@ import Animated, {
   withSequence,
   withSpring,
   withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Path, Rect } from 'react-native-svg';
 
 import { playheadPlaying, playheadTick } from '@/core/playhead';
 import { useStore } from '@/state/store';
@@ -51,7 +52,7 @@ import { GlassView, haptics, liquidGlassAvailable } from '@/lib/shims';
 import { color, ramp, timing } from '@/theme/tokens';
 import { Key } from '@/components/ui/key';
 
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+const AnimatedRect = Animated.createAnimatedComponent(Rect);
 
 // Paper 5SI-0 chrome: 48px keys on padding 8 / gap 10, 14px screen margin.
 const KEY_SIZE = 48;
@@ -83,14 +84,17 @@ const ALL_CELLS: ReadonlyArray<readonly [number, number]> = [
   [0, 2], [1, 2], [2, 2],
 ];
 
-// Temp key hold: the ring waits RING_DELAY_MS before it starts filling —
+// Temp key hold: the trace waits RING_DELAY_MS before it starts filling —
 // a simple tap never flashes it (Brent) — then fills over HOLD_MS; keep
 // fires at RING_DELAY_MS + HOLD_MS. Release ≤250ms reads as a tap.
 const HOLD_MS = 500;
 const TAP_MS = 250;
 const RING_DELAY_MS = 150;
-const RING_R = 21;
-const RING_C = 2 * Math.PI * RING_R;
+// Full bar height — the keep trace and armed rim wrap the whole capsule
+// (temp variant A, Brent's pick 2026-07-25).
+const BAR_H = KEY_SIZE + PAD * 2;
+const TRACE_INSET = 1;
+const TRACE_R = (BAR_H - TRACE_INSET * 2) / 2;
 
 const SPRING = { damping: 18, stiffness: 260, reduceMotion: ReduceMotion.System };
 // Drag settle — near-critical (ζ≈0.9) so the capsule lands with one tight
@@ -187,6 +191,74 @@ export function FloatingActions({
     touchBeat.value = Math.floor(playheadTick.value / timing.ppqn);
   };
 
+  // Temp variant A (Brent's pick): the WHOLE bar wears the mode. Armed = the
+  // glass hairline becomes a lit rim (instant on, quick decay off); keep =
+  // the outline TRACES clockwise around the capsule. The trace's shared
+  // values live here (the bar draws them) but the temp key's press machine
+  // drives them.
+  const keepProgress = useSharedValue(0);
+  const keepTick = useSharedValue(0);
+  const keepDrain = useSharedValue(0);
+  // Stadium perimeter at the trace's inset — the dash both the arm draw-in
+  // and the keep trace fill.
+  const tracePerim =
+    2 * (barW - TRACE_INSET * 2 - (BAR_H - TRACE_INSET * 2)) + 2 * Math.PI * TRACE_R;
+  // Arming DRAWS the rim in (Brent): a quick clockwise trace of the outline
+  // (~320ms, the same path the keep trace runs) while the glow halo blooms
+  // in underneath. Disarming UNDRAWS it — the line retracts back toward the
+  // temp key (~220ms, Brent's correction) while the halo fades with it.
+  const armProgress = useSharedValue(0);
+  useEffect(() => {
+    if (snapshotActive) {
+      armProgress.value = 0;
+      armProgress.value = withTiming(1, {
+        duration: 320,
+        easing: Easing.out(Easing.quad),
+        reduceMotion: ReduceMotion.System,
+      });
+    } else {
+      armProgress.value = withTiming(0, {
+        duration: 220,
+        easing: Easing.in(Easing.quad),
+        reduceMotion: ReduceMotion.System,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshotActive]);
+  const rimGlowStyle = useAnimatedStyle(() => ({
+    opacity: withTiming(snapshotActive ? 1 : 0, {
+      duration: snapshotActive ? 320 : 220,
+      easing: Easing.out(Easing.quad),
+      reduceMotion: ReduceMotion.System,
+    }),
+  }));
+  // The line's visibility rides the draw itself — dash length carries both
+  // the draw-in and the undraw; opacity only kills the dot that remains at 0.
+  // While a keep hold fills, the armed rim DUCKS to 25% (by 15% of the fill)
+  // so the bright trace draws on a near-dark track — line-over-line was too
+  // subtle to see (Brent). Early release drains keepProgress → rim restores.
+  const rimLineStyle = useAnimatedStyle(() => {
+    const duck = 1 - 0.75 * Math.min(1, keepProgress.value / 0.15);
+    return { opacity: armProgress.value > 0.001 ? duck : 0 };
+  });
+  const rimLineProps = useAnimatedProps(() => ({
+    strokeDashoffset: tracePerim * (1 - armProgress.value),
+  }));
+  const traceProps = useAnimatedProps(() => ({
+    strokeDashoffset: tracePerim * (1 - keepProgress.value),
+  }));
+  // Same dash, separate hook (an animatedProps instance binds to ONE view):
+  // drives the soft halo stroke under the crisp trace line.
+  const traceGlowProps = useAnimatedProps(() => ({
+    strokeDashoffset: tracePerim * (1 - keepProgress.value),
+  }));
+  const traceStyle = useAnimatedStyle(() => ({
+    // Hidden at rest; brightens on each quarter tick; hands its light to the
+    // drain dot on keep (same formula the per-key ring used).
+    opacity:
+      keepProgress.value === 0 ? 0 : (0.85 + 0.15 * keepTick.value) * (1 - keepDrain.value),
+  }));
+
   const pan = Gesture.Pan()
     // Drag is temporarily disabled via the flag — gesture kept wired so
     // flipping CAPSULE_DRAG back on restores drag/throw/corner-snap whole.
@@ -216,9 +288,24 @@ export function FloatingActions({
       runOnJS(setFloatBarCorner)(left ? 'left' : 'right');
     });
 
+  // Dice press SHAKES the capsule (Brent) — a quick decaying jitter, like
+  // the machine taking the hit of the roll. Translate-only (never re-rasters
+  // the bar's shadow), ~200ms, gone before the reroll wash lands.
+  const shakeX = useSharedValue(0);
+  const triggerShake = () => {
+    if (reducedMotion) return;
+    shakeX.value = withSequence(
+      withTiming(-3, { duration: 30 }),
+      withTiming(2.5, { duration: 40 }),
+      withTiming(-1.5, { duration: 40 }),
+      withTiming(0.8, { duration: 40 }),
+      withTiming(0, { duration: 50 }),
+    );
+  };
+
   const dragStyle = useAnimatedStyle(() => ({
     transform: [
-      { translateX: anchorX.value + tx.value },
+      { translateX: anchorX.value + tx.value + shakeX.value },
       { translateY: ty.value },
       { scale: 1 + 0.04 * lift.value },
     ],
@@ -231,11 +318,21 @@ export function FloatingActions({
       <TempKey
         engaged={snapshotActive}
         reducedMotion={reducedMotion}
+        keepProgress={keepProgress}
+        keepTick={keepTick}
+        keepDrain={keepDrain}
         onArm={onArm}
         onRevert={onRevert}
         onKeep={onKeep}
       />
-      <DiceKey disabled={!canMutate} reducedMotion={reducedMotion} onMutate={onMutate} />
+      <DiceKey
+        disabled={!canMutate}
+        reducedMotion={reducedMotion}
+        onMutate={() => {
+          triggerShake();
+          onMutate();
+        }}
+      />
       <AddKey onPress={onAddLane} />
     </>
   );
@@ -272,6 +369,68 @@ export function FloatingActions({
             ) : (
               <View style={[styles.bar, styles.barSolid]}>{keys}</View>
             )}
+            {/* Armed rim (variant A) — glow halo blooms in while the LINE
+                draws itself around the outline; disarm undraws it. Both
+                start at the top-left arc (right above the temp key, the SVG
+                rect path origin) and run clockwise. */}
+            <Animated.View pointerEvents="none" style={[styles.rimGlow, rimGlowStyle]} />
+            {barW > 0 ? (
+              <>
+                <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, rimLineStyle]}>
+                  <Svg width={barW} height={BAR_H} viewBox={`0 0 ${barW} ${BAR_H}`}>
+                    <AnimatedRect
+                      x={TRACE_INSET}
+                      y={TRACE_INSET}
+                      width={barW - TRACE_INSET * 2}
+                      height={BAR_H - TRACE_INSET * 2}
+                      rx={TRACE_R}
+                      fill="none"
+                      stroke={color.label}
+                      strokeWidth={1.5}
+                      strokeLinecap="round"
+                      strokeDasharray={`${tracePerim}`}
+                      animatedProps={rimLineProps}
+                    />
+                  </Svg>
+                </Animated.View>
+                {/* Keep trace — a comet of light over the ducked rim: a wide
+                    soft halo stroke under a crisp bright line. */}
+                <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, traceStyle]}>
+                  <Svg width={barW} height={BAR_H} viewBox={`0 0 ${barW} ${BAR_H}`}>
+                    <AnimatedRect
+                      x={TRACE_INSET}
+                      y={TRACE_INSET}
+                      width={barW - TRACE_INSET * 2}
+                      height={BAR_H - TRACE_INSET * 2}
+                      rx={TRACE_R}
+                      fill="none"
+                      // Keep = COMMIT: the trace wears the success green
+                      // (color.connected's role — Brent saw it live and
+                      // kept it over the OP-XY cyan). Arming stays white;
+                      // persisting is the one green gesture on the bar.
+                      stroke="rgba(48,209,88,0.35)"
+                      strokeWidth={7}
+                      strokeLinecap="round"
+                      strokeDasharray={`${tracePerim}`}
+                      animatedProps={traceGlowProps}
+                    />
+                    <AnimatedRect
+                      x={TRACE_INSET}
+                      y={TRACE_INSET}
+                      width={barW - TRACE_INSET * 2}
+                      height={BAR_H - TRACE_INSET * 2}
+                      rx={TRACE_R}
+                      fill="none"
+                      stroke={color.connected}
+                      strokeWidth={3}
+                      strokeLinecap="round"
+                      strokeDasharray={`${tracePerim}`}
+                      animatedProps={traceProps}
+                    />
+                  </Svg>
+                </Animated.View>
+              </>
+            ) : null}
           </Animated.View>
         </Animated.View>
       </GestureDetector>
@@ -407,30 +566,35 @@ function Pip({
 /**
  * Temp key — a RESIDENT third key (Brent's corrected semantics 2026-07-25).
  * Disarmed: ghost outline dot; a TAP stores the current state away and arms
- * (dot lights solid). Armed: every edit — dice rolls, lane params, adds,
- * deletes — rides the live side; TAP restores the stored state and DISARMS
- * (the bail-out); LONG-PRESS = keep the edits: the LED ring waits 150ms
- * (taps never flash it), fills clockwise over ~500ms with a selection tick
- * at each quarter; completing it pops, drains into the dice's light pixel
- * and the key un-lights. Early release drains the ring back — nothing.
+ * (dot lights solid + the BAR's rim lights — variant A). Armed: every edit —
+ * dice rolls, lane params, adds, deletes — rides the live side; TAP restores
+ * the stored state and DISARMS (the bail-out); LONG-PRESS = keep the edits:
+ * the capsule's OUTLINE trace waits 150ms (taps never flash it), fills
+ * clockwise over ~500ms with a selection tick at each quarter; completing it
+ * pops, drains into the dice's light pixel and the key un-lights. Early
+ * release drains the trace back — nothing. The trace itself is drawn by the
+ * bar (see FloatingActions); this key only drives the shared values.
  */
 function TempKey({
   engaged,
   reducedMotion,
+  keepProgress,
+  keepTick,
+  keepDrain,
   onArm,
   onRevert,
   onKeep,
 }: {
   engaged: boolean;
   reducedMotion: boolean;
+  keepProgress: SharedValue<number>;
+  keepTick: SharedValue<number>;
+  keepDrain: SharedValue<number>;
   onArm: () => void;
   onRevert: () => void;
   onKeep: () => void;
 }) {
-  const progress = useSharedValue(0);
-  const ringTick = useSharedValue(0);
   const flash = useSharedValue(0);
-  const drain = useSharedValue(0);
   const dotPulse = useSharedValue(0);
 
   const pressStart = useRef(0);
@@ -449,8 +613,8 @@ function TempKey({
   // (Brent's report). The release consumes the flag instead.
   useEffect(() => {
     if (!engaged) {
-      progress.value = 0;
-      drain.value = 0;
+      keepProgress.value = 0;
+      keepDrain.value = 0;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engaged]);
@@ -462,32 +626,32 @@ function TempKey({
       onKeep();
       return;
     }
-    // The pop: bright ack flash, then the ring's light drains into the dice
+    // The pop: bright ack flash, then the trace's light drains into the dice
     // key's light pixel; the store keep lands as the drain finishes and the
     // dot relaxes back to its ghost outline.
     flash.value = 1;
     flash.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.quad) });
-    drain.value = withDelay(120, withTiming(1, { duration: 220, easing: Easing.in(Easing.quad) }));
+    keepDrain.value = withDelay(120, withTiming(1, { duration: 220, easing: Easing.in(Easing.quad) }));
     timers.current.push(setTimeout(onKeep, 340));
   };
 
   const onPressIn = () => {
     if (completed.current) return;
     pressStart.current = Date.now();
-    // The keep ring only exists while armed — a disarmed press is just a key.
+    // The keep trace only exists while armed — a disarmed press is just a key.
     if (!engaged) return;
-    progress.value = 0;
-    progress.value = withDelay(
+    keepProgress.value = 0;
+    keepProgress.value = withDelay(
       RING_DELAY_MS,
       withTiming(1, { duration: HOLD_MS, easing: Easing.linear }),
     );
-    // Faint tick at each ring quarter (selection haptic + a brightness blip).
+    // Faint tick at each trace quarter (selection haptic + a brightness blip).
     [0.25, 0.5, 0.75].forEach((q) => {
       timers.current.push(
         setTimeout(() => {
           haptics.selection();
-          ringTick.value = 1;
-          ringTick.value = withTiming(0, { duration: 150 });
+          keepTick.value = 1;
+          keepTick.value = withTiming(0, { duration: 150 });
         }, RING_DELAY_MS + HOLD_MS * q),
       );
     });
@@ -520,8 +684,8 @@ function TempKey({
       completed.current = false;
       return;
     }
-    // Drain the ring back regardless — only a completed fill keeps.
-    progress.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.quad) });
+    // Drain the trace back regardless — only a completed fill keeps.
+    keepProgress.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.quad) });
     if (dt > TAP_MS) return; // abandoned hold: nothing happens
     // TAP = jump back (swap). A quick bright blip acknowledges the tap, then
     // the key reads OFF right away (Brent: the light lingering ~1s after a
@@ -536,20 +700,12 @@ function TempKey({
     onRevert();
   };
 
-  const ringProps = useAnimatedProps(() => ({
-    strokeDashoffset: RING_C * (1 - progress.value),
-  }));
-  const ringStyle = useAnimatedStyle(() => ({
-    // Hidden at rest; brightens briefly on each quarter tick; hands its light
-    // to the drain dot on keep.
-    opacity: progress.value === 0 ? 0 : (0.85 + 0.15 * ringTick.value) * (1 - drain.value),
-  }));
   const flashStyle = useAnimatedStyle(() => ({ opacity: 0.85 * flash.value }));
   const drainStyle = useAnimatedStyle(() => ({
-    // The ring's light crosses to the dice key (one key + gap to the RIGHT —
+    // The trace's light crosses to the dice key (one key + gap to the RIGHT —
     // temp sits leftmost since the key swap).
-    opacity: drain.value === 0 ? 0 : 1 - 0.7 * drain.value,
-    transform: [{ translateX: (KEY_SIZE + KEY_GAP) * drain.value }],
+    opacity: keepDrain.value === 0 ? 0 : 1 - 0.7 * keepDrain.value,
+    transform: [{ translateX: (KEY_SIZE + KEY_GAP) * keepDrain.value }],
   }));
   // Armed = solid lit dot (instant on); disarm reads immediately — a short
   // phosphor decay, not a slow fade (Brent: anything longer looks stuck on).
@@ -588,22 +744,6 @@ function TempKey({
         <Animated.View pointerEvents="none" style={[styles.ghostDotFill, fillStyle]} />
         <Animated.View pointerEvents="none" style={[styles.ghostDotFill, styles.ghostDotPulse, pulseStyle]} />
       </View>
-        {/* Keep ring — starts at 12 o'clock, fills clockwise. */}
-        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.ring, ringStyle]}>
-          <Svg width={KEY_SIZE} height={KEY_SIZE} viewBox={`0 0 ${KEY_SIZE} ${KEY_SIZE}`}>
-            <AnimatedCircle
-              cx={KEY_SIZE / 2}
-              cy={KEY_SIZE / 2}
-              r={RING_R}
-              fill="none"
-              stroke={color.label}
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeDasharray={`${RING_C}`}
-              animatedProps={ringProps}
-            />
-          </Svg>
-        </Animated.View>
       <Animated.View pointerEvents="none" style={[styles.flash, flashStyle]} />
       <Animated.View pointerEvents="none" style={[styles.drainDot, drainStyle]} />
     </Key>
@@ -696,8 +836,22 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 0 },
   },
-  ring: {
-    transform: [{ rotate: '-90deg' }],
+  // Variant A armed rim, glow layer: a soft halo under the crisp SVG line.
+  // Only its OPACITY animates (border + shadow render once — the LED perf
+  // rule); the sharp line is the AnimatedRect above it.
+  rimGlow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 999,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.25)',
+    shadowColor: '#FFFFFF',
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 0 },
   },
   flash: {
     position: 'absolute',
@@ -708,6 +862,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: color.label,
   },
+  // The keep trace's light crossing to the dice — WHITE (Brent: the green
+  // dot didn't land): the green is the trace's alone, and the light
+  // arrives at the dice already wearing the LED white it will live as.
   drainDot: {
     position: 'absolute',
     top: KEY_SIZE / 2 - 2.5,
