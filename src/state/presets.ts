@@ -18,6 +18,9 @@ import type { Lane, Pattern } from './types';
 
 export const PRESETS_VERSION = 1;
 
+/** True for the factory presets (NOT the seed pattern). */
+export const isPresetPattern = (id: string) => id.startsWith('preset_');
+
 type LaneSpec = Partial<Lane> & Pick<Lane, 'name' | 'note' | 'channel'>;
 
 function pattern(id: string, name: string, bpm: number, lanes: LaneSpec[]): Pattern {
@@ -97,13 +100,14 @@ export function presetPatterns(): Pattern[] {
       },
     ]),
     // House: kick on the floor, clap backbeat, open hats on the offbeats,
-    // 16th closed hats underneath, tresillo bassline.
+    // 16th closed hats underneath, offbeat tresillo bassline (rotated off the
+    // downbeat so it never stacks on the kick — the classic house pocket).
     pattern('preset_house', 'Four on the Floor', 124, [
       { name: 'Kick', length: 16, genA: { pulses: 4, rotation: 0 }, note: drum.kick, channel: 0, velocity: 110 },
       { name: 'Clap', length: 16, genA: { pulses: 2, rotation: 4 }, note: drum.clap, channel: 0, velocity: 95 },
       { name: 'Open Hat', length: 16, genA: { pulses: 4, rotation: 2 }, note: drum.openHat, channel: 0, velocity: 85, gateMs: 80 },
       { name: 'Hat', length: 16, genA: { pulses: 16, rotation: 0 }, note: drum.closedHat, channel: 0, velocity: 58, gateMs: 10 },
-      { name: 'Bass', length: 8, genA: { pulses: 3, rotation: 0 }, note: 48, channel: 2, velocity: 90, gateMs: 100 },
+      { name: 'Bass', length: 8, genA: { pulses: 3, rotation: 1 }, note: 48, channel: 2, velocity: 90, gateMs: 100 },
     ]),
     // IDM/electro: aksak kick in 9 against a 7-step snap and the 12-step
     // Ghanaian bell — three coprime meters chewing on each other.

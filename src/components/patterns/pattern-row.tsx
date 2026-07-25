@@ -14,15 +14,20 @@ import ReanimatedSwipeable, {
 import { AppText, SFSymbol } from '@/components/ui';
 import type { Pattern } from '@/state/types';
 import { color, font, radius, space } from '@/theme/tokens';
-import { PatternGlyph } from './pattern-glyph';
+import { chipForPattern } from './chips';
+import { LedChip } from './led-chip';
 
 export interface PatternRowProps {
   pattern: Pattern;
   active: boolean;
+  /** Active pattern + transport running — animates the chip's playhead sweep. */
+  playing?: boolean;
   first: boolean;
   last: boolean;
   onPress: () => void;
   onDelete: () => void;
+  /** Factory presets only: swipe reveals Reset next to Delete. */
+  onReset?: () => void;
 }
 
 function laneWord(n: number) {
@@ -39,8 +44,11 @@ function editedLabel(updatedAt: number): string {
   return days === 1 ? 'edited yesterday' : `edited ${days}d ago`;
 }
 
-function PatternRowImpl({ pattern, active, first, last, onPress, onDelete }: PatternRowProps) {
+function PatternRowImpl({ pattern, active, playing = false, first, last, onPress, onDelete, onReset }: PatternRowProps) {
   const swipeRef = useRef<SwipeableMethods>(null);
+  // A swipe must never double as a select: while the row is dragged or open,
+  // a tap only closes the swipe.
+  const swiping = useRef(false);
   const subtitle = `${pattern.lanes.length} ${laneWord(pattern.lanes.length)} · ${pattern.bpm} BPM · ${editedLabel(pattern.updatedAt)}`;
 
   const cornerStyle = {
@@ -51,19 +59,36 @@ function PatternRowImpl({ pattern, active, first, last, onPress, onDelete }: Pat
   };
 
   const renderRightActions = () => (
-    <Pressable
-      style={styles.deleteAction}
-      accessibilityRole="button"
-      accessibilityLabel={`Delete ${pattern.name}`}
-      onPress={() => {
-        swipeRef.current?.close();
-        onDelete();
-      }}
-    >
-      <AppText variant="subhead" style={styles.deleteText}>
-        Delete
-      </AppText>
-    </Pressable>
+    <View style={styles.actionsRow}>
+      {onReset ? (
+        <Pressable
+          style={styles.resetAction}
+          accessibilityRole="button"
+          accessibilityLabel={`Reset ${pattern.name} to factory`}
+          onPress={() => {
+            swipeRef.current?.close();
+            onReset();
+          }}
+        >
+          <AppText variant="subhead" style={styles.deleteText}>
+            Reset
+          </AppText>
+        </Pressable>
+      ) : null}
+      <Pressable
+        style={styles.deleteAction}
+        accessibilityRole="button"
+        accessibilityLabel={`Delete ${pattern.name}`}
+        onPress={() => {
+          swipeRef.current?.close();
+          onDelete();
+        }}
+      >
+        <AppText variant="subhead" style={styles.deleteText}>
+          Delete
+        </AppText>
+      </Pressable>
+    </View>
   );
 
   return (
@@ -74,16 +99,26 @@ function PatternRowImpl({ pattern, active, first, last, onPress, onDelete }: Pat
       overshootRight={false}
       containerStyle={[styles.swipeContainer, cornerStyle]}
       renderRightActions={renderRightActions}
+      onSwipeableOpenStartDrag={() => {
+        swiping.current = true;
+      }}
+      onSwipeableClose={() => {
+        swiping.current = false;
+      }}
     >
       <Pressable
-        onPress={onPress}
+        onPress={() => {
+          if (swiping.current) {
+            swipeRef.current?.close();
+            return;
+          }
+          onPress();
+        }}
         style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
         accessibilityRole="button"
         accessibilityState={{ selected: active }}
       >
-        <View style={styles.badge}>
-          <PatternGlyph />
-        </View>
+        <LedChip shades={chipForPattern(pattern)} size={38} playing={playing} />
         <View style={styles.textCol}>
           <AppText style={styles.name} numberOfLines={1}>
             {pattern.name}
@@ -115,14 +150,6 @@ const styles = StyleSheet.create({
     backgroundColor: color.surface,
   },
   rowPressed: { backgroundColor: color.surface2 },
-  badge: {
-    width: 38,
-    height: 38,
-    borderRadius: 9,
-    backgroundColor: color.surface2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   textCol: { flex: 1, gap: 2 },
   // Paper KL-0: name semibold 16/20 white; sub regular 13/16 label25.
   name: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: '#FFFFFF' },
@@ -132,6 +159,13 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: radius.chip,
     backgroundColor: color.connected,
+  },
+  actionsRow: { flexDirection: 'row' },
+  resetAction: {
+    width: 76,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: color.surface3,
   },
   deleteAction: {
     width: 76,

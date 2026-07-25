@@ -5,7 +5,7 @@
  * Pattern sheet. Empty state (node 2NR-0) shows when there are no patterns.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Stack, router } from 'expo-router';
 
 import { useObserve } from '@/lib/shims';
@@ -14,6 +14,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppText, SFSymbol } from '@/components/ui';
 import { PatternGlyph } from '@/components/patterns/pattern-glyph';
 import { PatternRow } from '@/components/patterns/pattern-row';
+import { isPresetPattern } from '@/state/presets';
 import { usePatterns } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import { color, radius, space } from '@/theme/tokens';
@@ -36,9 +37,23 @@ function HeaderAddButton() {
 export default function PatternsScreen() {
   const patterns = usePatterns();
   const activeId = useStore((s) => s.activePatternId);
+  const isPlaying = useStore((s) => s.transport.playing);
   const loadPattern = useStore((s) => s.loadPattern);
   const deletePattern = useStore((s) => s.deletePattern);
+  const resetPreset = useStore((s) => s.resetPreset);
+  const resetAllPresets = useStore((s) => s.resetAllPresets);
   const [query, setQuery] = useState('');
+
+  const confirmRestoreAll = () => {
+    Alert.alert(
+      'Restore factory presets?',
+      'The five factory patterns return to their original state — edits to them are replaced, and deleted ones come back. Your own patterns are untouched.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Restore', style: 'destructive', onPress: () => resetAllPresets() },
+      ],
+    );
+  };
 
   // Per-route TTI for EAS Observe.
   const { markInteractive } = useObserve();
@@ -85,13 +100,24 @@ export default function PatternsScreen() {
               key={p.id}
               pattern={p}
               active={p.id === activeId}
+              playing={p.id === activeId && isPlaying}
               first={i === 0}
               last={i === filtered.length - 1}
               onPress={() => openPattern(p.id)}
               onDelete={() => deletePattern(p.id)}
+              onReset={isPresetPattern(p.id) ? () => resetPreset(p.id) : undefined}
             />
           ))
         )}
+        {patterns.length > 0 && !query.trim() ? (
+          <Pressable
+            onPress={confirmRestoreAll}
+            style={styles.restoreAll}
+            accessibilityRole="button"
+          >
+            <AppText style={styles.restoreAllLabel}>Restore factory presets</AppText>
+          </Pressable>
+        ) : null}
       </ScrollView>
     </GestureHandlerRootView>
   );
@@ -163,4 +189,7 @@ const styles = StyleSheet.create({
   newBtnPressed: { opacity: 0.85 },
   newBtnLabel: { color: color.ground },
   noMatch: { alignItems: 'center', paddingTop: 80 },
+  // iOS grouped-list footer action: quiet text button under the list.
+  restoreAll: { alignItems: 'center', paddingVertical: 18 },
+  restoreAllLabel: { fontSize: 13, lineHeight: 18, color: color.label3, fontWeight: '500' },
 });

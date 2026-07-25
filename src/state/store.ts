@@ -151,6 +151,10 @@ export interface AppState {
   loadPattern: (id: string) => void;
   deletePattern: (id: string) => void;
   renameActivePattern: (name: string) => void;
+  /** Restore one factory preset to its shipped state (re-adds it if deleted). */
+  resetPreset: (id: string) => void;
+  /** Restore all factory presets, including deleted ones. */
+  resetAllPresets: () => void;
 }
 
 export const useStore = create<AppState>((set, get) => {
@@ -393,6 +397,33 @@ export const useStore = create<AppState>((set, get) => {
         };
       }),
     renameActivePattern: (name) => mutateActive((p) => ({ ...p, name: name.trim() || p.name })),
+    // Factory resets replace content in place (same pattern id, fresh lane
+    // ids) so the active/selection ids stay valid; a deleted preset is
+    // re-appended. This is also the escape hatch for installs that seeded
+    // presets before a factory-definition fix — seeding never retouches them.
+    resetPreset: (id) =>
+      set((s) => {
+        const factory = presetPatterns().find((p) => p.id === id);
+        if (!factory) return {};
+        const exists = s.patterns.some((p) => p.id === id);
+        return {
+          patterns: exists
+            ? s.patterns.map((p) => (p.id === id ? factory : p))
+            : [...s.patterns, factory],
+          selection: s.activePatternId === id ? { laneId: null } : s.selection,
+        };
+      }),
+    resetAllPresets: () =>
+      set((s) => {
+        const factories = presetPatterns();
+        const byId = new Map(factories.map((p) => [p.id, p]));
+        const restored = s.patterns.map((p) => byId.get(p.id) ?? p);
+        const missing = factories.filter((f) => !s.patterns.some((p) => p.id === f.id));
+        return {
+          patterns: [...restored, ...missing],
+          selection: byId.has(s.activePatternId) ? { laneId: null } : s.selection,
+        };
+      }),
   };
 });
 
