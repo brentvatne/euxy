@@ -1,9 +1,11 @@
 /**
- * Change-icon form sheet (Paper "Sheet · Change icon"): Cancel / Icon / Done
- * over the pattern's name, then the shared glyph picker. Selection is staged
- * locally — Done commits, Cancel discards. Opened from the pattern title menu
- * ("Change Icon…", after Rename) for the active pattern, or from a Patterns
- * row long-press with an explicit `patternId` param targeting any pattern.
+ * Change-icon form sheet (Paper "Sheet · Change icon"): Cancel / Done over
+ * the shared glyph picker. Selection applies LIVE — tapping a glyph sets the
+ * pattern's icon immediately (Brent 2026-07-25: no Done gate); Done just
+ * closes, Cancel restores the icon the sheet opened with. Opened from the
+ * pattern title menu ("Change Icon…", after Rename) for the active pattern,
+ * or from a Patterns row long-press with an explicit `patternId` param
+ * targeting any pattern.
  */
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -37,11 +39,12 @@ export default function ChangeIconSheet() {
       <View style={styles.grabberSpace} />
       <SheetHeader
         title=""
-        onCancel={() => router.back()}
-        onDone={() => {
-          if (selected) setPatternIcon(pattern.id, selected);
+        onCancel={() => {
+          // Selection applied live — cancelling puts back the open-time glyph.
+          if (initial && selected !== initial) setPatternIcon(pattern.id, initial);
           router.back();
         }}
+        onDone={() => router.back()}
       />
       {/* 30 glyphs need scrolling. collapsable={false} wrapper keeps the
           ScrollView OUT of direct-child position — react-native-screens'
@@ -49,7 +52,13 @@ export default function ChangeIconSheet() {
           (same workaround as lane-editor). */}
       <View style={styles.flex} collapsable={false}>
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <IconPicker selected={selected} onSelect={setSelected} />
+          <IconPicker
+            selected={selected}
+            onSelect={(name) => {
+              setSelected(name);
+              setPatternIcon(pattern.id, name);
+            }}
+          />
         </ScrollView>
       </View>
     </View>

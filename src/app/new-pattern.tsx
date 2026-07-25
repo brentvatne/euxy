@@ -17,6 +17,7 @@ import { router } from 'expo-router';
 import { AppText, SFSymbol, SheetHeader } from '@/components/ui';
 import { IconClear, IconDice } from '@/components/ui/icons';
 import { Key } from '@/components/ui/key';
+import { KeyboardAwareScrollView } from '@/components/ui/keyboard';
 import { haptics } from '@/lib/shims';
 import { generatePatternName } from '@/lib/pattern-names';
 import { allChipNames, randomChipName, type ChipName } from '@/components/patterns/chips';
@@ -90,7 +91,19 @@ export default function NewPatternSheet() {
         doneLabel="Create"
       />
 
-      <View style={styles.body}>
+      {/* The form must SCROLL — at the sheet's detent the Create button sits
+          past the fold (Brent's report). collapsable={false} keeps this
+          wrapper in the native tree so the ScrollView is NOT a direct child
+          of the screen content wrapper — react-native-screens' formSheet
+          frame correction otherwise resizes it over the header (see
+          docs/feedback/form-sheets.md + lane-editor). RNKC scroll view =
+          the screen's ONE keyboard owner (Name field). */}
+      <View style={styles.scroll} collapsable={false}>
+      <KeyboardAwareScrollView
+        bottomOffset={24}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.body}
+      >
         <Field label="Name">
           {/* Paper 8OY-0 name-field row: input + 30px × key + 30px dice key
               (dice = the 5-pip mutate glyph: one vocabulary for "random"). */}
@@ -195,6 +208,7 @@ export default function NewPatternSheet() {
             Create pattern
           </AppText>
         </Pressable>
+      </KeyboardAwareScrollView>
       </View>
     </View>
   );
@@ -214,8 +228,14 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.surface },
   grabberSpace: { height: 13 },
+  scroll: { flex: 1 },
   // xxl group gap — the sections need air between them (Brent).
-  body: { paddingHorizontal: space.lg, paddingTop: space.sm, gap: space.xxl },
+  body: {
+    paddingHorizontal: space.lg,
+    paddingTop: space.sm,
+    paddingBottom: space.xxl,
+    gap: space.xxl,
+  },
   field: { gap: space.sm },
   fieldLabel: {
     fontFamily: font.text,
