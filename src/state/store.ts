@@ -350,7 +350,9 @@ export const useStore = create<AppState>((set, get) => {
         }
       }
       mutateActive((pp) => ({ ...pp, lanes }));
-      set((st) => ({ mutateVersion: st.mutateVersion + 1, snapshotActive: true }));
+      // Dice only rolls — arming temp is the temp key's job (corrected
+      // semantics; the old auto-engage was the undo-era behavior).
+      set((st) => ({ mutateVersion: st.mutateVersion + 1 }));
     },
     armSnapshot: () => {
       const s = get();
