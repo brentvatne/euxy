@@ -14,8 +14,7 @@
  *     last touch; the dice's light pixel ticks the downbeat. All clock-synced
  *     motion derives from playheadTick on the UI thread — nothing re-renders
  *     on the tick.
- *   • Drag lifts the capsule and snaps it to a bottom corner (persisted);
- *     flick down tucks it to a 12px LED sliver, tap/flick up restores.
+ *   • Drag lifts the capsule and snaps it to a bottom corner (persisted).
  *
  * Chrome (Paper 5SI-0): Liquid Glass container (rgba(28,28,34,.55) mock →
  * native GlassView) + 0.5px rgba(255,255,255,.12) rim + solid #2C2C2E keys,
@@ -23,7 +22,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
-import { Directions, Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
   FadeInDown,
@@ -131,7 +130,6 @@ export function FloatingActions({
   const bpm = useStore((s) => s.transport.bpm);
   const corner = useStore((s) => s.settings.floatBarCorner);
   const setFloatBarCorner = useStore((s) => s.setFloatBarCorner);
-  const [tucked, setTucked] = useState(false);
   const [barW, setBarW] = useState(0);
 
   // Drag state: anchorX offsets the right-docked bar to the left corner;
@@ -190,13 +188,6 @@ export function FloatingActions({
     })
     .onEnd((e) => {
       lift.value = withTiming(0, { duration: 160 });
-      if (e.velocityY > 700 && e.translationY > 20) {
-        // Flick down = tuck to the LED sliver.
-        tx.value = 0;
-        ty.value = 0;
-        runOnJS(setTucked)(true);
-        return;
-      }
       // Snap to the nearest bottom corner; the corner persists.
       const center = screenW - MARGIN - barW / 2 + anchorX.value + tx.value;
       const left = center < screenW / 2;
@@ -233,42 +224,37 @@ export function FloatingActions({
     // The capsule owns its own gesture root — the sequencer screen itself
     // stays plain (only Patterns wraps a whole screen today).
     <GestureHandlerRootView pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-      {tucked ? (
-        <TuckSliver corner={corner} onRestore={() => setTucked(false)} />
-      ) : (
-        <GestureDetector gesture={pan}>
-          {/* Outer view owns mount/layout animations; the inner one owns the
-              drag transform + breathing opacity (a layout animation would
-              overwrite them on a shared view). */}
-          <Animated.View
-            // Mounted only while lanes exist — ease in/out of the empty
-            // state, but NEVER on the screen's initial render (cold-boot
-            // stuck-invisible race; see animateMount).
-            entering={
-              animateMount ? FadeInDown.duration(200).reduceMotion(ReduceMotion.System) : undefined
-            }
-            exiting={FadeOutDown.duration(150).reduceMotion(ReduceMotion.System)}
-            // The capsule springs shut when the snapshot key collapses.
-            layout={LinearTransition.springify().damping(18).stiffness(220).reduceMotion(
-              ReduceMotion.System,
+      <GestureDetector gesture={pan}>
+        {/* Outer view owns mount/layout animations; the inner one owns the
+            drag transform + breathing opacity (a layout animation would
+            overwrite them on a shared view). */}
+        <Animated.View
+          // Mounted only while lanes exist — ease in/out of the empty
+          // state, but NEVER on the screen's initial render (cold-boot
+          // stuck-invisible race; see animateMount).
+          entering={
+            animateMount ? FadeInDown.duration(200).reduceMotion(ReduceMotion.System) : undefined
+          }
+          exiting={FadeOutDown.duration(150).reduceMotion(ReduceMotion.System)}
+          layout={LinearTransition.springify().damping(18).stiffness(220).reduceMotion(
+            ReduceMotion.System,
+          )}
+          style={styles.barAnchor}
+          onLayout={(e) => setBarW(e.nativeEvent.layout.width)}
+        >
+          <Animated.View style={[dragStyle, breatheStyle]} onTouchStart={relight}>
+            {liquidGlassAvailable && GlassView ? (
+              // Real material refracts the playhead LEDs sweeping beneath
+              // it; the rim + tint match the Paper mock (rgba(28,28,34,.55)).
+              <GlassView glassEffectStyle="regular" style={[styles.bar, styles.barGlass]}>
+                {keys}
+              </GlassView>
+            ) : (
+              <View style={[styles.bar, styles.barSolid]}>{keys}</View>
             )}
-            style={styles.barAnchor}
-            onLayout={(e) => setBarW(e.nativeEvent.layout.width)}
-          >
-            <Animated.View style={[dragStyle, breatheStyle]} onTouchStart={relight}>
-              {liquidGlassAvailable && GlassView ? (
-                // Real material refracts the playhead LEDs sweeping beneath
-                // it; the rim + tint match the Paper mock (rgba(28,28,34,.55)).
-                <GlassView glassEffectStyle="regular" style={[styles.bar, styles.barGlass]}>
-                  {keys}
-                </GlassView>
-              ) : (
-                <View style={[styles.bar, styles.barSolid]}>{keys}</View>
-              )}
-            </Animated.View>
           </Animated.View>
-        </GestureDetector>
-      )}
+        </Animated.View>
+      </GestureDetector>
     </GestureHandlerRootView>
   );
 }
@@ -547,36 +533,6 @@ function SnapshotKey({
   );
 }
 
-/** Tucked state: a 12px LED sliver at the screen edge. Tap or flick up
- * restores the capsule. */
-function TuckSliver({ corner, onRestore }: { corner: 'left' | 'right'; onRestore: () => void }) {
-  const restore = Gesture.Race(
-    Gesture.Tap().onEnd((_e, success) => {
-      if (success) runOnJS(onRestore)();
-    }),
-    Gesture.Fling()
-      .direction(Directions.UP)
-      .onEnd(() => {
-        runOnJS(onRestore)();
-      }),
-  );
-  return (
-    <GestureDetector gesture={restore}>
-      <Animated.View
-        entering={FadeInDown.duration(180).reduceMotion(ReduceMotion.System)}
-        exiting={FadeOutDown.duration(120).reduceMotion(ReduceMotion.System)}
-        style={[styles.sliver, corner === 'left' ? { left: MARGIN } : { right: MARGIN }]}
-        // The sliver itself is 12px; the slop restores a HIG-size target.
-        hitSlop={{ top: 24, bottom: 8, left: 12, right: 12 }}
-        accessibilityRole="button"
-        accessibilityLabel="Show actions"
-      >
-        <View style={styles.sliverLed} />
-      </Animated.View>
-    </GestureDetector>
-  );
-}
-
 // Paper 5SI-0: glass capsule (rgba(28,28,34,.55) + blur 24 saturate 160% in
 // the mock — real GlassView here), 0.5px rgba(255,255,255,.12) rim, soft
 // 0/10/24 shadow, solid #2C2C2E keys. Fallback = the old solid #16161D bar.
@@ -678,27 +634,6 @@ const styles = StyleSheet.create({
     shadowColor: '#FFFFFF',
     shadowOpacity: 0.8,
     shadowRadius: 3,
-    shadowOffset: { width: 0, height: 0 },
-  },
-  sliver: {
-    position: 'absolute',
-    bottom: 0,
-    width: 56,
-    height: 12,
-    borderTopLeftRadius: 6,
-    borderTopRightRadius: 6,
-    backgroundColor: ramp[7],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sliverLed: {
-    width: 5,
-    height: 5,
-    borderRadius: 999,
-    backgroundColor: color.label,
-    shadowColor: '#FFFFFF',
-    shadowOpacity: 0.7,
-    shadowRadius: 2.5,
     shadowOffset: { width: 0, height: 0 },
   },
 });
