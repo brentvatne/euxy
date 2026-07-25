@@ -424,9 +424,12 @@ export const useStore = create<AppState>((set, get) => {
         const p = s.patterns.find((x) => x.id === id);
         if (!p) return {};
         discardSnapshot();
+        // Playback survives the switch (hardware-style pattern change): the
+        // engine reads lanes fresh each tick, so the new pattern takes over
+        // at the current playhead position without a stop.
         return {
           activePatternId: id,
-          transport: { ...s.transport, bpm: p.bpm, playing: false },
+          transport: { ...s.transport, bpm: p.bpm },
           selection: { laneId: null },
           snapshotActive: false,
         };

@@ -4,6 +4,7 @@
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { haptics } from '@/lib/shims';
 import { color, HIT_TARGET, radius, space } from '@/theme/tokens';
 import { AppText } from './text';
 import { SFSymbol } from './symbol';
@@ -31,7 +32,10 @@ export function Stepper({
   const clamp = (n: number) => Math.max(min, Math.min(max, n));
   const set = (n: number) => {
     const next = clamp(n);
-    if (next !== value) onChange(next);
+    if (next !== value) {
+      haptics.selection();
+      onChange(next);
+    }
   };
   return (
     <View style={styles.container}>

@@ -12,6 +12,7 @@
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { haptics } from '@/lib/shims';
 import { color, HIT_TARGET, radius, space } from '@/theme/tokens';
 import { AppText } from './text';
 
@@ -42,7 +43,12 @@ export function Segmented<T extends string>({
         return (
           <Pressable
             key={opt.value}
-            onPress={() => onChange(opt.value)}
+            onPress={() => {
+              // Tick only on an actual change — re-tapping the active
+              // segment is a no-op and should feel like one.
+              if (!active) haptics.selection();
+              onChange(opt.value);
+            }}
             style={[
               compact ? styles.segmentCompact : styles.segment,
               active && styles.segmentActive,

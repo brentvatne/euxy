@@ -5,11 +5,14 @@
  * Pattern sheet. Empty state (node 2NR-0) shows when there are no patterns.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { ActionSheetIOS, Alert, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActionSheetIOS, Alert, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Stack, router } from 'expo-router';
 
-import { useObserve } from '@/lib/shims';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { haptics, useObserve } from '@/lib/shims';
+// Gesture-handler's ScrollView, so the row swipe pan and the list scroll
+// negotiate inside one gesture system — with RN's ScrollView the swipe
+// could lose the horizontal drag on device (ROADMAP §11).
+import { GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
 
 import { AppText, SFSymbol } from '@/components/ui';
 import { PatternGlyph } from '@/components/patterns/pattern-glyph';
@@ -25,7 +28,10 @@ const SEQUENCER_HREF = '/(tabs)/(sequencer)' as const;
 function HeaderAddButton() {
   return (
     <Pressable
-      onPress={() => router.push('/new-pattern')}
+      onPress={() => {
+        haptics.impact('light');
+        router.push('/new-pattern');
+      }}
       hitSlop={space.md}
       style={({ pressed }) => (pressed ? styles.pressedDim : undefined)}
       accessibilityRole="button"
@@ -98,7 +104,14 @@ export default function PatternsScreen() {
       'The five factory patterns return to their original state — edits to them are replaced, and deleted ones come back. Your own patterns are untouched.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Restore', style: 'destructive', onPress: () => resetAllPresets() },
+        {
+          text: 'Restore',
+          style: 'destructive',
+          onPress: () => {
+            resetAllPresets();
+            haptics.success();
+          },
+        },
       ],
     );
   };

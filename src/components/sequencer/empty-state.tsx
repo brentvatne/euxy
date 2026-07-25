@@ -14,6 +14,7 @@ import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
+import { haptics } from '@/lib/shims';
 import { color, font } from '@/theme/tokens';
 import { AppText } from '@/components/ui';
 import { LedGrid, twinkle } from '@/components/ui/led-grid';
@@ -80,7 +81,14 @@ export function EmptyState({ onAddLane }: { onAddLane: () => void }) {
           OP–XY.
         </AppText>
       </View>
-      <Pressable onPress={onAddLane} style={styles.cta} accessibilityRole="button">
+      <Pressable
+        onPress={() => {
+          haptics.impact('light');
+          onAddLane();
+        }}
+        style={styles.cta}
+        accessibilityRole="button"
+      >
         <Svg width={17} height={17} viewBox="0 0 24 24">
           <Path d="M12 5v14M5 12h14" fill="none" stroke="#000000" strokeWidth={2.6} strokeLinecap="round" />
         </Svg>

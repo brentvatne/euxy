@@ -48,19 +48,17 @@ export const wrapWithObserveRoot = observeRootWrap;
 export const useObserve: UseObserve = (...args) => useObserveImpl(...args);
 
 type ImpactStyle = 'light' | 'medium' | 'heavy' | 'soft' | 'rigid';
-interface Haptics {
-  impact(style?: ImpactStyle): void;
-  selection(): void;
-  success(): void;
-  warning(): void;
-}
-
-let hapticsImpl: Haptics = {
-  impact: () => {},
-  selection: () => {},
-  success: () => {},
-  warning: () => {},
+type HapticsApi = {
+  /** Key-press weight feedback (defaults to light). */
+  impact: (style?: ImpactStyle) => void;
+  /** Browsing tick — pickers, pads, steppers, list taps. */
+  selection: () => void;
+  success: () => void;
+  warning: () => void;
 };
+
+const noHaptics: HapticsApi = { impact: () => {}, selection: () => {}, success: () => {}, warning: () => {} };
+let hapticsImpl = noHaptics;
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const h = require('expo-haptics');
@@ -71,22 +69,18 @@ try {
     soft: h.ImpactFeedbackStyle.Soft,
     rigid: h.ImpactFeedbackStyle.Rigid,
   };
-  // Fire-and-forget; a haptic that fails to play is not worth an unhandled
-  // rejection (calls throw on builds whose binary predates the module).
+  // Fire-and-forget: feedback must never throw into a press handler.
   hapticsImpl = {
-    impact: (style = 'light') => h.impactAsync(impactStyles[style]).catch(() => {}),
-    selection: () => h.selectionAsync().catch(() => {}),
-    success: () => h.notificationAsync(h.NotificationFeedbackType.Success).catch(() => {}),
-    warning: () => h.notificationAsync(h.NotificationFeedbackType.Warning).catch(() => {}),
+    impact: (style = 'light') => void h.impactAsync(impactStyles[style]).catch(() => {}),
+    selection: () => void h.selectionAsync().catch(() => {}),
+    success: () => void h.notificationAsync(h.NotificationFeedbackType.Success).catch(() => {}),
+    warning: () => void h.notificationAsync(h.NotificationFeedbackType.Warning).catch(() => {}),
   };
 } catch {
   console.warn('[euxy] expo-haptics native module missing — haptics disabled on this build.');
 }
 
-/** Haptic vocabulary: impact = key press-in, selection = fine ticks (ring
- * quarters), success/warning = resolutions. No-ops (with the warn above) on
- * builds without the native module. */
-export const haptics: Haptics = {
+export const haptics: HapticsApi = {
   impact: (style) => hapticsImpl.impact(style),
   selection: () => hapticsImpl.selection(),
   success: () => hapticsImpl.success(),

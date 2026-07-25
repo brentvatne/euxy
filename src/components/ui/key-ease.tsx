@@ -19,6 +19,7 @@ import { Pressable, StyleSheet } from 'react-native';
 import { EaseView } from 'react-native-ease';
 import { useReducedMotion } from 'react-native-reanimated';
 
+import { haptics } from '@/lib/shims';
 import type { KeyProps } from './key';
 
 const TRAVEL = { type: 'timing', duration: 80, easing: 'easeOut' } as const;
@@ -27,7 +28,7 @@ const ACK = { type: 'timing', duration: 250, easing: 'easeOut' } as const;
 const NONE = { type: 'none' } as const;
 
 /** Drop-in for `Key` — identical public shape. */
-export function KeyEase({ style, ack = false, onPressIn, onPressOut, children, ...rest }: KeyProps) {
+export function KeyEase({ style, ack = false, haptic = 'light', onPressIn, onPressOut, children, ...rest }: KeyProps) {
   const reduced = useReducedMotion();
   const [down, setDown] = useState(false);
   // Monotonic shot id — each release remounts the ring so its
@@ -39,6 +40,7 @@ export function KeyEase({ style, ack = false, onPressIn, onPressOut, children, .
       {...rest}
       onPressIn={(e) => {
         setDown(true);
+        if (haptic !== 'none') haptics.impact(haptic);
         onPressIn?.(e);
       }}
       onPressOut={(e) => {

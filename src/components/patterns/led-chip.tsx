@@ -34,6 +34,11 @@ export function LedChip({
   const gap = unit;
   const grid = cell * 5 + gap * 4;
   const reduceMotion = useReducedMotion();
+  // Real lit-cell count for this glyph — the relight gate scales by it so
+  // progress 1.0 always means FULLY lit. (A nominal cap left dense glyphs'
+  // bottom cells dark forever — ROADMAP §13.)
+  let litCount = 0;
+  for (const d of shades) if (d !== '0') litCount++;
   let litIndex = 0;
 
   return (
@@ -54,6 +59,7 @@ export function LedChip({
                   <RelightCell
                     key={c}
                     orderIndex={litIndex++}
+                    litCount={litCount}
                     style={cellStyle}
                     dimColor={CHIP_SHADE_COLORS[0]}
                   />
@@ -73,17 +79,19 @@ export function LedChip({
  * (the relight is a type-on — LEDs light up, they don't move). */
 function RelightCell({
   orderIndex,
+  litCount,
   style,
   dimColor,
 }: {
   orderIndex: number;
+  /** The glyph's ACTUAL lit-cell count — the whole glyph types on within one
+   * bootChipProgress sweep regardless of density. */
+  litCount: number;
   style: { width: number; height: number; borderRadius: number; backgroundColor: string };
   dimColor: string;
 }) {
-  // Order over ~14 lit cells max; scale by a nominal 14 so the whole glyph
-  // types on within one bootChipProgress sweep regardless of density.
   const litStyle = useAnimatedStyle(() => ({
-    opacity: bootChipProgress.value * 14 > orderIndex ? 1 : 0,
+    opacity: bootChipProgress.value * litCount > orderIndex ? 1 : 0,
   }));
   return (
     <View style={[style, { backgroundColor: dimColor }]}>

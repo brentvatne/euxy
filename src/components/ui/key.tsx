@@ -25,8 +25,7 @@ export interface KeyProps extends Omit<PressableProps, 'style'> {
   style?: StyleProp<ViewStyle>;
   /** One-shot light ring on release (transport-grade keys). */
   ack?: boolean;
-  /** Impact haptic on press-in — every key clicks like hardware by default;
-   * 'none' for keys that own their haptic resolution (snapshot key). */
+  /** Press-in feedback weight; 'none' for keys that provide their own. */
   haptic?: 'light' | 'medium' | 'none';
   children?: React.ReactNode;
 }
@@ -48,6 +47,8 @@ export function Key({ style, ack = false, haptic = 'light', onPressIn, onPressOu
       {...rest}
       onPressIn={(e) => {
         down.value = withTiming(1, TRAVEL);
+        // Feel the key travel, not the release — hardware keys click on the
+        // way down.
         if (haptic !== 'none') haptics.impact(haptic);
         onPressIn?.(e);
       }}
