@@ -31,8 +31,13 @@ export function SliderRow({
   onChange,
   formatValue,
 }: SliderRowProps) {
+  // SwiftUI's Slider asserts on an EMPTY range (min == max) — at Steps = 1
+  // the rotate sliders got 0…0 and crash-looped the sheet (TestFlight 1.2.0
+  // (6)). Give the native control a non-empty range and disable it instead.
+  const empty = max <= min;
+  const safeMax = empty ? min + step : max;
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, empty && styles.rowDisabled]}>
       <View style={styles.head}>
         <AppText style={styles.label}>{label}</AppText>
         <AppText style={styles.value}>{formatValue ? formatValue(value) : String(value)}</AppText>
@@ -40,8 +45,9 @@ export function SliderRow({
       <Slider
         value={value}
         minimumValue={min}
-        maximumValue={max}
+        maximumValue={safeMax}
         step={step}
+        disabled={empty}
         minimumTrackTintColor="#EBEBEB"
         maximumTrackTintColor={color.surface2}
         thumbTintColor={color.label}
@@ -54,6 +60,7 @@ export function SliderRow({
 
 const styles = StyleSheet.create({
   row: { gap: space.xs },
+  rowDisabled: { opacity: 0.4 },
   head: { flexDirection: 'row', justifyContent: 'space-between' },
   label: { fontFamily: font.text, fontWeight: '500', fontSize: 14, lineHeight: 18, color: color.label25 },
   value: { fontFamily: font.text, fontWeight: '600', fontSize: 14, lineHeight: 18, color: color.label },

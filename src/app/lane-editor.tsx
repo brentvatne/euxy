@@ -85,9 +85,6 @@ export default function LaneEditorSheet() {
   const removeLane = useStore((s) => s.removeLane);
   const randomizeLane = useStore((s) => s.randomizeLane);
   const [listening, setListening] = useState(false);
-  // Less-used numeric fields live as compact value rows; tapping one expands
-  // an inline slider beneath it (progressive disclosure, Paper "More" group).
-  const [expanded, setExpanded] = useState<'velocity' | 'gate' | null>(null);
   // Note entry: tapping the Note cell expands the inline pad grid (Paper 02c).
   const [padsOpen, setPadsOpen] = useState(false);
   // The pinned card's drop shadow appears only once content scrolls under it.
@@ -335,46 +332,28 @@ export default function LaneEditorSheet() {
                 </View>
               </View>
             </MenuView>
-            <Pressable
-              style={[styles.cell, styles.cellMid]}
-              onPress={() => setExpanded(expanded === 'velocity' ? null : 'velocity')}
-              accessibilityRole="button"
-            >
-              <AppText style={styles.cellTitle}>Velocity</AppText>
-              <AppText style={styles.cellValue}>{lane.velocity}</AppText>
-            </Pressable>
-            {expanded === 'velocity' ? (
-              <View style={[styles.cell, styles.cellMid, styles.sliderCell]}>
-                <SliderRow
-                  label="Velocity"
-                  value={lane.velocity}
-                  min={1}
-                  max={127}
-                  onChange={(v) => updateLane(id, { velocity: v })}
-                />
-              </View>
-            ) : null}
-            <Pressable
-              style={[styles.cell, styles.cellLast]}
-              onPress={() => setExpanded(expanded === 'gate' ? null : 'gate')}
-              accessibilityRole="button"
-            >
-              <AppText style={styles.cellTitle}>Gate</AppText>
-              <AppText style={styles.cellValue}>{lane.gateMs} ms</AppText>
-            </Pressable>
-            {expanded === 'gate' ? (
-              <View style={[styles.cell, styles.cellLast, styles.sliderCell]}>
-                <SliderRow
-                  label="Gate"
-                  value={lane.gateMs}
-                  min={5}
-                  max={500}
-                  step={5}
-                  onChange={(v) => updateLane(id, { gateMs: v })}
-                  formatValue={(v) => `${v} ms`}
-                />
-              </View>
-            ) : null}
+            {/* Permanent sliders (TestFlight 1.2.0 (6) feedback) — the old
+                tap-to-expand cells duplicated label/value into a mash. */}
+            <View style={[styles.cellBlock, styles.cellMid]}>
+              <SliderRow
+                label="Velocity"
+                value={lane.velocity}
+                min={1}
+                max={127}
+                onChange={(v) => updateLane(id, { velocity: v })}
+              />
+            </View>
+            <View style={[styles.cellBlock, styles.cellLast]}>
+              <SliderRow
+                label="Gate"
+                value={lane.gateMs}
+                min={5}
+                max={500}
+                step={5}
+                onChange={(v) => updateLane(id, { gateMs: v })}
+                formatValue={(v) => `${v} ms`}
+              />
+            </View>
           </View>
         </Section>
 
@@ -464,7 +443,8 @@ const styles = StyleSheet.create({
   cellFirst: { borderTopLeftRadius: radius.cell, borderTopRightRadius: radius.cell, borderBottomLeftRadius: 2, borderBottomRightRadius: 2 },
   cellMid: { borderRadius: 2 },
   cellLast: { borderBottomLeftRadius: radius.cell, borderBottomRightRadius: radius.cell, borderTopLeftRadius: 2, borderTopRightRadius: 2 },
-  sliderCell: { paddingVertical: 10 },
+  // Block cell hosting a SliderRow (its own label/value head — no cellTitle).
+  cellBlock: { backgroundColor: color.surface2, paddingVertical: 10, paddingHorizontal: 16 },
   cellTitle: { fontFamily: font.text, fontSize: 16, lineHeight: 20, color: color.label },
   cellRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   cellRightTight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
