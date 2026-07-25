@@ -69,3 +69,25 @@ export function IconPanic({ size = 24, color: c = color.danger }: IconProps) {
     </Svg>
   );
 }
+
+/** Clear ×, sized for the 30px name-field key. Paper 8P3-0 (Sheet · New Pattern). */
+export function IconClear({ size = 11, color: c = color.label2 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 12 12">
+      <Path d="M2 2 L10 10 M10 2 L2 10" fill="none" stroke={c} strokeWidth={1.8} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+/** Dice — the 5-pip "random" glyph (same vocabulary as mutate). Paper 8P6-0. */
+export function IconDice({ size = 14, color: c = color.label }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 22 22">
+      <Rect x="5.2" y="5.2" width="3.2" height="3.2" rx="1" fill={c} />
+      <Rect x="13.6" y="5.2" width="3.2" height="3.2" rx="1" fill={c} />
+      <Rect x="9.4" y="9.4" width="3.2" height="3.2" rx="1" fill={c} />
+      <Rect x="5.2" y="13.6" width="3.2" height="3.2" rx="1" fill={c} />
+      <Rect x="13.6" y="13.6" width="3.2" height="3.2" rx="1" fill={c} />
+    </Svg>
+  );
+}
