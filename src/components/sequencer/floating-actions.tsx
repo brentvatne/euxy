@@ -288,26 +288,66 @@ export function FloatingActions({
       runOnJS(setFloatBarCorner)(left ? 'left' : 'right');
     });
 
-  // Dice press SHAKES the capsule (Brent) — a quick decaying jitter, like
-  // the machine taking the hit of the roll. Translate-only (never re-rasters
-  // the bar's shadow), ~200ms, gone before the reroll wash lands.
-  const shakeX = useSharedValue(0);
+  // Dice press gives the capsule a playful reaction (Brent — the first cut,
+  // a fast horizontal jitter, read as an error shake), RANDOMIZED per press
+  // like the roll itself: tumble left / tumble right (underdamped tilt +
+  // small pop), a little hop, or a boing pop. All springs, all one-shots on
+  // a single view; the random pick happens JS-side.
+  const roll = useSharedValue(0); // ±1 → tilt direction + small pop
+  const sway = useSharedValue(0); // horizontal drift riding the tumble
+  const hop = useSharedValue(0); // translateY offset
+  const pop = useSharedValue(0); // pure scale boing
+  const lastShakeStyle = useRef(-1);
   const triggerShake = () => {
     if (reducedMotion) return;
-    shakeX.value = withSequence(
-      withTiming(-3, { duration: 30 }),
-      withTiming(2.5, { duration: 40 }),
-      withTiming(-1.5, { duration: 40 }),
-      withTiming(0.8, { duration: 40 }),
-      withTiming(0, { duration: 50 }),
-    );
+    // IMPULSE physics (motion principle 7, Brent round 2 — the sequenced
+    // attack+return chain piled up under mashing and took ages to settle):
+    // every value has ONE spring, always targeting rest; a press just KICKS
+    // velocity into it. Position carries over, kicks land instantly, and
+    // settle time after the last press is a single spring's ring (~450ms).
+    // Decay rate rides the damping — 9→12 lands ~25% faster settle (Brent);
+    // stiffness up alongside keeps the wobble count/character similar.
+    const wobble = { damping: 12, stiffness: 400 };
+    // Additive displacement kick: jump BY the kick amount from the current
+    // position (instant attack — LED language), then one spring rings back
+    // to rest. Mash-friendly by construction: kicks stack onto wherever the
+    // bar is, and settle is always a single spring from the last hit. (The
+    // withSpring `velocity` route silently did nothing here — springs
+    // parked at their target complete immediately and the kick was
+    // swallowed; displacement can't be.)
+    const kick = (v: SharedValue<number>, amount: number, cap: number) => {
+      v.value = Math.max(-cap, Math.min(cap, v.value + amount));
+      v.value = withSpring(0, wobble);
+    };
+    // Random style, but never the SAME one twice in a row (Brent): draw
+    // from the other three and skip past the last pick.
+    let style: number;
+    if (lastShakeStyle.current < 0) {
+      style = Math.floor(Math.random() * 4);
+    } else {
+      style = Math.floor(Math.random() * 3);
+      if (style >= lastShakeStyle.current) style += 1;
+    }
+    lastShakeStyle.current = style;
+    if (style <= 1) {
+      const dir = style === 0 ? 1 : -1;
+      kick(roll, dir * 0.9, 1.3);
+      // ...with a bit of shake riding it: the bar drifts against the tilt
+      // and sways back on the same ring.
+      kick(sway, dir * -4, 6);
+    } else if (style === 2) {
+      kick(hop, -4.5, 7);
+    } else {
+      kick(pop, 0.9, 1.3);
+    }
   };
 
   const dragStyle = useAnimatedStyle(() => ({
     transform: [
-      { translateX: anchorX.value + tx.value + shakeX.value },
-      { translateY: ty.value },
-      { scale: 1 + 0.04 * lift.value },
+      { translateX: anchorX.value + tx.value + sway.value },
+      { translateY: ty.value + hop.value },
+      { rotate: `${-2.2 * roll.value}deg` },
+      { scale: 1 + 0.04 * lift.value + 0.03 * Math.abs(roll.value) + 0.05 * pop.value },
     ],
   }));
 
