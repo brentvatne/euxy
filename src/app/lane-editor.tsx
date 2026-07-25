@@ -30,6 +30,7 @@ import type { CombineOp } from '@/state/types';
 import { color, font, radius, ramp, space } from '@/theme/tokens';
 import { AppText, SFSymbol, SheetHeader } from '@/components/ui';
 import { KeyboardAwareScrollView } from '@/components/ui/keyboard';
+import { ledExitSuppressed } from '@/components/ui/led';
 import { CombinedCard, combinedCardHeight } from '@/components/lane-editor/combined-card';
 import { NotePads } from '@/components/lane-editor/note-pads';
 import { PickerBar } from '@/components/lane-editor/picker-bar';
@@ -101,6 +102,7 @@ export default function LaneEditorSheet() {
   const [scrolled, setScrolled] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const scrollY = useRef(0);
+  const ledExitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     scrollY.current = e.nativeEvent.contentOffset.y;
     const isScrolled = e.nativeEvent.contentOffset.y > 2;
@@ -149,6 +151,15 @@ export default function LaneEditorSheet() {
   const maxRot = Math.max(0, lane.length - 1);
 
   const setLength = (length: number) => {
+    // Removed steps take their lights with them: a phosphor exit on a cell
+    // that no longer exists floats in space (Brent). Suppress LED exit
+    // decays around this commit; 80ms comfortably covers the removal and
+    // continuous drags re-arm it every step.
+    ledExitSuppressed.value = 1;
+    if (ledExitTimer.current) clearTimeout(ledExitTimer.current);
+    ledExitTimer.current = setTimeout(() => {
+      ledExitSuppressed.value = 0;
+    }, 80);
     // Losing a row with less scroll-back than the height delta strands the
     // offset in the bounce region (maintainVisibleContentPosition subtracts
     // the full delta) — an idle gap between card and form until the next

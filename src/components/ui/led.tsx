@@ -24,11 +24,26 @@
  */
 import { useRef } from 'react';
 import { StyleSheet } from 'react-native';
-import Animated, { Easing, ReduceMotion, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, ReduceMotion, makeMutable, withTiming } from 'react-native-reanimated';
 import type { StyleProp, ViewStyle } from 'react-native';
+
+/**
+ * While 1, LED exit decays are skipped (lights vanish with their cell).
+ * The phosphor tail is for a light going out on a cell that STAYS — when the
+ * grid itself shrinks (Steps slider), the removed cells unmount instantly
+ * and a decaying ghost floats in empty space (Brent 2026-07-25). Length
+ * changers arm this around the commit (see lane-editor setLength).
+ */
+export const ledExitSuppressed = makeMutable(0);
 
 const decay = () => {
   'worklet';
+  if (ledExitSuppressed.value === 1) {
+    return {
+      initialValues: { opacity: 0 },
+      animations: { opacity: withTiming(0, { duration: 0 }) },
+    };
+  }
   return {
     initialValues: { opacity: 1 },
     animations: {
