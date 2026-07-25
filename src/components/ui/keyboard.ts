@@ -14,13 +14,15 @@
  * TODO: once every installed dev build ships the native module, replace this
  * shim with direct imports.
  */
-import type { ComponentType, PropsWithChildren } from 'react';
+import type { ComponentType, PropsWithChildren, Ref } from 'react';
 import { ScrollView, type ScrollViewProps } from 'react-native';
 
 export interface KeyboardAwareScrollViewProps extends ScrollViewProps {
   /** Distance kept between the keyboard and the focused input (pt). */
   bottomOffset?: number;
   extraKeyboardSpace?: number;
+  /** Underlying scroll view — RNKC forwards it; the fallback is the real one. */
+  ref?: Ref<ScrollView>;
 }
 
 let Provider: ComponentType<PropsWithChildren> = ({ children }: PropsWithChildren) =>

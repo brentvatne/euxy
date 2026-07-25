@@ -8,7 +8,7 @@
  * Section headers use the current-iOS style (title case 17/22 semibold), like
  * the MIDI screen. No Steps|Graph toggle — the combined card is the only view.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import { MenuView } from '@expo/ui/community/menu';
 import {
@@ -18,6 +18,7 @@ import {
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
+  type ScrollView,
 } from 'react-native';
 
 import { midi, midiOut } from '@/components/midi/runtime';
@@ -29,10 +30,15 @@ import type { CombineOp } from '@/state/types';
 import { color, font, radius, ramp, space } from '@/theme/tokens';
 import { AppText, SFSymbol, SheetHeader } from '@/components/ui';
 import { KeyboardAwareScrollView } from '@/components/ui/keyboard';
-import { CombinedCard } from '@/components/lane-editor/combined-card';
+import { CombinedCard, combinedCardHeight } from '@/components/lane-editor/combined-card';
 import { NotePads } from '@/components/lane-editor/note-pads';
 import { PickerBar } from '@/components/lane-editor/picker-bar';
 import { SliderRow } from '@/components/lane-editor/slider-row';
+
+/** Pinned wrapper vertical paddings — shared with the scroll-spacer math so
+ * the spacer mirrors the card's footprint exactly. */
+const PINNED_PAD_TOP = 14;
+const PINNED_PAD_BOTTOM = 14;
 
 const OP_OPTIONS: { label: string; value: CombineOp }[] = [
   { label: 'OR', value: 'OR' },
@@ -93,7 +99,10 @@ export default function LaneEditorSheet() {
   const [padsOpen, setPadsOpen] = useState(false);
   // The pinned card's drop shadow appears only once content scrolls under it.
   const [scrolled, setScrolled] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollY = useRef(0);
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    scrollY.current = e.nativeEvent.contentOffset.y;
     const isScrolled = e.nativeEvent.contentOffset.y > 2;
     if (isScrolled !== scrolled) setScrolled(isScrolled);
   };
@@ -140,6 +149,18 @@ export default function LaneEditorSheet() {
   const maxRot = Math.max(0, lane.length - 1);
 
   const setLength = (length: number) => {
+    // Losing a row with less scroll-back than the height delta strands the
+    // offset in the bounce region (maintainVisibleContentPosition subtracts
+    // the full delta) — an idle gap between card and form until the next
+    // touch. Settle back to top AFTER the compensated commit lands (double
+    // rAF); everywhere else mVCP alone keeps the form still.
+    const shrink =
+      combinedCardHeight(lane.length) - combinedCardHeight(Math.max(1, length));
+    if (shrink > 0 && scrollY.current < shrink) {
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: true })),
+      );
+    }
     updateLane(id, { length });
     // Keep pulses/rotations coherent when the lane shrinks.
     if (lane.genA.pulses > length) updateGenerator(id, 'genA', { pulses: length });
@@ -157,28 +178,46 @@ export default function LaneEditorSheet() {
       <View style={styles.grabberSpace} />
       <SheetHeader title="Edit Lane" onCancel={() => router.back()} onDone={() => router.back()} />
 
-      {/* Pinned combined card — OUTSIDE the scroll view so it never leaves. */}
-      <View style={[styles.pinned, scrolled && styles.pinnedShadow]}>
-        <CombinedCard lane={lane} washNonce={washNonce} />
-      </View>
+      {/* The pinned card is an absolute OVERLAY above the scroll view (not a
+          flex sibling), so the scroll viewport's frame never changes when the
+          Steps slider crosses a 16-multiple and the card gains/loses a row.
+          The spacer (first scroll child) reserves the card's footprint in the
+          content, and maintainVisibleContentPosition keeps the form visually
+          still while the spacer resizes — the card grows down OVER the form
+          (or retracts) instead of shoving it, so nothing jumps under the
+          finger mid-drag. Spacer height is computed, not measured: it must
+          change in the SAME commit as the grid row (see combinedCardHeight). */}
+      <View style={styles.body}>
+        {/* Pinned combined card — OUTSIDE the scroll view so it never leaves. */}
+        <View style={[styles.pinned, scrolled && styles.pinnedShadow]}>
+          <CombinedCard lane={lane} washNonce={washNonce} />
+        </View>
 
-      {/* collapsable={false} keeps this wrapper in the native tree so the
-          ScrollView is NOT a direct child of the screen content wrapper —
-          react-native-screens' formSheet "frame correction" finds direct-child
-          scroll views and forces them to the full sheet frame (origin 0),
-          which painted the scroll content OVER the header and swallowed taps.
-          See RNSScreen.mm applyFrameCorrectionForDescendantScrollView. */}
-      <View style={styles.scroll} collapsable={false}>
+        {/* collapsable={false} keeps this wrapper in the native tree so the
+            ScrollView is NOT a direct child of the screen content wrapper —
+            react-native-screens' formSheet "frame correction" finds direct-child
+            scroll views and forces them to the full sheet frame (origin 0),
+            which painted the scroll content OVER the header and swallowed taps.
+            See RNSScreen.mm applyFrameCorrectionForDescendantScrollView. */}
+        <View style={styles.scroll} collapsable={false}>
       {/* KeyboardAwareScrollView (RNKC) reveals the focused Name field instead
           of letting the keyboard cover it. ONE keyboard owner per screen. */}
       <KeyboardAwareScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         bottomOffset={24}
         onScroll={onScroll}
         scrollEventThrottle={16}
+        maintainVisibleContentPosition={{ minIndexForVisible: 1 }}
       >
+        {/* Card footprint — index 0, exempt from minIndexForVisible above. */}
+        <View
+          style={{
+            height: combinedCardHeight(lane.length) + PINNED_PAD_TOP + PINNED_PAD_BOTTOM,
+          }}
+        />
         <Section title="Generator 1" dot={color.label}>
           <SliderRow
             label="Pulses"
@@ -410,6 +449,7 @@ export default function LaneEditorSheet() {
           </Pressable>
         </View>
       </KeyboardAwareScrollView>
+        </View>
       </View>
     </View>
   );
@@ -419,17 +459,23 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.surface },
   grabberSpace: { height: 13 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  body: { flex: 1 },
   scroll: { flex: 1 },
   content: { paddingBottom: space.xxl },
 
   // Paper 02b: the pinned wrapper carries the sheet bg so scrolling content
-  // disappears under it; the shadow only exists once scrolled.
+  // disappears under it; the shadow only exists once scrolled. Absolute so a
+  // row-count change never reframes the scroll viewport below (see body).
   pinned: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: 12,
     // Breathing room between the sheet nav and the card (Brent 2026-07-24 —
     // the top of the sheet read as crowded), and under it before the form.
-    paddingTop: 14,
-    paddingBottom: 14,
+    paddingTop: PINNED_PAD_TOP,
+    paddingBottom: PINNED_PAD_BOTTOM,
     backgroundColor: color.surface,
     zIndex: 1,
   },
