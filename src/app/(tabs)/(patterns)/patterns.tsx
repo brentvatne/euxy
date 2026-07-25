@@ -129,7 +129,7 @@ function EmptyState() {
   return (
     <View style={styles.empty}>
       <View style={styles.emptyGlyph}>
-        <PatternGlyph size={72} />
+        <PatternGlyph size={72} twinkle />
       </View>
       <AppText variant="title" style={styles.emptyTitle}>
         No saved patterns

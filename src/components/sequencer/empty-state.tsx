@@ -3,38 +3,76 @@
  * yet", explainer copy, and a bright Add-lane CTA. Rendered by the Sequencer
  * when the active pattern has no lanes (also guards the new-pattern flow —
  * an empty pattern must never crash the Sequencer subtree).
+ *
+ * LED-motion concept D: the dot grid quietly lives — every few seconds ONE
+ * random bright cell attacks a step brighter and eases back (useIdleTwinkle
+ * pauses it while playing / blurred / Reduced Motion). The grid is plain
+ * Views at the exact Paper geometry (5×3, 10pt cells, x-step 14 / y-step 19
+ * inside the original 80×52 box) with an LedGrid pulse overlay on top.
  */
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Svg, { Path, Rect } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 
 import { color, font } from '@/theme/tokens';
 import { AppText } from '@/components/ui';
+import { LedGrid, twinkle } from '@/components/ui/led-grid';
+import { useIdleTwinkle } from '@/components/ui/use-idle-twinkle';
 
-const DOTS: { x: number; y: number; bright: boolean }[] = [
-  { x: 2, y: 2, bright: false }, { x: 16, y: 2, bright: true }, { x: 30, y: 2, bright: false },
-  { x: 44, y: 2, bright: false }, { x: 58, y: 2, bright: true },
-  { x: 2, y: 21, bright: true }, { x: 16, y: 21, bright: false }, { x: 30, y: 21, bright: false },
-  { x: 44, y: 21, bright: true }, { x: 58, y: 21, bright: false },
-  { x: 2, y: 40, bright: false }, { x: 16, y: 40, bright: true }, { x: 30, y: 40, bright: false },
-  { x: 44, y: 40, bright: false }, { x: 58, y: 40, bright: true },
-];
+// Bright/dim map of the Paper glyph, row-major ('1' = bright #3A3A40 dot).
+const SHADES = '01001' + '10010' + '01001';
+const BRIGHT = '#3A3A40';
+// Twinkle peak — one palette step brighter than the bright dots (trail grey).
+const TWINKLE_COLORS = ['transparent', '#6E6E76'] as const;
+const CELL = 10;
+const GAP_X = 4;
+const GAP_Y = 9;
+// 6 bright cells × ~4s per slot ⇒ one twinkle every few seconds, ~24s until
+// the shuffled sequence repeats — never reads as a loop.
+const TWINKLE_LOOP_MS = 24000;
+// 400ms ease-out decay per the motion principles (fraction of one 4s slot).
+const TWINKLE_FALL = 400 / (TWINKLE_LOOP_MS / 6);
 
 export function EmptyState({ onAddLane }: { onAddLane: () => void }) {
+  const seed = useMemo(() => Math.floor(Math.random() * 0x7fffffff), []);
+  const order = useMemo(() => twinkle(SHADES, seed), [seed]);
+  const progress = useIdleTwinkle(TWINKLE_LOOP_MS);
   return (
     <View style={styles.root}>
-      <Svg width={80} height={52} viewBox="0 0 80 52">
-        {DOTS.map((d, i) => (
-          <Rect
-            key={i}
-            x={d.x}
-            y={d.y}
-            width={10}
-            height={10}
-            rx={2}
-            fill={d.bright ? '#3A3A40' : color.stepEmpty}
-          />
-        ))}
-      </Svg>
+      {/* Same 80×52 box as the original SVG so the layout doesn't shift. */}
+      <View style={styles.glyphBox}>
+        <View style={styles.glyphGrid}>
+          {[...SHADES].map((s, i) => (
+            <View
+              key={i}
+              style={[
+                styles.dot,
+                {
+                  left: (i % 5) * (CELL + GAP_X),
+                  top: Math.floor(i / 5) * (CELL + GAP_Y),
+                  backgroundColor: s === '1' ? BRIGHT : color.stepEmpty,
+                },
+              ]}
+            />
+          ))}
+          <View style={StyleSheet.absoluteFill}>
+            <LedGrid
+              shades={SHADES}
+              order={order}
+              progress={progress}
+              mode="pulse"
+              pulseFall={TWINKLE_FALL}
+              colors={TWINKLE_COLORS}
+              cols={5}
+              cell={CELL}
+              gapX={GAP_X}
+              gapY={GAP_Y}
+              cellRadius={2}
+              renderBase={false}
+            />
+          </View>
+        </View>
+      </View>
       <View style={styles.textBlock}>
         <AppText style={styles.title}>No lanes yet</AppText>
         <AppText style={styles.body}>
@@ -63,6 +101,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 44,
     gap: 20,
   },
+  glyphBox: { width: 80, height: 52 },
+  glyphGrid: { position: 'absolute', left: 2, top: 2, width: 66, height: 48 },
+  dot: { position: 'absolute', width: CELL, height: CELL, borderRadius: 2 },
   textBlock: { alignItems: 'center', gap: 8 },
   title: {
     fontFamily: font.display,

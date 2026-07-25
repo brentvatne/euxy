@@ -9,6 +9,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/ui';
+import { ConnectionGlyph } from '@/components/midi/connection-glyph';
 import { IconBus, IconCheck, IconClose, IconDevice, IconNone, IconUsb } from '@/components/midi/icons';
 import { refreshDevices, selectInput, selectOutput, useMidiRuntime } from '@/components/midi/runtime';
 import { useSettings } from '@/state/selectors';
@@ -90,7 +91,11 @@ export default function DevicePickerSheet() {
           );
         })}
         {devices.length === 0 ? (
-          <AppText style={styles.hint}>No {isInput ? 'inputs' : 'outputs'} found — connect the OP–XY over USB-C.</AppText>
+          // LED-motion F: the searching radar sweeps while we wait for a device.
+          <View style={styles.searching}>
+            <ConnectionGlyph connected={false} />
+            <AppText style={styles.hint}>No {isInput ? 'inputs' : 'outputs'} found — connect the OP–XY over USB-C.</AppText>
+          </View>
         ) : null}
       </View>
     </ScrollView>
@@ -120,5 +125,6 @@ const styles = StyleSheet.create({
   middle: { borderRadius: INNER },
   rowLast: { borderTopLeftRadius: INNER, borderTopRightRadius: INNER, borderBottomLeftRadius: OUTER, borderBottomRightRadius: OUTER },
 
-  hint: { fontSize: 13, lineHeight: 18, color: color.label3, paddingHorizontal: space.md, paddingTop: space.md },
+  searching: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.md, paddingTop: space.md },
+  hint: { flex: 1, fontSize: 13, lineHeight: 18, color: color.label3 },
 });
