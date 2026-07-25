@@ -1,8 +1,6 @@
 /**
  * Feature flags — compile-time switches for the wave2 rendering spikes
- * (ROADMAP "Animation tech notes", evaluated 2026-07-24). Both default to
- * `false` on main; they are flipped ON on the `wave2/fx-spike` branch so the
- * prototypes are reviewable live.
+ * (ROADMAP "Animation tech notes", evaluated 2026-07-24).
  */
 
 /**
@@ -11,8 +9,11 @@
  * playhead light, drawn in ONE Canvas per lane strip. When false, the
  * plain-Views path (LED + TravellingLight overlays) renders exactly as
  * before.
+ *
+ * ON since 2026-07-25 (Brent: "ship it and we'll see how it goes") — 60fps
+ * on sim; watching device perf via expo-observe before removing the flag.
  */
-export const SKIA_STRIP_GLOW = false;
+export const SKIA_STRIP_GLOW = true;
 
 /**
  * react-native-ease spike (concept H): the transport play/pause button uses
