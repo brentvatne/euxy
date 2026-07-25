@@ -28,6 +28,11 @@ import Animated, {
 
 import { BeatTicker } from './beat-ticker';
 import { Key } from './key';
+import { KeyEase } from './key-ease';
+import { EASE_TRANSPORT_PLAY } from '@/lib/flags';
+
+// Wave2 ease spike (concept H comparison surface): ONLY the play button swaps.
+const PlayKey = EASE_TRANSPORT_PLAY ? KeyEase : Key;
 
 import { playheadPlaying, playheadTick } from '@/core/playhead';
 import type { ClockMode, RecordPhase } from '@/state/types';
@@ -90,7 +95,7 @@ export function TransportBar({
           <Key onPress={onSkipToStart} hitSlop={space.sm} accessibilityLabel="Skip to start">
             <IconSkipToStart size={24} />
           </Key>
-          <Key
+          <PlayKey
             onPress={onTogglePlay}
             disabled={playDisabled}
             ack
@@ -103,7 +108,7 @@ export function TransportBar({
             ) : (
               <IconPlay size={24} color={playDisabled ? color.labelDisabled : color.ground} />
             )}
-          </Key>
+          </PlayKey>
           <Key onPress={onStop} hitSlop={space.sm} accessibilityLabel="Stop">
             <IconStop size={22} />
           </Key>

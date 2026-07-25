@@ -381,9 +381,175 @@ Preset→glyph mapping: bembé→bell · bossa→clave 3–2 · dembow→dembow 
 motorik→motorik · two-step→two-step · halftime→roll · shuffle→swing ·
 aksak→aksak · three-over-four→three-four · samba→samba · house→four-on-floor.
 
+### 8. Splash → app handoff is not clean (Brent, on device 2026-07-24)
+
+The native splash currently dismisses before our first view is actually
+ready. Required sequence: keep the native splash up (expo-splash-screen
+`preventAutoHideAsync`) until the sequencer view has RENDERED AND LAID OUT
+(fire on the root view's onLayout + first commit — e.g. hide inside a
+`runAfterInteractions`/`onLayout` gate, not on JS mount), THEN hide the
+splash and run the boot animation. The rest of the app must already be
+rendered BEHIND the boot overlay — the overlay is a full-screen layer over
+the live UI, so when it decays out the app is simply there (this is also
+what the pixel-identical frame-0 contract in "Splash boot sequence"
+assumes). The post-dismiss animation can take ~500ms — it should look cool,
+not fast: type-on of the selected pattern's glyph, hold, decay + header-chip
+relight per the boot spec.
+
+### 9. Sheet · New Pattern — header padding + name/icon affordances
+
+- Header padding is insufficient (title row too close to the sheet edges) —
+  match the Edit Lane sheet's header metrics.
+- New pattern names should be RANDOMLY GENERATED (fun two-word style, e.g.
+  "Velvet Tresillo" — build a small word bank; never "Untitled N"), with a
+  CLEAR button (×) and a REGENERATE button (dice/refresh) inline in the name
+  field row.
+- The icon must be selectable in this sheet too — the ICON grid is already
+  in the canonical Paper design; implement it with the shuffled default +
+  scrollable grid (see item 6).
+
+### 10. Tap BPM to edit tempo + base resolution
+
+The BPM readout in the sequencer transport should be tappable: opens a small
+sheet/popover editing BPM (stepper + slider or number pad) and BASE
+RESOLUTION (the 1/4·1/8·1/16·1/32 segmented control from the New Pattern
+sheet). Today those are only settable at creation. Keep the transport's
+big-number readout as the trigger (hit target = the whole BPM block).
+
+### 11. BUG — Patterns-list swipe actions vanish instead of revealing
+
+On the Patterns list, swiping a row should reveal the swipe-action buttons
+(then tap the one you want). Instead the swipe makes the row/menu DISAPPEAR
+— the actions never become visible/selectable. Likely the swipeable is
+executing the destructive full-swipe action immediately (or the row unmounts
+on swipe). Fix: reveal actions on partial swipe, require an explicit tap
+(or a deliberate full-swipe) to trigger; verify with the standard
+SwipeableListItem/ReanimatedSwipeable reveal behavior.
+
 ---
 
 ## Backlog — future features (2026-07-24)
+
+### Tab bar hide/show (ideas, 2026-07-24)
+
+Reclaim the tab bar's vertical space while jamming. Candidate mechanisms:
+
+1. **`minimizeBehavior="onScrollDown"`** on NativeTabs (iOS 26+, one prop):
+   bar collapses to a compact pill on scroll — cheapest, fully native, but
+   only helps on scrollable screens and isn't user-controllable.
+2. **Toggle in the floating bar / function-key strip** (Brent's suggestion):
+   a chevron/expand key that hides the tab bar (and maybe the transport
+   grows). Explicit + discoverable; pairs naturally with floating-bar
+   concept B or C. On NativeTabs, hiding = swapping to a hidden-bar
+   appearance or moving off NativeTabs (see 4).
+3. **Focus mode**: long-press play (or a JAM-mode side effect) hides tab bar
+   + header chrome together; any edge swipe or tap on a revealed handle
+   brings them back. Most immersive, least discoverable.
+4. **Custom tab bar** (the standing concept-B decision): once the tab bar is
+   ours, hide/show is trivial, it can be smaller than UIKit's, and it can
+   carry the LED beat pulse. This item + "make the tab bar smaller" +
+   concept B all point at the same fork: stay native vs own the bar —
+   decide once.
+
+Recommendation: prototype 1 immediately (one prop), and fold 2–4 into the
+floating-bar + custom-tab-bar decision.
+
+### Floating action bar rethink (concepts in Paper, 2026-07-24)
+
+Brent: the current floating capsule (add · mutate · undo) "feels a bit off."
+Four concepts on the Paper board "Floating bar — concepts":
+
+- **A · Current** (reference): SF-symbol circles; generic-iOS, covers lane
+  content on tall patterns, shuffle icon clashes with the Lane Editor's dice.
+- **B · Docked function keys**: OP-XY-style labeled key strip (ADD · MUTATE ·
+  UNDO) above the transport — never covers lanes, pairs with the concept-H
+  key-travel press + LED ack dot.
+- **C · Split**: "+ Add lane" returns as a ghost row after the last lane;
+  floating shrinks to a single dice key; UNDO appears as a transient chip
+  for ~5s after a mutate.
+- **D · Transport-integrated**: dice + undo join the transport left of JAM;
+  add lane is the ghost row; no floating layer at all.
+
+**DECIDED (Brent, 2026-07-24): E — keep the capsule, make it ALIVE.** The
+capsule beats the alternatives; the problem was staticness, not placement.
+Full spec on the board ("E · CHOSEN" strip + gesture/animation card):
+
+- **Dice roll** — mutate press: the 5 dice pips scatter to random cells over
+  ~250ms (3–4 shuffled frames, instant attack each) and settle back with the
+  light pixel landing last; concept J's reroll wash sweeps the lane grid
+  FROM the capsule (origin-anchored) at the same moment. Dice glyph replaces
+  the shuffle icon — one vocabulary with Lane Editor Randomize.
+- **A/B PILL** (lead candidate 2026-07-24; superseded the temp-key +
+  revert/keep chips, which superseded the 5s undo chip — evolution mocked on
+  the board). First dice press snapshots the pattern silently (ONE deep copy
+  in the store — no undo stack), then rolls; the capsule grows a small pill
+  holding two dots: GHOST (outline = the snapshot) and LIVE (lit = now).
+  Tap a dot to make that reality live — a NON-DESTRUCTIVE toggle both ways
+  (under the hood it's just swapping two pattern objects). The live dot
+  ticks with the beat; switching plays the reroll wash toward the tapped
+  state. KEEP is not an action: whatever is live persists — the pill
+  dissolves on pattern switch/quit; a dice press re-rolls the live side
+  (fresh snapshot from it); manual edits ride the live side. Capsule stays
+  2 resident keys (+ · dice) + the pill only while a snapshot exists.
+  Alternatives mocked alongside: "ghost diff in the grid" (outline LEDs show
+  WHAT the other reality would change — great companion, could ship later)
+  and Brent's tap=revert/long-press=keep single key with a hold-fill ring
+  (mocked but not recommended: destructive action on the lightest gesture).
+- **Key travel** (concept H) — every press: scale 0.96 + darken in,
+  spring release + one-frame LED ack. The + rotates 90° while pressed and
+  hands off to the existing lane slide-in.
+- **Breathing while playing** — capsule dims to ~60% two beats after the
+  last touch; the dice's light pixel ticks with the downbeat
+  (playheadTick-derived). Touch re-lights instantly. Stopped = lit + still.
+- **Gestures** — long-press dice: Randomize lock sheet. Drag: capsule lifts
+  and snaps to bottom-left/right corners (user solves lane coverage;
+  position persists). Flick down: tucks to a 12px LED sliver at the edge;
+  tap/flick up restores (pairs with tab-bar hide/show focus mode — this
+  could BE the tab-bar toggle surface).
+
+Implementation: clock-synced bits derive from playheadTick on the UI thread;
+one-shots (scatter, chip slide, travel) are state-driven — prime candidates
+for the react-native-ease spike. Reduced Motion: travel + transient undo
+only — no scatter, no breathing.
+
+### Lane play modes — loop · once · every Nth (2026-07-24)
+
+Per-lane playback behavior (applies in jam AND record mode; Brent's seed
+idea was record-mode loop/play-once):
+
+- `loop` — default, today's behavior.
+- `once` — one full cycle from transport start, then silent. Re-arms on
+  transport start; tap the lane to re-arm mid-play. Record-mode use case:
+  punch a fill into the OP-XY in exactly one pass. Step strip dims a spent
+  lane so the state is visible.
+- `everyN` — play only every Nth cycle (+ phase offset, "cycle 3 of 4"):
+  hardware-style fill lanes, call-and-response between lanes. Probably the
+  most useful of the three for live jamming.
+
+Implementation: pure function of the global tick — the engine already knows
+the cycle number (`globalTick / (resolution × length)`), so this is a gate in
+the scheduler, no timers. Data model append-only: `playMode?: 'loop' |
+'once' | 'everyN'`, `everyN?: number`, absent = loop. UI: segmented row in
+Lane Editor "More". Related-but-separate future idea: per-hit probability
+(Elektron trig conditions) — different axis (which hits vs which cycles),
+interacts with randomize locks, keep as its own item.
+
+### Velocity/gate modulation — per-lane LFO (research, 2026-07-24)
+
+Maybe-overkill flag from Brent: research before building. Instead of a fixed
+velocity/gate per lane, an optional modulator: shape (sine · triangle ·
+saw up/down · square · random S&H · drift) + a few params (rate synced to
+lane cycles or bars, depth, phase). Why it fits: velocity and gate are
+computed per-hit at schedule time, so an LFO is just another pure function
+of the global tick — no timers, deterministic. Random shapes should use a
+seeded hash of (lane, hit index) so a pattern always plays the same and
+stays shareable/encodable later. Data model append-only: `velMod?` /
+`gateMod?`, absent = fixed value (today). UI: expandable row under the
+Velocity/Gate sliders in Lane Editor; mod params lockable in the Randomize
+lock modal. Research questions: does the OP-XY respond audibly enough to
+velocity on factory drum kits; is gate modulation musical on one-shot
+samples (mostly note-off-insensitive) or only sustained patches; do 2 shapes
+(sine + random) cover 90% of the value.
 
 ### Melodic sequencing (research, 2026-07-24)
 
@@ -655,6 +821,15 @@ step, and the M/S light bars. Reanimated on the UI thread; must stay
 zero-re-render like the rest of the playhead path.
 
 ### Onboarding flow
+
+**RESEARCH DONE (2026-07-24): see `docs/design/onboarding-research.md`** —
+Mobbin survey (hardware-companion + coach-mark apps; Mobbin has no pro
+music apps, noted in the doc), teach-now-vs-defer table for the 9 concepts,
+three flow candidates evaluated, and a recommendation: **hybrid — one
+LedGrid welcome screen + coach-mark backbone with progressive one-shot
+concept cards; the connect flow demoted to an on-demand sheet** (only
+progressive disclosure covers all 9 concepts; the no-device reality kills a
+mandatory wizard). Next step: the doc's 7-item Paper mock list.
 
 First-run onboarding is currently nothing — the app drops you on the
 Sequencer with a seeded pattern. Design a real flow: research onboarding
