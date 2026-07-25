@@ -1,95 +1,685 @@
 /**
- * FloatingActions — the Sequencer's floating capsule (Paper 7A-0 "Floating
- * action bar"): add lane · mutate · undo mutate. Replaces both the old tools
- * row and the list-bottom "Add lane" row, hovering bottom-right above the
- * transport so the actions stay under the thumb while jamming.
+ * FloatingActions — the Sequencer's floating capsule, rebuilt per the decided
+ * E spec (Paper "Floating bar — concepts" → "E · CHOSEN" + gesture/animation
+ * card; chrome from the canonical "01 · Sequencer" bar): add lane · dice ·
+ * snapshot key. The capsule is ALIVE:
+ *
+ *   • Dice press scatters the 5 pips (~250ms of shuffled frames, instant
+ *     attack each) while concept J's reroll wash sweeps the lane grid FROM
+ *     the capsule (step-strip owns the wash; the store carries the signal).
+ *   • First dice press silently snapshots the pattern; a ghost-dot key
+ *     appears while the snapshot exists. Tap = revert (a swap — tap again to
+ *     swap back); long-press fills an LED ring (~500ms) = keep.
+ *   • While playing, the capsule breathes: dims to 60% two beats after the
+ *     last touch; the dice's light pixel ticks the downbeat. All clock-synced
+ *     motion derives from playheadTick on the UI thread — nothing re-renders
+ *     on the tick.
+ *   • Drag lifts the capsule and snaps it to a bottom corner (persisted);
+ *     flick down tucks it to a 12px LED sliver, tap/flick up restores.
+ *
+ * Chrome (Paper 5SI-0): Liquid Glass container (rgba(28,28,34,.55) mock →
+ * native GlassView) + 0.5px rgba(255,255,255,.12) rim + solid #2C2C2E keys,
+ * padding 8 · gap 10 · 48px keys · 14px margin. Fallback = solid #16161D.
  */
-import type { ComponentProps } from 'react';
-import { StyleSheet } from 'react-native';
-import Animated, { FadeInDown, FadeOutDown, ReduceMotion } from 'react-native-reanimated';
+import { useEffect, useRef, useState } from 'react';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Directions, Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, {
+  Easing,
+  FadeInDown,
+  FadeOutDown,
+  LinearTransition,
+  ReduceMotion,
+  runOnJS,
+  useAnimatedProps,
+  useAnimatedReaction,
+  useAnimatedStyle,
+  useDerivedValue,
+  useReducedMotion,
+  useSharedValue,
+  withDelay,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import Svg, { Circle, Path } from 'react-native-svg';
 
-import { color, ramp } from '@/theme/tokens';
-import { SFSymbol } from '@/components/ui';
+import { playheadPlaying, playheadTick } from '@/core/playhead';
+import { useStore } from '@/state/store';
+import { GlassView, haptics, liquidGlassAvailable } from '@/lib/shims';
+import { color, ramp, timing } from '@/theme/tokens';
 import { Key } from '@/components/ui/key';
 
-type SymbolName = ComponentProps<typeof SFSymbol>['name'];
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+// Paper 5SI-0 chrome: 48px keys on padding 8 / gap 10, 14px screen margin.
+const KEY_SIZE = 48;
+const PAD = 8;
+const KEY_GAP = 10;
+const MARGIN = 14;
+
+// Paper dice glyph: 18px box, drawn in a 22-unit viewBox — pips are 3.2u
+// rounded rects (rx 1) at coordinates 5.2 / 9.4 / 13.6.
+const GLYPH = 18;
+const U = GLYPH / 22;
+const PIP = 3.2 * U;
+const PIP_R = 1 * U;
+const PIP_COORD = [5.2 * U, 9.4 * U, 13.6 * U];
+/** Rest cells of the 5 pips on the glyph's 3×3 grid: TL TR C BL BR. */
+const REST_CELLS = [
+  [0, 0],
+  [2, 0],
+  [1, 1],
+  [0, 2],
+  [2, 2],
+] as const;
+/** The dice's "light pixel" (E spec) — top-left pip: ticks the downbeat,
+ * lands last after a scatter, receives the keep-ring's drained light. */
+const LIGHT_PIP = 0;
+const ALL_CELLS: ReadonlyArray<readonly [number, number]> = [
+  [0, 0], [1, 0], [2, 0],
+  [0, 1], [1, 1], [2, 1],
+  [0, 2], [1, 2], [2, 2],
+];
+
+// Snapshot key hold: ring fills over 500ms; release ≤250ms reads as a tap.
+const HOLD_MS = 500;
+const TAP_MS = 250;
+const RING_R = 21;
+const RING_C = 2 * Math.PI * RING_R;
+
+const SPRING = { damping: 18, stiffness: 260, reduceMotion: ReduceMotion.System };
+
+/** One scatter press: 3–4 frames of random pip cells (5 distinct per frame). */
+function rollScatterFrames(): number[][][] {
+  const frames = 3 + (Math.random() < 0.5 ? 1 : 0);
+  return Array.from({ length: frames }, () => {
+    const cells = [...ALL_CELLS];
+    for (let i = cells.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [cells[i], cells[j]] = [cells[j], cells[i]];
+    }
+    return cells.slice(0, 5).map((c) => [...c]);
+  });
+}
 
 export function FloatingActions({
   canMutate,
-  canUndo,
+  snapshotActive,
   onAddLane,
   onMutate,
-  onUndo,
+  onRevert,
+  onKeep,
 }: {
   canMutate: boolean;
-  canUndo: boolean;
+  snapshotActive: boolean;
   onAddLane: () => void;
   onMutate: () => void;
-  onUndo: () => void;
+  onRevert: () => void;
+  onKeep: () => void;
 }) {
+  const reducedMotion = useReducedMotion();
+  const { width: screenW } = useWindowDimensions();
+  const bpm = useStore((s) => s.transport.bpm);
+  const corner = useStore((s) => s.settings.floatBarCorner);
+  const setFloatBarCorner = useStore((s) => s.setFloatBarCorner);
+  const [tucked, setTucked] = useState(false);
+  const [barW, setBarW] = useState(0);
+
+  // Drag state: anchorX offsets the right-docked bar to the left corner;
+  // tx/ty ride the live gesture; lift scales it up while held.
+  const anchorX = useSharedValue(0);
+  const tx = useSharedValue(0);
+  const ty = useSharedValue(0);
+  const lift = useSharedValue(0);
+  const anchorFor = (c: 'left' | 'right', w: number) =>
+    c === 'left' ? -(screenW - w - MARGIN * 2) : 0;
+  const anchorInit = useRef(false);
+  useEffect(() => {
+    if (barW === 0) return;
+    const target = anchorFor(corner, barW);
+    // First layout docks instantly (no boot slide); later changes spring.
+    anchorX.value = anchorInit.current ? withSpring(target, SPRING) : target;
+    anchorInit.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [corner, barW, screenW]);
+
+  // Breathing (E spec): dim to 60% two beats after the last touch, playing
+  // only. Quantize first — the derived beat re-runs styles per beat, never
+  // per frame. touchBeat re-arms on any touch and on transport start.
+  const beat = useDerivedValue(() => Math.floor(playheadTick.value / timing.ppqn));
+  const touchBeat = useSharedValue(0);
+  useAnimatedReaction(
+    () => playheadPlaying.value,
+    (playing, prev) => {
+      if (playing === 1 && prev !== 1) touchBeat.value = beat.value;
+    },
+  );
+  const breatheStyle = useAnimatedStyle(() => {
+    const dim =
+      !reducedMotion && playheadPlaying.value === 1 && beat.value - touchBeat.value >= 2;
+    // Re-light instantly (LED attack); dim eases out like a decay.
+    return {
+      opacity: dim
+        ? withTiming(0.6, { duration: 400, easing: Easing.out(Easing.quad) })
+        : withTiming(1, { duration: 80 }),
+    };
+  });
+  const relight = () => {
+    touchBeat.value = Math.floor(playheadTick.value / timing.ppqn);
+  };
+
+  const pan = Gesture.Pan()
+    // Let key presses win until the finger commits to a real drag.
+    .activeOffsetX([-12, 12])
+    .activeOffsetY([-12, 12])
+    .onStart(() => {
+      lift.value = withTiming(1, { duration: 120 });
+    })
+    .onUpdate((e) => {
+      tx.value = e.translationX;
+      ty.value = e.translationY;
+    })
+    .onEnd((e) => {
+      lift.value = withTiming(0, { duration: 160 });
+      if (e.velocityY > 700 && e.translationY > 20) {
+        // Flick down = tuck to the LED sliver.
+        tx.value = 0;
+        ty.value = 0;
+        runOnJS(setTucked)(true);
+        return;
+      }
+      // Snap to the nearest bottom corner; the corner persists.
+      const center = screenW - MARGIN - barW / 2 + anchorX.value + tx.value;
+      const left = center < screenW / 2;
+      anchorX.value = withSpring(left ? -(screenW - barW - MARGIN * 2) : 0, SPRING);
+      tx.value = withSpring(0, SPRING);
+      ty.value = withSpring(0, SPRING);
+      runOnJS(setFloatBarCorner)(left ? 'left' : 'right');
+    });
+
+  const dragStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: anchorX.value + tx.value },
+      { translateY: ty.value },
+      { scale: 1 + 0.04 * lift.value },
+    ],
+  }));
+
+  const keys = (
+    <>
+      <AddKey onPress={onAddLane} />
+      <DiceKey disabled={!canMutate} reducedMotion={reducedMotion} onMutate={onMutate} />
+      {snapshotActive ? (
+        <SnapshotKey
+          beatMs={60000 / bpm}
+          reducedMotion={reducedMotion}
+          onRevert={onRevert}
+          onKeep={onKeep}
+        />
+      ) : null}
+    </>
+  );
+
   return (
-    <Animated.View
-      // Mounted only while lanes exist — ease in/out of the empty state.
-      entering={FadeInDown.duration(200).reduceMotion(ReduceMotion.System)}
-      exiting={FadeOutDown.duration(150).reduceMotion(ReduceMotion.System)}
-      style={styles.bar}
-      pointerEvents="box-none"
-    >
-      <ActionButton label="Add lane" icon="plus" onPress={onAddLane} />
-      <ActionButton label="Mutate pattern" icon="shuffle" onPress={onMutate} disabled={!canMutate} />
-      <ActionButton label="Undo mutation" icon="arrow.uturn.backward" onPress={onUndo} disabled={!canUndo} />
-    </Animated.View>
+    // The capsule owns its own gesture root — the sequencer screen itself
+    // stays plain (only Patterns wraps a whole screen today).
+    <GestureHandlerRootView pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      {tucked ? (
+        <TuckSliver corner={corner} onRestore={() => setTucked(false)} />
+      ) : (
+        <GestureDetector gesture={pan}>
+          <Animated.View
+            // Mounted only while lanes exist — ease in/out of the empty state.
+            entering={FadeInDown.duration(200).reduceMotion(ReduceMotion.System)}
+            exiting={FadeOutDown.duration(150).reduceMotion(ReduceMotion.System)}
+            // The capsule springs shut when the snapshot key collapses.
+            layout={LinearTransition.springify().damping(18).stiffness(220).reduceMotion(
+              ReduceMotion.System,
+            )}
+            style={[styles.barAnchor, dragStyle, breatheStyle]}
+            onLayout={(e) => setBarW(e.nativeEvent.layout.width)}
+            onTouchStart={relight}
+          >
+            {liquidGlassAvailable && GlassView ? (
+              // Real material refracts the playhead LEDs sweeping beneath it;
+              // the rim + tint match the Paper mock (rgba(28,28,34,.55)).
+              <GlassView glassEffectStyle="regular" style={[styles.bar, styles.barGlass]}>
+                {keys}
+              </GlassView>
+            ) : (
+              <View style={[styles.bar, styles.barSolid]}>{keys}</View>
+            )}
+          </Animated.View>
+        </GestureDetector>
+      )}
+    </GestureHandlerRootView>
   );
 }
 
-function ActionButton({
-  label,
-  icon,
-  onPress,
-  disabled = false,
-}: {
-  label: string;
-  icon: SymbolName;
-  onPress: () => void;
-  disabled?: boolean;
-}) {
+/** Add lane — the + rotates 90° while pressed (E spec), then the existing
+ * lane slide-in takes over. */
+function AddKey({ onPress }: { onPress: () => void }) {
+  const down = useSharedValue(0);
+  const rotStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${down.value * 90}deg` }],
+  }));
   return (
     <Key
       onPress={onPress}
-      disabled={disabled}
+      onPressIn={() => {
+        down.value = withTiming(1, { duration: 140, reduceMotion: ReduceMotion.System });
+      }}
+      onPressOut={() => {
+        down.value = withSpring(0, SPRING);
+      }}
       style={styles.btn}
       accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled }}
+      accessibilityLabel="Add lane"
     >
-      <SFSymbol name={icon} size={16} tint={disabled ? color.label4 : color.label} />
+      <Animated.View style={rotStyle}>
+        {/* Paper 5SI-0: 18px plus, 2.4 stroke, round caps. */}
+        <Svg width={GLYPH} height={GLYPH} viewBox="0 0 24 24">
+          <Path d="M12 5v14M5 12h14" stroke={color.label} strokeWidth={2.4} strokeLinecap="round" />
+        </Svg>
+      </Animated.View>
     </Key>
   );
 }
 
-// Paper 7A-0: capsule #16161D r999 p6 gap6, 44px circle buttons on surface2,
-// heavy drop shadow so it reads as floating over the lane grid.
+/**
+ * Mutate — the 5-pip dice glyph (one vocabulary with Lane Editor Randomize).
+ * A press scatters the pips to random cells (~250ms, instant attack per
+ * frame — a slot-machine shuffle, no tweening) and settles back with the
+ * light pixel landing last. While playing, the light pixel ticks the
+ * downbeat off the quantized beat.
+ */
+// TODO(randomize-lock): long-press should open the Randomize-lock sheet —
+// not designed yet, so no gesture is wired to it (a dead long-press would
+// read as broken).
+function DiceKey({
+  disabled,
+  reducedMotion,
+  onMutate,
+}: {
+  disabled: boolean;
+  reducedMotion: boolean;
+  onMutate: () => void;
+}) {
+  const [scatter, setScatter] = useState<{ nonce: number; frames: number[][][] } | null>(null);
+  const glow = useSharedValue(0);
+
+  // Downbeat tick (quantize first: derived integer beat → opacity only).
+  const beat = useDerivedValue(() =>
+    playheadPlaying.value === 1 ? Math.floor(playheadTick.value / timing.ppqn) : -1,
+  );
+  useAnimatedReaction(
+    () => beat.value,
+    (b, prev) => {
+      if (reducedMotion || b < 0 || b === prev || b % 4 !== 0) return;
+      glow.value = 1; // instant attack
+      glow.value = withTiming(0, { duration: 300, easing: Easing.out(Easing.quad) });
+    },
+  );
+  const glowStyle = useAnimatedStyle(() => ({ opacity: 0.9 * glow.value }));
+
+  return (
+    <Key
+      disabled={disabled}
+      onPress={() => {
+        if (!reducedMotion) setScatter((s) => ({ nonce: (s?.nonce ?? 0) + 1, frames: rollScatterFrames() }));
+        onMutate();
+      }}
+      style={styles.btn}
+      accessibilityRole="button"
+      accessibilityLabel="Mutate pattern"
+      accessibilityState={{ disabled }}
+    >
+      <View style={[styles.glyph, disabled ? styles.glyphDisabled : null]}>
+        {REST_CELLS.map((cell, i) => (
+          <Pip key={i} index={i} rest={cell} scatter={scatter} />
+        ))}
+        {/* The light pixel's downbeat bloom — a lit film over the TL pip. */}
+        <Animated.View pointerEvents="none" style={[styles.pip, styles.pipGlow, glowStyle]} />
+      </View>
+    </Key>
+  );
+}
+
+/** One dice pip. Scatter frames land as duration-0 jumps (LEDs never tween
+ * between cells); the light pixel's final hop home is delayed to land last. */
+function Pip({
+  index,
+  rest,
+  scatter,
+}: {
+  index: number;
+  rest: readonly [number, number];
+  scatter: { nonce: number; frames: number[][][] } | null;
+}) {
+  const x = useSharedValue(PIP_COORD[rest[0]]);
+  const y = useSharedValue(PIP_COORD[rest[1]]);
+  useEffect(() => {
+    if (!scatter) return;
+    const FRAME_MS = 65;
+    const settleDelay = index === LIGHT_PIP ? FRAME_MS + 60 : FRAME_MS;
+    const hop = (v: number) => withTiming(v, { duration: 0 });
+    const seq = (coord: 0 | 1, restV: number) =>
+      withSequence(
+        ...scatter.frames.map((f, fi) =>
+          fi === 0 ? hop(PIP_COORD[f[index][coord]]) : withDelay(FRAME_MS, hop(PIP_COORD[f[index][coord]])),
+        ),
+        withDelay(settleDelay, hop(restV)),
+      );
+    x.value = seq(0, PIP_COORD[rest[0]]);
+    y.value = seq(1, PIP_COORD[rest[1]]);
+    // Re-fires per press via the nonce; values always end at rest.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scatter?.nonce]);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ translateX: x.value }, { translateY: y.value }],
+  }));
+  return <Animated.View style={[styles.pip, style]} />;
+}
+
+/**
+ * Snapshot key — ghost outline dot while a snapshot exists. TAP = revert
+ * (swap; the dot fills solid for one beat while the reverse wash ripples the
+ * grid). LONG-PRESS = keep: the LED ring fills clockwise over ~500ms with a
+ * selection tick at each quarter; completing it pops, drains into the dice's
+ * light pixel and collapses the key. Early release drains the ring back —
+ * nothing happens.
+ */
+function SnapshotKey({
+  beatMs,
+  reducedMotion,
+  onRevert,
+  onKeep,
+}: {
+  beatMs: number;
+  reducedMotion: boolean;
+  onRevert: () => void;
+  onKeep: () => void;
+}) {
+  const progress = useSharedValue(0);
+  const ringTick = useSharedValue(0);
+  const flash = useSharedValue(0);
+  const drain = useSharedValue(0);
+  const dotFill = useSharedValue(0);
+
+  const pressStart = useRef(0);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const completed = useRef(false);
+  const clearTimers = () => {
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
+  };
+  useEffect(() => clearTimers, []);
+
+  const fireKeep = () => {
+    completed.current = true;
+    haptics.success();
+    if (reducedMotion) {
+      onKeep();
+      return;
+    }
+    // The pop: bright ack flash, then the ring's light drains into the dice
+    // key's light pixel; the store keep lands as the drain finishes and the
+    // key collapses (exiting) while the capsule springs shut (layout).
+    flash.value = 1;
+    flash.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.quad) });
+    drain.value = withDelay(120, withTiming(1, { duration: 220, easing: Easing.in(Easing.quad) }));
+    timers.current.push(setTimeout(onKeep, 340));
+  };
+
+  const onPressIn = () => {
+    if (completed.current) return;
+    pressStart.current = Date.now();
+    progress.value = 0;
+    progress.value = withTiming(1, { duration: HOLD_MS, easing: Easing.linear });
+    // Faint tick at each ring quarter (selection haptic + a brightness blip).
+    [0.25, 0.5, 0.75].forEach((q) => {
+      timers.current.push(
+        setTimeout(() => {
+          haptics.selection();
+          ringTick.value = 1;
+          ringTick.value = withTiming(0, { duration: 150 });
+        }, HOLD_MS * q),
+      );
+    });
+    timers.current.push(setTimeout(fireKeep, HOLD_MS));
+  };
+
+  const onPressOut = () => {
+    if (completed.current) return;
+    clearTimers();
+    const dt = Date.now() - pressStart.current;
+    // Drain the ring back regardless — only a completed fill keeps.
+    progress.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.quad) });
+    if (dt > TAP_MS) return; // abandoned hold: nothing happens
+    // TAP = revert. The ghost dot fills solid for one beat (transport bpm)
+    // while step-strip plays the reverse wash off the store's gridFx nonce.
+    haptics.impact('light');
+    if (!reducedMotion) {
+      dotFill.value = withSequence(
+        withTiming(1, { duration: 0 }),
+        withDelay(beatMs, withTiming(0, { duration: 300, easing: Easing.out(Easing.quad) })),
+      );
+    }
+    onRevert();
+  };
+
+  const ringProps = useAnimatedProps(() => ({
+    strokeDashoffset: RING_C * (1 - progress.value),
+  }));
+  const ringStyle = useAnimatedStyle(() => ({
+    // Hidden at rest; brightens briefly on each quarter tick; hands its light
+    // to the drain dot on keep.
+    opacity: progress.value === 0 ? 0 : (0.85 + 0.15 * ringTick.value) * (1 - drain.value),
+  }));
+  const flashStyle = useAnimatedStyle(() => ({ opacity: 0.85 * flash.value }));
+  const drainStyle = useAnimatedStyle(() => ({
+    // The ring's light crosses to the dice key (one key + gap to the left).
+    opacity: drain.value === 0 ? 0 : 1 - 0.7 * drain.value,
+    transform: [{ translateX: -(KEY_SIZE + KEY_GAP) * drain.value }],
+  }));
+  const fillStyle = useAnimatedStyle(() => ({ opacity: dotFill.value }));
+
+  return (
+    <Animated.View
+      entering={FadeInDown.duration(180).reduceMotion(ReduceMotion.System)}
+      exiting={FadeOutDown.duration(150).reduceMotion(ReduceMotion.System)}
+    >
+      <Key
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        // Press-in stays silent: this key's haptics ARE its resolutions
+        // (light = revert, selection = ring quarters, success = keep).
+        haptic="none"
+        style={styles.btn}
+        accessibilityRole="button"
+        accessibilityLabel="Snapshot"
+        accessibilityHint="Tap to swap with the saved snapshot. Hold to keep the current pattern."
+      >
+        {/* Ghost dot (Paper: 11px outline, 1.5px #8E8E93) + its solid fill. */}
+        <View style={styles.ghostDot}>
+          <Animated.View pointerEvents="none" style={[styles.ghostDotFill, fillStyle]} />
+        </View>
+        {/* Keep ring — starts at 12 o'clock, fills clockwise. */}
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.ring, ringStyle]}>
+          <Svg width={KEY_SIZE} height={KEY_SIZE} viewBox={`0 0 ${KEY_SIZE} ${KEY_SIZE}`}>
+            <AnimatedCircle
+              cx={KEY_SIZE / 2}
+              cy={KEY_SIZE / 2}
+              r={RING_R}
+              fill="none"
+              stroke={color.label}
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeDasharray={`${RING_C}`}
+              animatedProps={ringProps}
+            />
+          </Svg>
+        </Animated.View>
+        <Animated.View pointerEvents="none" style={[styles.flash, flashStyle]} />
+        <Animated.View pointerEvents="none" style={[styles.drainDot, drainStyle]} />
+      </Key>
+    </Animated.View>
+  );
+}
+
+/** Tucked state: a 12px LED sliver at the screen edge. Tap or flick up
+ * restores the capsule. */
+function TuckSliver({ corner, onRestore }: { corner: 'left' | 'right'; onRestore: () => void }) {
+  const restore = Gesture.Race(
+    Gesture.Tap().onEnd((_e, success) => {
+      if (success) runOnJS(onRestore)();
+    }),
+    Gesture.Fling()
+      .direction(Directions.UP)
+      .onEnd(() => {
+        runOnJS(onRestore)();
+      }),
+  );
+  return (
+    <GestureDetector gesture={restore}>
+      <Animated.View
+        entering={FadeInDown.duration(180).reduceMotion(ReduceMotion.System)}
+        exiting={FadeOutDown.duration(120).reduceMotion(ReduceMotion.System)}
+        style={[styles.sliver, corner === 'left' ? { left: MARGIN } : { right: MARGIN }]}
+        // The sliver itself is 12px; the slop restores a HIG-size target.
+        hitSlop={{ top: 24, bottom: 8, left: 12, right: 12 }}
+        accessibilityRole="button"
+        accessibilityLabel="Show actions"
+      >
+        <View style={styles.sliverLed} />
+      </Animated.View>
+    </GestureDetector>
+  );
+}
+
+// Paper 5SI-0: glass capsule (rgba(28,28,34,.55) + blur 24 saturate 160% in
+// the mock — real GlassView here), 0.5px rgba(255,255,255,.12) rim, soft
+// 0/10/24 shadow, solid #2C2C2E keys. Fallback = the old solid #16161D bar.
 const styles = StyleSheet.create({
-  bar: {
+  barAnchor: {
     position: 'absolute',
-    right: 14,
-    bottom: 14,
+    right: MARGIN,
+    bottom: MARGIN,
+  },
+  bar: {
     flexDirection: 'row',
-    gap: 6,
-    padding: 6,
+    gap: KEY_GAP,
+    padding: PAD,
     borderRadius: 999,
-    backgroundColor: ramp[7],
+    overflow: 'hidden',
     shadowColor: '#000000',
-    shadowOpacity: 0.55,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 10 },
+  },
+  barGlass: {
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  barSolid: {
+    backgroundColor: ramp[7],
   },
   btn: {
-    width: 44,
-    height: 44,
+    width: KEY_SIZE,
+    height: KEY_SIZE,
     borderRadius: 999,
     backgroundColor: color.surface2,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  glyph: {
+    width: GLYPH,
+    height: GLYPH,
+  },
+  glyphDisabled: {
+    opacity: 0.4,
+  },
+  pip: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: PIP,
+    height: PIP,
+    borderRadius: PIP_R,
+    backgroundColor: color.label,
+  },
+  // Downbeat bloom over the light pixel's rest cell (TL).
+  pipGlow: {
+    transform: [{ translateX: PIP_COORD[0] }, { translateY: PIP_COORD[0] }],
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#FFFFFF',
+    shadowOpacity: 0.8,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  ghostDot: {
+    width: 11,
+    height: 11,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: '#8E8E93',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ghostDotFill: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 999,
+    backgroundColor: color.label,
+  },
+  ring: {
+    transform: [{ rotate: '-90deg' }],
+  },
+  flash: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 999,
+    backgroundColor: color.label,
+  },
+  drainDot: {
+    position: 'absolute',
+    top: KEY_SIZE / 2 - 2.5,
+    left: KEY_SIZE / 2 - 2.5,
+    width: 5,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#FFFFFF',
+    shadowOpacity: 0.8,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  sliver: {
+    position: 'absolute',
+    bottom: 0,
+    width: 56,
+    height: 12,
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
+    backgroundColor: ramp[7],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sliverLed: {
+    width: 5,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: color.label,
+    shadowColor: '#FFFFFF',
+    shadowOpacity: 0.7,
+    shadowRadius: 2.5,
+    shadowOffset: { width: 0, height: 0 },
   },
 });

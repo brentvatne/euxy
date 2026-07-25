@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { engine } from '@/core/engine';
 import { midiNoteName } from '@/core/note';
 import { laneAudible, useActivePattern, useAnySolo, useSettings } from '@/state/selectors';
-import { getMutateDepth, useStore } from '@/state/store';
+import { useStore } from '@/state/store';
 import type { Lane } from '@/state/types';
 import { reportSequencerLayout } from '@/components/boot-signal';
 import { useMidiRuntime } from '@/components/midi/runtime';
@@ -53,11 +53,10 @@ export default function SequencerScreen() {
   const toggleSolo = useStore((s) => s.toggleSolo);
   const selectLane = useStore((s) => s.selectLane);
   const mutatePattern = useStore((s) => s.mutateActivePattern);
-  const undoMutate = useStore((s) => s.undoMutate);
-  // mutateVersion bumps on every mutate/undo, re-deriving the history depth.
-  const activePatternId = useStore((s) => s.activePatternId);
-  useStore((s) => s.mutateVersion);
-  const canUndoMutate = getMutateDepth(activePatternId) > 0;
+  // Snapshot / temp mode: the capsule's ghost key exists while this is true.
+  const snapshotActive = useStore((s) => s.snapshotActive);
+  const revertSnapshot = useStore((s) => s.revertSnapshot);
+  const keepSnapshot = useStore((s) => s.keepSnapshot);
 
   // Wire the engine (idempotent): store subscription + the shared MIDI port.
   useEffect(() => {
@@ -143,7 +142,7 @@ export default function SequencerScreen() {
           <EmptyState onAddLane={addAndEdit} />
         ) : (
           <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-            {lanes.map((lane) => (
+            {lanes.map((lane, laneIndex) => (
               // Lanes power on when added and decay out when removed, with
               // siblings sliding into place — Reanimated layout animations on
               // the UI thread (LED language: quick in, phosphor-tail out).
@@ -169,7 +168,8 @@ export default function SequencerScreen() {
                 onToggleSolo={() => toggleSolo(lane.id)}
                 onPressTitle={() => openEditor(lane.id)}
               >
-                <StepStrip lane={lane} />
+                {/* Washes sweep FROM the capsule: lower lanes fire first. */}
+                <StepStrip lane={lane} washDelay={(lanes.length - 1 - laneIndex) * 45} />
               </LaneRow>
               </Animated.View>
             ))}
@@ -179,10 +179,11 @@ export default function SequencerScreen() {
         {lanes.length > 0 ? (
           <FloatingActions
             canMutate
-            canUndo={canUndoMutate}
+            snapshotActive={snapshotActive}
             onAddLane={addAndEdit}
             onMutate={mutatePattern}
-            onUndo={undoMutate}
+            onRevert={revertSnapshot}
+            onKeep={keepSnapshot}
           />
         ) : null}
       </View>
