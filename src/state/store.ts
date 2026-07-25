@@ -43,6 +43,22 @@ const discardSnapshot = () => {
   snapshotPatternId = null;
 };
 
+/**
+ * "Revert to loaded" (§15, pattern menu): the lanes the ACTIVE pattern had
+ * when it became active this session. Same deep-copy machinery and the same
+ * module-level home as the temp snapshot (never persisted). Captured eagerly
+ * on load/create/delete-fallback, and lazily on the first edit after
+ * hydration (boot sets activePatternId without loadPattern). revertToLoaded
+ * SWAPS lanes with this slot, so using the menu again restores the
+ * pre-revert state — non-destructive on the same terms as the temp key.
+ */
+let loadedLanes: Lane[] | null = null;
+let loadedPatternId: string | null = null;
+const noteLoaded = (p: Pattern) => {
+  loadedLanes = cloneLanes(p.lanes);
+  loadedPatternId = p.id;
+};
+
 /** One small musical nudge: rotate/±pulse a generator, or rotate the track. */
 function nudgeLane(lane: Lane): Lane {
   const dir = Math.random() < 0.5 ? -1 : 1;
@@ -144,8 +160,9 @@ export interface AppState {
   reorderLanes: (from: number, to: number) => void;
   /** Remove every lane from the active pattern. */
   clearLanes: () => void;
-  /** Replace the active pattern's lanes with the default 5-lane kit. */
-  resetLanes: () => void;
+  /** Swap the active pattern's lanes with the state it had when it became
+   * active this session (§15 pattern menu; swap = a second use undoes it). */
+  revertToLoaded: () => void;
   /** Re-roll one lane's generative params (pulses/rotation/genB/op). */
   randomizeLane: (id: string) => void;
   /** Nudge the active pattern slightly (KeyStep-style mutate). */
@@ -200,9 +217,18 @@ export interface AppState {
 export const useStore = create<AppState>((set, get) => {
   /** Apply a transform to one pattern by id immutably (stamps updatedAt). */
   const mutatePattern = (id: string, fn: (p: Pattern) => Pattern) =>
-    set((s) => ({
-      patterns: s.patterns.map((p) => (p.id === id ? { ...fn(p), updatedAt: Date.now() } : p)),
-    }));
+    set((s) => {
+      // Lazy "loaded" capture: hydration sets activePatternId without going
+      // through loadPattern, so the first edit records the loaded lanes just
+      // in time (pre-mutation = exactly the state that was loaded).
+      if (id === s.activePatternId && loadedPatternId !== id) {
+        const p = s.patterns.find((x) => x.id === id);
+        if (p) noteLoaded(p);
+      }
+      return {
+        patterns: s.patterns.map((p) => (p.id === id ? { ...fn(p), updatedAt: Date.now() } : p)),
+      };
+    });
 
   /** Apply a transform to the active pattern immutably (stamps updatedAt). */
   const mutateActive = (fn: (p: Pattern) => Pattern) => mutatePattern(get().activePatternId, fn);
@@ -310,9 +336,22 @@ export const useStore = create<AppState>((set, get) => {
       mutateActive((p) => ({ ...p, lanes: [] }));
       set({ selection: { laneId: null } });
     },
-    resetLanes: () => {
-      mutateActive((p) => ({ ...p, lanes: defaultLanes() }));
-      set({ selection: { laneId: null } });
+    revertToLoaded: () => {
+      const s = get();
+      const p = s.patterns.find((x) => x.id === s.activePatternId);
+      // Nothing recorded (fresh boot, no edits yet) = current state IS the
+      // loaded state — a no-op is correct.
+      if (!p || loadedPatternId !== p.id || !loadedLanes) return;
+      // SWAP: the pre-revert lanes take the slot, so "Revert to loaded"
+      // again undoes this (spec: recoverable, because swap).
+      const restored = loadedLanes;
+      loadedLanes = cloneLanes(p.lanes);
+      mutateActive((pp) => ({ ...pp, lanes: restored }));
+      set((st) => ({
+        mutateVersion: st.mutateVersion + 1,
+        selection: { laneId: null },
+        gridFx: { nonce: (st.gridFx?.nonce ?? 0) + 1, kind: 'revert' },
+      }));
     },
     randomizeLane: (id) =>
       mutateLane(id, (l) => {
@@ -434,6 +473,7 @@ export const useStore = create<AppState>((set, get) => {
         icon: opts?.icon ?? randomChipName(),
       };
       discardSnapshot();
+      noteLoaded(pattern);
       set((s) => ({
         patterns: [...s.patterns, pattern],
         activePatternId: pattern.id,
@@ -448,6 +488,9 @@ export const useStore = create<AppState>((set, get) => {
         const p = s.patterns.find((x) => x.id === id);
         if (!p) return {};
         discardSnapshot();
+        // §15: selection is the "loaded" moment — this is what the pattern
+        // menu's Revert to loaded goes back to.
+        noteLoaded(p);
         // Playback survives the switch (hardware-style pattern change): the
         // engine reads lanes fresh each tick, so the new pattern takes over
         // at the current playhead position without a stop.
@@ -473,6 +516,7 @@ export const useStore = create<AppState>((set, get) => {
             lanes: [],
             updatedAt: Date.now(),
           };
+          noteLoaded(fresh);
           return {
             patterns: [fresh],
             activePatternId: fresh.id,
@@ -483,6 +527,7 @@ export const useStore = create<AppState>((set, get) => {
         }
         if (s.activePatternId !== id) return { patterns };
         // The active pattern went away — fall to the first and stop playback.
+        noteLoaded(patterns[0]);
         return {
           patterns,
           activePatternId: patterns[0].id,

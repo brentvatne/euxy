@@ -47,7 +47,7 @@ export default function SequencerScreen() {
   const addLane = useStore((s) => s.addLane);
   const renameActivePattern = useStore((s) => s.renameActivePattern);
   const clearLanes = useStore((s) => s.clearLanes);
-  const resetLanes = useStore((s) => s.resetLanes);
+  const revertToLoaded = useStore((s) => s.revertToLoaded);
   const setClockMode = useStore((s) => s.setClockMode);
   const toggleMute = useStore((s) => s.toggleMute);
   const toggleSolo = useStore((s) => s.toggleSolo);
@@ -114,8 +114,8 @@ export default function SequencerScreen() {
       case 'icon':
         router.push('/change-icon');
         break;
-      case 'reset':
-        resetLanes();
+      case 'revert':
+        revertToLoaded();
         break;
       case 'clear':
         clearLanes();

@@ -1,8 +1,8 @@
 /**
  * Sequencer header (Paper 7L-0): pattern name + chevron on the left — tapping
- * it opens the native pattern menu (new / rename / reset / clear) — and the
- * connection pill on the right. Lane actions live in the floating action bar
- * (floating-actions.tsx), not here.
+ * it opens the native pattern menu (new / rename / change icon / revert to
+ * loaded / clear) — and the connection pill on the right. Lane actions live
+ * in the floating action bar (floating-actions.tsx), not here.
  */
 import { MenuView } from '@expo/ui/community/menu';
 import { StyleSheet, View } from 'react-native';
@@ -12,7 +12,7 @@ import { color, font } from '@/theme/tokens';
 import { AppText } from '@/components/ui';
 import { LedChip } from '@/components/patterns/led-chip';
 
-export type PatternMenuAction = 'new' | 'rename' | 'icon' | 'reset' | 'clear';
+export type PatternMenuAction = 'new' | 'rename' | 'icon' | 'revert' | 'clear';
 
 export function SequencerNav({
   patternName,
@@ -37,7 +37,9 @@ export function SequencerNav({
           { id: 'new', title: 'New pattern', image: 'plus' },
           { id: 'rename', title: 'Rename', image: 'pencil' },
           { id: 'icon', title: 'Change Icon…', image: 'square.grid.3x3' },
-          { id: 'reset', title: 'Reset to default', image: 'arrow.counterclockwise' },
+          // §15: reverting to what YOU loaded, not factory lanes — swap
+          // semantics, so picking it again undoes it.
+          { id: 'revert', title: 'Revert to loaded', image: 'arrow.counterclockwise' },
           { id: 'clear', title: 'Clear all lanes', image: 'trash', attributes: { destructive: true } },
         ]}
         onPressAction={({ nativeEvent }) => onMenuAction(nativeEvent.event as PatternMenuAction)}
