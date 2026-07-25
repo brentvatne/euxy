@@ -1,8 +1,8 @@
 /**
  * FloatingActions — the Sequencer's floating capsule, rebuilt per the decided
  * E spec (Paper "Floating bar — concepts" → "E · CHOSEN" + gesture/animation
- * card; chrome from the canonical "01 · Sequencer" bar): add lane · dice ·
- * temp key. The capsule is ALIVE:
+ * card; chrome from the canonical "01 · Sequencer" bar): temp key · dice ·
+ * add lane. The capsule is ALIVE:
  *
  *   • Dice press scatters the 5 pips (~250ms of shuffled frames, instant
  *     attack each) while concept J's reroll wash sweeps the lane grid FROM
@@ -138,7 +138,6 @@ export function FloatingActions({
 }) {
   const reducedMotion = useReducedMotion();
   const { width: screenW } = useWindowDimensions();
-  const bpm = useStore((s) => s.transport.bpm);
   const corner = useStore((s) => s.settings.floatBarCorner);
   const setFloatBarCorner = useStore((s) => s.setFloatBarCorner);
   const [barW, setBarW] = useState(0);
@@ -227,18 +226,17 @@ export function FloatingActions({
 
   const keys = (
     <>
-      <AddKey onPress={onAddLane} />
-      <DiceKey disabled={!canMutate} reducedMotion={reducedMotion} onMutate={onMutate} />
       {/* Temp is a RESIDENT key (Brent's corrected semantics): tap to hold
           the current state away, tap again to jump back, long-press to keep. */}
       <TempKey
         engaged={snapshotActive}
-        beatMs={60000 / bpm}
         reducedMotion={reducedMotion}
         onArm={onArm}
         onRevert={onRevert}
         onKeep={onKeep}
       />
+      <DiceKey disabled={!canMutate} reducedMotion={reducedMotion} onMutate={onMutate} />
+      <AddKey onPress={onAddLane} />
     </>
   );
 
@@ -418,14 +416,12 @@ function Pip({
  */
 function TempKey({
   engaged,
-  beatMs,
   reducedMotion,
   onArm,
   onRevert,
   onKeep,
 }: {
   engaged: boolean;
-  beatMs: number;
   reducedMotion: boolean;
   onArm: () => void;
   onRevert: () => void;
@@ -527,13 +523,14 @@ function TempKey({
     // Drain the ring back regardless — only a completed fill keeps.
     progress.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.quad) });
     if (dt > TAP_MS) return; // abandoned hold: nothing happens
-    // TAP = jump back (swap). The lit dot blips brighter for one beat while
-    // step-strip plays the reverse wash off the store's gridFx nonce.
+    // TAP = jump back (swap). A quick bright blip acknowledges the tap, then
+    // the key reads OFF right away (Brent: the light lingering ~1s after a
+    // disarm felt broken) — step-strip's reverse wash carries the moment.
     haptics.impact('light');
     if (!reducedMotion) {
       dotPulse.value = withSequence(
         withTiming(1, { duration: 0 }),
-        withDelay(beatMs, withTiming(0, { duration: 300, easing: Easing.out(Easing.quad) })),
+        withTiming(0, { duration: 180, easing: Easing.out(Easing.quad) }),
       );
     }
     onRevert();
@@ -549,15 +546,16 @@ function TempKey({
   }));
   const flashStyle = useAnimatedStyle(() => ({ opacity: 0.85 * flash.value }));
   const drainStyle = useAnimatedStyle(() => ({
-    // The ring's light crosses to the dice key (one key + gap to the left).
+    // The ring's light crosses to the dice key (one key + gap to the RIGHT —
+    // temp sits leftmost since the key swap).
     opacity: drain.value === 0 ? 0 : 1 - 0.7 * drain.value,
-    transform: [{ translateX: -(KEY_SIZE + KEY_GAP) * drain.value }],
+    transform: [{ translateX: (KEY_SIZE + KEY_GAP) * drain.value }],
   }));
-  // Armed = solid lit dot (instant on, phosphor decay off — LED language);
-  // the pulse layer blips brighter on a jump-back.
+  // Armed = solid lit dot (instant on); disarm reads immediately — a short
+  // phosphor decay, not a slow fade (Brent: anything longer looks stuck on).
   const fillStyle = useAnimatedStyle(() => ({
     opacity: withTiming(engaged ? 1 : 0, {
-      duration: engaged ? 0 : 300,
+      duration: engaged ? 0 : 120,
       easing: Easing.out(Easing.quad),
       reduceMotion: ReduceMotion.System,
     }),
