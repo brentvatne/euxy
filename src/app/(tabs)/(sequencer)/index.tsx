@@ -27,15 +27,11 @@ import { EmptyState } from '@/components/sequencer/empty-state';
 import { FloatingActions } from '@/components/sequencer/floating-actions';
 import { StepStrip } from '@/components/sequencer/step-strip';
 
+/** ROADMAP item 12: the strip already SHOWS the rhythm, so the subtitle is
+ * just the two facts you scan for — note · Track N. Euclid params live in
+ * the Lane Editor where they're editable. */
 function laneSubtitle(lane: Lane): string {
-  const gens =
-    lane.genB.pulses > 0
-      ? `E(${lane.genA.pulses},${lane.length})+E(${lane.genB.pulses},${lane.length})`
-      : `E(${lane.genA.pulses},${lane.length})`;
-  const steps = lane.length > 16 ? ` · ${lane.length} steps` : '';
-  // ⇥ (U+21E5, "rightwards arrow to bar") = track rotation — a shift, not a
-  // refresh; Brent's pick over the old ⟳.
-  return `${midiNoteName(lane.note)} · ${gens} ⇥${lane.trackRot}${steps}`;
+  return `${midiNoteName(lane.note)} · Track ${lane.channel + 1}`;
 }
 
 export default function SequencerScreen() {

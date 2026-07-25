@@ -79,10 +79,10 @@ export function ConnectionGlyph({ connected, size = 22 }: { connected: boolean; 
       cancelAnimation(flashOp);
       cancelAnimation(searchOp);
     };
-    const startChase = () => {
-      chaseP.value = 0;
-      chaseP.value = withRepeat(withTiming(1, { duration: REV_MS, easing: Easing.linear }), -1, false);
-    };
+    // Searching radar REMOVED (Brent 2026-07-25: too much for a resting
+    // state) — disconnected simply shows the rest grid. The connect ignite/
+    // handshake and dropout-to-ember one-shots stay.
+    const startChase = () => {};
 
     if (reduceMotion) {
       // Settled frames only: rest grid / lit ring.
