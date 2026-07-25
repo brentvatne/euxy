@@ -325,6 +325,27 @@ slider, consistently.
 "Four on…" truncating with free space is already fixed on main (`b9cf360`,
 `patternTrigger: { flex: 1 }` in `header.tsx`). No action beyond the next build.
 
+### 4. Header title sometimes floats toward center (side-effect of fix 3)
+
+With `flex: 1` on the MenuView host, short/medium titles show a left gap:
+SwiftUI centers the Menu label inside the host when the label is smaller
+than the host (`@expo/ui` community MenuView wraps children in
+`RNHostView matchContents` — the reported content size is just the title
+row because `pattern` has `alignSelf: 'flex-start'`, and SwiftUI centers
+the smaller view; RN's flex-start never wins). One-line fix in
+`src/components/sequencer/header.tsx:83`:
+
+```ts
+pattern: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'stretch' },
+```
+
+`'stretch'` makes the label fill the host so SwiftUI has nothing to center;
+text left-aligns via normal RN layout. Side effect (fine/good): the whole
+strip left of the pill becomes the menu tap target. While in this file, also
+add the pattern glyph chip to the header — see "Sequencer header chip" under
+"Preset icon picker" below (28px chip left of the title, mocked on the
+"01 · Sequencer" Paper board).
+
 ---
 
 ## Backlog — future features (2026-07-24)
@@ -487,6 +508,22 @@ subtitle + the same grid). The 24 glyphs live on "Preset icons — assortment".
   `Pattern.icon: GlyphName` persisted field; existing patterns fall back to
   `hash(pattern.id) % 24` so old data gets stable icons without migration;
   one `IconPicker` component shared by both sheets.
+- **Sequencer header chip (mocked on ALL sequencer boards 01/01b/01c/01d,
+  2026-07-24):** the
+  pattern's glyph also shows in the sequencer header, left of the title —
+  28px chip, #2C2C2E, radius 7, 16px glyph (same 5×5 SVG, viewBox 22), 8px
+  gap to the title (title↔chevron gap also 8). Identity continuity with the
+  Patterns list, and it de-fangs title truncation. The chip lives INSIDE the
+  pattern-menu trigger (one element, one behavior — tap opens the pattern
+  menu; icon editing stays in the menu / long-press). Later: a subtle
+  beat-synced pulse on this chip while playing (LedGrid, playheadTick-driven,
+  static when stopped) is the cheapest "app is alive" signal on this screen.
+  Board story: 01/01b/01c share "Four on the Floor" + four-on-floor glyph
+  (same pattern, different states); 01d Empty shows "Untitled 04" + note
+  glyph (a fresh pattern gets a shuffled glyph before it's even named).
+  Also fixed on 01d: the floating action bar is REMOVED from the empty-state
+  mock — the app already hides it when there are no lanes (index.tsx
+  `lanes.length > 0` gate), the mock was just out of sync.
 
 ### Splash boot sequence (spec'd frame-by-frame in Paper)
 
@@ -502,11 +539,22 @@ grid 276px wide, centered, 44px cells, radius 9, gap 14, #1A1A1F on #08080A.
 Asset: "Splash v2 — LED boot 1024". Native change (splash swap) → needs a
 build; the boot component itself is JS.
 
-**Random glyph per launch:** the typed glyph is picked at random from the
-24-glyph preset-icon registry on every launch. This costs nothing: frame 0
-(the splash PNG) is the unlit grid and therefore glyph-agnostic — the PNG
-never changes, only the JS type-on target does. Backgrounding reverses with
-the same glyph.
+**Boot glyph = the SELECTED PATTERN'S icon (supersedes "random per launch",
+2026-07-24):** the typed glyph is the icon of the pattern the app will open
+on — read from persisted state before the boot animation starts (fall back
+to a random glyph on first launch / missing icon). This costs nothing:
+frame 0 (the splash PNG) is the unlit grid and therefore glyph-agnostic —
+the PNG never changes, only the JS type-on target does. Backgrounding
+reverses with the same glyph.
+
+**Handoff into the header chip:** as the big grid decays out and the UI
+fades in, the SAME glyph relights inside the sequencer-header chip with a
+quick type-on (start the chip's type-on as the big grid starts decaying,
+~150ms overlap). A RELIGHT, not a flight — no shared-element scale/translate;
+LEDs don't move, they light up (motion principle: brightness is the only
+animated channel). The boot animation thereby reads as the pattern's
+identity arriving in its header slot. Both ends are the same `LedGrid`
+primitive at different sizes.
 
 **Generic glyph animator (the shared primitive):** one `LedGrid` component
 renders any 5×5 bitmap from the glyph registry and animates it from a single
