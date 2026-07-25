@@ -401,20 +401,31 @@ relight per the boot spec.
 - Header padding is insufficient (title row too close to the sheet edges) —
   match the Edit Lane sheet's header metrics.
 - New pattern names should be RANDOMLY GENERATED (fun two-word style, e.g.
-  "Velvet Tresillo" — build a small word bank; never "Untitled N"), with a
-  CLEAR button (×) and a REGENERATE button (dice/refresh) inline in the name
-  field row.
+  "Velvet Tresillo" — never "Untitled N"), with a CLEAR button (×) and a
+  REROLL button (dice) inline in the name field row. **DESIGNED (2026-07-24):
+  the "Sheet · New Pattern" name field now shows the canonical row — name +
+  caret, 30px × key, 30px dice key (dice = same 5-pip glyph as mutate: one
+  vocabulary for "random").** Word bank: adjective × rhythm/music noun
+  (~40×40 gives ~1600 combos — e.g. Velvet/Rusty/Neon/Hollow/Midnight ×
+  Tresillo/Clave/Cascade/Circuit/Pendulum); reroll never repeats the current
+  name; typing anything disables neither key (× clears to placeholder, dice
+  replaces whatever's there).
 - The icon must be selectable in this sheet too — the ICON grid is already
   in the canonical Paper design; implement it with the shuffled default +
   scrollable grid (see item 6).
 
 ### 10. Tap BPM to edit tempo + base resolution
 
-The BPM readout in the sequencer transport should be tappable: opens a small
-sheet/popover editing BPM (stepper + slider or number pad) and BASE
-RESOLUTION (the 1/4·1/8·1/16·1/32 segmented control from the New Pattern
-sheet). Today those are only settable at creation. Keep the transport's
-big-number readout as the trigger (hit target = the whole BPM block).
+The BPM readout in the sequencer transport should be tappable. **DESIGNED
+(2026-07-24): new board "Sheet · Tempo"** — compact form sheet: Cancel/Done
+header, TEMPO group (the New Pattern BPM stepper row, cloned — same
+component), a TAP TEMPO key (LED dot flashes on each tap; median of last 4
+intervals, ignore gaps >2s), BASE RESOLUTION segmented control
+(1/4·1/8·1/16·1/32, also cloned), and two footnotes: changes apply LIVE
+while playing / in Record mode the OP-XY owns the clock so BPM is read-only
+(disable the stepper + tap key, keep resolution editable). Trigger = the
+whole BPM block in the transport (big-number readout). Cancel restores the
+values from open-time; Done just dismisses (edits were live).
 
 ### 11. BUG — Patterns-list swipe actions vanish instead of revealing
 
@@ -435,6 +446,57 @@ already SHOWS the rhythm. New format: **note · Track N** (e.g.
 scanning lanes. Paper boards 01/01b/01c already updated to the new format;
 change `lane-row.tsx` to match. Euclid params remain visible in the Lane
 Editor where they're editable.
+
+### 13. BUG — header chip glyph misses its bottom cells (relight cap)
+
+Reported on device: the header chip doesn't fully match the selected icon —
+bottom cells dark. Root cause found in `led-chip.tsx:86`: the boot relight
+gates each lit cell on `bootChipProgress.value * 14 > orderIndex` — a
+NOMINAL 14 cap. Glyphs with >14 lit cells (heart ≈17, invader, euxy…) never
+light cells with orderIndex ≥ 14, and since order is row-major the missing
+cells are always at the BOTTOM. Fix: count the glyph's actual lit cells from
+`shades` and scale by that count (`progress * litCount > orderIndex`), so
+progress 1.0 always means fully lit. Check the same math anywhere else a
+nominal cell count is assumed (boot grid uses 14 legitimately — the "e" —
+but LedChip serves all 30 glyphs).
+
+### 14. Floating capsule — more air + bigger touch targets (Brent)
+
+Canonical Paper bars (01/01b/01c) updated: capsule padding 6→8, gap 6→10,
+keys 44→48px (larger touch area), bar re-anchored to keep a 14px right
+margin. Match in `floating-actions.tsx` (`styles.bar` padding/gap,
+`styles.btn` 48px). The capsule now shows + · dice · snapshot-ghost key per
+the decided E spec (dice replaces shuffle; snapshot key replaces undo).
+
+**Liquid glass — DECIDED (Brent 2026-07-24): glass container + solid keys.**
+Straight glass on the keys too washed out the icons; solid #2C2C2E keys on
+a glass capsule keep contrast and it's Apple's own pattern for floating
+control groups. All three canonical boards (01/01b/01c) carry the glass
+mock: rgba(28,28,34,.55) + blur(24) saturate(160%) + 0.5px
+rgba(255,255,255,.12) rim + soft shadow. Implement with `expo-glass-effect`
+GlassView (iOS 26 native material — the real thing refracts the travelling
+playhead LEDs sweeping beneath it, which the mock can't show); fallback on
+older iOS/Android = the current solid #16161D capsule. Verify contrast on
+device with the grid playing beneath.
+
+---
+
+### 15. Pattern menu — "Revert to loaded" (Brent 2026-07-24)
+
+A way to revert the pattern to the state it had WHEN LOADED (i.e. when it
+became the selected pattern this session). Take a load-time snapshot on
+pattern selection (same one-deep-copy machinery as the dice snapshot key —
+reuse it, don't build a second system) and add a pattern-menu action that
+swaps back to it. Replace the current "Reset to default lanes" menu item
+with this — reverting to what YOU loaded is almost always what's wanted, not
+factory lanes. Label: **"Revert to loaded"** (concise; alternatives
+considered: "Reset to initial load state" too long, "Reset session" too
+vague). Menu becomes: New pattern / Rename / Change Icon… / Revert to
+loaded / Clear all lanes. Keep it non-destructive in the same way as the
+snapshot key: reverting swaps, so the pre-revert state is recoverable until
+the menu is used again (second "Revert to loaded" tap restores it — free,
+because swap). Presets note: for an unmodified factory preset, "Revert to
+loaded" and the old reset coincide, so nothing is lost by replacing it.
 
 ---
 
@@ -829,6 +891,20 @@ again" affordance that keeps the sheet open for rapid auditioning. Manual
 step overrides (see below) are always left alone. Design the sheet in Paper
 first — lock chips should read as the LED grid language (locked = lit cell).
 
+**DESIGNED (2026-07-25, Paper "Sheet · Randomize locks" — pending Brent
+review).** Decisions baked into the mock: 11 lock chips in 3-per-row grid
+(114×44, r8) — unlocked = #26262B cell + #98989F label, locked = lit
+#AFAFB3 cell + dark #101014 semibold label + the standard 6px glowing white
+LED top-center. DEFAULT lock set = Note · Velocity · Gate · Resolution
+locked (matches today's randomize, which never touches sound/timing);
+rhythm params (pulses/rotates/steps/combine/track rotate) unlocked. Header
+Cancel · Randomize · Done; white "Roll" key at the bottom. Behavior: rolls
+apply LIVE and the sheet STAYS OPEN (Roll is its own roll-again), Done
+keeps, Cancel restores the lane captured at sheet-open (one deep copy —
+same mechanic as the pattern snapshot key). Footnote: "locked settings
+survive the roll · remembered per lane". Not mocked: the lock-count hint on
+the Lane Editor's Randomize row.
+
 ### Light on/off micro-animation
 
 The step LEDs currently snap between states. Add a subtle turn-on/turn-off
@@ -838,6 +914,37 @@ fade, like a real LED's phosphor tail). Applies to: sequenced-step lights when
 a pattern edit adds/removes them, the travelling playhead light entering a
 step, and the M/S light bars. Reanimated on the UI thread; must stay
 zero-re-render like the rest of the playhead path.
+
+### Haptic language (2026-07-25)
+
+The tactile companion to the LED motion system: presses already LOOK like
+hardware keys — they should feel like them. `expo-haptics` is being added by
+the float-bar work (routed through the `src/lib/shims.ts` try/require
+pattern; it's a NATIVE dep, so haptics only fire from the first build that
+includes it — sims never vibrate regardless).
+
+First touchpoints (decided with the snapshot key): light impact on revert,
+success notification on keep, selection ticks at the keep-ring quarters.
+
+Then design the full inventory deliberately, mirroring the LED principles:
+
+- **Sparse — haptics mark COMMITMENTS, not touches.** Key travel + LED ack
+  already acknowledge every press visually; buzzing each one would be noise.
+  Reserve haptics for resolutions: mutate roll lands, snapshot
+  revert/keep, lane delete, pattern switch, record arm, panic.
+- **Never clock-synced.** No haptic per beat/tick — it fights the music,
+  and timers on the JS thread compete with the MIDI scheduler. (Possible
+  narrow exception to evaluate: count-in beats in record mode, where a tick
+  IS the affordance.)
+- **Match intensity to weight**: selection ticks for browsing (pads,
+  pickers), light impact for reversible acts, success/warning notifications
+  only for keep/delete-grade moments.
+- Audit existing surfaces once the primitives exist: transport play/stop,
+  M/S toggles, slider detents (@expo/ui sliders may already tick natively —
+  don't double up), swipe-action triggers.
+
+iOS respects the system haptics toggle via UIFeedbackGenerator, so no
+in-app setting needed initially.
 
 ### Onboarding flow
 
