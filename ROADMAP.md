@@ -270,6 +270,63 @@ Remaining OP-XY behaviors to confirm before or at build start:
 
 ---
 
+## ⚠️ NEXT STEPS — TestFlight fixes (2026-07-24) — IMPORTANT, do these first
+
+Real bugs from TestFlight testing of 1.2.0 (6). Both live in the Lane Editor;
+fix them before cutting the next build (which also carries the already-committed
+title-truncation fix b9cf360 and the in-progress LED work).
+
+### 1. CRASH — Steps slider at minimum kills the app (crash-loop)
+
+Verified native crash (TestFlight crash AAo2eIIfGzcb1BzuUv3xrh4): SwiftUI
+`Slider.init` asserts in `Normalizing.init(min:max:stride:)` — an EMPTY RANGE.
+Root cause: `src/app/lane-editor.tsx:139`
+
+```ts
+const maxRot = Math.max(0, lane.length - 1);
+```
+
+Drag Steps down to 1 → `maxRot = 0` → the three rotate sliders (Gen A/B
+"Rotate", "Track rotate") render `min={0} max={0}` → `@expo/ui` Slider hands
+SwiftUI `0...0` with step 1 → hard assert. Because `length: 1` is persisted,
+reopening Edit Lane on that lane crashes again every time — a crash loop.
+
+**Fix in `src/components/lane-editor/slider-row.tsx`** (one guard covers all
+call sites, current and future):
+
+```ts
+const empty = max <= min;
+<Slider
+  minimumValue={min}
+  maximumValue={empty ? min + step : max}  // never give SwiftUI an empty range
+  disabled={empty}                          // prop exists on @expo/ui Slider
+  ...
+/>
+```
+
+Keep Steps min at 1 — a 1-step lane is fine once rotate sliders degrade to a
+disabled thumb at 0 (nothing to rotate).
+
+### 2. Velocity/Gate sliders — always visible, fix layout
+
+TestFlight feedback (2 screenshots): the tap-to-toggle inline slider duplicates
+the label+value readout ("Velocity127" mashed against the row above that
+already reads "Velocity — 127"), and the slider should not toggle at all.
+
+**Fix in the "More" section, `src/app/lane-editor.tsx:338-377`:** delete the
+two `Pressable` toggle rows and the `expanded` state; render Velocity and Gate
+each as ONE permanent cell containing a `SliderRow` (label left, value readout
+right, slider beneath) — the exact layout the Generator sections already use
+for Pulses/Rotate. Every continuous param in the editor becomes a visible
+slider, consistently.
+
+### 3. Title truncation — DONE, just needs to ship
+
+"Four on…" truncating with free space is already fixed on main (`b9cf360`,
+`patternTrigger: { flex: 1 }` in `header.tsx`). No action beyond the next build.
+
+---
+
 ## Backlog — future features (2026-07-24)
 
 ### Pattern sharing via barcode
@@ -317,6 +374,170 @@ generative editing. Overrides rotate with trackRot, clamp/clear when the lane
 length changes, and randomize/mutate leaves them alone (they're deliberate).
 UI: tap a step in the Lane Editor's combined card (add = forced light,
 remove = dimmed slot); a "clear overrides" affordance appears when any exist.
+
+### LED motion system (designs ready in Paper)
+
+Bring the LED-grid language to life across the app. Designs live on the Paper
+board **"LED motion — UI concepts"** (concepts A–I, storyboarded in frames),
+plus **"Splash v2 — LED boot 1024"** (new splash asset) and
+**"Preset icons — assortment"** (24 pixel-art preset chip glyphs).
+
+**Motion principles (locked):**
+
+1. LEDs attack instantly (0ms to light) and decay slowly (250–400ms
+   ease-out) — never fade in.
+2. Anything rhythmic is driven by the sequencer clock, not wall time — one
+   column/cell per 16th, pulses on quarters.
+3. Grey palette only: `#2C2C2E` rest · `#45454B` dim · `#6E6E76` trail ·
+   `#AFAFB3` lit · `#F6F4F4` light. Brightness is the only channel that
+   animates — no color (exception: REC red), no movement of cells.
+4. Idle motion is rare and slow (one twinkle every few seconds); playing
+   motion is dense and synced. Never both at once.
+5. Reduced Motion: freeze to settled frames.
+
+**The concepts:**
+
+- **A · Pattern list now-playing sweep** — playhead column walks the playing
+  pattern's chip glyph, one column per 16th, lit cells flash + decay.
+- **B · Tab bar beat pulse** — Sequencer tab icon bars snap to light on each
+  quarter, ease back over the beat. (Requires the custom JS tab bar — not
+  animatable on a native tab bar.)
+- **C · Splash LED type-on** — see Splash v2 below.
+- **D · Empty-state idle twinkle** — placeholder grids breathe one random
+  cell every few seconds; paused while playing and on blur.
+- **E · Transport LED beat ticker** — 4-cell strip beside BPM walks beats
+  1–4 with a trail fade; active cell blinks 8ths while recording.
+- **F · MIDI searching sweep** — while disconnected, a light chases the grid
+  perimeter with a 2-cell trail (radar); device found = ring flashes full
+  twice (handshake), then settles.
+- **G · MIDI disconnect dropout** — on disconnect the connection glyph loses
+  cells in random order over ~400ms down to a single dim ember; reverse plays
+  on reconnect. Pairs with the CONNECTED → OFFLINE badge swap.
+- **H · Pressables: key travel + LED ack** — every button press-in: 80ms
+  travel (scale 0.94, face one shade darker); release: spring back + one-shot
+  thin light ring blooming out. Play/pause/stop/reset share it; reset adds a
+  leftward light tick, stop a 150ms icon power-down.
+- **I · JAM & REC armed states** — JAM breathes its border on a 2s cycle
+  while on; REC armed blinks its dot at 8ths on the sequencer clock (the one
+  red animation); disarm decays instead of cutting.
+- **J · Randomize/Mutate reroll wash** — pressing Randomize sweeps a light
+  curtain across the affected lane's step strip (~350ms); cells flicker under
+  it and settle into the new pattern behind it (slot-machine reveal), wash
+  fades out past the last column. Mutate skips the curtain — only nudged
+  steps flicker-bloom in place. Undo replays the wash right-to-left.
+
+**Splash v2 — LED boot:** replace the euclid-ring splash with the dim unlit
+5×5 grid on near-black (asset in Paper). The app's first screen renders the
+identical grid, hides the native splash (`expo-splash-screen`), types the
+dot-matrix "e" on cell by cell (30ms stagger), then fades the UI in — one
+continuous power-on with no visible handoff. Reversed on background.
+
+**Implementation architecture (agreed):** everything derives from the
+existing `playheadTick` / `playheadPlaying` shared values
+(`src/core/playhead.ts`) on the UI thread — React never re-renders on the
+tick. Quantize first (`useDerivedValue` → integer step/column/beat) so styles
+re-run per musical event, not per frame; animate opacity/transform only;
+stacked pre-lit layers or moving overlays instead of per-cell color animation
+(the `step-strip.tsx` TravellingLight recipe); trails via `useAnimatedReaction`
+→ `withTiming` (no JS round-trips); plain Views for animated cells (not
+react-native-svg); mount live animation only where active (playing chip,
+focused screen); state-machine animations (F/G/H/I) trigger off zustand
+connection/press state, not the clock, except REC blink which reads the tick.
+Build order: E → A → D → C, with B pending the tab-bar decision.
+Verify with expo-observe frame metrics + zero-re-render check.
+
+**Animation tech notes (evaluated 2026-07-24):**
+
+- **react-native-ease** (AppAndFlow) — declarative one-shot animations that
+  run entirely on Core Animation / Android Animator, zero JS during the
+  animation. Candidate for the state-driven one-shots (H press/ack, JAM
+  breathe, G dropout, splash type-on) where it removes UI-thread contention
+  with the per-16th worklets. NOT for clock-synced concepts (A/B/E/REC
+  blink) — those must read `playheadTick` per event, which is Reanimated
+  territory. Needs new arch (we're on RN 0.86 ✓). Young library — spike on
+  concept H first; adopt only if the API earns its place next to Reanimated.
+- **Skia shaders (@shopify/react-native-skia)** — for effects Views can't
+  do: real emissive LED bloom/glow (replacing iOS-only shadowRadius), the
+  phosphor trail behind the playhead light, and the J reroll wash as a
+  single RuntimeEffect (uniforms: progress + seed; soft curtain edge +
+  per-cell flicker noise) drawn in one pass. Uniforms bind directly to
+  Reanimated shared values, so the existing `playheadTick` stays the one
+  clock and nothing re-renders. One Canvas per lane card (a 64-step lane
+  becomes ONE native view instead of ~130). Costs: binary size, and web
+  needs CanvasKit wasm (~2MB, deferred load) — fine for the Chrome-first
+  target. Prototype: StepStrip glow + playhead trail behind a feature flag,
+  measured with expo-observe before rollout.
+
+### Preset icon picker (designs canonical in Paper)
+
+Patterns get a chooseable pixel-art glyph. Canonical designs: **"Sheet ·
+New Pattern"** (now includes an ICON group between Name and Tempo — 44px
+chips, 6 per row, selected = 2px #F6F4F4 ring, "Shuffle" affordance in the
+label row) and **"Sheet · Change icon"** (Cancel / Icon / Done + pattern-name
+subtitle + the same grid). The 24 glyphs live on "Preset icons — assortment".
+
+- **Creation:** new pattern defaults to a shuffled glyph (every pattern gets
+  a distinct icon with zero effort); the grid lets you pick deliberately.
+- **Editing:** two entry points — "Change Icon…" in the pattern-title menu
+  (right after Rename) and long-press on a Patterns-list row (Rename /
+  Change Icon / Delete context menu). Deliberately NOT tap-on-chip in the
+  list (38px target beside the row's navigation tap = constant mis-taps).
+- **Implementation:** static glyph registry (`presetGlyphs.ts`, 24 named
+  5×5 bitmaps rendered as Views — animatable by the concept-A sweep later);
+  `Pattern.icon: GlyphName` persisted field; existing patterns fall back to
+  `hash(pattern.id) % 24` so old data gets stable icons without migration;
+  one `IconPicker` component shared by both sheets.
+
+### Splash boot sequence (spec'd frame-by-frame in Paper)
+
+Board **"Splash — boot sequence"** shows the five states: static splash PNG
+(unlit grid) → rows 1–2 typed on (~150ms) → crossbar (~300ms) → "e" settled
+(~450ms, holds 150ms) → UI fades in while the grid decays out (250ms); total
+boot ≈ 850ms. Timing spec (on the board): cells light row-by-row left-to-
+right, 14 cells × 30ms stagger, instant attack per cell; one progress shared
+value drives everything (cell i lights when progress × 14 > i); backgrounding
+plays the reverse at 2× speed; Reduced Motion skips straight to the
+crossfade. The splash PNG and the app's first frame must be pixel-identical:
+grid 276px wide, centered, 44px cells, radius 9, gap 14, #1A1A1F on #08080A.
+Asset: "Splash v2 — LED boot 1024". Native change (splash swap) → needs a
+build; the boot component itself is JS.
+
+**Random glyph per launch:** the typed glyph is picked at random from the
+24-glyph preset-icon registry on every launch. This costs nothing: frame 0
+(the splash PNG) is the unlit grid and therefore glyph-agnostic — the PNG
+never changes, only the JS type-on target does. Backgrounding reverses with
+the same glyph.
+
+**Generic glyph animator (the shared primitive):** one `LedGrid` component
+renders any 5×5 bitmap from the glyph registry and animates it from a single
+`progress` shared value plus a precomputed ORDER ARRAY — each cell derives
+its state on the UI thread from `(progress, orderIndex)`. Every LED concept
+is then just a mode = a different order array + palette mapping:
+
+- `type-on` — row-major order (boot splash, concept C)
+- `decay` — shuffled order, reversed (MIDI disconnect G; boot exit)
+- `sweep` — order = column index (now-playing chip A)
+- `chase` — order = perimeter ring walk (MIDI searching F)
+- `twinkle` — order = shuffled, one cell at a time on a slow loop (empty
+  states D)
+- `blink` / `static` — trivial cases (REC dot, list chips)
+
+Order arrays are plain precomputed number[25]s — no randomness in worklets
+(seed picked JS-side). One implementation to test, and new animation ideas
+become one-line order-array recipes.
+
+### Randomize lock modal
+
+Randomize currently re-rolls the rhythm wholesale. Add a modal (iOS form
+sheet, matching the New Pattern sheet) opened from Randomize — or long-press
+Randomize for instant re-roll with last settings — that lets the user LOCK
+parameters before rolling: per-generator pulses / rotate, combine op, steps,
+track rotate, note, velocity, gate, resolution. Locked params survive the
+roll; unlocked ones re-roll. Lock set persists per lane (and shows a subtle
+lock count on the Randomize row when non-default). CTA: "Roll" + a "roll
+again" affordance that keeps the sheet open for rapid auditioning. Manual
+step overrides (see below) are always left alone. Design the sheet in Paper
+first — lock chips should read as the LED grid language (locked = lit cell).
 
 ### Light on/off micro-animation
 
