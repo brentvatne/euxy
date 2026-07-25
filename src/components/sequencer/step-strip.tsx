@@ -41,7 +41,15 @@ const LED_TOP = 3;
 
 export interface StepStripProps {
   lane: Lane;
+  /** Base ms added to this strip's wash blooms — the sequencer screen passes
+   * each lane's distance from the capsule so washes sweep the grid FROM the
+   * capsule (bottom lane first), not per-strip in isolation. */
+  washDelay?: number;
 }
+
+/** Per-cell stagger (ms) by Manhattan distance from a strip's bottom-right
+ * cell — the corner nearest the capsule. */
+const CELL_STAGGER_MS = 12;
 
 /** Steady sequenced-step light (Paper: 5px white, dark ring, soft glow).
  * Instant on, ~300ms phosphor decay off (LED-motion principle 1). */
@@ -49,33 +57,76 @@ function Led() {
   return <LedBase style={styles.led} />;
 }
 
-export function StepStrip({ lane }: StepStripProps) {
+export function StepStrip({ lane, washDelay = 0 }: StepStripProps) {
   const pattern = patternForLane(lane);
   const n = pattern.length;
   const [width, setWidth] = useState(0);
 
-  // Concept J (mutate): steps the mutation nudged flicker-bloom IN PLACE —
-  // no curtain here. Detected by diffing the pattern across a mutateVersion
-  // bump (mutate/undo both bump it; slider edits do not), triggered off that
-  // state change, never the clock. Reduced Motion settles instantly.
+  // Concept J (mutate): steps the mutation nudged flicker-bloom IN PLACE,
+  // staggered outward from the capsule (washDelay + distance from this
+  // strip's bottom-right cell). Detected by diffing the pattern across a
+  // mutateVersion bump (mutate/revert both bump it; slider edits do not).
+  // Grid-wide one-shots ride the store's gridFx nonce instead: 'revert' is
+  // the reverse wash over every sequenced LED (same capsule-origin stagger),
+  // 'stamp' is ONE synchronized soft pulse on the sequenced LEDs. All of it
+  // is triggered off state changes, never the clock. Reduced Motion settles
+  // instantly.
   const mutateVersion = useStore((s) => s.mutateVersion);
+  const gridFx = useStore((s) => s.gridFx);
   const reducedMotion = useReducedMotion();
-  const prevRef = useRef({ version: mutateVersion, pattern });
-  const [blooms, setBlooms] = useState<{ key: number; steps: number[] } | null>(null);
+  const prevRef = useRef({ version: mutateVersion, pattern, fxNonce: gridFx?.nonce ?? 0 });
+  const [blooms, setBlooms] = useState<{
+    key: string;
+    cells: { step: number; delay: number }[];
+    peak: number;
+    sparkle: boolean;
+  } | null>(null);
   useEffect(() => {
     const prev = prevRef.current;
-    prevRef.current = { version: mutateVersion, pattern };
-    if (mutateVersion === prev.version || reducedMotion) return;
-    const changed: number[] = [];
-    const len = Math.min(prev.pattern.length, pattern.length);
-    for (let i = 0; i < len; i++) if (prev.pattern[i] !== pattern[i]) changed.push(i);
-    if (changed.length === 0) return;
-    setBlooms({ key: mutateVersion, steps: changed });
-    const t = setTimeout(() => setBlooms(null), 700);
+    prevRef.current = { version: mutateVersion, pattern, fxNonce: gridFx?.nonce ?? 0 };
+    if (reducedMotion) return;
+    // Distance from the bottom-right cell — the corner nearest the capsule.
+    const rows = Math.ceil(pattern.length / PER_ROW);
+    const dist = (i: number) =>
+      rows - 1 - Math.floor(i / PER_ROW) + (PER_ROW - 1 - (i % PER_ROW));
+    const fxChanged = gridFx != null && gridFx.nonce !== prev.fxNonce;
+    let next: typeof blooms = null;
+    if (fxChanged) {
+      const lit = pattern.map((v, i) => ({ v, i })).filter((c) => c.v === 1);
+      next =
+        gridFx.kind === 'revert'
+          ? {
+              key: `fx-${gridFx.nonce}`,
+              cells: lit.map((c) => ({ step: c.i, delay: washDelay + dist(c.i) * CELL_STAGGER_MS })),
+              peak: 0.45,
+              sparkle: true,
+            }
+          : {
+              key: `fx-${gridFx.nonce}`,
+              cells: lit.map((c) => ({ step: c.i, delay: 0 })),
+              peak: 0.45,
+              sparkle: false,
+            };
+    } else if (mutateVersion !== prev.version) {
+      const changed: { step: number; delay: number }[] = [];
+      const len = Math.min(prev.pattern.length, pattern.length);
+      for (let i = 0; i < len; i++) {
+        if (prev.pattern[i] !== pattern[i]) {
+          changed.push({ step: i, delay: washDelay + dist(i) * CELL_STAGGER_MS });
+        }
+      }
+      if (changed.length > 0) {
+        next = { key: `mut-${mutateVersion}`, cells: changed, peak: 0.5, sparkle: true };
+      }
+    }
+    if (!next) return;
+    setBlooms(next);
+    const maxDelay = next.cells.reduce((m, c) => Math.max(m, c.delay), 0);
+    const t = setTimeout(() => setBlooms(null), maxDelay + 700);
     return () => clearTimeout(t);
-    // `pattern` is recomputed per render; the version gate does the real diff.
+    // `pattern` is recomputed per render; the version/nonce gates do the diff.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mutateVersion, reducedMotion]);
+  }, [mutateVersion, gridFx, reducedMotion]);
 
   const blockW = width > 0 ? (width - GAP * (PER_ROW - 1)) / PER_ROW : 0;
 
@@ -116,15 +167,17 @@ export function StepStrip({ lane }: StepStripProps) {
         )
       ) : null}
       {blockW > 0 && blooms
-        ? blooms.steps.map((i) => (
+        ? blooms.cells.map(({ step, delay }) => (
             <FlickerBloom
-              key={`${blooms.key}-${i}`}
-              peak={0.5}
+              key={`${blooms.key}-${step}`}
+              delay={delay}
+              peak={blooms.peak}
+              sparkle={blooms.sparkle}
               style={[
                 styles.bloom,
                 {
-                  left: (i % PER_ROW) * (blockW + GAP),
-                  top: Math.floor(i / PER_ROW) * (BLOCK_H + GAP),
+                  left: (step % PER_ROW) * (blockW + GAP),
+                  top: Math.floor(step / PER_ROW) * (BLOCK_H + GAP),
                   width: blockW,
                 },
               ]}
