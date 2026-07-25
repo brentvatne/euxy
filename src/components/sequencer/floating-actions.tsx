@@ -440,11 +440,13 @@ function TempKey({
   };
   useEffect(() => clearTimers, []);
 
-  // The key survives keep now (resident) — reset the one-shot state so the
-  // next arm starts clean.
+  // The key survives keep now (resident) — settle the ring visuals when
+  // temp disarms. `completed` is deliberately NOT reset here: keep fires
+  // while the finger is still down, and clearing it early made the RELEASE
+  // of that same hold read as a fresh disarmed tap → instant re-arm
+  // (Brent's report). The release consumes the flag instead.
   useEffect(() => {
     if (!engaged) {
-      completed.current = false;
       progress.value = 0;
       drain.value = 0;
     }
@@ -491,7 +493,12 @@ function TempKey({
   };
 
   const onPressOut = () => {
-    if (completed.current) return;
+    if (completed.current) {
+      // This release ends the hold that completed a keep — consume it so
+      // the NEXT tap arms fresh; this one must do nothing.
+      completed.current = false;
+      return;
+    }
     clearTimers();
     if (!engaged) {
       // ARM: store the current state away. Any release arms — there is no
@@ -506,6 +513,9 @@ function TempKey({
     // showed a full ring that then drained (Brent's report).
     if (dt >= RING_DELAY_MS + HOLD_MS - 40) {
       fireKeep();
+      // The press is ending NOW — nothing left to consume the flag, and the
+      // next tap must arm fresh.
+      completed.current = false;
       return;
     }
     // Drain the ring back regardless — only a completed fill keeps.
