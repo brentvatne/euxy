@@ -46,3 +46,65 @@ try {
 export const configureObserve = (options: unknown) => observeConfigure(options);
 export const wrapWithObserveRoot = observeRootWrap;
 export const useObserve: UseObserve = (...args) => useObserveImpl(...args);
+
+type ImpactStyle = 'light' | 'medium' | 'heavy' | 'soft' | 'rigid';
+interface Haptics {
+  impact(style?: ImpactStyle): void;
+  selection(): void;
+  success(): void;
+  warning(): void;
+}
+
+let hapticsImpl: Haptics = {
+  impact: () => {},
+  selection: () => {},
+  success: () => {},
+  warning: () => {},
+};
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const h = require('expo-haptics');
+  const impactStyles: Record<ImpactStyle, unknown> = {
+    light: h.ImpactFeedbackStyle.Light,
+    medium: h.ImpactFeedbackStyle.Medium,
+    heavy: h.ImpactFeedbackStyle.Heavy,
+    soft: h.ImpactFeedbackStyle.Soft,
+    rigid: h.ImpactFeedbackStyle.Rigid,
+  };
+  // Fire-and-forget; a haptic that fails to play is not worth an unhandled
+  // rejection (calls throw on builds whose binary predates the module).
+  hapticsImpl = {
+    impact: (style = 'light') => h.impactAsync(impactStyles[style]).catch(() => {}),
+    selection: () => h.selectionAsync().catch(() => {}),
+    success: () => h.notificationAsync(h.NotificationFeedbackType.Success).catch(() => {}),
+    warning: () => h.notificationAsync(h.NotificationFeedbackType.Warning).catch(() => {}),
+  };
+} catch {
+  console.warn('[euxy] expo-haptics native module missing — haptics disabled on this build.');
+}
+
+/** Haptic vocabulary: impact = key press-in, selection = fine ticks (ring
+ * quarters), success/warning = resolutions. No-ops (with the warn above) on
+ * builds without the native module. */
+export const haptics: Haptics = {
+  impact: (style) => hapticsImpl.impact(style),
+  selection: () => hapticsImpl.selection(),
+  success: () => hapticsImpl.success(),
+  warning: () => hapticsImpl.warning(),
+};
+
+let GlassViewImpl: ComponentType<Record<string, unknown>> | null = null;
+let liquidGlass = false;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const glass = require('expo-glass-effect');
+  liquidGlass = glass.isLiquidGlassAvailable?.() ?? false;
+  GlassViewImpl = glass.GlassView;
+} catch {
+  console.warn('[euxy] expo-glass-effect native module missing — solid capsule fallback.');
+}
+
+/** Native Liquid Glass (iOS 26+). `null` / `false` on older iOS, Android and
+ * builds without the native module — callers render their solid fallback. */
+export const GlassView = liquidGlass ? GlassViewImpl : null;
+export const liquidGlassAvailable = liquidGlass && GlassViewImpl != null;

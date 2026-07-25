@@ -16,6 +16,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { haptics } from '@/lib/shims';
+
 const TRAVEL = { duration: 80, easing: Easing.out(Easing.quad), reduceMotion: ReduceMotion.System };
 const SPRING = { damping: 14, stiffness: 320, reduceMotion: ReduceMotion.System };
 
@@ -23,10 +25,13 @@ export interface KeyProps extends Omit<PressableProps, 'style'> {
   style?: StyleProp<ViewStyle>;
   /** One-shot light ring on release (transport-grade keys). */
   ack?: boolean;
+  /** Impact haptic on press-in — every key clicks like hardware by default;
+   * 'none' for keys that own their haptic resolution (snapshot key). */
+  haptic?: 'light' | 'medium' | 'none';
   children?: React.ReactNode;
 }
 
-export function Key({ style, ack = false, onPressIn, onPressOut, children, ...rest }: KeyProps) {
+export function Key({ style, ack = false, haptic = 'light', onPressIn, onPressOut, children, ...rest }: KeyProps) {
   const down = useSharedValue(0);
   const ring = useSharedValue(0);
 
@@ -43,6 +48,7 @@ export function Key({ style, ack = false, onPressIn, onPressOut, children, ...re
       {...rest}
       onPressIn={(e) => {
         down.value = withTiming(1, TRAVEL);
+        if (haptic !== 'none') haptics.impact(haptic);
         onPressIn?.(e);
       }}
       onPressOut={(e) => {
