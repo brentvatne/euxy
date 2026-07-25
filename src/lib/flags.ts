@@ -22,3 +22,11 @@ export const SKIA_STRIP_GLOW = true;
  * on `Key`.
  */
 export const EASE_TRANSPORT_PLAY = false;
+
+/**
+ * Floating capsule drag-to-corner (+ throw). Temporarily OFF (Brent
+ * 2026-07-25) — the gesture code stays in place; while off, the capsule
+ * ignores the persisted corner and docks bottom-right (its designed home),
+ * since a stranded corner would be unmovable.
+ */
+export const CAPSULE_DRAG = false;

@@ -46,6 +46,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 
 import { playheadPlaying, playheadTick } from '@/core/playhead';
 import { useStore } from '@/state/store';
+import { CAPSULE_DRAG } from '@/lib/flags';
 import { GlassView, haptics, liquidGlassAvailable } from '@/lib/shims';
 import { color, ramp, timing } from '@/theme/tokens';
 import { Key } from '@/components/ui/key';
@@ -153,7 +154,9 @@ export function FloatingActions({
   const anchorInit = useRef(false);
   useEffect(() => {
     if (barW === 0) return;
-    const target = anchorFor(corner, barW);
+    // Drag disabled → ignore any persisted corner (it would be stranded)
+    // and dock at the designed bottom-right home.
+    const target = CAPSULE_DRAG ? anchorFor(corner, barW) : 0;
     // First layout docks instantly (no boot slide); later changes spring.
     anchorX.value = anchorInit.current ? withSpring(target, SNAP) : target;
     anchorInit.current = true;
@@ -186,6 +189,9 @@ export function FloatingActions({
   };
 
   const pan = Gesture.Pan()
+    // Drag is temporarily disabled via the flag — gesture kept wired so
+    // flipping CAPSULE_DRAG back on restores drag/throw/corner-snap whole.
+    .enabled(CAPSULE_DRAG)
     // Let key presses win until the finger commits to a real drag.
     .activeOffsetX([-12, 12])
     .activeOffsetY([-12, 12])
