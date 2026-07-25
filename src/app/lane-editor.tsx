@@ -85,6 +85,9 @@ export default function LaneEditorSheet() {
   const removeLane = useStore((s) => s.removeLane);
   const randomizeLane = useStore((s) => s.randomizeLane);
   const [listening, setListening] = useState(false);
+  // Concept J: bumping the nonce sweeps the reroll wash across the pinned
+  // combined card — triggered by the Randomize press, not the clock.
+  const [washNonce, setWashNonce] = useState(0);
   // Note entry: tapping the Note cell expands the inline pad grid (Paper 02c).
   const [padsOpen, setPadsOpen] = useState(false);
   // The pinned card's drop shadow appears only once content scrolls under it.
@@ -155,7 +158,7 @@ export default function LaneEditorSheet() {
 
       {/* Pinned combined card — OUTSIDE the scroll view so it never leaves. */}
       <View style={[styles.pinned, scrolled && styles.pinnedShadow]}>
-        <CombinedCard lane={lane} />
+        <CombinedCard lane={lane} washNonce={washNonce} />
       </View>
 
       {/* collapsable={false} keeps this wrapper in the native tree so the
@@ -363,7 +366,10 @@ export default function LaneEditorSheet() {
           <Pressable
             style={({ pressed }) => [styles.actionBtn, pressed && styles.pressedDim]}
             accessibilityRole="button"
-            onPress={() => randomizeLane(id)}
+            onPress={() => {
+              randomizeLane(id);
+              setWashNonce((v) => v + 1);
+            }}
           >
             <SFSymbol name="dice" size={16} tint={color.label} />
             <AppText style={styles.actionLabel}>Randomize</AppText>

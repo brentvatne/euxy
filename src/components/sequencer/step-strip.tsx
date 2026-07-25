@@ -18,14 +18,16 @@
  *   • `Dark`  — the black dot, shown only while the current step is a HIT
  * Blocks render once; NOTHING re-renders on the tick.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useDerivedValue, useReducedMotion } from 'react-native-reanimated';
 
 import { playheadPlaying, playheadTick } from '@/core/playhead';
 import { patternForLane } from '@/state/selectors';
+import { useStore } from '@/state/store';
 import type { Lane } from '@/state/types';
 import { keyRamp } from '@/theme/tokens';
+import { FlickerBloom } from '@/components/ui/flicker-bloom';
 import { Led as LedBase } from '@/components/ui/led';
 
 const PER_ROW = 16;
@@ -49,6 +51,29 @@ export function StepStrip({ lane }: StepStripProps) {
   const pattern = patternForLane(lane);
   const n = pattern.length;
   const [width, setWidth] = useState(0);
+
+  // Concept J (mutate): steps the mutation nudged flicker-bloom IN PLACE —
+  // no curtain here. Detected by diffing the pattern across a mutateVersion
+  // bump (mutate/undo both bump it; slider edits do not), triggered off that
+  // state change, never the clock. Reduced Motion settles instantly.
+  const mutateVersion = useStore((s) => s.mutateVersion);
+  const reducedMotion = useReducedMotion();
+  const prevRef = useRef({ version: mutateVersion, pattern });
+  const [blooms, setBlooms] = useState<{ key: number; steps: number[] } | null>(null);
+  useEffect(() => {
+    const prev = prevRef.current;
+    prevRef.current = { version: mutateVersion, pattern };
+    if (mutateVersion === prev.version || reducedMotion) return;
+    const changed: number[] = [];
+    const len = Math.min(prev.pattern.length, pattern.length);
+    for (let i = 0; i < len; i++) if (prev.pattern[i] !== pattern[i]) changed.push(i);
+    if (changed.length === 0) return;
+    setBlooms({ key: mutateVersion, steps: changed });
+    const t = setTimeout(() => setBlooms(null), 700);
+    return () => clearTimeout(t);
+    // `pattern` is recomputed per render; the version gate does the real diff.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mutateVersion, reducedMotion]);
 
   const blockW = width > 0 ? (width - GAP * (PER_ROW - 1)) / PER_ROW : 0;
 
@@ -81,6 +106,22 @@ export function StepStrip({ lane }: StepStripProps) {
           ))
         : null}
       {blockW > 0 ? <TravellingLight lane={lane} pattern={pattern} blockW={blockW} /> : null}
+      {blockW > 0 && blooms
+        ? blooms.steps.map((i) => (
+            <FlickerBloom
+              key={`${blooms.key}-${i}`}
+              peak={0.5}
+              style={[
+                styles.bloom,
+                {
+                  left: (i % PER_ROW) * (blockW + GAP),
+                  top: Math.floor(i / PER_ROW) * (BLOCK_H + GAP),
+                  width: blockW,
+                },
+              ]}
+            />
+          ))
+        : null}
     </View>
   );
 }
@@ -170,6 +211,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#08080a',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
+  },
+  // Concept J: lit film over a nudged step (grey `lit`, opacity-only).
+  bloom: {
+    position: 'absolute',
+    height: BLOCK_H,
+    borderRadius: RADIUS,
+    backgroundColor: '#AFAFB3',
   },
   overlay: {
     position: 'absolute',
