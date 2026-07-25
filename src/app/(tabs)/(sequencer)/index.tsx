@@ -8,6 +8,7 @@
 import { useEffect } from 'react';
 import { router } from 'expo-router';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import Animated, { FadeInDown, FadeOut, LinearTransition, ReduceMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { engine } from '@/core/engine';
@@ -135,8 +136,16 @@ export default function SequencerScreen() {
         ) : (
           <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
             {lanes.map((lane) => (
-              <LaneRow
+              // Lanes power on when added and decay out when removed, with
+              // siblings sliding into place — Reanimated layout animations on
+              // the UI thread (LED language: quick in, phosphor-tail out).
+              <Animated.View
                 key={lane.id}
+                entering={FadeInDown.duration(220).reduceMotion(ReduceMotion.System)}
+                exiting={FadeOut.duration(180).reduceMotion(ReduceMotion.System)}
+                layout={LinearTransition.duration(220).reduceMotion(ReduceMotion.System)}
+              >
+              <LaneRow
                 title={lane.name ?? midiNoteName(lane.note)}
                 subtitle={laneSubtitle(lane)}
                 // M reflects the EFFECTIVE mix: a solo elsewhere mutes this
@@ -150,6 +159,7 @@ export default function SequencerScreen() {
               >
                 <StepStrip lane={lane} />
               </LaneRow>
+              </Animated.View>
             ))}
           </ScrollView>
         )}
