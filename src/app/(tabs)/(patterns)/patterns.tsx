@@ -5,7 +5,7 @@
  * Pattern sheet. Empty state (node 2NR-0) shows when there are no patterns.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActionSheetIOS, Alert, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Stack, router } from 'expo-router';
 
 import { useObserve } from '@/lib/shims';
@@ -17,6 +17,7 @@ import { PatternRow } from '@/components/patterns/pattern-row';
 import { isPresetPattern } from '@/state/presets';
 import { usePatterns } from '@/state/selectors';
 import { useStore } from '@/state/store';
+import type { Pattern } from '@/state/types';
 import { color, radius, space } from '@/theme/tokens';
 
 const SEQUENCER_HREF = '/(tabs)/(sequencer)' as const;
@@ -41,9 +42,55 @@ export default function PatternsScreen() {
   const isPlaying = useStore((s) => s.transport.playing);
   const loadPattern = useStore((s) => s.loadPattern);
   const deletePattern = useStore((s) => s.deletePattern);
+  const renamePattern = useStore((s) => s.renamePattern);
   const resetPreset = useStore((s) => s.resetPreset);
   const resetAllPresets = useStore((s) => s.resetAllPresets);
   const [query, setQuery] = useState('');
+
+  const promptRename = (pattern: Pattern) => {
+    Alert.prompt(
+      'Rename pattern',
+      undefined,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Rename', onPress: (name?: string) => name?.trim() && renamePattern(pattern.id, name) },
+      ],
+      'plain-text',
+      pattern.name,
+    );
+  };
+
+  // Long-press context menu (roadmap: Rename / Change Icon / Delete). A plain
+  // ActionSheetIOS instead of @expo/ui MenuView: its long-press trigger is a
+  // SwiftUI ContextMenu whose Host/RNHostView re-parents the row — inside a
+  // ReanimatedSwipeable that puts the swipe/tap gestures at risk, and this
+  // must not break them.
+  const showPatternMenu = (pattern: Pattern) => {
+    const changeIcon = () =>
+      router.push({ pathname: '/change-icon', params: { patternId: pattern.id } });
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          title: pattern.name,
+          options: ['Cancel', 'Rename…', 'Change Icon…', 'Delete'],
+          cancelButtonIndex: 0,
+          destructiveButtonIndex: 3,
+        },
+        (index) => {
+          if (index === 1) promptRename(pattern);
+          else if (index === 2) changeIcon();
+          else if (index === 3) deletePattern(pattern.id);
+        },
+      );
+      return;
+    }
+    // Android/web: Alert stand-in (no Alert.prompt there, so rename is iOS-only).
+    Alert.alert(pattern.name, undefined, [
+      { text: 'Change Icon…', onPress: changeIcon },
+      { text: 'Delete', style: 'destructive', onPress: () => deletePattern(pattern.id) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
 
   const confirmRestoreAll = () => {
     Alert.alert(
@@ -106,6 +153,7 @@ export default function PatternsScreen() {
               last={i === filtered.length - 1}
               onPress={() => openPattern(p.id)}
               onDelete={() => deletePattern(p.id)}
+              onLongPress={() => showPatternMenu(p)}
               onReset={isPresetPattern(p.id) ? () => resetPreset(p.id) : undefined}
             />
           ))

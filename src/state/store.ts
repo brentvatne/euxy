@@ -148,10 +148,20 @@ export interface AppState {
   setCountInBeats: (beats: number) => void;
 
   // Patterns -------------------------------------------------------------
-  newPattern: (opts?: { name?: string; bpm?: number; baseResolutionTicks?: number }) => string;
+  newPattern: (opts?: {
+    name?: string;
+    bpm?: number;
+    baseResolutionTicks?: number;
+    /** Chip glyph name (components/patterns/chips.ts). Defaults to a shuffle. */
+    icon?: string;
+  }) => string;
   loadPattern: (id: string) => void;
   deletePattern: (id: string) => void;
+  /** Rename any pattern by id (blank names keep the old one). */
+  renamePattern: (id: string, name: string) => void;
   renameActivePattern: (name: string) => void;
+  /** Set any pattern's chip glyph (components/patterns/chips.ts name). */
+  setPatternIcon: (id: string, icon: string) => void;
   /** Set the active pattern's chip glyph (components/patterns/chips.ts name). */
   setActivePatternIcon: (icon: string) => void;
   /** Restore one factory preset to its shipped state (re-adds it if deleted). */
@@ -161,13 +171,14 @@ export interface AppState {
 }
 
 export const useStore = create<AppState>((set, get) => {
-  /** Apply a transform to the active pattern immutably (stamps updatedAt). */
-  const mutateActive = (fn: (p: Pattern) => Pattern) =>
+  /** Apply a transform to one pattern by id immutably (stamps updatedAt). */
+  const mutatePattern = (id: string, fn: (p: Pattern) => Pattern) =>
     set((s) => ({
-      patterns: s.patterns.map((p) =>
-        p.id === s.activePatternId ? { ...fn(p), updatedAt: Date.now() } : p,
-      ),
+      patterns: s.patterns.map((p) => (p.id === id ? { ...fn(p), updatedAt: Date.now() } : p)),
     }));
+
+  /** Apply a transform to the active pattern immutably (stamps updatedAt). */
+  const mutateActive = (fn: (p: Pattern) => Pattern) => mutatePattern(get().activePatternId, fn);
 
   /** Apply a patch to one lane of the active pattern. */
   const mutateLane = (id: string, fn: (l: Lane) => Lane) =>
@@ -351,8 +362,8 @@ export const useStore = create<AppState>((set, get) => {
         lanes: [],
         updatedAt: Date.now(),
         // Every pattern gets a distinct glyph with zero effort (icon-picker
-        // spec) — the picker lets you change it deliberately.
-        icon: randomChipName(),
+        // spec) — the New Pattern sheet passes a deliberate pick through here.
+        icon: opts?.icon ?? randomChipName(),
       };
       set((s) => ({
         patterns: [...s.patterns, pattern],
@@ -402,8 +413,10 @@ export const useStore = create<AppState>((set, get) => {
           selection: { laneId: null },
         };
       }),
-    renameActivePattern: (name) => mutateActive((p) => ({ ...p, name: name.trim() || p.name })),
-    setActivePatternIcon: (icon) => mutateActive((p) => ({ ...p, icon })),
+    renamePattern: (id, name) => mutatePattern(id, (p) => ({ ...p, name: name.trim() || p.name })),
+    renameActivePattern: (name) => get().renamePattern(get().activePatternId, name),
+    setPatternIcon: (id, icon) => mutatePattern(id, (p) => ({ ...p, icon })),
+    setActivePatternIcon: (icon) => get().setPatternIcon(get().activePatternId, icon),
     // Factory resets replace content in place (same pattern id, fresh lane
     // ids) so the active/selection ids stay valid; a deleted preset is
     // re-appended. This is also the escape hatch for installs that seeded

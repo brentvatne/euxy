@@ -26,6 +26,8 @@ export interface PatternRowProps {
   last: boolean;
   onPress: () => void;
   onDelete: () => void;
+  /** Long-press: the host opens the Rename / Change Icon / Delete menu. */
+  onLongPress?: () => void;
   /** Factory presets only: swipe reveals Reset next to Delete. */
   onReset?: () => void;
 }
@@ -44,7 +46,7 @@ function editedLabel(updatedAt: number): string {
   return days === 1 ? 'edited yesterday' : `edited ${days}d ago`;
 }
 
-function PatternRowImpl({ pattern, active, playing = false, first, last, onPress, onDelete, onReset }: PatternRowProps) {
+function PatternRowImpl({ pattern, active, playing = false, first, last, onPress, onDelete, onLongPress, onReset }: PatternRowProps) {
   const swipeRef = useRef<SwipeableMethods>(null);
   // A swipe must never double as a select: while the row is dragged or open,
   // a tap only closes the swipe.
@@ -114,6 +116,15 @@ function PatternRowImpl({ pattern, active, playing = false, first, last, onPress
           }
           onPress();
         }}
+        // Same swipe guard as tap: a drag must never double as a long-press.
+        onLongPress={
+          onLongPress
+            ? () => {
+                if (swiping.current) return;
+                onLongPress();
+              }
+            : undefined
+        }
         style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
         accessibilityRole="button"
         accessibilityState={{ selected: active }}
