@@ -88,20 +88,25 @@ export default function NewPatternSheet() {
         </Field>
 
         <Field label="Icon">
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentOffset={initialIconOffset}
-            contentContainerStyle={styles.iconRow}
-            style={styles.iconStrip}
-          >
-            <IconPicker
-              selected={icon}
-              onSelect={setIcon}
+          {/* collapsable={false} frame keeps the ScrollView out of the
+              formSheet frame-correction path — react-native-screens
+              otherwise paints it over the sheet header (see change-icon). */}
+          <View style={styles.iconStripFrame} collapsable={false}>
+            <ScrollView
               horizontal
-              size={ICON_CHIP_SIZE}
-            />
-          </ScrollView>
+              showsHorizontalScrollIndicator={false}
+              contentOffset={initialIconOffset}
+              contentContainerStyle={styles.iconRow}
+              style={styles.iconStrip}
+            >
+              <IconPicker
+                selected={icon}
+                onSelect={setIcon}
+                horizontal
+                size={ICON_CHIP_SIZE}
+              />
+            </ScrollView>
+          </View>
         </Field>
 
         <Field label="Tempo">
@@ -201,7 +206,9 @@ const styles = StyleSheet.create({
   },
   disabled: { opacity: 0.35 },
   // Bleed the strip to the sheet edges so chips scroll under them; content
-  // padding restores the body's gutter at rest.
+  // padding restores the body's gutter at rest. The frame's explicit height
+  // (chip + selection ring) anchors the strip while it's collapsable={false}.
+  iconStripFrame: { height: ICON_CHIP_SIZE + 6 },
   iconStrip: { marginHorizontal: -space.lg },
   iconRow: { paddingHorizontal: space.lg },
   tempoValue: { minWidth: 52, textAlign: 'center' },
