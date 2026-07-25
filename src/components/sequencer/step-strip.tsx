@@ -51,10 +51,25 @@ export interface StepStripProps {
  * cell — the corner nearest the capsule. */
 const CELL_STAGGER_MS = 12;
 
+/** One per-step lit film (see the `films` state in StepStrip). */
+type Film = {
+  /** Bumped per change event — retriggers the mounted film's sequence. */
+  trigger: number;
+  delay: number;
+  peak: number;
+  mode: 'fade' | 'pulse';
+  /** JS timestamp of the film's last trigger, for idle pruning. */
+  at: number;
+};
+/** Horizon after which a film's sequence (delay excluded) is safely over:
+ * fade = 80 + 380, pulse = 300 — 600ms clears both with margin. */
+const FILM_MS = 600;
+
 /** Steady sequenced-step light (Paper: 5px white, dark ring, soft glow).
- * Instant on, ~300ms phosphor decay off (LED-motion principle 1). */
-function Led() {
-  return <LedBase style={styles.led} />;
+ * Instant on with a scale bloom, ~300ms phosphor decay off (LED-motion
+ * principle 1 + the on/off micro-animation). */
+function Led({ ignite }: { ignite: boolean }) {
+  return <LedBase ignite={ignite} style={styles.led} />;
 }
 
 export function StepStrip({ lane, washDelay = 0 }: StepStripProps) {
@@ -62,9 +77,8 @@ export function StepStrip({ lane, washDelay = 0 }: StepStripProps) {
   const n = pattern.length;
   const [width, setWidth] = useState(0);
 
-  // Concept J (mutate): steps the mutation nudged flicker-bloom IN PLACE,
-  // staggered outward from the capsule (washDelay + distance from this
-  // strip's bottom-right cell). Detected by diffing the pattern across a
+  // Concept J (mutate): steps the mutation nudged bloom IN PLACE with a
+  // smooth fade, all at once — in sync with the instant pattern swap. Detected by diffing the pattern across a
   // mutateVersion bump (mutate/revert both bump it; slider edits do not).
   // Grid-wide one-shots ride the store's gridFx nonce instead: 'revert' is
   // the reverse wash over every sequenced LED (same capsule-origin stagger),
@@ -75,12 +89,19 @@ export function StepStrip({ lane, washDelay = 0 }: StepStripProps) {
   const gridFx = useStore((s) => s.gridFx);
   const reducedMotion = useReducedMotion();
   const prevRef = useRef({ version: mutateVersion, pattern, fxNonce: gridFx?.nonce ?? 0 });
-  const [blooms, setBlooms] = useState<{
-    key: string;
-    cells: { step: number; delay: number }[];
-    peak: number;
-    sparkle: boolean;
-  } | null>(null);
+  // Films: ONE mounted FlickerBloom per recently-changed step, keyed by the
+  // STEP (stable) — never remounted while animating. Each event bumps the
+  // film's `trigger`, and the sequence redirects from its current opacity
+  // (Reanimated retargets in-flight), so dice-mashing is fully interruptible:
+  // no stacked films, no one-frame cut. Films unmount only once idle.
+  const [films, setFilms] = useState<Record<string, Film>>({});
+  const triggerRef = useRef(0);
+  // LEDs mounted in this strip's FIRST render must not run the ignition
+  // bloom — only lights added by later edits ignite (see ui/led.tsx).
+  const initialRender = useRef(true);
+  useEffect(() => {
+    initialRender.current = false;
+  }, []);
   useEffect(() => {
     const prev = prevRef.current;
     prevRef.current = { version: mutateVersion, pattern, fxNonce: gridFx?.nonce ?? 0 };
@@ -90,39 +111,60 @@ export function StepStrip({ lane, washDelay = 0 }: StepStripProps) {
     const dist = (i: number) =>
       rows - 1 - Math.floor(i / PER_ROW) + (PER_ROW - 1 - (i % PER_ROW));
     const fxChanged = gridFx != null && gridFx.nonce !== prev.fxNonce;
-    let next: typeof blooms = null;
+    let next: { cells: { step: number; delay: number }[]; peak: number; mode: Film['mode'] } | null =
+      null;
     if (fxChanged) {
       const lit = pattern.map((v, i) => ({ v, i })).filter((c) => c.v === 1);
       next =
         gridFx.kind === 'revert'
           ? {
-              key: `fx-${gridFx.nonce}`,
               cells: lit.map((c) => ({ step: c.i, delay: washDelay + dist(c.i) * CELL_STAGGER_MS })),
               peak: 0.45,
-              sparkle: true,
+              mode: 'fade',
             }
           : {
-              key: `fx-${gridFx.nonce}`,
               cells: lit.map((c) => ({ step: c.i, delay: 0 })),
               peak: 0.45,
-              sparkle: false,
+              mode: 'pulse',
             };
     } else if (mutateVersion !== prev.version) {
       const changed: { step: number; delay: number }[] = [];
       const len = Math.min(prev.pattern.length, pattern.length);
       for (let i = 0; i < len; i++) {
         if (prev.pattern[i] !== pattern[i]) {
-          changed.push({ step: i, delay: washDelay + dist(i) * CELL_STAGGER_MS });
+          // NO stagger here: the pattern itself swaps instantly, so a delayed
+          // highlight reads as a glitch arriving after the fact (Brent
+          // 2026-07-25). The capsule-origin sweep lives on in the revert wash.
+          changed.push({ step: i, delay: 0 });
         }
       }
       if (changed.length > 0) {
-        next = { key: `mut-${mutateVersion}`, cells: changed, peak: 0.5, sparkle: true };
+        // Smooth fade, not the flicker — the per-step sparkle read as jitter
+        // on a real dice press (Brent 2026-07-25).
+        next = { cells: changed, peak: 0.5, mode: 'fade' };
       }
     }
     if (!next) return;
-    setBlooms(next);
-    const maxDelay = next.cells.reduce((m, c) => Math.max(m, c.delay), 0);
-    const t = setTimeout(() => setBlooms(null), maxDelay + 700);
+    const { cells, peak, mode } = next;
+    const trigger = ++triggerRef.current;
+    const now = Date.now();
+    setFilms((prev) => {
+      const merged: Record<string, Film> = {};
+      for (const [k, f] of Object.entries(prev)) {
+        // Films still animating stay mounted UNTOUCHED (they finish their
+        // own decay); only the long-finished are dropped here.
+        if (now - f.at < f.delay + FILM_MS) merged[k] = f;
+      }
+      for (const c of cells) {
+        merged[c.step] = { trigger, delay: c.delay, peak, mode, at: now };
+      }
+      return merged;
+    });
+    // Idle sweep: once presses stop, empty the map so idle strips carry zero
+    // extra views. Any newer event re-arms this via the effect cleanup, and
+    // by the time the LAST event's timer fires every earlier film is done.
+    const maxDelay = cells.reduce((m, c) => Math.max(m, c.delay), 0);
+    const t = setTimeout(() => setFilms({}), maxDelay + FILM_MS + 100);
     return () => clearTimeout(t);
     // `pattern` is recomputed per render; the version/nonce gates do the diff.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -153,7 +195,7 @@ export function StepStrip({ lane, washDelay = 0 }: StepStripProps) {
                   ]}
                 >
                   {/* Skia path draws the steady LEDs itself (with real bloom). */}
-                  {pattern[i] && !SKIA_STRIP_GLOW ? <Led /> : null}
+                  {pattern[i] && !SKIA_STRIP_GLOW ? <Led ignite={!initialRender.current} /> : null}
                 </View>
               ))}
             </View>
@@ -166,23 +208,29 @@ export function StepStrip({ lane, washDelay = 0 }: StepStripProps) {
           <TravellingLight lane={lane} pattern={pattern} blockW={blockW} />
         )
       ) : null}
-      {blockW > 0 && blooms
-        ? blooms.cells.map(({ step, delay }) => (
-            <FlickerBloom
-              key={`${blooms.key}-${step}`}
-              delay={delay}
-              peak={blooms.peak}
-              sparkle={blooms.sparkle}
-              style={[
-                styles.bloom,
-                {
-                  left: (step % PER_ROW) * (blockW + GAP),
-                  top: Math.floor(step / PER_ROW) * (BLOCK_H + GAP),
-                  width: blockW,
-                },
-              ]}
-            />
-          ))
+      {blockW > 0
+        ? Object.entries(films).map(([key, f]) => {
+            const step = Number(key);
+            // Length can shrink under a decaying film — never draw past the grid.
+            if (step >= pattern.length) return null;
+            return (
+              <FlickerBloom
+                key={key}
+                trigger={f.trigger}
+                delay={f.delay}
+                peak={f.peak}
+                mode={f.mode}
+                style={[
+                  styles.bloom,
+                  {
+                    left: (step % PER_ROW) * (blockW + GAP),
+                    top: Math.floor(step / PER_ROW) * (BLOCK_H + GAP),
+                    width: blockW,
+                  },
+                ]}
+              />
+            );
+          })
         : null}
     </View>
   );
