@@ -3,8 +3,9 @@
  * concept C). The native splash is the unlit 5×5 grid; this overlay renders
  * the IDENTICAL PNG centered at the same 276pt (same bitmap, same scaling, so
  * hiding the native splash is invisible on any device), then types a glyph on
- * cell by cell (30ms stagger, instant attack) over it, holds ~150ms, and
- * fades itself out while the UI appears underneath — one continuous power-on.
+ * over it in discrete steps — always finishing in a fixed 500ms, one cell per
+ * step for sparse glyphs, pairs for dense ones — holds ~150ms, and fades
+ * itself out while the UI appears underneath — one continuous power-on.
  *
  * HANDOFF CONTRACT (§8): the native splash is held (preventAutoHideAsync)
  * until the app has actually RENDERED AND LAID OUT — gated on real onLayout
@@ -35,7 +36,7 @@ import Animated, {
 
 import { bootChipProgress, onSequencerLayout } from '@/components/boot-signal';
 import { CHIPS, chipForPattern } from '@/components/patterns/chips';
-import { LedGrid, litCount, typeOnOrder } from '@/components/ui/led-grid';
+import { LedGrid, litCount } from '@/components/ui/led-grid';
 import { useStore } from '@/state/store';
 
 // Keep the native splash up until our first frame has rendered AND laid out
@@ -43,9 +44,13 @@ import { useStore } from '@/state/store';
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const GRID = 276; // pt — must match app.json expo-splash-screen imageWidth
-const STAGGER_MS = 30;
+const TYPE_MS = 500; // fixed type-on length — the step rhythm adapts per glyph
 const HOLD_MS = 150;
 const FADE_MS = 250;
+const CHIP_RELIGHT_MS = 200;
+// More lit cells than this → light PAIRS per step, so per-step intervals
+// (TYPE_MS / steps) never get absurdly fast on dense glyphs.
+const SINGLES_UP_TO = 14;
 // Failsafe: if a layout callback is ever missed (redirected initial route,
 // web, dropped native event), hide the native splash anyway after this long —
 // the gate must NEVER deadlock the boot.
@@ -61,11 +66,29 @@ function bootGlyph(): string {
   return GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
 }
 
+/**
+ * Grouped ignition order for the fixed-length type-on. LedGrid lights cell i
+ * when progress × litCount > order[i], so placing group g at g × N / steps
+ * makes step g land at (g / steps) × TYPE_MS: every glyph completes in
+ * exactly TYPE_MS with a per-step interval of TYPE_MS / steps, quantized
+ * steps emerging from one linear progress ramp. Sparse glyphs step single
+ * cells (row-major); dense ones (> SINGLES_UP_TO lit) light pairs.
+ */
+function bootTypeOnOrder(shades: string): (number | null)[] {
+  const n = litCount(shades);
+  const groupSize = n > SINGLES_UP_TO ? 2 : 1;
+  const steps = Math.ceil(n / groupSize);
+  let i = 0;
+  return [...shades].map((s) =>
+    s === '0' ? null : (Math.floor(i++ / groupSize) * n) / steps,
+  );
+}
+
 export function BootSplash() {
   const [done, setDone] = useState(false);
   const reduceMotion = useReducedMotion();
   const glyph = useMemo(bootGlyph, []);
-  const order = useMemo(() => typeOnOrder(glyph), [glyph]);
+  const order = useMemo(() => bootTypeOnOrder(glyph), [glyph]);
   const progress = useSharedValue(0);
   const opacity = useSharedValue(1);
 
@@ -80,12 +103,11 @@ export function BootSplash() {
     if (started.current) return;
     started.current = true;
     SplashScreen.hide();
-    const cells = litCount(glyph);
-    const typeMs = reduceMotion ? 0 : cells * STAGGER_MS;
+    const typeMs = reduceMotion ? 0 : TYPE_MS;
     if (reduceMotion) {
       progress.value = 1;
     } else {
-      progress.value = withTiming(1, { duration: typeMs, easing: Easing.linear });
+      progress.value = withTiming(1, { duration: TYPE_MS, easing: Easing.linear });
     }
     holdTimer.current = setTimeout(() => {
       opacity.value = withTiming(
@@ -99,7 +121,7 @@ export function BootSplash() {
       // grid fades (~150ms overlap with the decay).
       bootChipProgress.value = reduceMotion
         ? 1
-        : withTiming(1, { duration: 200, easing: Easing.linear });
+        : withTiming(1, { duration: CHIP_RELIGHT_MS, easing: Easing.linear });
     }, typeMs + HOLD_MS);
   };
 
