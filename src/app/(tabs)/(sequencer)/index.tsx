@@ -16,6 +16,7 @@ import { midiNoteName } from '@/core/note';
 import { laneAudible, useActivePattern, useAnySolo, useSettings } from '@/state/selectors';
 import { getMutateDepth, useStore } from '@/state/store';
 import type { Lane } from '@/state/types';
+import { reportSequencerLayout } from '@/components/boot-signal';
 import { useMidiRuntime } from '@/components/midi/runtime';
 import { useObserve } from '@/lib/shims';
 import { color } from '@/theme/tokens';
@@ -118,7 +119,9 @@ export default function SequencerScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    // First onLayout tells BootSplash the sequencer has really rendered and
+    // laid out beneath the boot overlay, so the native splash can drop.
+    <View style={styles.root} onLayout={reportSequencerLayout}>
       <View style={{ paddingTop: insets.top }} />
       <SequencerNav
         patternName={pattern.name}

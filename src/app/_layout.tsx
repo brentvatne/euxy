@@ -102,8 +102,10 @@ function RootLayout() {
             options={{ ...sheetOptions, sheetAllowedDetents: [0.6] }}
           />
         </Stack>
-        {/* LED power-on: covers the app until the type-on finishes, starting
-            from a frame identical to the native splash. */}
+        {/* LED power-on: a pure LAYER over the live app — the Stack above
+            always renders (never conditionally hidden behind the boot), so
+            the fade reveals UI that was already there. BootSplash holds the
+            native splash until this tree has rendered and laid out. */}
         <BootSplash />
       </ThemeProvider>
       </KeyboardProvider>
