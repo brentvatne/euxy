@@ -17,7 +17,7 @@ import { useSettings, useTransport } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import { color, radius, space } from '@/theme/tokens';
 import { Cell, ClockModeToggle, ConnectionBadge, GRAY, Group, LatencySlider, LogPreview, PushRow, SectionHeader, ValueRow } from './components';
-import { IconDevice } from './icons';
+import { ConnectionGlyph } from './connection-glyph';
 import { enableMidi, panic, refreshDevices, setLatency, useMidiRuntime } from './runtime';
 
 const LATENCY_MIN = -120;
@@ -78,7 +78,8 @@ export default function MidiScreen() {
       <Group>
         <Cell pos="first" onPress={onConnectionPress}>
           <View style={styles.connLeft}>
-            <IconDevice color={color.label} />
+            {/* LED-motion F/G: searching radar ↔ handshake/dropout ring. */}
+            <ConnectionGlyph connected={connected} />
             <AppText style={styles.connName}>{connected ? outName : 'No device'}</AppText>
           </View>
           <ConnectionBadge connected={connected} />
