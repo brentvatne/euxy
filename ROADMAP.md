@@ -539,6 +539,15 @@ Audio interface so the same module later powers an in-app preview mode.
 Deploys via EAS Hosting. Full findings, voice recipes, MVP slice and open
 questions: `docs/design/web-opxy-placeholder.md`.
 
+**FOLDED INTO THE UNIFIED WEB PLAN (2026-07-25):
+`docs/design/web-plan.md`** — one `web/` Expo app at **euxy.expo.app**
+serving this placeholder as its home page, the QR pattern-sharing landing
+(`/p` plays the shared pattern through the same sample engine, or out to
+a real OP-XY via Web MIDI), and the AASA well-known files the app's
+universal links need. Web MIDI OUT is now in scope (it was this section's
+open question 1) because the sharing brief asks for desktop-web playback
+to hardware. Build order and route map live in the web plan.
+
 ### Tab bar hide/show (ideas, 2026-07-24)
 
 Reclaim the tab bar's vertical space while jamming. Candidate mechanisms:
@@ -728,6 +737,15 @@ compact binary → base45/base64url, so codes stay dense and future fields can
 be appended without breaking old codes. No server, no account — patterns
 travel as pixels.
 
+**RESEARCHED + DESIGNED (2026-07-25):
+`docs/design/pattern-sharing-research.md`** — QR encodes an https
+universal link (`https://euxy.expo.app/p?d=<payload>`); codec, capacity
+math, Skia renderer, expo-sharing export pipeline, and Paper boards
+"Sheet · Share Pattern" + "Share card — PNG export spec" all settled.
+Web side (landing page, AASA hosting, in-browser playback of shared
+patterns) is part of the **unified web plan:
+`docs/design/web-plan.md`** — implement per its W0–W3 sequencing.
+
 ### Latency calibration
 
 Today `latencyOffsetMs` is a manual slider. Candidate auto-calibration paths:
@@ -788,6 +806,15 @@ plus **"Splash v2 — LED boot 1024"** (new splash asset) and
    frames. Known deliberate exceptions: REC-armed blink (transient,
    load-bearing), empty-state twinkle (rare screen — revisit if it ever
    bothers).
+7. **Every animation is INTERRUPTIBLE** (Brent, 2026-07-25): retriggering
+   must continue from the current state, never cut or restart. In
+   practice: animate by RETARGETING the same shared value (Reanimated
+   always starts a new animation from the current value) — never remount
+   an animating component to replay it (a new mount resets to initial
+   values: the changed-step-films bug), and prefer springs where velocity
+   matters (springs inherit in-flight velocity on retarget; timings only
+   inherit value). Mash-tested surfaces: dice reaction, keep trace
+   (drain-back), changed-step films, temp rim draw/undraw.
 
 **The concepts:**
 

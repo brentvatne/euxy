@@ -140,6 +140,14 @@ shared QR, so `euxy.expo.app` is permanent once codes are in the wild.
 
 ### Landing page: separate mini web app, not euxy's web export
 
+> **SUPERSEDED BY THE UNIFIED WEB PLAN (2026-07-25):** the landing page
+> is now a route (`/p`) of the single `web/` Expo app shared with the
+> Web OP-XY placeholder — see `docs/design/web-plan.md` for the route
+> map, shared-module list, playback engine, and W0–W3 build order. The
+> reasoning below still holds (it's why the web app is separate from
+> euxy's bundle); only "tiny static landing" is obsolete — the page now
+> *plays* the shared pattern via the placeholder's sample engine.
+
 Exporting euxy itself to web is risky today — the route graph pulls in
 NativeTabs, `@expo/ui` (iOS/Android-only), and Skia (needs the ~2 MB
 CanvasKit wasm); the shims in `src/lib/shims.ts` guard runtime, not

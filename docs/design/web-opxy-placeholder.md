@@ -1,5 +1,14 @@
 # Web OP-XY placeholder — research & plan (2026-07-25)
 
+> **FOLDED INTO THE UNIFIED WEB PLAN (2026-07-25): see
+> `docs/design/web-plan.md`.** This page becomes the HOME route of the
+> one `web/` app at **euxy.expo.app**, which also serves the QR
+> pattern-sharing landing (`/p` — plays shared patterns through this
+> doc's sample engine) and the universal-link AASA files. Open question 1
+> below (Web MIDI OUT to a real OP-XY) is now IN scope via the sharing
+> brief; open question 2 (domain) is resolved: euxy.expo.app. This doc
+> stays the deep reference for IDAM, the CC0 sample pack, and voices.
+
 A small website that stands in for an OP-XY: people without the hardware can
 hear euxy's patterns. It receives MIDI from the euxy iOS app (phone → USB →
 computer → browser) and synthesizes drum sounds with the Web Audio API; it can
