@@ -5,7 +5,7 @@
  * playheads (all steps always visible, wrapped at 16 per row), and the pinned
  * transport above the tab bar.
  */
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { router } from 'expo-router';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, FadeOut, LinearTransition, ReduceMotion } from 'react-native-reanimated';
@@ -66,6 +66,15 @@ export default function SequencerScreen() {
   // Wire the engine (idempotent): store subscription + the shared MIDI port.
   useEffect(() => {
     engine.init();
+  }, []);
+
+  // Lanes mounted in the screen's FIRST render must NOT run entering
+  // animations: initial-mount entering left the whole list stuck invisible on
+  // cold boot (found by the wave-2 ambient agent, reproduced on the merged
+  // build), and design-wise lanes should only power on when ADDED anyway.
+  const initialRender = useRef(true);
+  useEffect(() => {
+    initialRender.current = false;
   }, []);
 
   // Per-route TTI for EAS Observe.
@@ -144,7 +153,11 @@ export default function SequencerScreen() {
               // the UI thread (LED language: quick in, phosphor-tail out).
               <Animated.View
                 key={lane.id}
-                entering={FadeInDown.duration(220).reduceMotion(ReduceMotion.System)}
+                entering={
+                  initialRender.current
+                    ? undefined
+                    : FadeInDown.duration(220).reduceMotion(ReduceMotion.System)
+                }
                 exiting={FadeOut.duration(180).reduceMotion(ReduceMotion.System)}
                 layout={LinearTransition.duration(220).reduceMotion(ReduceMotion.System)}
               >
