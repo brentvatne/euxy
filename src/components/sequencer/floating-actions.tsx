@@ -89,6 +89,9 @@ const RING_R = 21;
 const RING_C = 2 * Math.PI * RING_R;
 
 const SPRING = { damping: 18, stiffness: 260, reduceMotion: ReduceMotion.System };
+// Drag settle — near-critical (ζ≈0.9) so the capsule lands with one tight
+// settle instead of a wobble (Brent: drag felt too bouncy).
+const SNAP = { damping: 34, stiffness: 340, reduceMotion: ReduceMotion.System };
 
 /** One scatter press: 3–4 frames of random pip cells (5 distinct per frame). */
 function rollScatterFrames(): number[][][] {
@@ -144,7 +147,7 @@ export function FloatingActions({
     if (barW === 0) return;
     const target = anchorFor(corner, barW);
     // First layout docks instantly (no boot slide); later changes spring.
-    anchorX.value = anchorInit.current ? withSpring(target, SPRING) : target;
+    anchorX.value = anchorInit.current ? withSpring(target, SNAP) : target;
     anchorInit.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [corner, barW, screenW]);
@@ -197,9 +200,9 @@ export function FloatingActions({
       // Snap to the nearest bottom corner; the corner persists.
       const center = screenW - MARGIN - barW / 2 + anchorX.value + tx.value;
       const left = center < screenW / 2;
-      anchorX.value = withSpring(left ? -(screenW - barW - MARGIN * 2) : 0, SPRING);
-      tx.value = withSpring(0, SPRING);
-      ty.value = withSpring(0, SPRING);
+      anchorX.value = withSpring(left ? -(screenW - barW - MARGIN * 2) : 0, SNAP);
+      tx.value = withSpring(0, SNAP);
+      ty.value = withSpring(0, SNAP);
       runOnJS(setFloatBarCorner)(left ? 'left' : 'right');
     });
 
