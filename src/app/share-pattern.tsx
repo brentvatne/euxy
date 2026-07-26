@@ -10,14 +10,22 @@
 import type { CanvasRef } from '@shopify/react-native-skia';
 import { ImageFormat } from '@shopify/react-native-skia';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 
 import { effectiveChipName } from '@/components/patterns/chips';
 import { ShareCard } from '@/components/patterns/share-card';
 import { AppText, SheetHeader } from '@/components/ui';
 import { shareUrl } from '@/core/share-codec';
-import { canCopyToClipboard, canSharePng, copyToClipboard, haptics, sharePng } from '@/lib/shims';
+import {
+  canCopyToClipboard,
+  canSharePng,
+  copyToClipboard,
+  haptics,
+  logObserveEvent,
+  sharePng,
+  useObserve,
+} from '@/lib/shims';
 import { useStore } from '@/state/store';
 import { color, font, space } from '@/theme/tokens';
 
@@ -37,6 +45,14 @@ export default function SharePatternSheet() {
   const canvasRef = useRef<CanvasRef | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Nav TTI for this sheet (the QR render is its real readiness moment) +
+  // the top of the share funnel.
+  const { markInteractive } = useObserve();
+  useEffect(() => {
+    markInteractive();
+    logObserveEvent('share.sheet_opened');
+  }, [markInteractive]);
+
   if (!pattern) return null;
   // Same effective-glyph resolution as the card's QR (see share-card.tsx).
   const url = shareUrl({ ...pattern, icon: effectiveChipName(pattern) });
@@ -47,14 +63,17 @@ export default function SharePatternSheet() {
       const image = await canvasRef.current?.makeImageSnapshotAsync();
       if (image && canSharePng) {
         await sharePng(image.encodeToBase64(ImageFormat.PNG), `euxy-${slug(pattern.name)}.png`);
+        logObserveEvent('share.card_shared', { attributes: { method: 'png' } });
         return;
       }
     } catch (e) {
       console.warn('[euxy] card snapshot failed, sharing the link instead', e);
+      logObserveEvent('share.card_snapshot_failed', { severity: 'warn' });
     }
     // Old build (no expo-sharing/file-system) or snapshot failure: the link
     // still carries the whole pattern.
     await Share.share({ message: url });
+    logObserveEvent('share.card_shared', { attributes: { method: 'link_fallback' } });
   };
 
   const copyLink = async () => {
@@ -66,6 +85,7 @@ export default function SharePatternSheet() {
     } else {
       await Share.share({ message: url });
     }
+    logObserveEvent('share.link_copied');
   };
 
   return (

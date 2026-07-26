@@ -5,14 +5,14 @@
  * confirm. Malformed links get a friendly error, never a crash.
  */
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { chipForPattern } from '@/components/patterns/chips';
 import { LedChip } from '@/components/patterns/led-chip';
 import { AppText, SheetHeader } from '@/components/ui';
 import { decodePattern, type SharedPattern } from '@/core/share-codec';
-import { haptics } from '@/lib/shims';
+import { haptics, logObserveEvent, useObserve } from '@/lib/shims';
 import { useStore } from '@/state/store';
 import { color, font, space } from '@/theme/tokens';
 
@@ -28,10 +28,20 @@ export default function ImportPatternSheet() {
     }
   }, [d]);
 
+  // The receiving end of the share funnel: how many links arrive, how many
+  // are damaged, how many convert to an import.
+  const { markInteractive } = useObserve();
+  useEffect(() => {
+    markInteractive();
+    if (shared) logObserveEvent('share.link_received', { attributes: { lanes: shared.lanes.length } });
+    else logObserveEvent('share.link_invalid', { severity: 'warn' });
+  }, [markInteractive, shared]);
+
   const add = () => {
     if (!shared) return;
     importPattern(shared);
     haptics.success();
+    logObserveEvent('share.pattern_imported', { attributes: { lanes: shared.lanes.length } });
     // The imported pattern is now active — land on the sequencer.
     router.dismissTo('/(tabs)/(sequencer)');
   };

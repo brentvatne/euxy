@@ -29,16 +29,23 @@ export const useUpdates: UseUpdates = (...args) => useUpdatesImpl(...args);
 export const reloadUpdateAsync = () => reloadAsyncImpl();
 
 type UseObserve = () => { markInteractive: () => void };
+type LogEventOptions = {
+  attributes?: Record<string, string | number | boolean>;
+  body?: string;
+  severity?: 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+};
 
 let observeConfigure: (options: unknown) => void = () => {};
 let observeRootWrap = <P extends object>(c: ComponentType<P>): ComponentType<P> => c;
 let useObserveImpl: UseObserve = () => ({ markInteractive: () => {} });
+let logEventImpl: (name: string, options?: LogEventOptions) => void = () => {};
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const observe = require('expo-observe');
   observeConfigure = (options) => observe.Observe.configure(options);
   observeRootWrap = (c) => observe.ObserveRoot.wrap(c);
   useObserveImpl = observe.useObserve;
+  logEventImpl = (name, options) => observe.Observe.logEvent(name, options);
 } catch {
   console.warn('[euxy] expo-observe native module missing — metrics disabled on this build.');
 }
@@ -46,6 +53,11 @@ try {
 export const configureObserve = (options: unknown) => observeConfigure(options);
 export const wrapWithObserveRoot = observeRootWrap;
 export const useObserve: UseObserve = (...args) => useObserveImpl(...args);
+/** Product-moment event (EAS Observe). Fire-and-forget; no-op on builds
+ * without the native module. Keep names dot-separated and attributes
+ * low-cardinality. */
+export const logObserveEvent = (name: string, options?: LogEventOptions) =>
+  logEventImpl(name, options);
 
 type ImpactStyle = 'light' | 'medium' | 'heavy' | 'soft' | 'rigid';
 type HapticsApi = {
