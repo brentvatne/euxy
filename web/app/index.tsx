@@ -36,7 +36,16 @@ export default function Home() {
           <LedChip name="euxy" size={72} />
           <Text style={styles.title}>euxy</Text>
           <Text style={styles.tagline} {...webAttrs({ balance: '' })}>
-            A generative euclidean sequencer for the Teenage Engineering OP-XY, on your iPhone over USB-C MIDI.
+            A generative euclidean sequencer for the{' '}
+            <Link
+              href="https://teenage.engineering/products/op-xy"
+              target="_blank"
+              rel="noreferrer"
+              style={styles.inlineLink}
+            >
+              Teenage Engineering OP-XY
+            </Link>
+            , on your iPhone over USB-C MIDI.
           </Text>
           <Link
             href="https://testflight.apple.com/join/Ws2kvsxT"
@@ -87,7 +96,7 @@ export default function Home() {
           </View>
         </View>
 
-        <CollapsibleSection defaultOpen title="What’s euclidean sequencing?" icon="polymeter">
+        <CollapsibleSection defaultOpen title="What is euclidean sequencing?" icon="polymeter">
           <Text style={styles.lead}>
             Rather than placing beats one at a time, you tell a lane how many hits to fit into how
             many steps and it spreads them as evenly as it can. Changing one number lands you on a
@@ -168,6 +177,7 @@ const styles = StyleSheet.create({
     color: color.label2,
     textAlign: 'center',
   },
+  inlineLink: { color: color.label, textDecorationLine: 'underline' },
   betaKey: {
     marginTop: 6,
     paddingHorizontal: 24,
