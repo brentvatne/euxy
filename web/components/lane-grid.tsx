@@ -15,7 +15,7 @@ import { laneStepAt } from '@/core/euclid';
 import { patternForLane } from '@/core/lane-pattern';
 import type { SharedLane } from '@/core/share-codec';
 import { color, keyRamp } from '@/theme/tokens';
-import { MONO } from './ui';
+import { MONO, webAttrs } from './ui';
 
 const GAP = 2;
 const MAX_CELL = 22;
@@ -110,11 +110,40 @@ function LaneRow({ lane, tick, m }: { lane: SharedLane; tick: number; m: Metrics
   );
 }
 
-export function LaneGrid({ lanes, tick }: { lanes: SharedLane[]; tick: number }) {
+function laneHeight(length: number, m: Metrics): number {
+  const rows = Math.max(1, Math.ceil(length / 16));
+  // A lane row is at least as tall as its label's 14px line.
+  return Math.max(rows * m.cell + (rows - 1) * GAP, 14);
+}
+
+function gridHeight(lanes: { length: number }[], m: Metrics): number {
+  return lanes.reduce((h, l) => h + laneHeight(l.length, m), 0) + 6 * (lanes.length - 1);
+}
+
+export function LaneGrid({
+  lanes,
+  tick,
+  reserve,
+}: {
+  lanes: SharedLane[];
+  tick: number;
+  /** Additional lane sets to reserve height for, so swapping patterns
+   * (preset pills) causes no layout shift below the grid. */
+  reserve?: { length: number }[][];
+}) {
   const [width, setWidth] = useState(0);
   const m = metricsFor(width);
+  const minHeight = Math.max(...[lanes, ...(reserve ?? [])].map((set) => gridHeight(set, m)));
   return (
-    <View style={styles.grid} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+    <View
+      accessibilityRole="image"
+      accessibilityLabel={`Lane grid — ${lanes
+        .map((l) => (l.name ?? `CH ${l.channel + 1}`).toUpperCase())
+        .join(', ')}`}
+      {...webAttrs({ illustration: '' })}
+      style={[styles.grid, width > 0 && { minHeight }]}
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+    >
       {width > 0 && (
         <View style={styles.rows}>
           {lanes.map((lane, i) => <LaneRow key={i} lane={lane} tick={tick} m={m} />)}
@@ -127,8 +156,9 @@ export function LaneGrid({ lanes, tick }: { lanes: SharedLane[]; tick: number })
 const styles = StyleSheet.create({
   // Cells cap at MAX_CELL, so on wide cards the rows are narrower than the
   // measured container — center them as a block (rows stay left-aligned to
-  // each other so labels line up).
-  grid: { alignSelf: 'stretch', alignItems: 'center', minHeight: 24 },
+  // each other so labels line up). justifyContent centers shorter patterns
+  // vertically inside the reserved minHeight.
+  grid: { alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', minHeight: 24 },
   rows: { gap: 6 },
   laneRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   label: {

@@ -37,6 +37,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 22,
     gap: 10,
+    // Hairline bezel — displayBg on the black ground has no visible edge.
+    boxShadow: '0 0 0 1px rgba(255,255,255,0.06)',
   },
   step: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   digit: {

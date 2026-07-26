@@ -17,7 +17,15 @@ export interface PlayerPattern {
   lanes: SharedLane[];
 }
 
-export function PatternPlayer({ pattern }: { pattern: PlayerPattern }) {
+export function PatternPlayer({
+  pattern,
+  reserve,
+}: {
+  pattern: PlayerPattern;
+  /** Lane sets of sibling patterns — reserves grid height so switching
+   * patterns doesn't shift the layout below the card. */
+  reserve?: { length: number }[][];
+}) {
   const [playing, setPlaying] = useState(false);
   const [tick, setTick] = useState(-1);
   const schedulerRef = useRef<PatternScheduler | null>(null);
@@ -71,7 +79,7 @@ export function PatternPlayer({ pattern }: { pattern: PlayerPattern }) {
 
   return (
     <View style={styles.card}>
-      <LaneGrid lanes={pattern.lanes} tick={playing ? tick : -1} />
+      <LaneGrid lanes={pattern.lanes} tick={playing ? tick : -1} reserve={reserve} />
       <View style={styles.transport}>
         <Key label={playing ? 'Stop' : 'Play'} primary={!playing} active={playing} onPress={toggle} />
         <MonoLabel>
@@ -88,6 +96,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 18,
     gap: 16,
+    // Hairline bezel — displayBg on the black ground has no visible edge.
+    boxShadow: '0 0 0 1px rgba(255,255,255,0.06)',
   },
   transport: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 },
 });

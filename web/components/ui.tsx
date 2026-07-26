@@ -12,6 +12,14 @@ export const MONO = "'Space Mono', monospace";
 export const SANS =
   "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 
+/** react-native-web forwards `dataSet` as data-* attributes (hooks for the
+ * global CSS in _layout: hover, transitions, text-wrap). RN's types don't
+ * know the prop, hence the cast. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function webAttrs(dataSet: Record<string, string>): any {
+  return { dataSet };
+}
+
 /** 5×5 dot-matrix chip glyph, same geometry as the app's led-chip.tsx.
  * Pass `shades` directly for glyphs outside the registry (diagram devices). */
 export function LedChip({
@@ -30,6 +38,9 @@ export function LedChip({
   const grid = cell * 5 + gap * 4;
   return (
     <View
+      // Decorative next to its text — hide the dot soup from screen readers.
+      importantForAccessibility="no-hide-descendants"
+      {...webAttrs({ illustration: '' })}
       style={{
         width: size,
         height: size,
@@ -77,6 +88,8 @@ export function Key({
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      {...webAttrs({ anim: '' })}
       style={({ pressed }) => [
         styles.key,
         primary && styles.keyPrimary,
@@ -85,7 +98,7 @@ export function Key({
         style,
       ]}
     >
-      <Text style={[styles.keyLabel, (primary || active) && styles.keyLabelDark]}>{label}</Text>
+      <Text style={[styles.keyLabel, primary && styles.keyLabelDark]}>{label}</Text>
     </Pressable>
   );
 }
@@ -97,7 +110,9 @@ export function MonoLabel({ children, dim = false }: { children: ReactNode; dim?
 export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={styles.sectionTitle} {...webAttrs({ balance: '' })}>
+        {title}
+      </Text>
       {children}
     </View>
   );
@@ -126,10 +141,24 @@ export function CollapsibleSection({
         accessibilityState={{ expanded: open }}
       >
         <LedChip name={icon} size={30} />
-        <Text style={[styles.sectionTitle, styles.collapseTitle]}>{title}</Text>
-        <Text style={styles.chevron}>{open ? '▾' : '▸'}</Text>
+        <Text style={[styles.sectionTitle, styles.collapseTitle]} {...webAttrs({ balance: '' })}>
+          {title}
+        </Text>
+        <Text
+          style={[styles.chevron, { transform: [{ rotate: open ? '90deg' : '0deg' }] }]}
+          {...webAttrs({ chevron: '' })}
+        >
+          ▸
+        </Text>
       </Pressable>
-      {open ? <View style={styles.collapseBody}>{children}</View> : null}
+      {/* Children stay mounted when closed (display:none) so the static
+          export ships the copy — SEO, link previews, find-in-page. */}
+      <View
+        style={[styles.collapseBody, !open && styles.collapseHidden]}
+        {...webAttrs({ unfold: '' })}
+      >
+        {children}
+      </View>
     </View>
   );
 }
@@ -145,7 +174,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   keyPrimary: { backgroundColor: color.label },
-  keyActive: { backgroundColor: color.label },
+  // Playing = the key is "held down": dark, pressed in — distinct from the
+  // white Play invitation (they used to be identical).
+  keyActive: {
+    backgroundColor: color.surface2,
+    boxShadow: 'inset 0 1px 4px rgba(0,0,0,0.5)',
+  },
   keyLabel: { fontFamily: SANS, fontSize: 18, fontWeight: '600', color: color.label },
   keyLabelDark: { color: '#101014' },
   mono: {
@@ -156,9 +190,17 @@ const styles = StyleSheet.create({
     color: color.label25,
   },
   section: { gap: 12 },
-  sectionTitle: { fontFamily: SANS, fontSize: 20, fontWeight: '600', color: color.label3 },
-  collapseHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  sectionTitle: {
+    fontFamily: SANS,
+    fontSize: 20,
+    fontWeight: '600',
+    letterSpacing: -0.2,
+    color: color.label3,
+  },
+  // paddingVertical 7 + 30px chip = 44px hit area.
+  collapseHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7 },
   collapseTitle: { flex: 1, color: color.label2 },
   chevron: { fontFamily: MONO, fontSize: 15, color: color.label4 },
   collapseBody: { gap: 12, paddingTop: 2 },
+  collapseHidden: { display: 'none' },
 });

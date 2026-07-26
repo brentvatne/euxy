@@ -41,7 +41,7 @@ export default function SharedPatternPage() {
     return (
       <View style={styles.errorPage}>
         <LedChip name="offbeat" size={64} />
-        <Text style={styles.title}>This link didn't decode</Text>
+        <Text style={styles.title}>This link didn’t decode</Text>
         <Text style={styles.body}>
           The pattern data in this URL is missing or damaged. Ask for a fresh QR code — the whole
           pattern lives inside the link, so a complete one always works.
@@ -58,6 +58,15 @@ export default function SharedPatternPage() {
     <ScrollView contentContainerStyle={styles.page}>
       <Head>
         <title>{`${pattern.name} — euxy`}</title>
+        {/* Only crawlers that execute JS see these (the static export is
+            built without query params) — a best-effort upgrade. */}
+        <meta property="og:title" content={`${pattern.name} — a shared euxy pattern`} />
+        <meta
+          property="og:description"
+          content={`${pattern.lanes.length} lanes · ${pattern.bpm} BPM · ${steps} steps. Play it in the browser, or open it in euxy on iPhone.`}
+        />
+        <meta property="og:image" content="https://euxy.expo.app/og-p.png" />
+        <meta name="twitter:image" content="https://euxy.expo.app/og-p.png" />
       </Head>
       <View style={styles.column}>
         <View style={styles.identity}>
@@ -93,7 +102,8 @@ const styles = StyleSheet.create({
   page: { alignItems: 'center', paddingVertical: 56, paddingHorizontal: 20 },
   column: { width: '100%', maxWidth: 680, gap: 30 },
   identity: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  title: { fontFamily: SANS, fontSize: 28, fontWeight: '700', color: color.label },
+  // -0.02em tracking: display sizes read too loose at default spacing.
+  title: { fontFamily: SANS, fontSize: 28, fontWeight: '700', letterSpacing: -0.56, color: color.label },
   body: { fontFamily: SANS, fontSize: 17, lineHeight: 26, color: color.label2 },
   cta: { gap: 10 },
   errorPage: {

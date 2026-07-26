@@ -12,7 +12,15 @@ import { color } from '@/theme/tokens';
 import { ConnectSteps } from '../components/connect-diagram';
 import { PatternPlayer } from '../components/pattern-player';
 import { setFavicon } from '../lib/favicon';
-import { CollapsibleSection, LedChip, MONO, MonoLabel, SANS, Section } from '../components/ui';
+import {
+  CollapsibleSection,
+  LedChip,
+  MONO,
+  MonoLabel,
+  SANS,
+  Section,
+  webAttrs,
+} from '../components/ui';
 
 export default function Home() {
   const presets = useMemo(() => presetPatterns(), []);
@@ -28,43 +36,59 @@ export default function Home() {
         <View style={styles.hero}>
           <LedChip name="euxy" size={72} />
           <Text style={styles.title}>euxy</Text>
-          <Text style={styles.tagline}>
+          <Text style={styles.tagline} {...webAttrs({ balance: '' })}>
             A generative euclidean sequencer for the Teenage Engineering OP-XY, on your iPhone over USB-C MIDI.
           </Text>
           <MonoLabel dim>NO OP-XY? HEAR THE PATTERNS RIGHT HERE.</MonoLabel>
-          <Link href="https://testflight.apple.com/join/Ws2kvsxT" style={styles.betaKey}>
+          <Link
+            href="https://testflight.apple.com/join/Ws2kvsxT"
+            style={styles.betaKey}
+            {...webAttrs({ cta: '', anim: '' })}
+          >
             <Text style={styles.betaKeyLabel}>Join the TestFlight beta</Text>
           </Link>
-          <MonoLabel dim>EXTERNAL BETA AWAITING APPLE REVIEW — THE LINK MAY NOT WORK JUST YET</MonoLabel>
+          <MonoLabel dim>BETA IN APPLE REVIEW — LINK GOES LIVE ON APPROVAL</MonoLabel>
         </View>
 
         <Section title="Factory presets">
           <View style={styles.pills}>
-            {presets.map((p) => (
-              <Pressable
-                key={p.id}
-                onPress={() => setSelectedId(p.id)}
-                style={[styles.pill, p.id === selectedId && styles.pillActive]}
-              >
-                <Text style={[styles.pillLabel, p.id === selectedId && styles.pillLabelActive]}>
-                  {p.name}
-                </Text>
-              </Pressable>
-            ))}
+            {presets.map((p) => {
+              const selected = p.id === selectedId;
+              return (
+                <Pressable
+                  key={p.id}
+                  onPress={() => setSelectedId(p.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  // data-pill only when idle so the CSS hover tint never
+                  // fights the selected white fill.
+                  {...webAttrs(selected ? { anim: '' } : { anim: '', pill: '' })}
+                  style={({ pressed }) => [
+                    styles.pill,
+                    selected && styles.pillActive,
+                    pressed && styles.pillPressed,
+                  ]}
+                >
+                  <Text style={[styles.pillLabel, selected && styles.pillLabelActive]}>
+                    {p.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
           {/* No remount key: the player swaps schedulers on pattern change so
               playback continues across preset switches. */}
-          <PatternPlayer pattern={selected} />
+          <PatternPlayer pattern={selected} reserve={presets.map((p) => p.lanes)} />
           <Text style={styles.footnote}>
-            Sounds are small synthesized stand-ins for the OP-XY's drum kit — the point is the
+            Sounds are small synthesized stand-ins for the OP-XY’s drum kit — the point is the
             rhythm, not the timbre.
           </Text>
         </Section>
 
-        <CollapsibleSection title="What's euclidean sequencing?" icon="polymeter">
+        <CollapsibleSection title="What’s euclidean sequencing?" icon="polymeter">
           <Text style={styles.body}>
             Spread K hits as evenly as possible across N steps and you get the rhythms of the
-            world — E(3,8) is the tresillo, E(5,16) the bossa clave (Toussaint's observation).
+            world — E(3,8) is the tresillo, E(5,16) the bossa clave (Toussaint’s observation).
             euxy runs two euclidean generators per lane and combines them with a boolean op, so
             simple parameters compound into grooves.
           </Text>
@@ -132,7 +156,8 @@ const styles = StyleSheet.create({
   page: { alignItems: 'center', paddingVertical: 56, paddingHorizontal: 20 },
   column: { width: '100%', maxWidth: 680, gap: 44 },
   hero: { alignItems: 'center', gap: 12 },
-  title: { fontFamily: SANS, fontSize: 40, fontWeight: '700', color: color.label },
+  // -0.02em tracking: display sizes read too loose at default spacing.
+  title: { fontFamily: SANS, fontSize: 40, fontWeight: '700', letterSpacing: -0.8, color: color.label },
   tagline: {
     fontFamily: SANS,
     fontSize: 18,
@@ -151,11 +176,13 @@ const styles = StyleSheet.create({
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   pill: {
     paddingHorizontal: 17,
-    paddingVertical: 10,
+    minHeight: 44, // touch target
+    justifyContent: 'center',
     borderRadius: 999,
     backgroundColor: color.surface,
   },
   pillActive: { backgroundColor: color.label },
+  pillPressed: { transform: [{ scale: 0.97 }] },
   pillLabel: { fontFamily: SANS, fontSize: 16, fontWeight: '500', color: color.label2 },
   pillLabelActive: { color: '#101014' },
   body: { fontFamily: SANS, fontSize: 17, lineHeight: 26, color: color.label2 },
