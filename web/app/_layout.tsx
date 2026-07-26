@@ -58,7 +58,10 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: color.ground,
+    // dvh, not vh: mobile Safari's 100vh is the LARGE viewport (URL bar
+    // collapsed), which made the scroll container taller than the visible
+    // area — the page rubber-banded back before reaching the bottom.
     // react-native-web accepts viewport units; RN's types don't know them.
-    minHeight: '100vh' as unknown as number,
+    minHeight: '100dvh' as unknown as number,
   } satisfies ViewStyle,
 });
