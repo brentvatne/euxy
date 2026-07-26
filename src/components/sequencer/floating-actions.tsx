@@ -209,17 +209,23 @@ export function FloatingActions({
   // temp key (~220ms, Brent's correction) while the halo fades with it.
   const armProgress = useSharedValue(0);
   useEffect(() => {
+    // RETARGET from wherever the line currently sits (principle 7). The
+    // `armProgress.value = 0` that used to precede the draw snapped a
+    // half-undrawn rim back to nothing before redrawing it — a visible cut on
+    // a key that gets mashed. Durations scale by the distance still to travel,
+    // so a re-arm from 60% drawn doesn't crawl through the last 40%.
     if (snapshotActive) {
-      armProgress.value = 0;
       armProgress.value = withTiming(1, {
-        duration: 320,
+        duration: Math.max(80, 320 * (1 - armProgress.value)),
         easing: Easing.out(Easing.quad),
         reduceMotion: ReduceMotion.System,
       });
     } else {
       armProgress.value = withTiming(0, {
-        duration: 220,
-        easing: Easing.in(Easing.quad),
+        duration: Math.max(60, 220 * armProgress.value),
+        // ease-OUT on the retract as well: ease-in held the line still for the
+        // first frames after the tap, the exact moment being watched.
+        easing: Easing.out(Easing.quad),
         reduceMotion: ReduceMotion.System,
       });
     }
@@ -254,9 +260,11 @@ export function FloatingActions({
   }));
   const traceStyle = useAnimatedStyle(() => ({
     // Hidden at rest; brightens on each quarter tick; hands its light to the
-    // drain dot on keep (same formula the per-key ring used).
+    // drain dot on keep (same formula the per-key ring used). Epsilon, not
+    // `=== 0`: the trace now decays THROUGH zero on a re-press instead of
+    // being hard-reset to it, so it must not flicker on the way past.
     opacity:
-      keepProgress.value === 0 ? 0 : (0.85 + 0.15 * keepTick.value) * (1 - keepDrain.value),
+      keepProgress.value < 0.001 ? 0 : (0.85 + 0.15 * keepTick.value) * (1 - keepDrain.value),
   }));
 
   const pan = Gesture.Pan()
@@ -680,11 +688,21 @@ function TempKey({
     pressStart.current = Date.now();
     // The keep trace only exists while armed — a disarmed press is just a key.
     if (!engaged) return;
-    keepProgress.value = 0;
-    keepProgress.value = withDelay(
-      RING_DELAY_MS,
-      withTiming(1, { duration: HOLD_MS, easing: Easing.linear }),
-    );
+    // No pre-zero (principle 7): re-pressing while the previous release's drain
+    // was still in flight used to blank the trace in one frame and then sit
+    // dead through RING_DELAY_MS. Instead the ring-delay window DRAINS any
+    // residual to zero — which is exactly what that window means (nothing
+    // fills yet) — and the fill then takes the full HOLD_MS, so it still
+    // completes precisely when the keep timer below fires. With no residual
+    // (the normal case) the first leg is a 150ms hold at 0, as before.
+    // Reduced Motion drives no trace at all; the quarter/success haptics carry
+    // the hold, matching fireKeep's own reduced-motion path.
+    keepProgress.value = reducedMotion
+      ? 0
+      : withSequence(
+          withTiming(0, { duration: RING_DELAY_MS, easing: Easing.out(Easing.quad) }),
+          withTiming(1, { duration: HOLD_MS, easing: Easing.linear }),
+        );
     // Faint tick at each trace quarter (selection haptic + a brightness blip).
     [0.25, 0.5, 0.75].forEach((q) => {
       timers.current.push(

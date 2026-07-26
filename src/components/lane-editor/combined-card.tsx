@@ -83,18 +83,23 @@ export function CombinedCard({
     initialRender.current = false;
   }, []);
 
-  // Reroll wash (concept J): a one-shot mounted per nonce; every animation in
-  // it is precomputed on mount (withDelay/withSequence), so nothing runs per
-  // frame in JS. Reduced Motion skips straight to the settled new pattern.
+  // Reroll wash (concept J): every animation in it is precomputed per trigger
+  // (withDelay/withSequence), so nothing runs per frame in JS. Reduced Motion
+  // skips straight to the settled new pattern.
+  //
+  // The wash stays MOUNTED across presses (principle 7). It used to be keyed on
+  // the nonce, which meant mashing Randomize destroyed the in-flight curtain
+  // and every cell film and remounted them at their initial values: the curtain
+  // teleported back to the entry edge mid-sweep. A bump now RETARGETS the
+  // curtain and retriggers the films instead; the whole layer unmounts only
+  // after it has been idle long enough to be finished, so nothing gets cut.
   const reducedMotion = useReducedMotion();
-  const [wash, setWash] = useState<{ key: number; direction: 'ltr' | 'rtl' } | null>(null);
+  const [washActive, setWashActive] = useState(false);
   useEffect(() => {
     if (washNonce === 0 || reducedMotion) return;
-    setWash({ key: washNonce, direction: washDirection });
-    const t = setTimeout(() => setWash(null), SWEEP_MS + 450);
+    setWashActive(true);
+    const t = setTimeout(() => setWashActive(false), SWEEP_MS + 450);
     return () => clearTimeout(t);
-    // washDirection only matters at trigger time.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [washNonce, reducedMotion]);
 
   const rows: number[][] = [];
@@ -137,11 +142,10 @@ export function CombinedCard({
               </View>
             ))
           : null}
-        {cellW > 0 && wash ? (
+        {cellW > 0 && washActive ? (
           <RerollWash
-            key={wash.key}
-            seed={wash.key}
-            direction={wash.direction}
+            trigger={washNonce}
+            direction={washDirection}
             steps={n}
             cellW={cellW}
             width={width}
@@ -160,13 +164,14 @@ export function CombinedCard({
  * at low opacity, and only opacity/transform animate.
  */
 function RerollWash({
-  seed,
+  trigger,
   direction,
   steps,
   cellW,
   width,
 }: {
-  seed: number;
+  /** Bumped per Randomize press: retargets the curtain, retriggers the films. */
+  trigger: number;
   direction: 'ltr' | 'rtl';
   steps: number;
   cellW: number;
@@ -178,13 +183,27 @@ function RerollWash({
   // Curtain: constant-speed sweep (mechanical, LED-like), fading past the
   // last column.
   const x = useSharedValue(rtl ? width : -curtainW);
-  const o = useSharedValue(1);
+  const o = useSharedValue(0);
   useEffect(() => {
-    x.value = withTiming(rtl ? -curtainW : width, { duration: SWEEP_MS, easing: Easing.linear });
-    o.value = withDelay(SWEEP_MS - 110, withTiming(0, { duration: 160, easing: Easing.out(Easing.quad) }));
-    // One-shot on mount by design.
+    const startX = rtl ? width : -curtainW;
+    const endX = rtl ? -curtainW : width;
+    const span = width + curtainW;
+    // Parked and invisible → enter fresh from the start edge (nothing on
+    // screen to cut). Still mid-sweep → leave the curtain where it is and
+    // carry it to the end at the SAME speed: a re-press re-flickers the cells
+    // under a light that never jumps.
+    if (o.value < 0.02) x.value = startX;
+    const remaining = Math.abs(endX - x.value);
+    const dur = Math.max(60, SWEEP_MS * (remaining / span));
+    o.value = 1; // instant attack
+    x.value = withTiming(endX, { duration: dur, easing: Easing.linear });
+    o.value = withDelay(
+      Math.max(0, dur - 110),
+      withTiming(0, { duration: 160, easing: Easing.out(Easing.quad) }),
+    );
+    // Fires on mount and again on every trigger bump.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [trigger]);
   const curtainStyle = useAnimatedStyle(() => ({
     opacity: o.value,
     transform: [{ translateX: x.value }],
@@ -194,7 +213,7 @@ function RerollWash({
   // deterministic per-cell jitter/peak from the wash seed (no Math.random in
   // render — a re-render must not reroll the sparkle).
   const rand = (i: number) => {
-    const t = Math.sin((i + 1) * 127.1 + seed * 311.7) * 43758.5453;
+    const t = Math.sin((i + 1) * 127.1 + trigger * 311.7) * 43758.5453;
     return t - Math.floor(t);
   };
   const colMs = SWEEP_MS / PER_ROW;
@@ -212,9 +231,12 @@ function RerollWash({
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {/* Films stay mounted under a stable key and retrigger — a mid-fade cell
+          redirects from its current opacity instead of cutting to zero. */}
       {cells.map((c) => (
         <FlickerBloom
           key={c.i}
+          trigger={trigger}
           delay={c.delay}
           peak={c.peak}
           style={[
