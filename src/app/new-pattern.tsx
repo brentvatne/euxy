@@ -25,6 +25,7 @@ import { IconPicker } from '@/components/patterns/icon-picker';
 import { ResolutionPicker } from '@/components/patterns/resolution-picker';
 import { useStore } from '@/state/store';
 import { color, font, radius, space, timing } from '@/theme/tokens';
+import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
 /** Tempo bounds — shared with the Tempo sheet (app/tempo.tsx). */
 export const BPM_MIN = 20;
@@ -36,6 +37,7 @@ const ICON_CHIP_SIZE = 56;
 const ICON_CHIP_STRIDE = ICON_CHIP_SIZE + 6 + 10;
 
 export default function NewPatternSheet() {
+  useMarkInteractive();
   const newPattern = useStore((s) => s.newPattern);
 
   // §9: names are GENERATED, never "Untitled N". The sheet opens with a

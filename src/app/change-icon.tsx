@@ -16,8 +16,10 @@ import { IconPicker } from '@/components/patterns/icon-picker';
 import { AppText, SheetHeader } from '@/components/ui';
 import { useStore } from '@/state/store';
 import { color, font, space } from '@/theme/tokens';
+import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
 export default function ChangeIconSheet() {
+  useMarkInteractive();
   const { patternId } = useLocalSearchParams<{ patternId?: string }>();
   const pattern = useStore((s) =>
     s.patterns.find((p) => p.id === (patternId ?? s.activePatternId)),

@@ -12,6 +12,7 @@ import { AppText } from '@/components/ui';
 import { color, radius, space } from '@/theme/tokens';
 import { GRAY } from '@/components/midi/components';
 import { clearLog, sendTestNote, useMidiRuntime } from '@/components/midi/runtime';
+import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
 function ClockIndicator({ active }: { active: boolean }) {
   return (
@@ -25,6 +26,7 @@ function ClockIndicator({ active }: { active: boolean }) {
 }
 
 export default function ActivityLogScreen() {
+  useMarkInteractive();
   const rt = useMidiRuntime();
 
   return (

@@ -35,6 +35,7 @@ import { CombinedCard, combinedCardHeight } from '@/components/lane-editor/combi
 import { NotePads } from '@/components/lane-editor/note-pads';
 import { PickerBar } from '@/components/lane-editor/picker-bar';
 import { SliderRow } from '@/components/lane-editor/slider-row';
+import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
 /** Pinned wrapper vertical paddings — shared with the scroll-spacer math so
  * the spacer mirrors the card's footprint exactly. */
@@ -85,6 +86,7 @@ function Section({
 }
 
 export default function LaneEditorSheet() {
+  useMarkInteractive();
   const laneId = useStore((s) => s.selection.laneId);
   const lane = useLane(laneId);
   const updateLane = useStore((s) => s.updateLane);

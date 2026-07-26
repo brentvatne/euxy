@@ -14,6 +14,7 @@ import { refreshDevices, selectInput, selectOutput, useMidiRuntime } from '@/com
 import { useSettings } from '@/state/selectors';
 import { color, radius, space } from '@/theme/tokens';
 import type { MidiDevice } from '@/midi/types';
+import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 function DeviceIcon({ name, selected }: { name: string; selected: boolean }) {
@@ -25,6 +26,7 @@ function DeviceIcon({ name, selected }: { name: string; selected: boolean }) {
 }
 
 export default function DevicePickerSheet() {
+  useMarkInteractive();
   const { kind } = useLocalSearchParams<{ kind?: string }>();
   const isInput = kind === 'input';
   const rt = useMidiRuntime();

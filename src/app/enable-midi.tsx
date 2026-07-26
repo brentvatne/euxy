@@ -14,8 +14,10 @@ import { AppText } from '@/components/ui';
 import { IconMic, IconMidiDin, IconWarning } from '@/components/midi/icons';
 import { enableMidi, useMidiRuntime } from '@/components/midi/runtime';
 import { color, radius, space } from '@/theme/tokens';
+import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
 export default function EnableMidiSheet() {
+  useMarkInteractive();
   const rt = useMidiRuntime();
   const [busy, setBusy] = useState(false);
 

@@ -24,8 +24,10 @@ import { useActivePattern } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import { color, font, radius, space } from '@/theme/tokens';
 import { BPM_MAX, BPM_MIN } from './new-pattern';
+import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
 export default function TempoSheet() {
+  useMarkInteractive();
   const bpm = useStore((s) => s.transport.bpm);
   const recordMode = useStore((s) => s.transport.clockMode) === 'record';
   const setBpm = useStore((s) => s.setBpm);
