@@ -44,14 +44,43 @@ function metricsFor(width: number): Metrics {
   };
 }
 
-function Cell({ fill, hit, playhead, m }: { fill: string; hit: boolean; playhead: boolean; m: Metrics }) {
+function Cell({
+  fill,
+  ramp,
+  hit,
+  playhead,
+  m,
+}: {
+  fill: string;
+  /** keyRamp index — picks a ring that contrasts with this cell's shade. */
+  ramp: number;
+  hit: boolean;
+  playhead: boolean;
+  m: Metrics;
+}) {
   // App playhead language: the travelling light occupies the LED slot on
   // empty steps; crossing a hit it REPLACES the steady LED with a prominent
   // black dot in the same slot (never both at once).
   const blackDot = playhead && hit;
   const ledTop = m.cell >= 18 ? 3 : 2;
+  // The light alone can't say WHICH light is the playhead: on a sparse
+  // pattern (Ambient Drift's Pulse lane is 1 hit in 11 steps) the crawling
+  // light is pixel-identical to a hit LED, so the grid reads as wandering
+  // lights. Ring the playhead CELL — the Lane Editor's convention — so
+  // exactly one cell per row is marked as "where the playhead is". Ring
+  // contrast flips on the ramp's light end; inset shadow keeps the LED's
+  // position (a border would inset the content box).
+  const ring = playhead
+    ? { boxShadow: `inset 0 0 0 1.5px ${ramp >= 6 ? 'rgba(8,8,10,0.55)' : 'rgba(246,244,244,0.6)'}` }
+    : null;
   return (
-    <View style={[styles.cell, { width: m.cell, height: m.cell, borderRadius: m.cell >= 16 ? 4 : 3, backgroundColor: fill }]}>
+    <View
+      style={[
+        styles.cell,
+        { width: m.cell, height: m.cell, borderRadius: m.cell >= 16 ? 4 : 3, backgroundColor: fill },
+        ring,
+      ]}
+    >
       {(hit || playhead) && !blackDot && (
         <View
           style={[
@@ -94,15 +123,19 @@ function LaneRow({ lane, tick, m }: { lane: SharedLane; tick: number; m: Metrics
       <View style={{ gap: GAP }}>
         {rows.map((slots, r) => (
           <View key={r} style={styles.cells}>
-            {slots.map((i) => (
-              <Cell
-                key={i}
-                fill={keyRamp[Math.floor((i % 16) / 2)]}
-                hit={steps[i] === 1}
-                playhead={i === playStep}
-                m={m}
-              />
-            ))}
+            {slots.map((i) => {
+              const ramp = Math.floor((i % 16) / 2);
+              return (
+                <Cell
+                  key={i}
+                  fill={keyRamp[ramp]}
+                  ramp={ramp}
+                  hit={steps[i] === 1}
+                  playhead={i === playStep}
+                  m={m}
+                />
+              );
+            })}
           </View>
         ))}
       </View>
