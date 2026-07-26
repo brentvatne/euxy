@@ -1,0 +1,80 @@
+# Issue triage — the crash-triage agent, but for GitHub issues.
+#
+# EAS Workflows has no issue trigger, so this runs on GitHub Actions. It fires:
+#   - when brentvatne OPENS an issue, or
+#   - when brentvatne comments `/accept <extra context>` on any issue (not a PR).
+# Then it runs the Claude agent (with the expo skills) to investigate and open a
+# PR — same shape as the TestFlight crash-triage flow. Never auto-merges.
+#
+# Setup: add CLAUDE_CODE_OAUTH_TOKEN as a GitHub Actions repository secret
+# (Settings → Secrets and variables → Actions). The built-in GITHUB_TOKEN handles
+# the branch push + PR (no PAT needed).
+
+name: Issue triage
+
+on:
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+# Serialize runs per issue so rapid opens/comments don't race on the same branch.
+concurrency:
+  group: issue-triage-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  triage:
+    # Only brentvatne, and for comments only `/accept …` on a real issue (not a PR).
+    # Allowlist gate: only actors in TRIAGE_ALLOWLIST (a repo/org Actions Variable,
+    # JSON array of GitHub logins; defaults to just brentvatne). Add people by
+    # editing the variable — Settings → Secrets and variables → Actions → Variables.
+    if: >-
+      (github.event_name == 'issues'
+        && contains(fromJSON(vars.TRIAGE_ALLOWLIST || '["brentvatne"]'), github.event.issue.user.login))
+      || (github.event_name == 'issue_comment' && !github.event.issue.pull_request
+          && (github.event.comment.body == '/accept' || startsWith(github.event.comment.body, '/accept '))
+          && contains(fromJSON(vars.TRIAGE_ALLOWLIST || '["brentvatne"]'), github.event.comment.user.login))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+      - name: Install deps + Claude Code + Expo skills
+        run: |
+          bun install --frozen-lockfile || bun install
+          npm install -g @anthropic-ai/claude-code
+          claude plugin marketplace add anthropics/claude-plugins-official || true
+          claude plugin install expo@claude-plugins-official || true
+          claude --version
+      - name: Triage the issue
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          REPO_SLUG: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          TRIAGE_ALLOWLIST: ${{ vars.TRIAGE_ALLOWLIST || '["brentvatne"]' }}
+          # passed via env (never interpolated into the shell) to avoid injection
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
+          ACCEPT_COMMENT: ${{ github.event.comment.body }}
+          ACCEPT_AUTHOR: ${{ github.event.comment.user.login }}
+        run: bun .github/scripts/issue-triage.ts
+      - name: Upload triage summary
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-triage-summary
+          path: |
+            .github/issue-triage/ANALYSIS.md
+            .github/issue-triage/issue.json
+          if-no-files-found: ignore
