@@ -18,7 +18,6 @@ import {
   MONO,
   MonoLabel,
   SANS,
-  Section,
   webAttrs,
 } from '../components/ui';
 
@@ -47,10 +46,9 @@ export default function Home() {
             <Text style={styles.betaKeyLabel}>Join the TestFlight beta</Text>
           </Link>
           <MonoLabel dim>BETA IN APPLE REVIEW — LINK GOES LIVE ON APPROVAL</MonoLabel>
-          <MonoLabel dim>NO OP-XY? HEAR THE PATTERNS RIGHT HERE.</MonoLabel>
         </View>
 
-        <Section title="Factory presets">
+        <View style={styles.player}>
           {/* The payoff leads: with 24 presets the pill list is taller than
               the player, and below it Play sat ~380px under the fold on a
               phone. No remount key — the player swaps schedulers on pattern
@@ -58,6 +56,7 @@ export default function Home() {
           <PatternPlayer
             pattern={selected}
             chip={chipForPattern(selected)}
+            note="The app sends MIDI over USB-C to play patterns on the OP-XY itself. The sounds here are synthesized in the browser as an example."
             reserve={presets.map((p) => p.lanes)}
           />
           <View style={styles.pills}>
@@ -78,6 +77,7 @@ export default function Home() {
                     pressed && styles.pillPressed,
                   ]}
                 >
+                  <LedChip shades={chipForPattern(p)} size={18} />
                   <Text style={[styles.pillLabel, selected && styles.pillLabelActive]}>
                     {p.name}
                   </Text>
@@ -85,13 +85,15 @@ export default function Home() {
               );
             })}
           </View>
-          <Text style={styles.footnote}>
-            Sounds are small synthesized stand-ins for the OP-XY’s drum kit — the point is the
-            rhythm, not the timbre.
-          </Text>
-        </Section>
+        </View>
 
         <CollapsibleSection title="What’s euclidean sequencing?" icon="polymeter">
+          <Text style={styles.lead}>
+            Rather than placing beats one at a time, you tell a lane how many hits to fit into how
+            many steps and it spreads them as evenly as it can. Changing one number lands you on a
+            different groove — so you find rhythms by dialing rather than drawing, including ones
+            you wouldn’t have programmed by hand.
+          </Text>
           <Text style={styles.body}>
             Spread K hits as evenly as possible across N steps and you get the rhythms of the
             world — E(3,8) is the tresillo, E(5,16) the bossa clave (Toussaint’s observation).
@@ -133,9 +135,10 @@ export default function Home() {
                 })(),
               },
             }}
-            style={styles.repoLink}
+            style={styles.tryKey}
+            {...webAttrs({ anim: '', pill: '' })}
           >
-            <Text style={styles.repoLinkLabel}>TRY ONE → “FOUR ON THE FLOOR” AS A LINK</Text>
+            <Text style={styles.tryKeyLabel}>Open an example shared link</Text>
           </Link>
         </CollapsibleSection>
 
@@ -179,9 +182,15 @@ const styles = StyleSheet.create({
     backgroundColor: color.label,
   },
   betaKeyLabel: { fontFamily: SANS, fontSize: 17, fontWeight: '600', color: '#101014' },
-  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  player: { gap: 14 },
+  pills: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
   pill: {
-    paddingHorizontal: 17,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    // Tighter on the glyph side so the chip isn't stranded in the corner.
+    paddingLeft: 11,
+    paddingRight: 17,
     minHeight: 44, // touch target
     justifyContent: 'center',
     borderRadius: 999,
@@ -191,11 +200,22 @@ const styles = StyleSheet.create({
   pillPressed: { transform: [{ scale: 0.97 }] },
   pillLabel: { fontFamily: SANS, fontSize: 16, fontWeight: '500', color: color.label2 },
   pillLabelActive: { color: '#101014' },
+  lead: { fontFamily: SANS, fontSize: 17, lineHeight: 26, color: color.label },
   body: { fontFamily: SANS, fontSize: 17, lineHeight: 26, color: color.label2 },
   params: { fontFamily: MONO, fontSize: 12, lineHeight: 19, letterSpacing: 0.5, color: '#6E6E76' },
   footnote: { fontFamily: SANS, fontSize: 14, lineHeight: 19, color: '#6E6E76' },
+  // Caption wedged between two dense blocks — give it room to read as its
+  // own beat rather than a label stuck to either one.
   centered: { textAlign: 'center' },
   footer: { gap: 8, alignItems: 'center', paddingBottom: 16 },
+  tryKey: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 20,
+    paddingVertical: 13,
+    borderRadius: 12,
+    backgroundColor: color.surface,
+  },
+  tryKeyLabel: { fontFamily: SANS, fontSize: 16, fontWeight: '600', color: color.label },
   repoLink: { paddingVertical: 4 },
   repoLinkLabel: { fontFamily: MONO, fontSize: 13, letterSpacing: 0.4, color: color.label25 },
 });

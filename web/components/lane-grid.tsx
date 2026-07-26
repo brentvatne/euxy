@@ -18,6 +18,9 @@ import { color, keyRamp } from '@/theme/tokens';
 import { MONO, webAttrs } from './ui';
 
 const GAP = 2;
+/** Phosphor trail: ember opacity per step behind the head (matches the app's
+ * Skia strip — step-strip-skia.tsx TRAIL). */
+const TRAIL = [0.4, 0.22, 0.1];
 const MAX_CELL = 22;
 
 interface Metrics {
@@ -46,16 +49,16 @@ function metricsFor(width: number): Metrics {
 
 function Cell({
   fill,
-  ramp,
   hit,
   playhead,
+  trail,
   m,
 }: {
   fill: string;
-  /** keyRamp index — picks a ring that contrasts with this cell's shade. */
-  ramp: number;
   hit: boolean;
   playhead: boolean;
+  /** Steps behind the head (1-3) for a phosphor ember, else 0. */
+  trail: number;
   m: Metrics;
 }) {
   // App playhead language: the travelling light occupies the LED slot on
@@ -63,24 +66,36 @@ function Cell({
   // black dot in the same slot (never both at once).
   const blackDot = playhead && hit;
   const ledTop = m.cell >= 18 ? 3 : 2;
-  // The light alone can't say WHICH light is the playhead: on a sparse
-  // pattern (Ambient Drift's Pulse lane is 1 hit in 11 steps) the crawling
-  // light is pixel-identical to a hit LED, so the grid reads as wandering
-  // lights. Ring the playhead CELL — the Lane Editor's convention — so
-  // exactly one cell per row is marked as "where the playhead is". Ring
-  // contrast flips on the ramp's light end; inset shadow keeps the LED's
-  // position (a border would inset the content box).
-  const ring = playhead
-    ? { boxShadow: `inset 0 0 0 1.5px ${ramp >= 6 ? 'rgba(8,8,10,0.55)' : 'rgba(246,244,244,0.6)'}` }
-    : null;
+  // What makes the head legible on a sparse pattern (Ambient Drift's Pulse
+  // lane is 1 hit in 11 steps, so nearly every light you see IS the playhead)
+  // is the app's phosphor trail: embers hold behind the head at TRAIL
+  // opacities, and a comet reads as motion where a lone dot reads as a hit.
+  // Skipped on hit cells — their steady LED is already brighter.
+  const ember = trail > 0 && !hit && !playhead;
   return (
     <View
       style={[
         styles.cell,
         { width: m.cell, height: m.cell, borderRadius: m.cell >= 16 ? 4 : 3, backgroundColor: fill },
-        ring,
       ]}
     >
+      {ember && (
+        <View
+          {...webAttrs({ ember: '' })}
+          style={[
+            styles.led,
+            styles.emberLed,
+            {
+              top: ledTop,
+              left: (m.cell - m.led) / 2,
+              width: m.led,
+              height: m.led,
+              borderRadius: m.led / 2,
+              opacity: TRAIL[trail - 1],
+            },
+          ]}
+        />
+      )}
       {(hit || playhead) && !blackDot && (
         <View
           style={[
@@ -123,19 +138,17 @@ function LaneRow({ lane, tick, m }: { lane: SharedLane; tick: number; m: Metrics
       <View style={{ gap: GAP }}>
         {rows.map((slots, r) => (
           <View key={r} style={styles.cells}>
-            {slots.map((i) => {
-              const ramp = Math.floor((i % 16) / 2);
-              return (
-                <Cell
-                  key={i}
-                  fill={keyRamp[ramp]}
-                  ramp={ramp}
-                  hit={steps[i] === 1}
-                  playhead={i === playStep}
-                  m={m}
-                />
-              );
-            })}
+            {slots.map((i) => (
+              <Cell
+                key={i}
+                fill={keyRamp[Math.floor((i % 16) / 2)]}
+                hit={steps[i] === 1}
+                playhead={i === playStep}
+                // Distance behind the head, wrapping with the lane.
+                trail={playStep < 0 ? 0 : ((playStep - i + lane.length) % lane.length)}
+                m={m}
+              />
+            ))}
           </View>
         ))}
       </View>
@@ -219,6 +232,8 @@ const styles = StyleSheet.create({
   },
   cells: { flexDirection: 'row', gap: GAP },
   cell: {},
+  // Embers carry no bloom — only the head glows.
+  emberLed: { boxShadow: 'none' },
   led: {
     position: 'absolute',
     backgroundColor: '#FFFFFF',

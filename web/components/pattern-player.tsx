@@ -20,9 +20,13 @@ export interface PlayerPattern {
 export function PatternPlayer({
   pattern,
   chip,
+  note,
   reserve,
 }: {
   pattern: PlayerPattern;
+  /** Caption inside the card — what these sounds are. Lives in the card so
+   * it stays attached to the thing it describes. */
+  note?: string;
   /** Chip glyph shades (chips.ts). When given, the card leads with an
    * identity row — the card names what you're hearing, which also serves as
    * feedback when the picker is scrolled past the card. Omit where the page
@@ -100,6 +104,7 @@ export function PatternPlayer({
           {pattern.lanes.length} LANES · {pattern.bpm} BPM
         </MonoLabel>
       </View>
+      {note ? <Text style={styles.note}>{note}</Text> : null}
     </View>
   );
 }
@@ -116,4 +121,13 @@ const styles = StyleSheet.create({
   identity: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   name: { fontFamily: SANS, fontSize: 17, fontWeight: '600', color: color.label, flexShrink: 1 },
   transport: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 },
+  note: {
+    fontFamily: SANS,
+    fontSize: 14,
+    lineHeight: 19,
+    color: '#6E6E76',
+    textAlign: 'center',
+    alignSelf: 'center',
+    maxWidth: 520,
+  },
 });
