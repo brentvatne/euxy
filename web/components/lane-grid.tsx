@@ -18,9 +18,6 @@ import { color, keyRamp } from '@/theme/tokens';
 import { MONO, webAttrs } from './ui';
 
 const GAP = 2;
-/** Phosphor trail: ember opacity per step behind the head (matches the app's
- * Skia strip — step-strip-skia.tsx TRAIL). */
-const TRAIL = [0.4, 0.22, 0.1];
 const MAX_CELL = 22;
 
 interface Metrics {
@@ -51,14 +48,11 @@ function Cell({
   fill,
   hit,
   playhead,
-  trail,
   m,
 }: {
   fill: string;
   hit: boolean;
   playhead: boolean;
-  /** Steps behind the head (1-3) for a phosphor ember, else 0. */
-  trail: number;
   m: Metrics;
 }) {
   // App playhead language: the travelling light occupies the LED slot on
@@ -66,12 +60,6 @@ function Cell({
   // black dot in the same slot (never both at once).
   const blackDot = playhead && hit;
   const ledTop = m.cell >= 18 ? 3 : 2;
-  // What makes the head legible on a sparse pattern (Ambient Drift's Pulse
-  // lane is 1 hit in 11 steps, so nearly every light you see IS the playhead)
-  // is the app's phosphor trail: embers hold behind the head at TRAIL
-  // opacities, and a comet reads as motion where a lone dot reads as a hit.
-  // Skipped on hit cells — their steady LED is already brighter.
-  const ember = trail > 0 && !hit && !playhead;
   return (
     <View
       style={[
@@ -79,23 +67,6 @@ function Cell({
         { width: m.cell, height: m.cell, borderRadius: m.cell >= 16 ? 4 : 3, backgroundColor: fill },
       ]}
     >
-      {ember && (
-        <View
-          {...webAttrs({ ember: '' })}
-          style={[
-            styles.led,
-            styles.emberLed,
-            {
-              top: ledTop,
-              left: (m.cell - m.led) / 2,
-              width: m.led,
-              height: m.led,
-              borderRadius: m.led / 2,
-              opacity: TRAIL[trail - 1],
-            },
-          ]}
-        />
-      )}
       {(hit || playhead) && !blackDot && (
         <View
           style={[
@@ -144,8 +115,6 @@ function LaneRow({ lane, tick, m }: { lane: SharedLane; tick: number; m: Metrics
                 fill={keyRamp[Math.floor((i % 16) / 2)]}
                 hit={steps[i] === 1}
                 playhead={i === playStep}
-                // Distance behind the head, wrapping with the lane.
-                trail={playStep < 0 ? 0 : ((playStep - i + lane.length) % lane.length)}
                 m={m}
               />
             ))}
@@ -232,8 +201,6 @@ const styles = StyleSheet.create({
   },
   cells: { flexDirection: 'row', gap: GAP },
   cell: {},
-  // Embers carry no bloom — only the head glows.
-  emberLed: { boxShadow: 'none' },
   led: {
     position: 'absolute',
     backgroundColor: '#FFFFFF',

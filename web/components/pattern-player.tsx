@@ -118,7 +118,8 @@ const styles = StyleSheet.create({
     // Hairline bezel — displayBg on the black ground has no visible edge.
     boxShadow: '0 0 0 1px rgba(255,255,255,0.06)',
   },
-  identity: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  // Centred like every other row in the card (grid, transport, note).
+  identity: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   name: { fontFamily: SANS, fontSize: 17, fontWeight: '600', color: color.label, flexShrink: 1 },
   transport: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 },
   note: {
