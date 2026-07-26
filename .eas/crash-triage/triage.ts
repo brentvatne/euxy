@@ -150,6 +150,10 @@ if (allowlist.length) {
 // ---- run the agent ----
 console.log(`▸ Investigating crash ${feedbackId || "(no id)"} with Claude…`);
 const prompt = await Bun.file(`${TRIAGE_DIR}/triage-prompt.md`).text();
+console.log(
+  `\n===== FULL PROMPT PASSED TO CLAUDE =====\n${prompt}\n===== END PROMPT =====\n` +
+    `(the agent also reads ${CRASH_JSON} for the crash detail printed above)\n`
+);
 const agent = Bun.spawn(
   ["claude", "-p", prompt, "--permission-mode", "bypassPermissions", "--output-format", "text"],
   { stdout: "inherit", stderr: "inherit", env }
@@ -209,7 +213,13 @@ console.log(`▸ Pushed ${branch}.`);
 
 // ---- open PR via REST ----
 const title = codeChanged ? `Crash triage + proposed fix: ${feedbackId || shortId}` : `Crash triage: ${feedbackId || shortId}`;
-const body = `${await Bun.file(ANALYSIS).text()}\n\n---\n_Automated triage. **Not auto-merged** — review before merging._ Code change proposed: **${codeChanged ? "yes" : "no"}**.`;
+// Link back to the TestFlight crash / App Store Connect feedback when we have it.
+const crashLink = feedbackUrl
+  ? `🔗 **Related TestFlight crash:** [${feedbackId || "feedback"}](${feedbackUrl})\n\n`
+  : feedbackId
+    ? `**Related feedback id:** \`${feedbackId}\`\n\n`
+    : "";
+const body = `${crashLink}${await Bun.file(ANALYSIS).text()}\n\n---\n_Automated triage. **Not auto-merged** — review before merging._ Code change proposed: **${codeChanged ? "yes" : "no"}**.`;
 
 async function ghPost(path: string, payload: unknown) {
   return fetch(`https://api.github.com/repos/${owner}/${repo}${path}`, {
