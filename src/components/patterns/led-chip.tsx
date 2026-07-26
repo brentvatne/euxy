@@ -69,7 +69,21 @@ export function LedChip({
             })}
           </View>
         ))}
-        {playing && !reduceMotion ? <Sweep cellW={cell} gap={gap} height={grid} /> : null}
+        {playing ? (
+          reduceMotion ? (
+            // Reduced Motion gets the sweep's SETTLED frame, not nothing: the
+            // moving column is this chip's only "now playing" affordance, so
+            // the state stays and only the movement goes. A steady wash over
+            // the whole glyph (brightness — the one channel that may animate,
+            // principle 3) rather than a column parked at an arbitrary column.
+            <View
+              pointerEvents="none"
+              style={[styles.playingWash, { width: grid, height: grid, borderRadius: cell * 0.3 }]}
+            />
+          ) : (
+            <Sweep cellW={cell} gap={gap} height={grid} />
+          )
+        ) : null}
       </View>
     </View>
   );
@@ -130,5 +144,13 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     backgroundColor: 'rgba(246,244,244,0.28)',
+  },
+  // The sweep's settled equivalent: same light, spread over the whole grid, so
+  // the total brightness reads similar to one lit column travelling.
+  playingWash: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    backgroundColor: 'rgba(246,244,244,0.10)',
   },
 });

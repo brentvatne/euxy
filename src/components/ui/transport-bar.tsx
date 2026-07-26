@@ -19,6 +19,7 @@ import Animated, {
   useAnimatedReaction,
   useAnimatedStyle,
   useDerivedValue,
+  useReducedMotion,
   useSharedValue,
   withDelay,
   withRepeat,
@@ -203,6 +204,14 @@ function ModePill({
 }) {
   const rec = !jam;
   const recording = rec && recordPhase === 'recording';
+  // Reduced Motion here needs care: `withRepeat` propagates its reduceMotion
+  // setting into its children, and a `withSequence` under Reduce Motion jumps
+  // straight to its LAST leg. Both loops below therefore used to PARK on their
+  // dimmest frame (0.2) instead of settling on a readable one — the REC-armed
+  // dot became nearly invisible and the playing JAM ring ended up dimmer than
+  // its own stopped standby. Principle 5 wants the settled frame, so both are
+  // branched explicitly rather than delegated to ReduceMotion.System.
+  const reduceMotion = useReducedMotion();
 
   // --- JAM breathing border -----------------------------------------------
   const breathe = useSharedValue(0);
@@ -216,7 +225,7 @@ function ModePill({
     // production forever — measured ~22% of a core on an otherwise idle sim.
     // Playing already animates every frame (playhead), so the marginal cost
     // is ~0; stopped = a still standby ring (the capsule's rule too).
-    if (jam && playing) {
+    if (jam && playing && !reduceMotion) {
       breathe.value = withRepeat(
         withSequence(
           withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.sin) }),
@@ -228,11 +237,13 @@ function ModePill({
         ReduceMotion.System,
       );
     } else {
+      // Standby (stopped, or Reduced Motion at any time): the still half-lit
+      // ring — the same settled frame in both cases.
       cancelAnimation(breathe);
       breathe.value = withTiming(jam ? 0.5 : 0, { duration: 250, reduceMotion: ReduceMotion.System });
     }
     return () => cancelAnimation(breathe);
-  }, [jam, playing, breathe, borderOn]);
+  }, [jam, playing, reduceMotion, breathe, borderOn]);
   const breatheStyle = useAnimatedStyle(() => ({
     opacity: borderOn.value * (0.2 + 0.55 * breathe.value),
   }));
@@ -274,6 +285,12 @@ function ModePill({
     () => eighth.value,
     (cur, prev) => {
       if (cur === prev) return;
+      if (reduceMotion) {
+        // Settled frame = LIT. The blink is the "recording" state's only
+        // visual, so Reduce Motion holds it on rather than dropping it.
+        blinkSV.value = 1;
+        return;
+      }
       if (cur === -1) {
         blinkSV.value = withTiming(1, { duration: 200, reduceMotion: ReduceMotion.System });
         return;
@@ -293,7 +310,9 @@ function ModePill({
   // repeat at the displayed tempo — one lit-and-decayed 8th per 8th.
   const pulse = useSharedValue(1);
   useEffect(() => {
-    if (!rec || recording) {
+    if (!rec || recording || reduceMotion) {
+      // Reduced Motion: hold the armed dot SOLID. Record-armed is load-bearing
+      // state — the blink may go, the light may not.
       cancelAnimation(pulse);
       pulse.value = 1;
       return;
@@ -311,7 +330,7 @@ function ModePill({
       ReduceMotion.System,
     );
     return () => cancelAnimation(pulse);
-  }, [rec, recording, bpm, pulse]);
+  }, [rec, recording, reduceMotion, bpm, pulse]);
 
   const dotStyle = useAnimatedStyle(() => ({
     opacity: dotOn.value * (recordingSV.value === 1 ? blinkSV.value : pulse.value),
