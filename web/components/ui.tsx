@@ -15,7 +15,6 @@ export const SANS =
 /** react-native-web forwards `dataSet` as data-* attributes (hooks for the
  * global CSS in _layout: hover, transitions, text-wrap). RN's types don't
  * know the prop, hence the cast. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function webAttrs(dataSet: Record<string, string>): any {
   return { dataSet };
 }

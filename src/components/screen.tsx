@@ -362,15 +362,6 @@ export default function Screen() {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value} ▾</Text>
-    </View>
-  );
-}
-
 function Stepper({
   label,
   value,
@@ -444,15 +435,6 @@ const styles = StyleSheet.create({
   primaryBtnLabel: { fontFamily: font.text, fontSize: 16, fontWeight: '600', color: color.ground },
 
   group: { backgroundColor: color.surface, borderRadius: radius.cell, overflow: 'hidden' },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 13,
-    paddingHorizontal: space.lg,
-  },
-  rowLabel: { fontFamily: font.text, fontSize: 16, color: color.label3 },
-  rowValue: { fontFamily: font.text, fontSize: 16, color: color.label },
   sep: { height: 1, backgroundColor: color.ground },
 
   transport: { flexDirection: 'row', alignItems: 'center', gap: space.sm },

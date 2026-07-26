@@ -53,7 +53,7 @@ export default function ImportPatternSheet() {
         <View style={styles.grabberSpace} />
         <SheetHeader title="" onDone={() => router.back()} />
         <View style={styles.center}>
-          <AppText style={styles.title}>This link didn't decode</AppText>
+          <AppText style={styles.title}>This link didn’t decode</AppText>
           <AppText style={styles.body}>
             The pattern data in this link is missing or damaged. Ask for a fresh QR code — the
             whole pattern travels inside the link, so a complete one always works.

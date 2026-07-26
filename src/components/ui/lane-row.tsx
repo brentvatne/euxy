@@ -11,7 +11,7 @@ import { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { haptics } from '@/lib/shims';
-import { color, font, HIT_TARGET, radius, ramp, space } from '@/theme/tokens';
+import { color, font, HIT_TARGET, ramp, space } from '@/theme/tokens';
 import { Key } from './key';
 import { Led } from './led';
 import { AppText } from './text';
