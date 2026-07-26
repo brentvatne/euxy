@@ -115,14 +115,21 @@ export function LaneGrid({ lanes, tick }: { lanes: SharedLane[]; tick: number })
   const m = metricsFor(width);
   return (
     <View style={styles.grid} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
-      {width > 0 &&
-        lanes.map((lane, i) => <LaneRow key={i} lane={lane} tick={tick} m={m} />)}
+      {width > 0 && (
+        <View style={styles.rows}>
+          {lanes.map((lane, i) => <LaneRow key={i} lane={lane} tick={tick} m={m} />)}
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  grid: { gap: 6, alignSelf: 'stretch', minHeight: 24 },
+  // Cells cap at MAX_CELL, so on wide cards the rows are narrower than the
+  // measured container — center them as a block (rows stay left-aligned to
+  // each other so labels line up).
+  grid: { alignSelf: 'stretch', alignItems: 'center', minHeight: 24 },
+  rows: { gap: 6 },
   laneRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   label: {
     flexShrink: 0,

@@ -89,5 +89,5 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: 16,
   },
-  transport: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  transport: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 },
 });
