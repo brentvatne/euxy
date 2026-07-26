@@ -1,23 +1,18 @@
-# Crash triage — thin slice (v0)
+# Crash triage — thin slice (v0), PRODUCTION trigger.
 #
 # A TestFlight tester reports a CRASH → a Linux job runs a Claude agent (with the
 # expo skills) to investigate against the codebase and open a PR with its
 # analysis (+ a safe minimal fix when confident). Never auto-merges.
 #
-# Two triggers:
-#   - app_store_connect.beta_feedback[crash]  — the real thing (needs the ASC
-#     connection AND the GitHub repo connected to the EAS project).
-#   - workflow_dispatch                       — manual test runs via
-#       `eas workflow:run .eas/workflows/crash-triage.yml \
-#          -F feedback_id=TEST -F tester_email=brentvatne@gmail.com`
+# For manual test runs use .eas/workflows/crash-triage-test.yml (workflow_dispatch)
+# — App Store Connect context and dispatch inputs can't coexist in one file (EAS
+# validates job params against the specific trigger's context).
 #
-# Gating: only feedback from a tester in ALLOWED_FEEDBACK_EMAILS is acted on
-# (fail-closed — if the tester email can't be determined, the job skips).
-#
-# EAS env vars (production, secret):
+# Requires: the App Store Connect connection AND the GitHub repo connected to the
+# EAS project (Project settings). EAS env vars (production, secret):
 #   CLAUDE_CODE_OAUTH_TOKEN ✅   GH_TOKEN ✅
-#   ASC_KEY_ID / ASC_ISSUER_ID / ASC_P8 ⬜ (optional — real stack traces + real
-#     tester email; without them the gate relies on the dispatch input).
+#   ASC_KEY_ID / ASC_ISSUER_ID / ASC_P8 ⬜ (optional — real stack traces + tester
+#     email; without them the allowlist gate can't verify the tester and skips).
 
 name: Crash triage
 
@@ -26,20 +21,6 @@ on:
     beta_feedback:
       types:
         - crash
-  workflow_dispatch:
-    inputs:
-      feedback_id:
-        description: Test feedback id
-        type: string
-        default: TEST-LOCAL
-      feedback_url:
-        description: Test feedback url
-        type: string
-        default: ''
-      tester_email:
-        description: Tester email (must be in the allowlist to proceed)
-        type: string
-        default: brentvatne@gmail.com
 
 jobs:
   triage:
@@ -49,15 +30,10 @@ jobs:
     env:
       REPO_SLUG: brentvatne/euxy
       ALLOWED_FEEDBACK_EMAILS: brentvatne@gmail.com
-      # from the App Store Connect trigger (empty on a manual dispatch)
       FEEDBACK_ID: ${{ app_store_connect.beta_feedback.id }}
       FEEDBACK_TYPE: ${{ app_store_connect.beta_feedback.type }}
       FEEDBACK_URL: ${{ app_store_connect.beta_feedback.url }}
       ASC_APP_ID: ${{ app_store_connect.app.id }}
-      # from workflow_dispatch (empty on a real crash trigger)
-      INPUT_FEEDBACK_ID: ${{ inputs.feedback_id }}
-      INPUT_FEEDBACK_URL: ${{ inputs.feedback_url }}
-      INPUT_TESTER_EMAIL: ${{ inputs.tester_email }}
     steps:
       - uses: eas/checkout
       - uses: eas/install_node_modules

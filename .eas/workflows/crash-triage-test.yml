@@ -1,0 +1,55 @@
+# Crash triage — TEST harness (manual dispatch).
+#
+# Same job as crash-triage.yml but driven by workflow_dispatch inputs instead of
+# the App Store Connect trigger, so it can be run on demand without waiting for a
+# real crash:
+#
+#   eas workflow:run .eas/workflows/crash-triage-test.yml \
+#     -F feedback_id=TEST -F feedback_url=https://... \
+#     -F tester_email=brentvatne@gmail.com
+#
+# Kept separate from the production workflow because EAS validates job params
+# against the trigger's context — app_store_connect.* context and dispatch
+# inputs can't live in the same file.
+
+name: Crash triage (test)
+
+on:
+  workflow_dispatch:
+    inputs:
+      feedback_id:
+        description: Test feedback id
+        type: string
+        default: TEST-LOCAL
+      feedback_url:
+        description: Test feedback url
+        type: string
+        default: ''
+      tester_email:
+        description: Tester email (must be in the allowlist to proceed)
+        type: string
+        default: brentvatne@gmail.com
+
+jobs:
+  triage:
+    name: Investigate crash with Claude (test)
+    environment: production
+    runs_on: linux-medium
+    env:
+      REPO_SLUG: brentvatne/euxy
+      ALLOWED_FEEDBACK_EMAILS: brentvatne@gmail.com
+      INPUT_FEEDBACK_ID: ${{ inputs.feedback_id }}
+      INPUT_FEEDBACK_URL: ${{ inputs.feedback_url }}
+      INPUT_TESTER_EMAIL: ${{ inputs.tester_email }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - name: Install Claude Code + Expo skills
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          command -v bun >/dev/null 2>&1 || npm install -g bun
+          claude plugin marketplace add anthropics/claude-plugins-official || true
+          claude plugin install expo@claude-plugins-official || true
+          claude --version
+      - name: Triage
+        run: bun .eas/crash-triage/triage.ts

@@ -45,7 +45,8 @@ async function sh(cmd: string[], opts: { allowFail?: boolean } = {}) {
   ]);
   const code = await p.exited;
   if (code !== 0 && !opts.allowFail) {
-    console.error(`✗ ${cmd.map(redact).join(" ")}\n${err}`);
+    // redact stderr too: a failed `git push` echoes the token-bearing remote URL
+    console.error(`✗ ${cmd.map(redact).join(" ")}\n${redact(err)}`);
     process.exit(1);
   }
   return { code, out: out.trim(), err: err.trim() };
