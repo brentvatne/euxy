@@ -87,18 +87,12 @@ export default function Home() {
           </View>
         </View>
 
-        <CollapsibleSection title="What’s euclidean sequencing?" icon="polymeter">
+        <CollapsibleSection defaultOpen title="What’s euclidean sequencing?" icon="polymeter">
           <Text style={styles.lead}>
             Rather than placing beats one at a time, you tell a lane how many hits to fit into how
             many steps and it spreads them as evenly as it can. Changing one number lands you on a
             different groove — so you find rhythms by dialing rather than drawing, including ones
             you wouldn’t have programmed by hand.
-          </Text>
-          <Text style={styles.body}>
-            Spread K hits as evenly as possible across N steps and you get the rhythms of the
-            world — E(3,8) is the tresillo, E(5,16) the bossa clave (Toussaint’s observation).
-            euxy runs two euclidean generators per lane and combines them with a boolean op, so
-            simple parameters compound into grooves.
           </Text>
           <Text style={styles.params}>
             PER LANE · 2 GENERATORS (PULSES + ROTATE) · COMBINE OR/AND/XOR/A&gt;B · TRACK ROTATE ·
@@ -107,7 +101,7 @@ export default function Home() {
           </Text>
         </CollapsibleSection>
 
-        <CollapsibleSection title="No OP-XY? Drive this page from euxy" icon="play">
+        <CollapsibleSection defaultOpen title="No OP-XY? Drive this page from euxy" icon="play">
           <Text style={styles.body}>
             This is mainly for jamming without the hardware: euxy on iPhone sequences, and this
             page — open in a desktop browser — becomes the speaker, over a USB cable. Live MIDI
@@ -117,7 +111,7 @@ export default function Home() {
           <MonoLabel dim>DESKTOP BROWSER ONLY · WEB MIDI · CHROME / EDGE / FIREFOX — NOT SAFARI</MonoLabel>
         </CollapsibleSection>
 
-        <CollapsibleSection title="Share patterns as pixels" icon="invader">
+        <CollapsibleSection defaultOpen title="Share patterns as pixels" icon="invader">
           <Text style={styles.body}>
             Every euxy pattern can be shared as a QR code. Scanning one opens the pattern in the
             app — or, without the app, plays it on this site. No server, no account: the whole
