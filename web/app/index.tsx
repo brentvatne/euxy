@@ -51,6 +51,15 @@ export default function Home() {
         </View>
 
         <Section title="Factory presets">
+          {/* The payoff leads: with 24 presets the pill list is taller than
+              the player, and below it Play sat ~380px under the fold on a
+              phone. No remount key — the player swaps schedulers on pattern
+              change so playback continues across preset switches. */}
+          <PatternPlayer
+            pattern={selected}
+            chip={chipForPattern(selected)}
+            reserve={presets.map((p) => p.lanes)}
+          />
           <View style={styles.pills}>
             {presets.map((p) => {
               const selected = p.id === selectedId;
@@ -76,9 +85,6 @@ export default function Home() {
               );
             })}
           </View>
-          {/* No remount key: the player swaps schedulers on pattern change so
-              playback continues across preset switches. */}
-          <PatternPlayer pattern={selected} reserve={presets.map((p) => p.lanes)} />
           <Text style={styles.footnote}>
             Sounds are small synthesized stand-ins for the OP-XY’s drum kit — the point is the
             rhythm, not the timbre.

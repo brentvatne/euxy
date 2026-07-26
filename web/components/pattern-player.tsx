@@ -4,12 +4,12 @@
  * the first press is the user gesture that unlocks the AudioContext.
  */
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import type { SharedLane } from '@/core/share-codec';
 import { color } from '@/theme/tokens';
 import { getAudioContext, PatternScheduler } from '../lib/player';
 import { LaneGrid } from './lane-grid';
-import { Key, MonoLabel } from './ui';
+import { Key, LedChip, MonoLabel, SANS } from './ui';
 
 export interface PlayerPattern {
   name: string;
@@ -19,9 +19,15 @@ export interface PlayerPattern {
 
 export function PatternPlayer({
   pattern,
+  chip,
   reserve,
 }: {
   pattern: PlayerPattern;
+  /** Chip glyph shades (chips.ts). When given, the card leads with an
+   * identity row — the card names what you're hearing, which also serves as
+   * feedback when the picker is scrolled past the card. Omit where the page
+   * already shows identity above the card (/p). */
+  chip?: string;
   /** Lane sets of sibling patterns — reserves grid height so switching
    * patterns doesn't shift the layout below the card. */
   reserve?: { length: number }[][];
@@ -79,6 +85,14 @@ export function PatternPlayer({
 
   return (
     <View style={styles.card}>
+      {chip ? (
+        <View style={styles.identity}>
+          <LedChip shades={chip} size={28} />
+          <Text style={styles.name} numberOfLines={1}>
+            {pattern.name}
+          </Text>
+        </View>
+      ) : null}
       <LaneGrid lanes={pattern.lanes} tick={playing ? tick : -1} reserve={reserve} />
       <View style={styles.transport}>
         <Key label={playing ? 'Stop' : 'Play'} primary={!playing} active={playing} onPress={toggle} />
@@ -99,5 +113,7 @@ const styles = StyleSheet.create({
     // Hairline bezel — displayBg on the black ground has no visible edge.
     boxShadow: '0 0 0 1px rgba(255,255,255,0.06)',
   },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  name: { fontFamily: SANS, fontSize: 17, fontWeight: '600', color: color.label, flexShrink: 1 },
   transport: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 },
 });
