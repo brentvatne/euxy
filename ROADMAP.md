@@ -617,9 +617,34 @@ to hardware. Build order and route map live in the web plan.
 pattern", generated at build time with satori + @resvg/resvg-js from the
 real shared modules → public/og.png + og-p.png, meta wired (layout +
 /p). Per-pattern DYNAMIC cards were implemented and worked locally but
-hit two EAS Hosting walls (worker forbids runtime wasm; deployed SSR
-returns an empty <head> — feedback ea3f4348); the SSR implementation
-lives in git history. Details: web-plan.md "OG images — BUILT".
+hit three walls (feedback ea3f4348); the SSR implementation lives in git
+history. Details: web-plan.md "OG images — BUILT".
+
+**REVISED PLAN (2026-07-26)** — there's a route around all three, so this
+no longer waits on EAS Hosting. The wasm wall was a misdiagnosis: workers
+refuse runtime *compilation* of wasm bytes, not wasm itself, and both
+satori and @resvg/resvg-wasm already export their `.wasm` as an importable
+subpath for exactly this. The empty-`<head>` wall gets bypassed by serving
+the crawler HTML from an API route we control instead of Expo's SSR head
+injection. The cache wall dissolves if the payload moves from a query
+param to a **route param** (`/p/<payload>`) — content-addressed, so cache
+it `immutable` rather than fighting it with `no-store`. Nearly free: the
+codec is already unpadded base64url, so the payload is a legal path
+segment, and the AASA already wildcards `/p*`.
+
+**SPIKED (2026-07-26):** the wasm import does NOT work through Metro
+0.84.4 / Expo 57.0.8. `wasm` is in neither assetExts nor sourceExts; force
+it into assetExts and the import resolves to a URL *string*, not a
+WebAssembly.Module — and the .wasm is never emitted, so the URL 404s. The
+real ask for ea3f4348 is therefore "bundle .wasm as a worker-bindable
+module", not "allow runtime wasm". So drop resvg on the dynamic path
+instead: `CompressionStream('deflate')` gives zlib-wrapped deflate
+(verified), which is exactly PNG IDAT, so a ~100-line dependency-free PNG
+encoder over a pixel grid works — and the card is dot-matrix cells and
+mono text already, with chips.ts holding glyphs as 5×5 shade strings. That
+removes wall 1 entirely and leaves everything app-level. Next spike needs
+a real deploy: does an API route's hand-written <head> survive the
+worker? Full write-up in web-plan.md.
 
 Original brief — every page unfurled with text-only meta. Generate proper
 Open Graph images (1200×630) for the site's pages — **design them in
