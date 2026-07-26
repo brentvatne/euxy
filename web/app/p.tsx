@@ -35,7 +35,21 @@ export default function SharedPatternPage() {
     if (pattern) setFavicon(CHIPS[(pattern.icon ?? 'euxy') as keyof typeof CHIPS] ?? CHIPS.euxy);
   }, [pattern]);
 
-  if (!ready) return <View style={styles.blank} />;
+  // The prerendered p.html IS this state — the unfurl meta must live here,
+  // not inside the pattern branch the prerender never reaches.
+  if (!ready) {
+    return (
+      <View style={styles.blank}>
+        <Head>
+          <title>Shared pattern — euxy</title>
+          <meta property="og:title" content="Someone sent you a euxy pattern" />
+          <meta property="og:description" content="Play it in your browser — no app needed." />
+          <meta property="og:image" content="https://euxy.expo.app/og-p.png" />
+          <meta name="twitter:image" content="https://euxy.expo.app/og-p.png" />
+        </Head>
+      </View>
+    );
+  }
 
   if (!pattern) {
     return (
@@ -58,15 +72,6 @@ export default function SharedPatternPage() {
     <ScrollView contentContainerStyle={styles.page}>
       <Head>
         <title>{`${pattern.name} — euxy`}</title>
-        {/* Only crawlers that execute JS see these (the static export is
-            built without query params) — a best-effort upgrade. */}
-        <meta property="og:title" content={`${pattern.name} — a shared euxy pattern`} />
-        <meta
-          property="og:description"
-          content={`${pattern.lanes.length} lanes · ${pattern.bpm} BPM · ${steps} steps. Play it in the browser, or open it in euxy on iPhone.`}
-        />
-        <meta property="og:image" content="https://euxy.expo.app/og-p.png" />
-        <meta name="twitter:image" content="https://euxy.expo.app/og-p.png" />
       </Head>
       <View style={styles.column}>
         <View style={styles.identity}>

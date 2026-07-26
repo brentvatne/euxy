@@ -9,7 +9,7 @@
  * cells always fit — fixed 22px cells ran off phone screens (Brent's
  * report; a 390pt viewport leaves ~314px inside the card).
  */
-import { useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { laneStepAt } from '@/core/euclid';
 import { patternForLane } from '@/core/lane-pattern';
@@ -120,6 +120,16 @@ function gridHeight(lanes: { length: number }[], m: Metrics): number {
   return lanes.reduce((h, l) => h + laneHeight(l.length, m), 0) + 6 * (lanes.length - 1);
 }
 
+/** Static-export layout: 680px column − 2×18px card padding. Rendering at
+ * this width from the first frame (instead of nothing until onLayout, which
+ * fires after paint) means no load-time layout shift — the static HTML ships
+ * a full-size grid, and hydration matches it exactly. */
+const DEFAULT_WIDTH = 644;
+
+// useLayoutEffect corrects the width estimate before the browser paints the
+// hydrated tree; the server shim avoids React's SSR warning.
+const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
+
 export function LaneGrid({
   lanes,
   tick,
@@ -131,24 +141,30 @@ export function LaneGrid({
    * (preset pills) causes no layout shift below the grid. */
   reserve?: { length: number }[][];
 }) {
-  const [width, setWidth] = useState(0);
+  const ref = useRef<View>(null);
+  const [width, setWidth] = useState(DEFAULT_WIDTH);
+  useIsoLayoutEffect(() => {
+    // On web the View ref IS the DOM element. Measured synchronously so
+    // narrow viewports never paint the desktop-width estimate.
+    const el = ref.current as unknown as HTMLElement | null;
+    if (el?.offsetWidth) setWidth(el.offsetWidth);
+  }, []);
   const m = metricsFor(width);
   const minHeight = Math.max(...[lanes, ...(reserve ?? [])].map((set) => gridHeight(set, m)));
   return (
     <View
+      ref={ref}
       accessibilityRole="image"
       accessibilityLabel={`Lane grid — ${lanes
         .map((l) => (l.name ?? `CH ${l.channel + 1}`).toUpperCase())
         .join(', ')}`}
       {...webAttrs({ illustration: '' })}
-      style={[styles.grid, width > 0 && { minHeight }]}
+      style={[styles.grid, { minHeight }]}
       onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
     >
-      {width > 0 && (
-        <View style={styles.rows}>
-          {lanes.map((lane, i) => <LaneRow key={i} lane={lane} tick={tick} m={m} />)}
-        </View>
-      )}
+      <View style={styles.rows}>
+        {lanes.map((lane, i) => <LaneRow key={i} lane={lane} tick={tick} m={m} />)}
+      </View>
     </View>
   );
 }

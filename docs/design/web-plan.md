@@ -199,6 +199,32 @@ End-to-end acceptance: share from the app → scan the PNG with a second
 device → (no app) euxy.expo.app/p plays the pattern in the browser →
 (app installed) the app opens and imports. Same URL, three outcomes.
 
+## OG images — BUILT (2026-07-25)
+
+Paper boards **"OG · home 1200×630"** + **"OG · shared pattern 1200×630"**,
+implemented with **satori + @resvg/resvg-js at build time** (the stack
+behind @vercel/og; the wrapper itself is edge-only). `bun run og` (chained
+into export/deploy) renders `public/og.png` (home/brand) and
+`public/og-p.png` (generic shared-pattern frame) from `lib/og-cards.ts` —
+element trees built from the REAL shared modules (chip registry,
+patternForLane, Four on the Floor preset). Fonts: vendored Space Mono
+TTFs (OFL) in `assets/og-fonts/` — satori can't read woff2. Meta: layout
+Head carries the site-wide og/twitter tags (Brent's wiring → /og.png);
+/p's prerendered state carries the og-p variant.
+
+**Per-pattern OG images: attempted, reverted — two EAS Hosting walls**
+(feedback ea3f4348): (1) the worker forbids runtime wasm compilation
+("Wasm code generation disallowed by embedder") killing resvg-wasm /
+the whole @vercel/og pattern; (2) SSR (`web.output: "server"` +
+`unstable_useServerRendering`) renders head metadata correctly under
+local `expo serve` but the deployed worker returns an EMPTY head — no
+generateMetadata output, no <Head> tags (body renders). Also: the CDN
+caches SSR HTML for 1h with a query-blind cache key — per-request meta
+needs `Cache-Control: no-store` via the expo-router headers plugin.
+The full working-locally SSR implementation (generateMetadata on /p +
+/api/og+api.ts) lives in git history on this branch — resurrect when
+EAS Hosting fixes head injection + offers a wasm path.
+
 ## Open questions
 
 1. `/p` transport: auto-play on load, or require the tap anyway? (The tap

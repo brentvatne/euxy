@@ -9,7 +9,14 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const dist = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
-const required = ['index.html', 'p.html', 'privacy.html', '.well-known/apple-app-site-association'];
+const required = [
+  'index.html',
+  'p.html',
+  'privacy.html',
+  '.well-known/apple-app-site-association',
+  'og.png',
+  'og-p.png',
+];
 const missing = required.filter((f) => !existsSync(join(dist, f)));
 if (missing.length) {
   console.error(`✗ dist/ is not a web export — missing: ${missing.join(', ')}`);

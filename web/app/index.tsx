@@ -39,7 +39,6 @@ export default function Home() {
           <Text style={styles.tagline} {...webAttrs({ balance: '' })}>
             A generative euclidean sequencer for the Teenage Engineering OP-XY, on your iPhone over USB-C MIDI.
           </Text>
-          <MonoLabel dim>NO OP-XY? HEAR THE PATTERNS RIGHT HERE.</MonoLabel>
           <Link
             href="https://testflight.apple.com/join/Ws2kvsxT"
             style={styles.betaKey}
@@ -48,6 +47,7 @@ export default function Home() {
             <Text style={styles.betaKeyLabel}>Join the TestFlight beta</Text>
           </Link>
           <MonoLabel dim>BETA IN APPLE REVIEW — LINK GOES LIVE ON APPROVAL</MonoLabel>
+          <MonoLabel dim>NO OP-XY? HEAR THE PATTERNS RIGHT HERE.</MonoLabel>
         </View>
 
         <Section title="Factory presets">
