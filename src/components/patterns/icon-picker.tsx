@@ -1,9 +1,9 @@
 /**
- * IconPicker — the 30-glyph chip grid ("Sheet · Change icon" / New Pattern
+ * IconPicker — the full chip grid ("Sheet · Change icon" / New Pattern
  * ICON group, simplified 2026-07-24 design: no label row, no Shuffle —
  * creation still shuffles the default silently): big readable chips
  * (4 per row, Brent's call over the 6-per-row mock) straight on the sheet.
- * The HOST provides scrolling — 30 glyphs don't fit a form sheet. `horizontal`
+ * The HOST provides scrolling — 50 glyphs don't fit a form sheet. `horizontal`
  * lays the chips out as one non-wrapping row instead (New Pattern's ICON
  * group, scrolled sideways by its host).
  */

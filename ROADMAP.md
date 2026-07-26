@@ -362,21 +362,48 @@ single-pitch subs (note 36, renamed "Sub") — rhythmic on any patch.
 TODO: audition all 15 presets on the OP-XY (velocities/gates especially the
 1/8T lanes and the 1/32 roll); assign glyphs when `Pattern.icon` lands.
 
-### 6. Icon picker — design simplified + MUST scroll (2026-07-24)
+**Preset library v3 shipped in code (2026-07-25).** THIRTEEN more genre
+presets (PRESETS_VERSION → 3, append-only): Trip-Hop, Drunk Swing, Tape Loop
+(lo-fi) · Head Nod, Phonk (hip hop) · Warehouse, Electro, Acid Line, Footwork
+(electronic) · Stutter (IDM) · Money Beat, Half-Time Shuffle, D-Beat (rock).
+All onsets verified against `core/euclid.ts` (script: session scratchpad
+`verify_presets_v3.ts`, 55 lanes). Notable recipes: head-nod kick =
+`E(1) OR E(2,16) r9` (0·7·15 land/push/pickup); techno rumble =
+`E(7,16) A>B E(4,16)` (ghost kicks in every gap between the four); drunk
+swing = 12-step 1/8T shuffled hats against a straight-16th `E(3,16) r6`
+kick; tape-loop hat = 15-step lane drifting one 16th per bar; footwork tom =
+12-step 1/16T lane realigning every 2 bars; stutter roll = 7-step 1/32 lane
+realigning every 7 bars; d-beat kick = `E(2,8) r4 OR E(1,8) r5` (0·3·4
+gallop); Purdie ghosts = `E(4,12) r1` at velocity 30. All 13 have BESPOKE
+glyphs in `chips.ts` (triphop, stagger, loop, nod, stack, room, bolt, drop,
+steps, glitch, backbeat, ghosts, bang — same language, greys + one #F6F4F4
+pixel). All 13 are also DRAWN on the Paper "Preset icons — assortment"
+artboard, generated from the CHIPS strings so canvas and code can't drift.
+Then 7 spare glyphs (44 star, 45 moon, 46 spiral, 47 pulse, 48 orbit,
+49 plus, 50 ladder) rounded the registry out to **50** — no preset claims
+these, they exist for hand-picking. Artboard grew 1220 → 2164px, Rows 6–9
+hold cells 31–50. The hash fallback is derived from the registry length, so
+adding glyphs needs no code change. TODO: audition presets on the OP-XY,
+especially the drift lanes (15/13/11/7-step) and the 1/32 roll at 156.
+
+### 6. Icon picker — design simplified + MUST scroll (2026-07-24) — DONE
 
 Paper designs updated: the Change-icon sheet lost its "Icon" header title and
 pattern-name subtitle (now just Cancel/Done + the grid); the grid card lost
 its ICON label row and the Shuffle affordance (creation still shuffles the
-default silently). IMPLEMENTATION REQUIREMENT: the glyph grid is NOT
-scrollable in the current design/mock and must be — 30 glyphs now, 6 per row
-= 5 rows; the sheet shows 2. Make the grid a horizontally paged or vertically
-scrollable region inside the sheet (the "swipe for more" hint stays).
+default silently). The scroll requirement SHIPPED: `change-icon.tsx` wraps the
+grid in a vertical ScrollView and `new-pattern.tsx` scrolls the `horizontal`
+strip sideways, both inside a `collapsable={false}` frame so
+react-native-screens' formSheet frame correction doesn't paint the ScrollView
+over the header. Verified in code 2026-07-25 (50 glyphs, still scrolls).
 
 ### 7. Six new glyphs — extend the registry (2026-07-24)
 
 "Preset icons — assortment" Row 5 adds: 25 bell, 26 motorik, 27 two-step,
 28 aksak, 29 three-four, 30 samba (same language: greys + one #F6F4F4 pixel).
 `presetGlyphs.ts` should ship all 30; hash fallback becomes `% 30`.
+(Superseded by v3: `chips.ts` now ships 50 and the fallback is derived from
+the registry length, so it needs no edit when glyphs are added.)
 Preset→glyph mapping: bembé→bell · bossa→clave 3–2 · dembow→dembow ·
 motorik→motorik · two-step→two-step · halftime→roll · shuffle→swing ·
 aksak→aksak · three-over-four→three-four · samba→samba · house→four-on-floor.

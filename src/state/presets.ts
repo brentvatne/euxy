@@ -5,7 +5,11 @@
  * shuffle, aksak, hemiola, samba) — every lane's onsets verified against
  * core/euclid.ts. All built from the classic Euclidean recipes (Toussaint's
  * world-rhythm table: E(3,8) tresillo, E(5,8) cinquillo, E(7,12) bell,
- * E(4,9) aksak, E(5,16) bossa). Drum lanes all target channel 0 — the
+ * E(4,9) aksak, E(5,16) bossa). v3 (2026-07-25) adds thirteen genre presets —
+ * lo-fi (trip-hop, drunk swing, tape loop), hip hop (head nod, phonk),
+ * electronic (techno, electro, acid, footwork), IDM (stutter) and rock
+ * (money beat, half-time shuffle, d-beat) — again onset-verified against
+ * core/euclid.ts. Drum lanes all target channel 0 — the
  * OP-XY's track 1 drum kit — using the factory slot notes (see core/opxy.ts).
  * NO preset depends on tonality (2026-07-24): the only non-kit lanes are
  * single-pitch subs (one low note, rhythmic on any patch).
@@ -19,7 +23,7 @@ import { timing } from '@/theme/tokens';
 import { makeLane } from './lane';
 import type { Lane, Pattern } from './types';
 
-export const PRESETS_VERSION = 2;
+export const PRESETS_VERSION = 3;
 
 /** True for the factory presets (NOT the seed pattern). */
 export const isPresetPattern = (id: string) => id.startsWith('preset_');
@@ -227,6 +231,128 @@ export function presetPatterns(): Pattern[] {
       { name: 'Tamborim', length: 16, genA: { pulses: 7, rotation: 0 }, note: drum.rim, channel: 0, velocity: 85 },
       { name: 'Agogo', length: 16, genA: { pulses: 5, rotation: 10 }, note: drum.cowbell, channel: 0, velocity: 70, gateMs: 15 },
       { name: 'Chocalho', length: 16, genA: { pulses: 8, rotation: 15 }, note: drum.shaker, channel: 0, velocity: 55, gateMs: 8 },
+    ]),
+
+    // ——— v3 additions: thirteen genre presets (lo-fi, hip hop, electronic,
+    // IDM, rock). Every lane's onsets verified against core/euclid.ts —
+    // grids in ROADMAP "Preset library v2/v3".
+
+    // Bristol halftime: kick 0·10, one huge snare on beat 3, long ride
+    // eighths carrying the haze, tambourine on the 8th offbeats.
+    pattern('preset_triphop', 'Trip-Hop', 68, [
+      { name: 'Kick', length: 16, genA: { pulses: 1, rotation: 0 }, genB: { pulses: 1, rotation: 6 }, op: 'OR', note: drum.kick, channel: 0, velocity: 106 },
+      { name: 'Snare', length: 16, genA: { pulses: 1, rotation: 8 }, note: drum.snare, channel: 0, velocity: 98 },
+      { name: 'Ride', length: 16, genA: { pulses: 8, rotation: 0 }, note: drum.ride, channel: 0, velocity: 52, gateMs: 180 },
+      { name: 'Tamb', length: 16, genA: { pulses: 4, rotation: 2 }, note: drum.tamb, channel: 0, velocity: 44 },
+    ]),
+    // Dilla time without microtiming: swung triplet hats (12-step 1/8T lane)
+    // rub against a straight-16th kick E(3,16) r6 (0·5·10) — the two grids
+    // never agree and the beat lurches. Snap ghost one step before the snare.
+    pattern('preset_drunk', 'Drunk Swing', 84, [
+      { name: 'Kick', length: 16, genA: { pulses: 3, rotation: 6 }, note: drum.kick, channel: 0, velocity: 102 },
+      { name: 'Snare', length: 16, genA: { pulses: 2, rotation: 4 }, note: drum.snare, channel: 0, velocity: 90 },
+      { name: 'Hat', length: 12, genA: { pulses: 8, rotation: 0 }, note: drum.closedHat, channel: 0, velocity: 60, gateMs: 12, resolutionTicks: 8 },
+      { name: 'Snap', length: 16, genA: { pulses: 1, rotation: 13 }, note: drum.rim, channel: 0, velocity: 40 },
+    ]),
+    // Lo-fi drift: a 15-step four-on-the-floor hat slips one 16th every bar
+    // (realigns after 15) and a 13-step airy chi layer at 1/8 drifts even
+    // slower — the wobble of a tape loop cut slightly short.
+    pattern('preset_tapeloop', 'Tape Loop', 72, [
+      { name: 'Kick', length: 16, genA: { pulses: 2, rotation: 0 }, note: drum.kick, channel: 0, velocity: 88 },
+      { name: 'Rim', length: 16, genA: { pulses: 2, rotation: 4 }, note: drum.rim, channel: 0, velocity: 58 },
+      { name: 'Hat', length: 15, genA: { pulses: 4, rotation: 0 }, note: drum.closedHat, channel: 0, velocity: 46, gateMs: 10 },
+      { name: 'Air', length: 13, genA: { pulses: 5, rotation: 0 }, note: drum.chi, channel: 0, velocity: 38, gateMs: 250, resolutionTicks: 12 },
+    ]),
+    // 90s boom bap: kick lands, pushes mid-bar, then picks up into the loop
+    // (0·7·15 = E(1) OR E(2,16) r9), cracking backbeat, straight 8th hats,
+    // open-hat pickup on the last 8th.
+    pattern('preset_headnod', 'Head Nod', 92, [
+      { name: 'Kick', length: 16, genA: { pulses: 1, rotation: 0 }, genB: { pulses: 2, rotation: 9 }, op: 'OR', note: drum.kick, channel: 0, velocity: 108 },
+      { name: 'Snare', length: 16, genA: { pulses: 2, rotation: 4 }, note: drum.snare, channel: 0, velocity: 100 },
+      { name: 'Hat', length: 16, genA: { pulses: 8, rotation: 0 }, note: drum.closedHat, channel: 0, velocity: 62, gateMs: 12 },
+      { name: 'Open Hat', length: 16, genA: { pulses: 1, rotation: 2 }, note: drum.openHat, channel: 0, velocity: 70, gateMs: 90 },
+    ]),
+    // Memphis halftime: 8-step tresillo kick doubles over the bar
+    // (0·3·6·8·11·14), snare only on 3, 16th hats, and the cowbell — phonk's
+    // signature — riding the cinquillo necklace against the kick.
+    pattern('preset_phonk', 'Phonk', 132, [
+      { name: 'Kick', length: 8, genA: { pulses: 3, rotation: 0 }, note: drum.kick, channel: 0, velocity: 110 },
+      { name: 'Snare', length: 16, genA: { pulses: 1, rotation: 8 }, note: drum.snare, channel: 0, velocity: 102 },
+      { name: 'Cowbell', length: 16, genA: { pulses: 5, rotation: 0 }, note: drum.cowbell, channel: 0, velocity: 78, gateMs: 20 },
+      { name: 'Hat', length: 16, genA: { pulses: 16, rotation: 0 }, note: drum.closedHat, channel: 0, velocity: 50, gateMs: 6 },
+    ]),
+    // Warehouse techno: the rumble lane is E(7,16) A>B E(4,16) — ghost kicks
+    // in every gap BETWEEN the four (3·5·7·10·14), the sidechained-sub illusion
+    // at velocity 38. Offbeat open hats over 16th closed hats.
+    pattern('preset_techno', 'Warehouse', 132, [
+      { name: 'Kick', length: 16, genA: { pulses: 4, rotation: 0 }, note: drum.kick, channel: 0, velocity: 112 },
+      { name: 'Rumble', length: 16, genA: { pulses: 7, rotation: 0 }, genB: { pulses: 4, rotation: 0 }, op: 'A>B', note: drum.kickAlt, channel: 0, velocity: 38, gateMs: 25 },
+      { name: 'Open Hat', length: 16, genA: { pulses: 4, rotation: 2 }, note: drum.openHat, channel: 0, velocity: 80, gateMs: 70 },
+      { name: 'Hat', length: 16, genA: { pulses: 16, rotation: 0 }, note: drum.closedHat, channel: 0, velocity: 48, gateMs: 6 },
+      { name: 'Clap', length: 16, genA: { pulses: 2, rotation: 4 }, note: drum.clap, channel: 0, velocity: 84 },
+    ]),
+    // 808 electro: kick 0·10 answered by tuned-kick doubles on 3·11
+    // (E(2,16) r13), machine snare backbeat, crisp 16th hats, cowbell in the
+    // gaps at 6·14 — the Planet Rock chassis.
+    pattern('preset_electro', 'Electro', 130, [
+      { name: 'Kick', length: 16, genA: { pulses: 1, rotation: 0 }, genB: { pulses: 1, rotation: 6 }, op: 'OR', note: drum.kick, channel: 0, velocity: 110 },
+      { name: 'Kick 2', length: 16, genA: { pulses: 2, rotation: 13 }, note: drum.kickAlt, channel: 0, velocity: 88 },
+      { name: 'Snare', length: 16, genA: { pulses: 2, rotation: 4 }, note: drum.snare, channel: 0, velocity: 96 },
+      { name: 'Hat', length: 16, genA: { pulses: 16, rotation: 0 }, note: drum.closedHat, channel: 0, velocity: 52, gateMs: 5 },
+      { name: 'Cowbell', length: 16, genA: { pulses: 2, rotation: 2 }, note: drum.cowbell, channel: 0, velocity: 66, gateMs: 15 },
+    ]),
+    // Acid/rave: the offbeat-8th sub (2·6·10·14) is the genre — it stacks with
+    // the open hats between every kick. Single-pitch sub, rhythmic on any patch.
+    pattern('preset_acid', 'Acid Line', 138, [
+      { name: 'Kick', length: 16, genA: { pulses: 4, rotation: 0 }, note: drum.kick, channel: 0, velocity: 110 },
+      { name: 'Sub', length: 16, genA: { pulses: 4, rotation: 2 }, note: 36, channel: 2, velocity: 92, gateMs: 90 },
+      { name: 'Open Hat', length: 16, genA: { pulses: 4, rotation: 2 }, note: drum.openHat, channel: 0, velocity: 76, gateMs: 60 },
+      { name: 'Hat', length: 16, genA: { pulses: 16, rotation: 0 }, note: drum.closedHat, channel: 0, velocity: 50, gateMs: 6 },
+      { name: 'Clap', length: 16, genA: { pulses: 2, rotation: 4 }, note: drum.clap, channel: 0, velocity: 82 },
+    ]),
+    // Chicago footwork: the bossa necklace AS the kick (E(5,16) r10 =
+    // 0·3·6·10·13) at 160, claps on the backbeat, and a 12-step 1/16T tom
+    // lane (48-tick loop) whose triplet stutter drifts a half-bar before
+    // realigning every 2 bars.
+    pattern('preset_footwork', 'Footwork', 160, [
+      { name: 'Kick', length: 16, genA: { pulses: 5, rotation: 10 }, note: drum.kick, channel: 0, velocity: 108 },
+      { name: 'Clap', length: 16, genA: { pulses: 2, rotation: 4 }, note: drum.clap, channel: 0, velocity: 90 },
+      { name: 'Tom', length: 12, genA: { pulses: 3, rotation: 0 }, note: drum.hiTom, channel: 0, velocity: 70, gateMs: 8, resolutionTicks: 4 },
+      { name: 'Hat', length: 16, genA: { pulses: 4, rotation: 2 }, note: drum.closedHat, channel: 0, velocity: 46, gateMs: 8 },
+    ]),
+    // Drill'n'bass: a 7-step 1/32 snare roll (21-tick loop, realigns every
+    // 7 bars) chews across a boom-bap kick, with an 11-step metal blip lane —
+    // the fast, glitchy cousin of Broken Machine.
+    pattern('preset_stutter', 'Stutter', 156, [
+      { name: 'Kick', length: 16, genA: { pulses: 3, rotation: 0 }, note: drum.kick, channel: 0, velocity: 108 },
+      { name: 'Snare', length: 16, genA: { pulses: 2, rotation: 4 }, note: drum.snare, channel: 0, velocity: 100 },
+      { name: 'Roll', length: 7, genA: { pulses: 5, rotation: 0 }, note: drum.snare2, channel: 0, velocity: 40, gateMs: 4, resolutionTicks: 3 },
+      { name: 'Blip', length: 11, genA: { pulses: 4, rotation: 0 }, note: drum.metal, channel: 0, velocity: 62, gateMs: 10 },
+    ]),
+    // The money beat: kick 1 & 3, snare 2 & 4, 8th hats, crash on the
+    // downbeat — the most-recorded drum pattern in rock.
+    pattern('preset_moneybeat', 'Money Beat', 116, [
+      { name: 'Kick', length: 16, genA: { pulses: 2, rotation: 0 }, note: drum.kick, channel: 0, velocity: 108 },
+      { name: 'Snare', length: 16, genA: { pulses: 2, rotation: 4 }, note: drum.snare, channel: 0, velocity: 104 },
+      { name: 'Hat', length: 16, genA: { pulses: 8, rotation: 0 }, note: drum.closedHat, channel: 0, velocity: 66, gateMs: 12 },
+      { name: 'Crash', length: 16, genA: { pulses: 1, rotation: 0 }, note: drum.crash, channel: 0, velocity: 70, gateMs: 250 },
+    ]),
+    // Purdie-style half-time shuffle, all lanes on the 12-step 1/8T grid:
+    // shuffled hats, one big snare on 3, ghost notes E(4,12) r1 filling the
+    // swung gaps at velocity 30, kick on 1 and the swung & of 3.
+    pattern('preset_purdie', 'Half-Time Shuffle', 77, [
+      { name: 'Hat', length: 12, genA: { pulses: 8, rotation: 0 }, note: drum.closedHat, channel: 0, velocity: 68, gateMs: 12, resolutionTicks: 8 },
+      { name: 'Snare', length: 12, genA: { pulses: 1, rotation: 6 }, note: drum.snare, channel: 0, velocity: 102, resolutionTicks: 8 },
+      { name: 'Ghost', length: 12, genA: { pulses: 4, rotation: 1 }, note: drum.snare2, channel: 0, velocity: 30, resolutionTicks: 8 },
+      { name: 'Kick', length: 12, genA: { pulses: 1, rotation: 0 }, genB: { pulses: 1, rotation: 4 }, op: 'OR', note: drum.kick, channel: 0, velocity: 100, resolutionTicks: 8 },
+    ]),
+    // Discharge beat, one bar of 8ths: kick 0·3·4 (E(2,8) r4 OR a single at 3)
+    // against snare 2·6 — the K.SK K.S. gallop under constant hats.
+    pattern('preset_dbeat', 'D-Beat', 180, [
+      { name: 'Kick', length: 8, genA: { pulses: 2, rotation: 4 }, genB: { pulses: 1, rotation: 5 }, op: 'OR', note: drum.kick, channel: 0, velocity: 110, resolutionTicks: 12 },
+      { name: 'Snare', length: 8, genA: { pulses: 2, rotation: 6 }, note: drum.snare, channel: 0, velocity: 105, resolutionTicks: 12 },
+      { name: 'Hat', length: 8, genA: { pulses: 8, rotation: 0 }, note: drum.closedHat, channel: 0, velocity: 62, gateMs: 8, resolutionTicks: 12 },
+      { name: 'Crash', length: 8, genA: { pulses: 1, rotation: 0 }, note: drum.crash, channel: 0, velocity: 80, gateMs: 200, resolutionTicks: 12 },
     ]),
   ];
 }

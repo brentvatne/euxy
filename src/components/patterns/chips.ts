@@ -1,7 +1,9 @@
 /**
- * Pattern chip glyphs — Paper "Preset icons — assortment": 30 5×5 LED grids,
- * one per pattern. Each glyph is 25 shade digits (row-major): 0 rest-dim,
- * 1 lit, 2 light. Extracted 1:1 from the artboard's SVGs.
+ * Pattern chip glyphs — Paper "Preset icons — assortment": 50 5×5 LED grids.
+ * Each glyph is 25 shade digits (row-major): 0 rest-dim, 1 lit, 2 light.
+ * The first 30 were extracted 1:1 from the artboard's SVGs; the 13 v3-preset
+ * glyphs (triphop…bang) and the 7 spare ones (star…ladder) were designed in
+ * code and drawn back onto the artboard from these same strings.
  */
 import type { Pattern } from '@/state/types';
 
@@ -38,6 +40,29 @@ export const CHIPS = {
   aksak: '0020000100110100000100000',
   threeFour: '0000010201000001101100000',
   samba: '0010002010000110001100000',
+  // v3 preset glyphs (2026-07-25), same language: greys + one #F6F4F4 pixel.
+  triphop: '0000010010000000020000000', // kicks 0+10 over one deep snare hit
+  stagger: '2000001000000100010000001', // a diagonal that wobbles — drunk walk
+  loop: '0111010001100011000101210', // circle with a bright playhead
+  nod: '0000010001010100020000000', // chevron down, bright tip
+  stack: '2001000000100100000000100', // cowbell / kick / snare rows
+  room: '1111110001102011000111111', // hollow square, pulsing center
+  bolt: '0001100110011110011002100', // lightning, bright tail
+  drop: '0010001110111111121101110', // droplet, bright core
+  steps: '1000100000002000000010001', // quincunx — dance-step chart
+  glitch: '0000011011000002011000000', // broken bursts
+  backbeat: '0101001010020100101001010', // two full pillars on 2 & 4
+  ghosts: '0000010110002000110100000', // swung pairs around one big hit
+  bang: '0010000100001000000000200', // exclamation mark
+  // Rounding the registry out to 50 (2026-07-25). No preset claims these —
+  // they exist purely for users picking an icon by hand.
+  star: '0010011111012100101010001',
+  moon: '0110010000200001000001100', // crescent, bright on the inner arc
+  spiral: '1111100001112011000111111', // a loop that never closes
+  pulse: '0000001210010101101100000', // square wave, bright at the high step
+  orbit: '0000001110102010111000000', // ring around a bright center
+  plus: '0010000100112110010000100',
+  ladder: '1000111211100011111110001',
 } as const;
 
 export type ChipName = keyof typeof CHIPS;
@@ -66,6 +91,21 @@ const ASSIGNED: Record<string, ChipName> = {
   preset_aksak: 'aksak',
   preset_hemiola: 'threeFour',
   preset_samba: 'samba',
+  // v3 presets — each gets its own bespoke glyph (the assortment glyphs they
+  // briefly borrowed go back to the user-pickable pool).
+  preset_triphop: 'triphop',
+  preset_drunk: 'stagger',
+  preset_tapeloop: 'loop',
+  preset_headnod: 'nod',
+  preset_phonk: 'stack',
+  preset_techno: 'room',
+  preset_electro: 'bolt',
+  preset_acid: 'drop',
+  preset_footwork: 'steps',
+  preset_stutter: 'glitch',
+  preset_moneybeat: 'backbeat',
+  preset_purdie: 'ghosts',
+  preset_dbeat: 'bang',
 };
 
 export function chipForPattern(pattern: Pick<Pattern, 'id' | 'icon'>): string {

@@ -42,7 +42,7 @@ export default function ChangeIconSheet() {
         }}
         onDone={() => router.back()}
       />
-      {/* 30 glyphs need scrolling. collapsable={false} wrapper keeps the
+      {/* The glyph grid needs scrolling. collapsable={false} wrapper keeps the
           ScrollView OUT of direct-child position — react-native-screens'
           formSheet frame correction otherwise paints it over the header
           (same workaround as lane-editor). */}
