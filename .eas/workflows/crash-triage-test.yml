@@ -29,6 +29,10 @@ on:
         description: Tester email (must be in the allowlist to proceed)
         type: string
         default: brentvatne@gmail.com
+      sim_validation:
+        description: Run argent/EAS-Simulator before-after validation ('1' to enable)
+        type: string
+        default: '0'
 
 jobs:
   triage:
@@ -38,6 +42,7 @@ jobs:
     env:
       REPO_SLUG: brentvatne/euxy
       ALLOWED_FEEDBACK_EMAILS: brentvatne@gmail.com
+      SIM_VALIDATION: ${{ inputs.sim_validation }}
       INPUT_FEEDBACK_ID: ${{ inputs.feedback_id }}
       INPUT_FEEDBACK_URL: ${{ inputs.feedback_url }}
       INPUT_TESTER_EMAIL: ${{ inputs.tester_email }}
@@ -62,3 +67,5 @@ jobs:
           path: |
             .eas/crash-triage/ANALYSIS.md
             .eas/crash-triage/crash.json
+            .eas/crash-triage/sim-sessions.txt
+            .eas/crash-triage/sim/**/*

@@ -19,6 +19,8 @@
  *   ASC_KEY_ID / ASC_ISSUER_ID / ASC_P8  — ASC API key (optional; enables real logs)
  *   GIT_BIN                        — git binary (default 'git'; local: /usr/bin/git)
  *   DRY_RUN                        — '1' to skip the PR (agent + analysis only)
+ *   SIM_VALIDATION                 — '1' to run argent/EAS-Simulator before/after
+ *   EXPO_TOKEN                     — eas-cli auth (required when SIM_VALIDATION=1)
  */
 import { createSign } from "node:crypto";
 
@@ -147,26 +149,56 @@ if (allowlist.length) {
   console.log(`▸ Tester ${email} is allowlisted → proceeding.`);
 }
 
+// ---- optional: boot an EAS Simulator (argent) session early ----
+// Sim validation lets the agent reproduce the bug on the current build, then
+// verify its fix. Booting takes time, so we kick it off in the background BEFORE
+// the agent runs — it warms up while the agent does its initial investigation.
+let simValidation = env.SIM_VALIDATION === "1" && !!env.EXPO_TOKEN;
+if (simValidation) {
+  console.log("▸ Booting EAS Simulator (argent) session in the background (warms up during investigation)…");
+  try {
+    await Bun.write(".env.eas-simulator", "# managed by eas-cli\n"); // clear any stale session
+    Bun.spawn(
+      ["npx", "--yes", "eas-cli@latest", "simulator:start", "--platform", "ios", "--type", "argent", "--non-interactive"],
+      { stdout: "inherit", stderr: "inherit", env }
+    ); // intentionally not awaited — the agent polls simulator:get for readiness
+  } catch (e: any) {
+    // Optional feature — a boot failure must not take down the whole pipeline.
+    console.log(`▸ Failed to boot the simulator (${e?.message ?? e}) — falling back to investigation-only.`);
+    simValidation = false;
+  }
+} else if (env.SIM_VALIDATION === "1") {
+  console.log("▸ SIM_VALIDATION=1 but EXPO_TOKEN is unset — skipping sim validation.");
+}
+
 // ---- run the agent ----
 console.log(`▸ Investigating crash ${feedbackId || "(no id)"} with Claude…`);
-const prompt = await Bun.file(`${TRIAGE_DIR}/triage-prompt.md`).text();
+const promptFile = simValidation ? `${TRIAGE_DIR}/triage-prompt-sim.md` : `${TRIAGE_DIR}/triage-prompt.md`;
+const prompt = await Bun.file(promptFile).text();
 console.log(
-  `\n===== FULL PROMPT PASSED TO CLAUDE =====\n${prompt}\n===== END PROMPT =====\n` +
+  `\n===== FULL PROMPT PASSED TO CLAUDE (${simValidation ? "sim-validation" : "investigation-only"}) =====\n${prompt}\n===== END PROMPT =====\n` +
     `(the agent also reads ${CRASH_JSON} for the crash detail printed above)\n`
 );
 // Security: crash logs are attacker-controlled (any TestFlight tester), so treat
 // the agent as processing untrusted input. Strip the secrets it never needs
 // (the wrapper — not the agent — does all git/PR and ASC work) so a prompt
-// injection can't exfiltrate them, and run in acceptEdits (file edits only, no
-// arbitrary shell).
+// injection can't exfiltrate them. Investigation-only runs in acceptEdits (file
+// edits, no shell); sim-validation needs shell to drive `eas simulator`, so it
+// uses bypassPermissions — GH_TOKEN/ASC stay withheld either way.
 const agentEnv: Record<string, string | undefined> = { ...env };
 for (const k of ["GH_TOKEN", "ASC_KEY_ID", "ASC_ISSUER_ID", "ASC_P8"]) delete agentEnv[k];
 const agent = Bun.spawn(
-  ["claude", "-p", prompt, "--permission-mode", "acceptEdits", "--output-format", "text"],
+  ["claude", "-p", prompt, "--permission-mode", simValidation ? "bypassPermissions" : "acceptEdits", "--output-format", "text"],
   { stdout: "inherit", stderr: "inherit", env: agentEnv }
 );
 const agentRc = await agent.exited;
 console.log(`▸ Agent finished (rc=${agentRc}).`);
+
+// safety net: never leave a Simulator session running (it bills until stopped)
+if (simValidation) {
+  console.log("▸ Ensuring the EAS Simulator session is stopped…");
+  await sh(["npx", "--yes", "eas-cli@latest", "simulator:stop"], { allowFail: true });
+}
 
 // guarantee an analysis file
 if (!(await Bun.file(ANALYSIS).exists())) {
