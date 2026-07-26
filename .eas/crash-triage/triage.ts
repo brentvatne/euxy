@@ -174,6 +174,21 @@ if (env.DRY_RUN === "1") {
   process.exit(0);
 }
 
+// ---- ensure a real git checkout ----
+// The App Store Connect trigger (repo connected to EAS) checks out a full clone.
+// `eas workflow:run` archive uploads have no .git — the summary is still uploaded
+// as a workflow artifact by the next step, so skip the PR cleanly instead of
+// dying on `fatal: not in a git directory`.
+const isRepo = (await sh([GIT, "rev-parse", "--is-inside-work-tree"], { allowFail: true })).out === "true";
+if (!isRepo) {
+  console.log(
+    "▸ No git checkout present (expected with `eas workflow:run` archive uploads; " +
+      "the real crash trigger provides a full clone). Summary is attached as an " +
+      "artifact — skipping the PR."
+  );
+  process.exit(0);
+}
+
 // ---- repo identity ----
 let slug = env.REPO_SLUG || "";
 if (!slug) {
@@ -219,7 +234,15 @@ const crashLink = feedbackUrl
   : feedbackId
     ? `**Related feedback id:** \`${feedbackId}\`\n\n`
     : "";
-const body = `${crashLink}${await Bun.file(ANALYSIS).text()}\n\n---\n_Automated triage. **Not auto-merged** — review before merging._ Code change proposed: **${codeChanged ? "yes" : "no"}**.`;
+// Link any EAS Simulator sessions the validation step recorded (one URL/id per
+// line in sim-sessions.txt). Empty in v0 — sim validation lands in a later phase.
+let simSection = "";
+const simFile = `${TRIAGE_DIR}/sim-sessions.txt`;
+if (await Bun.file(simFile).exists()) {
+  const lines = (await Bun.file(simFile).text()).split("\n").map((l) => l.trim()).filter(Boolean);
+  if (lines.length) simSection = `\n\n**🖥 Simulator sessions:**\n${lines.map((l) => `- ${l}`).join("\n")}`;
+}
+const body = `${crashLink}${await Bun.file(ANALYSIS).text()}${simSection}\n\n---\n_Automated triage. **Not auto-merged** — review before merging._ Code change proposed: **${codeChanged ? "yes" : "no"}**.`;
 
 async function ghPost(path: string, payload: unknown) {
   return fetch(`https://api.github.com/repos/${owner}/${repo}${path}`, {

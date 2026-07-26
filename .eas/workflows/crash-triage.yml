@@ -48,3 +48,12 @@ jobs:
           claude --version
       - name: Triage
         run: bun .eas/crash-triage/triage.ts
+      - name: Upload triage summary
+        if: ${{ always() }}
+        uses: eas/upload_artifact
+        with:
+          type: other
+          name: crash-triage-summary
+          path: |
+            .eas/crash-triage/ANALYSIS.md
+            .eas/crash-triage/crash.json
