@@ -32,7 +32,7 @@ const SECTIONS: { title: string; body: string }[] = [
   },
   {
     title: 'Contact',
-    body: 'Questions? Open an issue at github.com/brentvatne/euxy.',
+    body: 'Questions? Email brentvatne@gmail.com or open an issue at github.com/brentvatne/euxy.',
   },
 ];
 
