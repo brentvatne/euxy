@@ -21,6 +21,7 @@ import { useMidiRuntime } from '@/components/midi/runtime';
 import { useObserve } from '@/lib/shims';
 import { color } from '@/theme/tokens';
 import { LaneRow, TransportBar } from '@/components/ui';
+import { useScreenFocused } from '@/components/ui/use-screen-focused';
 import { chipForPattern } from '@/components/patterns/chips';
 import { SequencerNav, type PatternMenuAction } from '@/components/sequencer/header';
 import { EmptyState } from '@/components/sequencer/empty-state';
@@ -72,6 +73,10 @@ export default function SequencerScreen() {
   useEffect(() => {
     initialRender.current = false;
   }, []);
+
+  // The playhead runs on under a full-detent Lane Editor sheet or another tab;
+  // the strips stop painting while nobody can see them (principle 6's spirit).
+  const screenFocused = useScreenFocused();
 
   // Per-route TTI for EAS Observe.
   const { markInteractive } = useObserve();
@@ -173,7 +178,11 @@ export default function SequencerScreen() {
                 onPressTitle={() => openEditor(lane.id)}
               >
                 {/* Washes sweep FROM the capsule: lower lanes fire first. */}
-                <StepStrip lane={lane} washDelay={(lanes.length - 1 - laneIndex) * 45} />
+                <StepStrip
+                  lane={lane}
+                  washDelay={(lanes.length - 1 - laneIndex) * 45}
+                  active={screenFocused}
+                />
               </LaneRow>
               </Animated.View>
             ))}

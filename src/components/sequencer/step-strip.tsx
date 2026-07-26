@@ -45,6 +45,9 @@ export interface StepStripProps {
    * each lane's distance from the capsule so washes sweep the grid FROM the
    * capsule (bottom lane first), not per-strip in isolation. */
   washDelay?: number;
+  /** False while the host screen is blurred: the playhead layer stops painting
+   * (see ui/use-screen-focused). */
+  active?: boolean;
 }
 
 /** Per-cell stagger (ms) by Manhattan distance from a strip's bottom-right
@@ -72,7 +75,7 @@ function Led({ ignite }: { ignite: boolean }) {
   return <LedBase ignite={ignite} style={styles.led} />;
 }
 
-export function StepStrip({ lane, washDelay = 0 }: StepStripProps) {
+export function StepStrip({ lane, washDelay = 0, active = true }: StepStripProps) {
   const pattern = patternForLane(lane);
   const n = pattern.length;
   const [width, setWidth] = useState(0);
@@ -203,10 +206,16 @@ export function StepStrip({ lane, washDelay = 0 }: StepStripProps) {
         : null}
       {blockW > 0 ? (
         SKIA_STRIP_GLOW ? (
-          <StepStripGlow lane={lane} pattern={pattern} blockW={blockW} width={width} />
-        ) : (
+          <StepStripGlow
+            lane={lane}
+            pattern={pattern}
+            blockW={blockW}
+            width={width}
+            active={active}
+          />
+        ) : active ? (
           <TravellingLight lane={lane} pattern={pattern} blockW={blockW} />
-        )
+        ) : null
       ) : null}
       {blockW > 0
         ? Object.entries(films).map(([key, f]) => {
