@@ -1,6 +1,12 @@
 # Design: bounding crash-triage work under a storm of reports
 
-*Status: design / for review · stacked on the sim-validation PR.*
+*Status: **implemented** in `.eas/crash-triage/triage.ts` (pre-flight) · stacked on the sim-validation PR.*
+
+> **Implemented:** the pre-flight below runs before the agent — crash signature
+> (verified stable across devices/addresses), dedup via an open `crash:<sig>` PR
+> (+1 comment then skip), skip of already-triaged signatures, and a rate cap
+> (`MAX_TRIAGE_PER_HOUR`/`MAX_TRIAGE_PER_DAY`, default 5/20). Branch is keyed on
+> the signature and the PR is labelled `crash:<sig>`. GitHub is the only store.
 
 **Problem.** One bad build makes many testers hit the **same** crash. Each report
 is a separate `beta_feedback[crash]` event → each spawns a triage job → N agent

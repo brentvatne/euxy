@@ -21,14 +21,26 @@
  *   DRY_RUN                        — '1' to skip the PR (agent + analysis only)
  *   SIM_VALIDATION                 — '1' to run argent/EAS-Simulator before/after
  *   EXPO_TOKEN                     — eas-cli auth (required when SIM_VALIDATION=1)
+ *   MAX_TRIAGE_PER_HOUR / MAX_TRIAGE_PER_DAY — storm-control rate cap (5 / 20)
+ *
+ * Storm control (docs/crash-storm-control-design.md): before the agent runs, a
+ * pre-flight dedups by crash signature (open PR for the same signature ⇒ +1 and
+ * skip), skips already-triaged signatures, and enforces a rate cap — using
+ * GitHub PRs/labels as the store (no DB, no third-party service).
  */
-import { createSign } from "node:crypto";
+import { createSign, createHash } from "node:crypto";
 
 const env = process.env;
 const GIT = env.GIT_BIN || "git";
 const TRIAGE_DIR = ".eas/crash-triage";
 const ANALYSIS = `${TRIAGE_DIR}/ANALYSIS.md`;
 const CRASH_JSON = `${TRIAGE_DIR}/crash.json`;
+
+// Storm control (see docs/crash-storm-control-design.md). GitHub is the store —
+// signature-keyed branch + `crash:<sig>` label — so no DB / third-party service.
+const MAX_PER_HOUR = Number(env.MAX_TRIAGE_PER_HOUR ?? "5");
+const MAX_PER_DAY = Number(env.MAX_TRIAGE_PER_DAY ?? "20");
+const CRASH_LABEL_PREFIX = "crash:";
 
 function req(name: string): string {
   const v = env[name];
@@ -127,6 +139,52 @@ async function fetchCrash() {
   }
 }
 
+// ---- crash signature (for dedup) ----
+// Hash the normalized top stack frames + exception type, à la Sentry/Crashlytics.
+// Needs a stack trace — returns null in degraded mode (no ASC key → no trace).
+function crashSignature(c: any): string | null {
+  const log: unknown = c?.crashLog ?? c?.raw?.crashLog ?? c?.raw?.logs;
+  if (typeof log !== "string" || !log) return null;
+  const frames = log
+    .split("\n")
+    .map((s) => s.trim())
+    .filter((l) => /^\d+\s+\S|\bat\s|0x[0-9a-fA-F]+/.test(l)) // frame-ish lines
+    .map((l) =>
+      l
+        .replace(/0x[0-9a-fA-F]+/g, "") // addresses
+        .replace(/\+\s*\d+/g, "") // offsets
+        .replace(/:\d+/g, "") // line numbers
+        .replace(/\s+/g, " ")
+        .trim()
+    )
+    .filter(Boolean)
+    .slice(0, 5);
+  if (!frames.length) return null;
+  const exc = c?.raw?.exceptionType || c?.raw?.exceptionName || c?.feedbackType || "";
+  return createHash("sha256").update(`${exc}\n${frames.join("\n")}`).digest("hex").slice(0, 12);
+}
+
+// ---- GitHub helpers (storm control uses GitHub as the state store) ----
+let owner = "";
+let repo = "";
+[owner, repo] = (env.REPO_SLUG || "").split("/");
+async function gh(path: string, init: RequestInit = {}) {
+  return fetch(`https://api.github.com/repos/${owner}/${repo}${path}`, {
+    ...init,
+    headers: { Authorization: `Bearer ${GH_TOKEN}`, Accept: "application/vnd.github+json", ...((init.headers as Record<string, string>) || {}) },
+  });
+}
+// Count triage PRs (any state) labelled `crash:*` created within `windowMs`.
+async function countRecentTriagePRs(windowMs: number): Promise<number> {
+  const res = await gh(`/pulls?state=all&per_page=100&sort=created&direction=desc`);
+  if (!res.ok) return 0;
+  const prs: any[] = await res.json();
+  const cutoff = Date.now() - windowMs;
+  return prs.filter(
+    (p) => (p.labels || []).some((l: any) => String(l.name).startsWith(CRASH_LABEL_PREFIX)) && new Date(p.created_at).getTime() >= cutoff
+  ).length;
+}
+
 // ---- main ----
 req("CLAUDE_CODE_OAUTH_TOKEN");
 const GH_TOKEN = req("GH_TOKEN");
@@ -147,6 +205,46 @@ if (allowlist.length) {
     process.exit(0);
   }
   console.log(`▸ Tester ${email} is allowlisted → proceeding.`);
+}
+
+// ---- storm-control pre-flight (before the expensive agent run) ----
+// GitHub is the store: signature-keyed branch + `crash:<sig>` label. Dedup,
+// relevance, and the rate cap are all plain API queries — no DB, no third party.
+const signature = crashSignature(crash);
+if (owner && repo) {
+  // Rate cap — bounds cost even under a storm of *distinct* signatures.
+  const perHour = await countRecentTriagePRs(3_600_000);
+  const perDay = await countRecentTriagePRs(86_400_000);
+  if (perHour >= MAX_PER_HOUR || perDay >= MAX_PER_DAY) {
+    console.log(`▸ Rate cap hit (${perHour}/h vs ${MAX_PER_HOUR}, ${perDay}/d vs ${MAX_PER_DAY}) — pausing triage for this report.`);
+    process.exit(0);
+  }
+  // Dedup + relevance by signature (only possible with a stack trace).
+  if (signature) {
+    const label = `${CRASH_LABEL_PREFIX}${signature}`;
+    const res = await gh(`/issues?labels=${encodeURIComponent(label)}&state=all&per_page=20`);
+    if (res.ok) {
+      const issues: any[] = await res.json();
+      const openPr = issues.find((i) => i.state === "open" && i.pull_request);
+      if (openPr) {
+        console.log(`▸ Duplicate crash (sig ${signature}) — open PR ${openPr.html_url}. Recording +1 and skipping.`);
+        await gh(`/issues/${openPr.number}/comments`, {
+          method: "POST",
+          body: JSON.stringify({ body: `➕ Another report of this crash${feedbackUrl ? `: ${feedbackUrl}` : feedbackId ? ` (id \`${feedbackId}\`)` : ""}.` }),
+        });
+        process.exit(0);
+      }
+      const closedPr = issues.find((i) => i.state === "closed" && i.pull_request);
+      if (closedPr) {
+        console.log(`▸ Sig ${signature} already triaged — closed PR ${closedPr.html_url}. Skipping (a recurrence on a newer build would produce a fresh signature).`);
+        process.exit(0);
+      }
+    }
+  } else {
+    console.log("▸ Degraded (no stack trace) → can't compute a signature; dedup unavailable, relying on the rate cap only.");
+  }
+} else {
+  console.log("▸ REPO_SLUG not set → skipping storm-control pre-flight.");
 }
 
 // ---- optional: boot an EAS Simulator (argent) session early ----
@@ -228,20 +326,21 @@ if (!isRepo) {
   process.exit(0);
 }
 
-// ---- repo identity ----
-let slug = env.REPO_SLUG || "";
-if (!slug) {
-  const { out } = await sh([GIT, "config", "--get", "remote.origin.url"], { allowFail: true });
-  slug = out.replace(/^(git@github\.com:|https:\/\/github\.com\/)/, "").replace(/\.git$/, "");
-}
-const [owner, repo] = slug.split("/");
+// ---- repo identity (fill from git if REPO_SLUG wasn't set) ----
 if (!owner || !repo) {
-  console.error(`✗ Could not determine owner/repo (REPO_SLUG=${slug || "unset"})`);
+  const { out } = await sh([GIT, "config", "--get", "remote.origin.url"], { allowFail: true });
+  const s = out.replace(/^(git@github\.com:|https:\/\/github\.com\/)/, "").replace(/\.git$/, "");
+  [owner, repo] = s.split("/");
+}
+if (!owner || !repo) {
+  console.error(`✗ Could not determine owner/repo (REPO_SLUG=${env.REPO_SLUG || "unset"})`);
   process.exit(1);
 }
 
+// Key the branch on the crash signature so the next report of the same crash
+// dedups against this PR (falls back to the feedback id in degraded mode).
 const shortId = (feedbackId || String(Date.now())).replace(/[^a-zA-Z0-9]/g, "").slice(0, 12) || String(Date.now());
-const branch = `crash-triage/${shortId}`;
+const branch = `crash-triage/${signature || shortId}`;
 
 await sh([GIT, "config", "user.name", "euxy crash-triage bot"]);
 await sh([GIT, "config", "user.email", "crash-triage@users.noreply.github.com"]);
@@ -283,24 +382,17 @@ if (await Bun.file(simFile).exists()) {
 }
 const body = `${crashLink}${await Bun.file(ANALYSIS).text()}${simSection}\n\n---\n_Automated triage. **Not auto-merged** — review before merging._ Code change proposed: **${codeChanged ? "yes" : "no"}**.`;
 
-async function ghPost(path: string, payload: unknown) {
-  return fetch(`https://api.github.com/repos/${owner}/${repo}${path}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${GH_TOKEN}`, Accept: "application/vnd.github+json" },
-    body: JSON.stringify(payload),
-  });
-}
-
-const res = await ghPost(`/pulls`, { title, head: branch, base: env.PR_BASE || "main", body });
+const res = await gh(`/pulls`, { method: "POST", body: JSON.stringify({ title, head: branch, base: env.PR_BASE || "main", body }) });
 if (res.status === 201) {
   const j: any = await res.json();
   console.log(`▸ Opened PR: ${j.html_url}`);
+  // Label with the crash signature so the next report of this crash dedups here.
+  if (signature) {
+    await gh(`/issues/${j.number}/labels`, { method: "POST", body: JSON.stringify({ labels: [`${CRASH_LABEL_PREFIX}${signature}`] }) });
+    console.log(`▸ Labelled ${CRASH_LABEL_PREFIX}${signature} for dedup.`);
+  }
 } else if (res.status === 422) {
-  const existing: any = await (
-    await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls?head=${owner}:${branch}&state=open`, {
-      headers: { Authorization: `Bearer ${GH_TOKEN}`, Accept: "application/vnd.github+json" },
-    })
-  ).json();
+  const existing: any = await (await gh(`/pulls?head=${owner}:${branch}&state=open`)).json();
   if (existing[0]) console.log(`▸ PR already open for this crash (branch refreshed): ${existing[0].html_url}`);
   else {
     console.error(`✗ 422 but no open PR found: ${JSON.stringify(existing)}`);
