@@ -6,9 +6,11 @@
  * Steps|Graph toggle style, not this one.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { color, font } from '@/theme/tokens';
 import { AppText } from '@/components/ui';
+import { lightDecay } from '@/components/ui/led';
 
 export interface PickerBarOption<T extends string> {
   label: string;
@@ -37,19 +39,26 @@ export function PickerBar<T extends string>({
           <Pressable
             key={opt.value}
             onPress={() => onChange(opt.value)}
-            style={[styles.segment, active && styles.segmentActive]}
+            style={styles.segment}
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
           >
-            <AppText
-              style={[
-                styles.label,
-                { fontSize: size },
-                active ? styles.labelActive : styles.labelInactive,
-              ]}
-            >
+            {/* Same light hand-off as the shared Segmented: the white pill and
+                its black label are one layer that decays when selection moves. */}
+            <AppText style={[styles.label, { fontSize: size }, styles.labelInactive]}>
               {opt.label}
             </AppText>
+            {active ? (
+              <Animated.View
+                pointerEvents="none"
+                exiting={lightDecay}
+                style={[StyleSheet.absoluteFill, styles.activePill, styles.segmentActive]}
+              >
+                <AppText style={[styles.label, { fontSize: size }, styles.labelActive]}>
+                  {opt.label}
+                </AppText>
+              </Animated.View>
+            ) : null}
           </Pressable>
         );
       })}
@@ -73,6 +82,7 @@ const styles = StyleSheet.create({
     borderRadius: 7,
   },
   segmentActive: { backgroundColor: color.label },
+  activePill: { alignItems: 'center', justifyContent: 'center', borderRadius: 7 },
   label: { fontFamily: font.text, lineHeight: 16, textAlign: 'center' },
   labelActive: { color: color.ground, fontWeight: '700' },
   labelInactive: { color: color.label25, fontWeight: '600' },

@@ -36,7 +36,13 @@ import type { StyleProp, ViewStyle } from 'react-native';
  */
 export const ledExitSuppressed = makeMutable(0);
 
-const decay = () => {
+/**
+ * The phosphor tail itself, as a reusable `exiting` worklet: any light that
+ * goes out — an LED, a lane's accent bar, the white pill leaving a segmented
+ * control — decays with THESE values, so "a light turning off" looks the same
+ * everywhere. Incoming lights get no `entering` (instant attack, principle 1).
+ */
+export const lightDecay = () => {
   'worklet';
   if (ledExitSuppressed.value === 1) {
     return {
@@ -76,7 +82,7 @@ export function Led({ style, ignite = false }: { style?: StyleProp<ViewStyle>; i
   // mount the halo — its entering would flash every already-lit LED.
   const igniteAtMount = useRef(ignite).current;
   return (
-    <Animated.View pointerEvents="none" exiting={decay} style={style}>
+    <Animated.View pointerEvents="none" exiting={lightDecay} style={style}>
       {igniteAtMount ? (
         <Animated.View pointerEvents="none" entering={haloFlash} style={styles.halo} />
       ) : null}

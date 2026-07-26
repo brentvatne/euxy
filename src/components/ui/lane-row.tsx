@@ -40,6 +40,12 @@ export function LaneRow({
   onPressTitle,
   children,
 }: LaneRowProps) {
+  // An accent lit in the row's FIRST render (an already-audible lane on boot)
+  // must not bloom — only live changes ignite (see ui/led.tsx).
+  const initialRender = useRef(true);
+  useEffect(() => {
+    initialRender.current = false;
+  }, []);
   return (
     <View style={styles.row}>
       <View style={styles.header}>
@@ -51,7 +57,15 @@ export function LaneRow({
           disabled={!onPressTitle}
           style={({ pressed }) => [styles.titleGroup, pressed && styles.pressedDim]}
         >
-          <View style={[styles.accent, { backgroundColor: audible ? color.label : ramp[4] }]} />
+          {/* The accent is a LIGHT, so it goes out like one: the white bar is
+              an LED over the dim rail (instant on, ~300ms phosphor tail) rather
+              than a backgroundColor swap. Engaging a solo re-mixes every lane
+              at once, and that used to be a silent full-list colour teleport. */}
+          <View style={styles.accent}>
+            {audible ? (
+              <Led ignite={!initialRender.current} style={[StyleSheet.absoluteFill, styles.accentLit]} />
+            ) : null}
+          </View>
           <View style={styles.textBlock}>
             <AppText style={styles.title}>{title}</AppText>
             {subtitle ? <AppText style={styles.subtitle}>{subtitle}</AppText> : null}
@@ -117,7 +131,8 @@ const styles = StyleSheet.create({
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   titleGroup: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
-  accent: { width: 4, height: 26, borderRadius: 2 },
+  accent: { width: 4, height: 26, borderRadius: 2, backgroundColor: ramp[4] },
+  accentLit: { borderRadius: 2, backgroundColor: color.label },
   textBlock: { gap: 1 },
   title: { fontFamily: font.text, fontWeight: '600', fontSize: 15, lineHeight: 18, color: color.label },
   subtitle: { fontFamily: font.text, fontWeight: '500', fontSize: 12, lineHeight: 16, color: color.label3 },

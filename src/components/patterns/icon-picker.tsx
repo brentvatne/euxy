@@ -8,8 +8,10 @@
  * group, scrolled sideways by its host).
  */
 import { Pressable, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { haptics } from '@/lib/shims';
+import { lightDecay } from '@/components/ui/led';
 import { allChipNames, CHIPS, type ChipName } from './chips';
 import { LedChip } from './led-chip';
 
@@ -44,13 +46,15 @@ export function IconPicker({
               accessibilityRole="button"
               accessibilityLabel={`Icon ${name}`}
               accessibilityState={{ selected: isSelected }}
-              style={({ pressed }) => [
-                styles.slot,
-                isSelected && styles.slotSelected,
-                pressed && styles.pressedDim,
-              ]}
+              style={({ pressed }) => [styles.slot, pressed && styles.pressedDim]}
             >
               <LedChip shades={CHIPS[name]} size={size} />
+              {/* The selection ring is a light: it appears instantly and decays
+                  when selection moves on, so browsing a long row of chips reads
+                  as lights handing off rather than as flicker. */}
+              {isSelected ? (
+                <Animated.View pointerEvents="none" exiting={lightDecay} style={styles.ring} />
+              ) : null}
             </Pressable>
           );
         })}
@@ -67,8 +71,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   row: { flexWrap: 'nowrap', justifyContent: 'flex-start' },
-  // Ring sits OUTSIDE the chip so selection never changes the glyph's size.
+  // Ring sits OUTSIDE the chip so selection never changes the glyph's size. The
+  // slot keeps its transparent border so layout is identical either way; the
+  // lit ring is an overlay inset by that same 2px, landing exactly on it.
   slot: { borderRadius: 21, borderWidth: 2, borderColor: 'transparent', padding: 1 },
-  slotSelected: { borderColor: '#F6F4F4' },
+  ring: {
+    position: 'absolute',
+    top: -2,
+    left: -2,
+    right: -2,
+    bottom: -2,
+    borderRadius: 21,
+    borderWidth: 2,
+    borderColor: '#F6F4F4',
+  },
   pressedDim: { opacity: 0.65 },
 });
