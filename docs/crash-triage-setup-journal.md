@@ -112,6 +112,48 @@ got past it.*
     (the "recurrence → fresh signature" comment is wrong, since signatures are
     stable by design). Fixes pending.
 
+### Merging the stack, and everything after
+22. **Fixed #3's findings** (resolve owner/repo *before* the pre-flight; only a
+    *merged* PR — or a `wontfix`/`invalid` label — suppresses future reports).
+    **Skipped #1's doc-location nit on purpose:** the reviewer claimed all design
+    docs live in `docs/design/`, but they're in `docs/` root — the premise was
+    false, so a 3-branch restack wasn't warranted.
+23. **Merging the stack surfaced two squash-a-stack traps.** ⚠️ (a) After
+    squash-merging #1, **deleting its branch CLOSED the child PR (#2)** — GitHub
+    auto-*closes* a PR whose base branch is deleted, it doesn't retarget it.
+    Recovered by recreating the base ref → reopening #2 → retargeting to main.
+    (b) Squash-merging a stack causes **add/add conflicts**: the child's merge
+    base is *before* #1, so main (squashed #1) and the child (original #1 commits)
+    both "add" the same files. Fix: `git rebase --onto main <old-parent-tip>
+    <child>` to drop the already-merged commits, then merge. **Lessons:** retarget
+    children to main *before* deleting branches; rebase each child onto the new
+    main after each squash.
+24. **Issue-triage (#4).** EAS Workflows has **no issue trigger**, so this is a
+    **GitHub Actions** workflow (`.github/`) that fires on issue-open / `/accept
+    <ctx>` comment and runs the same agent → PR. `GITHUB_TOKEN` covers push/PR;
+    the only new secret is `CLAUDE_CODE_OAUTH_TOKEN`.
+25. **Allowlist.** Gated to `TRIAGE_ALLOWLIST` (a repo Actions Variable, JSON
+    array, default `["brentvatne"]`), enforced in the workflow `if:` **and**
+    re-checked in the script.
+26. **Adversarial self-review found a real gap.** The agent's env used a narrow
+    *denylist*, leaving other runner secrets (e.g. `ACTIONS_RUNTIME_TOKEN`)
+    reachable — and `acceptEdits` still lets the agent write a secret into a file
+    that lands in the PR. Switched to a **minimal-env allowlist**, tightened
+    `/accept` matching (it had matched `/accepting`), and added per-issue
+    concurrency. Same hardening applied to the crash/sim agent env as a follow-up
+    (#5), keeping `EXPO_TOKEN` only in sim mode.
+27. **#4 + #5 reviewed** (approve, no findings), addressed a sub-threshold nit
+    (early `CLAUDE_CODE_OAUTH_TOKEN` validation), squash-merged both, cleaned up
+    branches.
+28. **Screenshot beta-feedback — the confusion.** Turned out we'd *never built*
+    it (only crash was wired). ⚠️ And EAS docs recommend nothing: the
+    `beta_feedback` context gives only `{id, type, url}` — no crash log / no
+    screenshot comment+image — with **no docs example**, and eas-cli has no
+    command to fetch feedback. To act on the event you must wire your own ASC API
+    key. Filed Expo product feedback (docs category). Brent is now **adding
+    feedback-fetch to eas-cli**, so the screenshot handler is on hold to use that
+    instead of a hand-rolled ASC key.
+
 ---
 
 ## Ideas: improving these flows on **Tuft**
