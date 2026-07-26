@@ -79,6 +79,39 @@ got past it.*
     different account (`vanjs`). Proceeding on the user's confirmation that it
     works locally; stored `EXPO_TOKEN` as a secret; live verification pending.
 
+### Stacked PRs, a security round, and the restack
+17. **Split into a stacked PR series** at the user's request: **#1** base
+    (crash-triage workflow) → **#2** sim-validation → **#3** storm-control dedup.
+    Pushed via `/usr/bin/git` + the GitHub REST API throughout (the Tuft shim
+    can't cover the repo).
+18. **Storm-control pre-flight (#3).** Before the agent runs: crash **signature**
+    (normalized top frames + exception type — unit-verified stable across
+    devices/addresses), dedup vs. an open `crash:<sig>` PR (+1 comment, skip),
+    skip already-triaged signatures, and a rate cap. **GitHub PRs/labels are the
+    only store — no DB, no third party.** (Answering: group by signature; check
+    relevance; no database needed.)
+19. **2nd AI-review round → a 🔴 critical.** The reviewer caught prompt-injection
+    exfiltration: crash logs are attacker-controlled, yet the agent ran with the
+    full env + `bypassPermissions`. **Fixed at the base (#1):** strip
+    `GH_TOKEN`/`ASC_*` from the agent subprocess env (the wrapper does all
+    git/PR/ASC work) and run `acceptEdits`; #2 makes the mode conditional
+    (`bypassPermissions` only for sim, which needs shell). Also the reviewer's
+    `use_npm_token` nit → we *removed* it everywhere (no private npm deps),
+    including from `deploy.yml`.
+20. **Restack friction (real).** Fixing the base meant rebasing #2 and #3 onto it.
+    Hit git-state confusion — a local amend had diverged from the pushed remote,
+    and `use_npm_token` flip-flopped in/out — so we stopped and **mapped every
+    branch/SHA explicitly** before `git rebase --onto` each hop (one header
+    conflict, resolved). Doing a 3-branch restack by hand over chat is where the
+    risk concentrated.
+21. **3rd review round:** **#1 clean** (only a nit to move the design doc under
+    `docs/design/`); **#2** review lagged (re-runs on next push); **#3** surfaced
+    two *legit* storm-control bugs — the owner/repo git-fallback runs *after* the
+    pre-flight (so dedup is skipped when `REPO_SLUG` is unset), and
+    closed-without-merge PRs wrongly suppress future reports of the same signature
+    (the "recurrence → fresh signature" comment is wrong, since signatures are
+    stable by design). Fixes pending.
+
 ---
 
 ## Ideas: improving these flows on **Tuft**
@@ -102,6 +135,10 @@ got past it.*
   path would help.
 - **Clearer long-op status.** `tuft expo wait-setup` timed out silently; surfacing
   progress/next-step would reduce guesswork.
+- **Stacked-PR ergonomics.** Building and *re-stacking* a 3-PR stack by hand
+  (fix the base → rebase each child → force-push) over chat was the riskiest part
+  — a stacked-PR helper (create/rebase/repoint bases) would remove a class of
+  manual-git mistakes.
 
 ## Ideas: improving these flows on **EAS** (assuming no Tuft)
 
