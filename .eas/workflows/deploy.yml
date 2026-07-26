@@ -27,7 +27,6 @@ jobs:
       # eas-cli evaluates app.json (config plugins) for project context, so
       # the project must be installed first — without node_modules,
       # channel:view dies on "Failed to resolve plugin 'expo-router'".
-      - uses: eas/use_npm_token
       - uses: eas/install_node_modules
       - id: check
         name: Read isPaused from eas channel:view

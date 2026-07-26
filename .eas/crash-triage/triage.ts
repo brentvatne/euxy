@@ -154,9 +154,16 @@ console.log(
   `\n===== FULL PROMPT PASSED TO CLAUDE =====\n${prompt}\n===== END PROMPT =====\n` +
     `(the agent also reads ${CRASH_JSON} for the crash detail printed above)\n`
 );
+// Security: crash logs are attacker-controlled (any TestFlight tester), so treat
+// the agent as processing untrusted input. Strip the secrets it never needs
+// (the wrapper — not the agent — does all git/PR and ASC work) so a prompt
+// injection can't exfiltrate them, and run in acceptEdits (file edits only, no
+// arbitrary shell).
+const agentEnv: Record<string, string | undefined> = { ...env };
+for (const k of ["GH_TOKEN", "ASC_KEY_ID", "ASC_ISSUER_ID", "ASC_P8"]) delete agentEnv[k];
 const agent = Bun.spawn(
-  ["claude", "-p", prompt, "--permission-mode", "bypassPermissions", "--output-format", "text"],
-  { stdout: "inherit", stderr: "inherit", env }
+  ["claude", "-p", prompt, "--permission-mode", "acceptEdits", "--output-format", "text"],
+  { stdout: "inherit", stderr: "inherit", env: agentEnv }
 );
 const agentRc = await agent.exited;
 console.log(`▸ Agent finished (rc=${agentRc}).`);
