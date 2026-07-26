@@ -45,10 +45,12 @@ Before spending an agent run, cheaply reject stale/handled reports:
 
 - **Already being handled** — an *open* PR for the signature exists → attach the
   new report to it (comment/count bump), skip investigation.
-- **Already fixed** — a *merged/closed-as-fixed* PR for the signature exists and
-  shipped in a build ≥ the crashing build → the report is from an old build;
-  skip with a note. (If it recurs on a build *after* the fix shipped, that's a
-  regression — do investigate, and say so.)
+- **Already fixed** — a *merged* PR for the signature exists → skip with a note
+  (regression detection on newer builds is deferred). A PR closed *without*
+  merging means the bug was never fixed, so it does **not** suppress future
+  reports — re-investigate. Signatures are intentionally stable across builds, so
+  an explicit `wontfix`/`invalid` label is the way to silence a signature for
+  good.
 - **Superseded build** — the crashing build isn't the latest and the signature
   hasn't appeared on the latest build → deprioritize/skip (optional, needs build
   ordering from ASC).

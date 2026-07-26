@@ -210,6 +210,13 @@ if (allowlist.length) {
 // ---- storm-control pre-flight (before the expensive agent run) ----
 // GitHub is the store: signature-keyed branch + `crash:<sig>` label. Dedup,
 // relevance, and the rate cap are all plain API queries — no DB, no third party.
+// Resolve owner/repo up front (REPO_SLUG, else git origin) so the pre-flight —
+// not just the later PR step — can gate work even when REPO_SLUG is unset.
+if (!owner || !repo) {
+  const { out } = await sh([GIT, "config", "--get", "remote.origin.url"], { allowFail: true });
+  const s = out.replace(/^(git@github\.com:|https:\/\/github\.com\/)/, "").replace(/\.git$/, "");
+  [owner, repo] = s.split("/");
+}
 const signature = crashSignature(crash);
 if (owner && repo) {
   // Rate cap — bounds cost even under a storm of *distinct* signatures.
@@ -234,17 +241,30 @@ if (owner && repo) {
         });
         process.exit(0);
       }
-      const closedPr = issues.find((i) => i.state === "closed" && i.pull_request);
-      if (closedPr) {
-        console.log(`▸ Sig ${signature} already triaged — closed PR ${closedPr.html_url}. Skipping (a recurrence on a newer build would produce a fresh signature).`);
+      // Signatures are intentionally stable across builds/devices, so only a
+      // *merged* fix (or an explicit wontfix/invalid label) should suppress
+      // future reports. A PR closed WITHOUT merging means the bug was never
+      // fixed — re-investigate rather than silently drop the report.
+      const mergedPr = issues.find((i) => i.state === "closed" && i.pull_request?.merged_at);
+      if (mergedPr) {
+        console.log(`▸ Sig ${signature} already fixed — merged PR ${mergedPr.html_url}. Skipping (regression detection on newer builds is deferred).`);
         process.exit(0);
+      }
+      const suppressed = issues.find((i) => (i.labels || []).some((l: any) => /^(wontfix|invalid|duplicate)$/i.test(l.name)));
+      if (suppressed) {
+        console.log(`▸ Sig ${signature} labelled won't-fix/invalid (${suppressed.html_url}) — skipping.`);
+        process.exit(0);
+      }
+      const closedUnmerged = issues.find((i) => i.state === "closed" && i.pull_request);
+      if (closedUnmerged) {
+        console.log(`▸ Sig ${signature} has a closed-without-merge PR ${closedUnmerged.html_url} and no wontfix label — re-investigating (the fix wasn't applied).`);
       }
     }
   } else {
     console.log("▸ Degraded (no stack trace) → can't compute a signature; dedup unavailable, relying on the rate cap only.");
   }
 } else {
-  console.log("▸ REPO_SLUG not set → skipping storm-control pre-flight.");
+  console.log("▸ owner/repo unresolved (no REPO_SLUG and no git origin) → skipping storm-control pre-flight.");
 }
 
 // ---- optional: boot an EAS Simulator (argent) session early ----
@@ -326,12 +346,7 @@ if (!isRepo) {
   process.exit(0);
 }
 
-// ---- repo identity (fill from git if REPO_SLUG wasn't set) ----
-if (!owner || !repo) {
-  const { out } = await sh([GIT, "config", "--get", "remote.origin.url"], { allowFail: true });
-  const s = out.replace(/^(git@github\.com:|https:\/\/github\.com\/)/, "").replace(/\.git$/, "");
-  [owner, repo] = s.split("/");
-}
+// ---- repo identity (already resolved up front, before the pre-flight) ----
 if (!owner || !repo) {
   console.error(`✗ Could not determine owner/repo (REPO_SLUG=${env.REPO_SLUG || "unset"})`);
   process.exit(1);
