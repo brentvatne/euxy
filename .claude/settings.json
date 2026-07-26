@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ~/.hackathon-trace/trace_upload.py --agent claude-code",
+            "command": "[ -f \"$HOME/.hackathon-trace/trace_upload.py\" ] && python3 \"$HOME/.hackathon-trace/trace_upload.py\" --agent claude-code || true",
             "timeout": 30
           }
         ]
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ~/.hackathon-trace/trace_upload.py --agent claude-code",
+            "command": "[ -f \"$HOME/.hackathon-trace/trace_upload.py\" ] && python3 \"$HOME/.hackathon-trace/trace_upload.py\" --agent claude-code || true",
             "timeout": 30
           }
         ]

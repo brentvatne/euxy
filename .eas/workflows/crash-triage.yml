@@ -1,0 +1,59 @@
+# Crash triage — thin slice (v0), PRODUCTION trigger.
+#
+# A TestFlight tester reports a CRASH → a Linux job runs a Claude agent (with the
+# expo skills) to investigate against the codebase and open a PR with its
+# analysis (+ a safe minimal fix when confident). Never auto-merges.
+#
+# For manual test runs use .eas/workflows/crash-triage-test.yml (workflow_dispatch)
+# — App Store Connect context and dispatch inputs can't coexist in one file (EAS
+# validates job params against the specific trigger's context).
+#
+# Requires: the App Store Connect connection AND the GitHub repo connected to the
+# EAS project (Project settings). EAS env vars (production, secret):
+#   CLAUDE_CODE_OAUTH_TOKEN ✅   GH_TOKEN ✅
+#   ASC_KEY_ID / ASC_ISSUER_ID / ASC_P8 ⬜ (optional — real stack traces + tester
+#     email; without them the allowlist gate can't verify the tester and skips).
+
+name: Crash triage
+
+on:
+  app_store_connect:
+    beta_feedback:
+      types:
+        - crash
+
+jobs:
+  triage:
+    name: Investigate crash with Claude
+    environment: production
+    runs_on: linux-medium
+    env:
+      REPO_SLUG: brentvatne/euxy
+      ALLOWED_FEEDBACK_EMAILS: brentvatne@gmail.com
+      FEEDBACK_ID: ${{ app_store_connect.beta_feedback.id }}
+      FEEDBACK_TYPE: ${{ app_store_connect.beta_feedback.type }}
+      FEEDBACK_URL: ${{ app_store_connect.beta_feedback.url }}
+      ASC_APP_ID: ${{ app_store_connect.app.id }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - name: Install Claude Code + Expo skills
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          command -v bun >/dev/null 2>&1 || npm install -g bun
+          # Expo skills come from the public Anthropic marketplace; the repo's
+          # .claude/settings.json already enables expo@claude-plugins-official.
+          claude plugin marketplace add anthropics/claude-plugins-official || true
+          claude plugin install expo@claude-plugins-official || true
+          claude --version
+      - name: Triage
+        run: bun .eas/crash-triage/triage.ts
+      - name: Upload triage summary
+        if: ${{ always() }}
+        uses: eas/upload_artifact
+        with:
+          type: other
+          name: crash-triage-summary
+          path: |
+            .eas/crash-triage/ANALYSIS.md
+            .eas/crash-triage/crash.json
