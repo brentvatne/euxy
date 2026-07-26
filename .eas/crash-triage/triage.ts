@@ -297,14 +297,30 @@ console.log(
   `\n===== FULL PROMPT PASSED TO CLAUDE (${simValidation ? "sim-validation" : "investigation-only"}) =====\n${prompt}\n===== END PROMPT =====\n` +
     `(the agent also reads ${CRASH_JSON} for the crash detail printed above)\n`
 );
-// Security: crash logs are attacker-controlled (any TestFlight tester), so treat
-// the agent as processing untrusted input. Strip the secrets it never needs
-// (the wrapper — not the agent — does all git/PR and ASC work) so a prompt
-// injection can't exfiltrate them. Investigation-only runs in acceptEdits (file
-// edits, no shell); sim-validation needs shell to drive `eas simulator`, so it
-// uses bypassPermissions — GH_TOKEN/ASC stay withheld either way.
-const agentEnv: Record<string, string | undefined> = { ...env };
-for (const k of ["GH_TOKEN", "ASC_KEY_ID", "ASC_ISSUER_ID", "ASC_P8"]) delete agentEnv[k];
+// Security: the crash detail can carry attacker-influenced strings, so hand the
+// agent a MINIMAL env rather than a narrow denylist — drop every token/secret-ish
+// and ASC_* var (GH_TOKEN, ASC_KEY_ID/ISSUER/P8, and any other stray secret on the
+// runner), keeping only the agent's own auth. EXPO_TOKEN is kept ONLY in
+// sim-validation, where the agent must drive `eas simulator` itself.
+//   Investigation-only → acceptEdits (file edits, no shell).
+//   Sim-validation → bypassPermissions (needs shell for eas-cli). This is the
+//   weakest point: shell + EXPO_TOKEN on untrusted-ish input. It's mitigated by
+//   the tester-email allowlist (only allowlisted testers' feedback is triaged),
+//   SIM_VALIDATION being off in prod, and mandatory human PR review — but keep
+//   sim-validation for trusted/self-reported crashes.
+const agentEnv: Record<string, string | undefined> = {};
+for (const [k, v] of Object.entries(env)) {
+  if (k === "CLAUDE_CODE_OAUTH_TOKEN") {
+    agentEnv[k] = v;
+    continue;
+  }
+  if (k === "EXPO_TOKEN") {
+    if (simValidation) agentEnv[k] = v; // only when the agent drives the sim
+    continue;
+  }
+  if (/TOKEN|SECRET|KEY|PASSWORD|CREDENTIAL/i.test(k) || /^ASC_/i.test(k)) continue;
+  agentEnv[k] = v;
+}
 const agent = Bun.spawn(
   ["claude", "-p", prompt, "--permission-mode", simValidation ? "bypassPermissions" : "acceptEdits", "--output-format", "text"],
   { stdout: "inherit", stderr: "inherit", env: agentEnv }
