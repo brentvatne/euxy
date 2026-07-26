@@ -1,0 +1,60 @@
+# Crash triage — thin slice (v0)
+#
+# Trigger: a TestFlight tester reports a CRASH via App Store Connect beta
+# feedback. EAS delivers the feedback id + url (NOT the stack trace).
+#
+# This v0 proves the pipe end-to-end: run a Claude agent (with the Expo skills)
+# on a Linux runner, have it investigate the crash against the codebase, and open
+# a PR with its analysis. Fix-validation on the EAS Simulator and preview-build /
+# update-URL links are layered on in later versions (see
+# docs/crash-triage-workflow-design.md).
+#
+# Requires (EAS env vars, `production` environment):
+#   - CLAUDE_CODE_OAUTH_TOKEN  (secret)  ✅ already set — Claude Code auth
+#   - GH_TOKEN                 (secret)  ⬜ TODO — push branch + open PR (repo scope)
+#   - ASC_KEY_ID / ASC_ISSUER_ID / ASC_P8 (secret) ⬜ TODO — fetch the real crash
+#         log from the App Store Connect API. Without them the agent triages with
+#         only the feedback url/id (degraded but functional).
+#
+# Also requires the App Store Connect connection configured in the EAS dashboard
+# (Project → Settings → App Store Connect) for this trigger to fire.
+
+name: Crash triage
+
+on:
+  app_store_connect:
+    beta_feedback:
+      types:
+        - crash
+
+# NOTE: EAS `concurrency` currently only supports a fixed same-branch form
+# (custom groups aren't supported yet), which doesn't apply to a non-branch
+# App Store Connect trigger. Dedup of duplicate crash reports is handled in
+# run.sh instead: the branch is keyed on the feedback id, and an already-open
+# PR for that branch is treated as success rather than an error.
+
+jobs:
+  triage:
+    name: Investigate crash with Claude
+    environment: production
+    runs_on: linux-medium
+    env:
+      FEEDBACK_ID: ${{ app_store_connect.beta_feedback.id }}
+      FEEDBACK_TYPE: ${{ app_store_connect.beta_feedback.type }}
+      FEEDBACK_URL: ${{ app_store_connect.beta_feedback.url }}
+      ASC_APP_ID: ${{ app_store_connect.app.id }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - name: Install Claude Code + Expo skills
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          # Expo skills come from the public Anthropic marketplace; the repo's
+          # .claude/settings.json already enables expo@claude-plugins-official.
+          claude plugin marketplace add anthropics/claude-plugins-official || true
+          claude plugin install expo@claude-plugins-official || true
+          claude --version
+      - name: Fetch crash detail (best-effort)
+        run: node .eas/crash-triage/fetch-crash.mjs > "$PWD/.eas/crash-triage/crash.json" || echo '{}' > "$PWD/.eas/crash-triage/crash.json"
+      - name: Investigate and open PR
+        run: bash .eas/crash-triage/run.sh
