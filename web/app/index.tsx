@@ -29,7 +29,7 @@ export default function Home() {
           <LedChip name="euxy" size={72} />
           <Text style={styles.title}>euxy</Text>
           <Text style={styles.tagline}>
-            A generative euclidean sequencer for the Teenage Engineering OP-XY, on your iPhone.
+            A generative euclidean sequencer for the Teenage Engineering OP-XY, on your iPhone over USB-C MIDI.
           </Text>
           <MonoLabel dim>NO OP-XY? HEAR THE PATTERNS RIGHT HERE.</MonoLabel>
           <Link href="https://testflight.apple.com/join/Ws2kvsxT" style={styles.betaKey}>
