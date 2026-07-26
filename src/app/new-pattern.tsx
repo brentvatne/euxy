@@ -18,6 +18,7 @@ import { AppText, SFSymbol, SheetHeader } from '@/components/ui';
 import { IconClear, IconDice } from '@/components/ui/icons';
 import { Key } from '@/components/ui/key';
 import { KeyboardAwareScrollView } from '@/components/ui/keyboard';
+import { ValueFilm } from '@/components/ui/value-film';
 import { haptics } from '@/lib/shims';
 import { generatePatternName } from '@/lib/pattern-names';
 import { allChipNames, randomChipName, type ChipName } from '@/components/patterns/chips';
@@ -180,9 +181,13 @@ export default function NewPatternSheet() {
               >
                 <SFSymbol name="minus" size={18} tint={color.label} />
               </Pressable>
-              <AppText variant="title" style={styles.tempoValue}>
-                {bpm}
-              </AppText>
+              <View style={styles.tempoValueBox}>
+                {/* Commit light behind the digits (same as the Tempo sheet). */}
+                <ValueFilm value={bpm} style={styles.tempoValueFilm} />
+                <AppText variant="title" style={styles.tempoValue}>
+                  {bpm}
+                </AppText>
+              </View>
               <Pressable
                 onPress={() => adjustBpm(1)}
                 disabled={bpm >= BPM_MAX}
@@ -298,6 +303,16 @@ const styles = StyleSheet.create({
   iconStrip: { marginHorizontal: -space.lg },
   iconRow: { paddingHorizontal: space.lg },
   tempoValue: { minWidth: 52, textAlign: 'center' },
+  tempoValueBox: { justifyContent: 'center' },
+  tempoValueFilm: {
+    position: 'absolute',
+    top: -4,
+    bottom: -4,
+    left: -6,
+    right: -6,
+    borderRadius: 6,
+    backgroundColor: '#F6F4F4',
+  },
   createBtn: {
     marginTop: space.sm,
     backgroundColor: color.label,

@@ -18,6 +18,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { AppText, SFSymbol, SheetHeader } from '@/components/ui';
+import { ValueFilm } from '@/components/ui/value-film';
 import { haptics } from '@/lib/shims';
 import { ResolutionPicker } from '@/components/patterns/resolution-picker';
 import { useActivePattern } from '@/state/selectors';
@@ -83,9 +84,17 @@ export default function TempoSheet() {
               >
                 <SFSymbol name="minus" size={18} tint={color.label} />
               </Pressable>
-              <AppText variant="title" style={[styles.tempoValue, bpmDisabled && styles.disabled]}>
-                {Math.round(bpm)}
-              </AppText>
+              <View style={styles.tempoValueBox}>
+                {/* A committed value gets a light. NOT in record mode: there the
+                    device drives BPM a couple of times a second, and a film on
+                    that would be a permanent flicker rather than feedback. */}
+                {bpmDisabled ? null : (
+                  <ValueFilm value={Math.round(bpm)} style={styles.tempoValueFilm} />
+                )}
+                <AppText variant="title" style={[styles.tempoValue, bpmDisabled && styles.disabled]}>
+                  {Math.round(bpm)}
+                </AppText>
+              </View>
               <Pressable
                 onPress={() => adjustBpm(1)}
                 disabled={bpmDisabled || bpm >= BPM_MAX}
@@ -165,6 +174,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tempoValue: { minWidth: 52, textAlign: 'center' },
+  tempoValueBox: { justifyContent: 'center' },
+  // The commit film sits BEHIND the digits, bleeding a little past them so the
+  // light reads as the readout lighting up rather than a box behind it.
+  tempoValueFilm: {
+    position: 'absolute',
+    top: -4,
+    bottom: -4,
+    left: -6,
+    right: -6,
+    borderRadius: 6,
+    backgroundColor: '#F6F4F4',
+  },
   disabled: { opacity: 0.35 },
   // Paper 8OU-0: 13/18 regular, px 20 (body is 16 → +4), first line #95959A,
   // second the dimmer #6E6E76 (Paper value; also the transport standby ring).
