@@ -587,9 +587,17 @@ to hardware. Build order and route map live in the web plan.
 
 ### OG images for euxy.expo.app (2026-07-25)
 
-Every page currently unfurls with text-only meta. Generate proper Open
-Graph images (1200×630) for the site's pages — **design them in Paper
-first**, then export/generate the assets:
+**BUILT (2026-07-25, f318542):** Paper boards "OG · home" + "OG · shared
+pattern", generated at build time with satori + @resvg/resvg-js from the
+real shared modules → public/og.png + og-p.png, meta wired (layout +
+/p). Per-pattern DYNAMIC cards were implemented and worked locally but
+hit two EAS Hosting walls (worker forbids runtime wasm; deployed SSR
+returns an empty <head> — feedback ea3f4348); the SSR implementation
+lives in git history. Details: web-plan.md "OG images — BUILT".
+
+Original brief — every page unfurled with text-only meta. Generate proper
+Open Graph images (1200×630) for the site's pages — **design them in
+Paper first**, then export/generate the assets:
 
 - **Home** — the euxy identity card: dot-matrix "e" chip + wordmark +
   tagline on display-black; the brand unfurl for any link to the site.
