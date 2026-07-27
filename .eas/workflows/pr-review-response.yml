@@ -1,0 +1,47 @@
+# PR review-response (agent side, runs on EAS). Given a triage PR number, the
+# Claude agent addresses the latest review feedback from a trusted reviewer (the
+# AI reviewer or an allowlisted human, verified via the GitHub API) on the PR
+# branch, verifies (tsc/tests), and pushes. Never merges. Hard loop cap.
+#
+# Dispatched by the thin GitHub Actions trigger (.github/workflows/
+# pr-review-response.yml) after it gates on the verified event author — or run
+# manually:  eas workflow:run .eas/workflows/pr-review-response.yml -F pr=12
+#
+# Uses EAS secrets CLAUDE_CODE_OAUTH_TOKEN + GH_TOKEN. No Claude token on GitHub.
+
+name: PR review response
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Triage PR number to respond to
+        type: string
+      review_id:
+        description: Specific review id (optional; blank = latest actionable feedback)
+        type: string
+        default: ''
+
+jobs:
+  respond:
+    name: Address review feedback with Claude
+    environment: production
+    runs_on: linux-medium
+    env:
+      REPO_SLUG: brentvatne/euxy
+      TRIAGE_ALLOWLIST: '["brentvatne"]'
+      MAX_ITERS: '3'
+      INPUT_PR: ${{ inputs.pr }}
+      INPUT_REVIEW_ID: ${{ inputs.review_id }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - name: Install Claude Code + Expo skills
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          command -v bun >/dev/null 2>&1 || npm install -g bun
+          claude plugin marketplace add anthropics/claude-plugins-official || true
+          claude plugin install expo@claude-plugins-official || true
+          claude --version
+      - name: Respond to review feedback
+        run: bun .eas/pr-review/pr-review-response.ts

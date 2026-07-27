@@ -62,5 +62,6 @@ SETUP-TRACING.md
 .eas/feedback-triage/ANALYSIS.md
 .github/issue-triage/issue.json
 .github/issue-triage/ANALYSIS.md
-.eas/pr-review/
+.eas/pr-review/feedback.md
+.eas/pr-review/RESPONSE.md
 .github/pr-review/
