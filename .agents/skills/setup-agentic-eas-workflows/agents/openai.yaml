@@ -1,0 +1,4 @@
+interface:
+  display_name: "Set up agentic EAS workflows"
+  short_description: "Build secure EAS and GitHub agent workflows"
+  default_prompt: "Use $setup-agentic-eas-workflows to set up secure agentic EAS Workflows and GitHub Actions automation for this Expo project."
