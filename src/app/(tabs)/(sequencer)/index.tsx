@@ -112,13 +112,15 @@ export default function SequencerScreen() {
   const onMenuAction = (action: PatternMenuAction) => {
     switch (action) {
       case 'new':
-        router.push('/new-pattern');
+        // Tagged so useScreenFocused can tell this sheet apart from the same
+        // route pushed by the Patterns tab (src/components/ui/use-screen-focused.ts).
+        router.push({ pathname: '/new-pattern', params: { from: 'sequencer' } });
         break;
       case 'rename':
         renamePattern();
         break;
       case 'icon':
-        router.push('/change-icon');
+        router.push({ pathname: '/change-icon', params: { from: 'sequencer' } });
         break;
       case 'share':
         router.push('/share-pattern');

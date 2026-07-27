@@ -11,23 +11,23 @@
  * app/_layout.tsx), so pushing any one of them blurs the Sequencer route
  * exactly like switching tabs would (the tester's report, TestFlight build 33
  * — dragging the Lane Editor sheet to dismiss showed a dead grid until the
- * dismiss settled). Every route below is only ever opened from this screen, so
- * "still on one of them" is enough to tell the two cases apart without a
- * global active-tab store.
+ * dismiss settled).
+ *
+ * Lane Editor, Tempo, and Share Pattern are only ever pushed from this screen,
+ * so the route alone identifies them. New Pattern and Change Icon are ALSO
+ * pushed from the Patterns tab (its + button and row long-press) — for those
+ * two, the route isn't enough, so callers on this screen tag their push with
+ * `?from=sequencer` (see (tabs)/(sequencer)/index.tsx) and this hook checks
+ * that global param before treating the sheet as its own.
  *
  * Call this ONCE per screen and pass the result down: a per-lane focus
  * subscription would add two navigation listeners per row.
  */
 import { useCallback, useState } from 'react';
-import { useFocusEffect, usePathname } from 'expo-router';
+import { useFocusEffect, useGlobalSearchParams, usePathname } from 'expo-router';
 
-const OWN_SHEET_ROUTES = new Set([
-  '/lane-editor',
-  '/tempo',
-  '/new-pattern',
-  '/change-icon',
-  '/share-pattern',
-]);
+const OWN_SHEET_ROUTES = new Set(['/lane-editor', '/tempo', '/share-pattern']);
+const SHARED_SHEET_ROUTES = new Set(['/new-pattern', '/change-icon']);
 
 export function useScreenFocused(): boolean {
   // Starts true: the screen's first render IS its focused render (the
@@ -42,5 +42,8 @@ export function useScreenFocused(): boolean {
     }, []),
   );
   const pathname = usePathname();
-  return focused || OWN_SHEET_ROUTES.has(pathname);
+  const { from } = useGlobalSearchParams<{ from?: string }>();
+  const onOwnSheet =
+    OWN_SHEET_ROUTES.has(pathname) || (SHARED_SHEET_ROUTES.has(pathname) && from === 'sequencer');
+  return focused || onOwnSheet;
 }
