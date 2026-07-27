@@ -1,0 +1,73 @@
+# A GitHub review event is not currently an EAS Workflow trigger, so this
+# credential-minimal workflow verifies the event and dispatches trusted workflow
+# code to EAS. The autonomous agent and GitHub write token remain on EAS.
+
+name: Respond to requested PR changes
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions: {}
+
+concurrency:
+  group: pr-review-response-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    if: >-
+      github.event.review.state == 'changes_requested'
+      && github.event.review.user.login == 'brentvatne'
+      && contains(
+        fromJSON('["euxy-bot","github-actions[bot]"]'),
+        github.event.pull_request.user.login
+      )
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && (
+        startsWith(github.event.pull_request.head.ref, 'crash-triage/')
+        || startsWith(github.event.pull_request.head.ref, 'issue-triage/')
+        || startsWith(github.event.pull_request.head.ref, 'feedback-triage/')
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch trusted EAS workflow
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EAS_PROJECT_ID: 2ee288d6-807b-4316-8331-d0f5cd5eebe8
+          TRUSTED_GIT_REF: ${{ github.event.pull_request.base.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW_ID: ${{ github.event.review.id }}
+        run: |
+          if [[ -z "$EXPO_TOKEN" ]]; then
+            echo "::error::Missing the EXPO_TOKEN repository secret used to dispatch EAS Workflows."
+            exit 1
+          fi
+
+          payload="$(
+            jq -n \
+              --arg app_id "$EAS_PROJECT_ID" \
+              --arg git_ref "$TRUSTED_GIT_REF" \
+              --arg pr "$PR_NUMBER" \
+              --arg review_id "$REVIEW_ID" \
+              '{
+                appId: $app_id,
+                gitRef: $git_ref,
+                fileName: "pr-review-response.yml",
+                inputs: { pr: $pr, review_id: $review_id }
+              }'
+          )"
+          response="$(
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --header "Authorization: Bearer $EXPO_TOKEN" \
+              --header "Content-Type: application/json" \
+              --data "$payload" \
+              https://api.expo.dev/v2/workflows/dispatch
+          )"
+          run_url="$(jq -r '.data.url // empty' <<<"$response")"
+          if [[ -z "$run_url" ]]; then
+            echo "::error::EAS accepted the request but returned no workflow URL."
+            exit 1
+          fi
+          echo "Dispatched EAS workflow: $run_url"

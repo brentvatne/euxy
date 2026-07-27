@@ -30,6 +30,8 @@
  */
 import { createSign, createHash } from "node:crypto";
 
+import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
+
 const env = process.env;
 const GIT = env.GIT_BIN || "git";
 const EAS = ["npx", "--yes", "eas-cli@21.3.0"];
@@ -382,9 +384,14 @@ await sh([GIT, "add", "-A"]);
 
 // did the agent change code (anything besides the triage bookkeeping)?
 const staged = await sh([GIT, "diff", "--cached", "--name-only"]);
-const codeChanged = staged.out
-  .split("\n")
-  .filter(Boolean)
+const stagedPaths = staged.out.split("\n").filter(Boolean);
+try {
+  assertSafeAgentDiff(stagedPaths);
+} catch (error) {
+  console.error(`✗ ${(error as Error).message}`);
+  process.exit(1);
+}
+const codeChanged = stagedPaths
   .some((f) => !f.startsWith(`${TRIAGE_DIR}/crash.json`) && !f.startsWith(`${TRIAGE_DIR}/ANALYSIS.md`));
 
 const nothing = (await sh([GIT, "diff", "--cached", "--quiet"], { allowFail: true })).code === 0;

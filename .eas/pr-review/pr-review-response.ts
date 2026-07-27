@@ -10,9 +10,14 @@
  * dispatches this workflow — no Claude token / autonomous agent runs on GitHub.
  *
  * Env: CLAUDE_CODE_OAUTH_TOKEN, GH_TOKEN, REPO_SLUG (req); INPUT_PR (req),
- *      INPUT_REVIEW_ID (optional), TRIAGE_ALLOWLIST (default ["brentvatne"]),
+ *      INPUT_REVIEW_ID (optional),
+ *      TRIAGE_PR_AUTHOR_ALLOWLIST
+ *        (default ["brentvatne","euxy-bot","github-actions[bot]"]),
+ *      TRIAGE_REVIEWER_ALLOWLIST (default ["brentvatne"]),
  *      MAX_ITERS (default 3), GIT_BIN, DRY_RUN.
  */
+import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
+
 const env = process.env;
 const GIT = env.GIT_BIN || "git";
 const CLAUDE = ["claude", ...(env.CLAUDE_PLUGIN_DIR ? ["--plugin-dir", env.CLAUDE_PLUGIN_DIR] : [])];
@@ -36,7 +41,20 @@ const GH_TOKEN = req("GH_TOKEN");
 req("CLAUDE_CODE_OAUTH_TOKEN");
 const [owner, repo] = req("REPO_SLUG").split("/");
 const prNumber = req("INPUT_PR").replace(/[^0-9]/g, "");
-const allowlist: string[] = (() => { try { return JSON.parse(env.TRIAGE_ALLOWLIST || '["brentvatne"]'); } catch { return ["brentvatne"]; } })().map((s) => String(s).toLowerCase());
+function loginAllowlist(name: string, fallback: string[]): string[] {
+  try {
+    const parsed = JSON.parse(env[name] || JSON.stringify(fallback));
+    return Array.isArray(parsed) ? parsed.map((value) => String(value).toLowerCase()) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+const prAuthorAllowlist = loginAllowlist("TRIAGE_PR_AUTHOR_ALLOWLIST", [
+  "brentvatne",
+  "euxy-bot",
+  "github-actions[bot]",
+]);
+const reviewerAllowlist = loginAllowlist("TRIAGE_REVIEWER_ALLOWLIST", ["brentvatne"]);
 async function gh(path: string, init: RequestInit = {}) {
   return fetch(`https://api.github.com/repos/${owner}/${repo}${path}`, { ...init, headers: { Authorization: `Bearer ${GH_TOKEN}`, Accept: "application/vnd.github+json", ...((init.headers as Record<string, string>) || {}) } });
 }
@@ -53,7 +71,7 @@ if (!TRIAGE_PREFIXES.some((p) => headRef.startsWith(p))) skip(`#${prNumber} (${h
 // GitHub API (pr.user.login is set by GitHub, not spoofable). This keeps the
 // PR-controlled code the agent executes to trusted authors only.
 const prAuthor = (pr.user?.login || "").toLowerCase();
-if (!allowlist.includes(prAuthor)) skip(`PR #${prNumber} was opened by '${prAuthor || "?"}', not an allowlisted author — refusing to run the agent on untrusted PR code`);
+if (!prAuthorAllowlist.includes(prAuthor)) skip(`PR #${prNumber} was opened by '${prAuthor || "?"}', not an allowlisted author — refusing to run the agent on untrusted PR code`);
 
 // ---- find the latest actionable feedback from a TRUSTED, API-verified author ----
 // Security boundary: the author LOGIN comes from the GitHub API (a user cannot
@@ -62,7 +80,7 @@ const isTrusted = (login: string, body: string) => {
   if (new RegExp(MARKER).test(body)) return false; // our own auto-response
   const l = (login || "").toLowerCase();
   const isAI = l === "github-actions[bot]" && /expo-ai-code-reviewer/i.test(body || "");
-  return isAI || allowlist.includes(l);
+  return isAI || reviewerAllowlist.includes(l);
 };
 const [issueComments, reviews] = await Promise.all([
   (await gh(`/issues/${prNumber}/comments?per_page=100`)).json() as Promise<any[]>,
@@ -142,6 +160,13 @@ await sh([GIT, "-C", WORK, "add", "-A"]);
 // Never commit the transient feedback/response files (the PR branch predates the
 // gitignore entry for them) — keep only the agent's actual code changes.
 await sh([GIT, "-C", WORK, "reset", "-q", "--", ".eas/pr-review"], { allowFail: true });
+const staged = await sh([GIT, "-C", WORK, "diff", "--cached", "--name-only"]);
+try {
+  assertSafeAgentDiff(staged.out.split("\n").filter(Boolean));
+} catch (error) {
+  console.error(`✗ ${(error as Error).message}`);
+  process.exit(1);
+}
 const summary = (await Bun.file(`${WORK}/.eas/pr-review/RESPONSE.md`).exists()) ? await Bun.file(`${WORK}/.eas/pr-review/RESPONSE.md`).text() : "Reviewed the feedback.";
 if ((await sh([GIT, "-C", WORK, "diff", "--cached", "--quiet"], { allowFail: true })).code === 0) {
   console.log("▸ Agent made no changes.");

@@ -18,6 +18,9 @@
  *   SUBMIT_PROFILE               — eas.json submit profile for the ASC key (default production)
  *   GIT_BIN / DRY_RUN
  */
+import { parsePublicPr } from "./public-pr";
+import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
+
 const env = process.env;
 const GIT = env.GIT_BIN || "git";
 const EAS = ["npx", "--yes", "eas-cli@21.3.0"];
@@ -25,6 +28,7 @@ const CLAUDE = ["claude", ...(env.CLAUDE_PLUGIN_DIR ? ["--plugin-dir", env.CLAUD
 const DIR = ".eas/feedback-triage";
 const ANALYSIS = `${DIR}/ANALYSIS.md`;
 const FEEDBACK_JSON = `${DIR}/feedback.json`;
+const PUBLIC_PR = `${DIR}/PUBLIC_PR.json`;
 const UPDATE_CHANNEL = "preview";
 const UPDATE_ENVIRONMENT = "preview";
 
@@ -155,12 +159,42 @@ await sh([GIT, "config", "user.email", "feedback-triage@users.noreply.github.com
 await sh([GIT, "checkout", "-B", branch]);
 await sh([GIT, "add", "-A"]);
 const staged = await sh([GIT, "diff", "--cached", "--name-only"]);
-const codeChanged = staged.out.split("\n").filter(Boolean).some((f) => !f.startsWith(`${DIR}/`));
+const stagedPaths = staged.out.split("\n").filter(Boolean);
+try {
+  assertSafeAgentDiff(stagedPaths);
+} catch (error) {
+  console.error(`✗ ${(error as Error).message}`);
+  process.exit(1);
+}
+const codeChanged = stagedPaths.some((f) => !f.startsWith(`${DIR}/`));
 if ((await sh([GIT, "diff", "--cached", "--quiet"], { allowFail: true })).code === 0) {
   console.log("▸ Nothing staged; nothing to open a PR for.");
   process.exit(0);
 }
-await sh([GIT, "commit", "-m", `feedback-triage: ${feedback.id}`, "-m", `Automated triage of TestFlight feedback ${feedback.id}. Analysis in ${ANALYSIS}.`]);
+
+let publicPr;
+try {
+  if (!(await Bun.file(PUBLIC_PR).exists())) throw new Error("the agent did not create PUBLIC_PR.json");
+  const collectStrings = (value: unknown): string[] => {
+    if (typeof value === "string") return [value];
+    if (Array.isArray(value)) return value.flatMap(collectStrings);
+    if (value && typeof value === "object") return Object.values(value).flatMap(collectStrings);
+    return [];
+  };
+  publicPr = parsePublicPr(await Bun.file(PUBLIC_PR).text(), collectStrings(feedback));
+} catch (error) {
+  console.error(`✗ Refusing to publish without a safe public PR description: ${(error as Error).message}`);
+  process.exit(1);
+}
+
+await sh([
+  GIT,
+  "commit",
+  "-m",
+  `feedback-triage: ${publicPr.title}`.slice(0, 72),
+  "-m",
+  "Automated triage of private TestFlight feedback. Public rationale is recorded in the pull request.",
+]);
 
 // ---- 4. publish an EAS Update (only when there's a real code fix) ----
 let updateLine = "_No code change → no EAS Update published._";
@@ -175,7 +209,7 @@ if (codeChanged) {
       "--environment",
       UPDATE_ENVIRONMENT,
       "--message",
-      `feedback-triage ${shortId}`,
+      `feedback-triage: ${publicPr.title}`.slice(0, 100),
       "--non-interactive",
     ],
     { allowFail: true }
@@ -193,13 +227,18 @@ if (codeChanged) {
 // ---- 5. push + open PR ----
 await sh([GIT, "push", "-f", `https://x-access-token:${GH_TOKEN}@github.com/${owner}/${repo}.git`, branch]);
 console.log(`▸ Pushed ${branch}.`);
-const title = codeChanged ? `Address TestFlight feedback ${shortId}` : `Triage TestFlight feedback ${shortId}`;
+const title = publicPr.title;
+const verification = publicPr.howToVerify.map((step, index) => `${index + 1}. ${step}`).join("\n");
 const body =
-  `Automated triage of private TestFlight feedback \`${shortId}\` (build ${feedback.buildVersion ?? "unknown"}).\n\n` +
-  `Tester identity, the original comment, screenshots, device details, and the analysis are intentionally omitted from this public PR. Review the private \`feedback-triage-summary\` workflow artifact for those details.\n\n` +
-  `${updateLine}\n\n---\n_Automated triage. **Not auto-merged** — review before merging._ Code change: **${codeChanged ? "yes" : "no"}**.`;
+  `Automated triage of private TestFlight feedback.\n\n` +
+  `## What changed\n\n${publicPr.whatChanged}\n\n` +
+  `## Why\n\n${publicPr.why}\n\n` +
+  `## How to verify\n\n${verification}\n\n` +
+  `## Preview\n\n${updateLine}\n\n` +
+  `Tester identity, the original report, screenshots, device details, and private analysis remain in the access-controlled \`feedback-triage-summary\` workflow artifact.\n\n` +
+  `---\n_Automated triage. **Not auto-merged** — review before merging._`;
 
-const res = await gh(`/pulls`, { method: "POST", body: JSON.stringify({ title: title.slice(0, 250), head: branch, base: env.PR_BASE || "main", body }) });
+const res = await gh(`/pulls`, { method: "POST", body: JSON.stringify({ title, head: branch, base: env.PR_BASE || "main", body }) });
 if (res.status === 201) {
   console.log(`▸ Opened PR: ${(await res.json()).html_url}`);
 } else if (res.status === 422) {

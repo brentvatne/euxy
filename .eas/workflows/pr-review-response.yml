@@ -29,7 +29,8 @@ jobs:
     runs_on: linux-medium
     env:
       REPO_SLUG: brentvatne/euxy
-      TRIAGE_ALLOWLIST: '["brentvatne"]'
+      TRIAGE_PR_AUTHOR_ALLOWLIST: '["brentvatne","euxy-bot","github-actions[bot]"]'
+      TRIAGE_REVIEWER_ALLOWLIST: '["brentvatne"]'
       DISABLE_AUTOUPDATER: '1'
       MAX_ITERS: '3'
       INPUT_PR: ${{ inputs.pr }}
