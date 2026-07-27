@@ -198,7 +198,7 @@ export interface AppState {
    * Fresh ids throughout; returns the new pattern id. */
   importPattern: (shared: SharedPattern) => string;
   /** Copy a pattern (fresh id + lane ids, "<name> Copy") without switching to
-   * it — the library gains a row next to the original. Returns the new id. */
+   * it — the clone is inserted at the top of the library. Returns the new id. */
   duplicatePattern: (id: string) => string;
   deletePattern: (id: string) => void;
   /** Rename any pattern by id (blank names keep the old one). */
@@ -525,7 +525,10 @@ export const useStore = create<AppState>((set, get) => {
         lanes: source.lanes.map((lane) => makeLane({ ...lane, id: uid('lane') })),
         updatedAt: Date.now(),
       };
-      set((s) => ({ patterns: [...s.patterns, pattern] }));
+      // Unlike newPattern/importPattern (appended, then loaded so they're the
+      // active row), a clone stays put in the library — it needs to land at
+      // the top on its own to be findable right after cloning.
+      set((s) => ({ patterns: [pattern, ...s.patterns] }));
       return newId;
     },
     loadPattern: (id) =>

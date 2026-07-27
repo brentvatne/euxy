@@ -77,7 +77,11 @@ export default function PatternsScreen() {
       router.push({ pathname: '/change-icon', params: { patternId: pattern.id } });
     const clone = () => {
       haptics.impact('light');
-      duplicatePattern(pattern.id);
+      const newId = duplicatePattern(pattern.id);
+      // duplicatePattern's set() is synchronous, so the fresh row is already
+      // in the store by the time we read it back here for the rename prompt.
+      const cloned = useStore.getState().patterns.find((p) => p.id === newId);
+      if (cloned) promptRename(cloned);
     };
     const restoreDefault = () => {
       haptics.impact('light');
