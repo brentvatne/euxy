@@ -30,14 +30,17 @@ import { keyRamp } from '@/theme/tokens';
 import { FlickerBloom } from '@/components/ui/flicker-bloom';
 import { Led as LedBase } from '@/components/ui/led';
 import { SKIA_STRIP_GLOW } from '@/lib/flags';
+import {
+  BLOCK_H,
+  GAP,
+  LED,
+  LED_TOP,
+  PER_ROW,
+  stepStripHeight,
+} from './step-strip-layout';
 import { StepStripGlow } from './step-strip-skia';
 
-const PER_ROW = 16;
-const GAP = 4;
-const BLOCK_H = 22;
 const RADIUS = 4;
-const LED = 5;
-const LED_TOP = 3;
 
 export interface StepStripProps {
   lane: Lane;
@@ -79,6 +82,11 @@ export function StepStrip({ lane, washDelay = 0, active = true }: StepStripProps
   const pattern = patternForLane(lane);
   const n = pattern.length;
   const [width, setWidth] = useState(0);
+  // LAYOUT CONTRACT: reserve the lane strip's final height before onLayout
+  // measures its width. Keep this derived from the same sequencer-lane
+  // geometry that renders the rows and Skia overlay; otherwise the lane
+  // LinearTransition can slide the next separator through these cells.
+  const reservedHeight = stepStripHeight(n);
 
   // Concept J (mutate): steps the mutation nudged bloom IN PLACE with a
   // smooth fade, all at once — in sync with the instant pattern swap. Detected by diffing the pattern across a
@@ -181,7 +189,10 @@ export function StepStrip({ lane, washDelay = 0, active = true }: StepStripProps
   }
 
   return (
-    <View style={styles.root} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+    <View
+      style={[styles.root, { minHeight: reservedHeight }]}
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+    >
       {blockW > 0
         ? rows.map((row, r) => (
             <View key={r} style={styles.row}>

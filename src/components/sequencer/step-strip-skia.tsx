@@ -49,14 +49,14 @@ import { playheadPlaying, playheadTick } from '@/core/playhead';
 import { useStore } from '@/state/store';
 import type { Lane } from '@/state/types';
 import { timing } from '@/theme/tokens';
-
-// Geometry — MUST stay in sync with step-strip.tsx (kept separate so the
-// plain path never imports Skia; unify if the flag graduates).
-const PER_ROW = 16;
-const GAP = 4;
-const BLOCK_H = 22;
-const LED = 5;
-const LED_TOP = 3;
+import {
+  BLOCK_H,
+  GAP,
+  LED,
+  LED_TOP,
+  PER_ROW,
+  stepStripHeight,
+} from './step-strip-layout';
 
 /** Canvas bleed so the bloom never clips at the strip edges. */
 const PAD = 12;
@@ -88,8 +88,7 @@ export function StepStripGlow({
   active?: boolean;
 }) {
   const n = pattern.length;
-  const rows = Math.ceil(n / PER_ROW);
-  const gridH = rows * BLOCK_H + (rows - 1) * GAP;
+  const gridH = stepStripHeight(n);
   const canvasSize = { width: width + PAD * 2, height: gridH + PAD * 2 };
 
   const cxAt = (s: number) => PAD + (s % PER_ROW) * (blockW + GAP) + blockW / 2;
