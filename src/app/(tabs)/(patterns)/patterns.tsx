@@ -130,7 +130,10 @@ export default function PatternsScreen() {
 
   const openPattern = (id: string) => {
     loadPattern(id);
-    router.navigate(SEQUENCER_HREF);
+    // While playback is running, pattern taps swap the active pattern in
+    // place (hardware-style, see loadPattern) so you can audition several
+    // in a row — jumping to the Sequencer tab on every tap would fight that.
+    if (!isPlaying) router.navigate(SEQUENCER_HREF);
   };
 
   return (
