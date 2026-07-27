@@ -25,8 +25,10 @@ jobs:
     # the line below with, e.g.:
     #   if: contains(github.event.pull_request.labels.*.name, 'ai-review')
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'ai-review:skip') }}
-    # Backstop so a stalled review fails fast instead of hanging.
-    timeout-minutes: 60
+    # Backstop so a stalled review fails fast instead of hanging. This is the ONE
+    # cap with no soft landing, so it must exceed the CLI's worst-case internal
+    # chain (55m passes budget + 10m coordinator + verification + setup).
+    timeout-minutes: 90
     # A reviewer failure must never fail the PR's checks.
     continue-on-error: true
     steps:
@@ -42,7 +44,7 @@ jobs:
       # secret in the runner. Keep this in sync with auth.tokenEnv in config.jsonc.
       - name: Guard config.jsonc tokenEnv
         env:
-          EXPECTED: ${{ vars.ECR_EXPECTED_TOKEN_ENV || 'ANTHROPIC_OAUTH_API_KEY' }}
+          EXPECTED: ${{ vars.ECR_EXPECTED_TOKEN_ENV || 'CODEX_OAUTH_REFRESH_TOKEN' }}
         run: |
           values=$(grep -oE '"tokenEnv"[[:space:]]*:[[:space:]]*"[A-Za-z0-9_]+"' .expo-code-review/config.jsonc | sed -E 's/.*"([A-Za-z0-9_]+)"$/\1/')
           count=$(printf '%s\n' "$values" | grep -c .)
@@ -66,9 +68,11 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Claude Pro/Max OAuth token (from `claude setup-token`) — the env var
-          # named by auth.tokenEnv in config.jsonc. Store it as a repo secret.
-          # (For an API key instead, set auth.mode "api-key" and pass that key here.)
-          ANTHROPIC_OAUTH_API_KEY: ${{ secrets.ANTHROPIC_OAUTH_API_KEY }}
+          # ChatGPT/Codex subscription refresh token (auth.mode "oauth" in
+          # .expo-code-review/config.jsonc reads this env var); OpenCode mints
+          # access tokens from it. All reviews run on the subscription.
+          CODEX_OAUTH_REFRESH_TOKEN: ${{ secrets.CODEX_OAUTH_REFRESH_TOKEN }}
+          # Layer-1 runtime auth lock (mirrors the guard step above).
+          ECR_EXPECTED_TOKEN_ENV: ${{ vars.ECR_EXPECTED_TOKEN_ENV || 'CODEX_OAUTH_REFRESH_TOKEN' }}
           # Optional: override the model for every agent (uses your OpenCode login).
           REVIEWER_MODEL: ${{ vars.REVIEWER_MODEL }}
