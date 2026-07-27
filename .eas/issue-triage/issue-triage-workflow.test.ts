@@ -4,6 +4,7 @@ const dispatcher = await Bun.file(
   ".github/workflows/issue-triage.yml"
 ).text();
 const worker = await Bun.file(".eas/workflows/issue-triage.yml").text();
+const gitignore = await Bun.file(".gitignore").text();
 
 describe("issue triage execution boundary", () => {
   test("keeps GitHub Actions as an empty-permissions EAS dispatcher", () => {
@@ -33,5 +34,12 @@ describe("issue triage execution boundary", () => {
       "run: bun .eas/issue-triage/issue-triage.ts"
     );
     expect(worker).toContain("SIMULATOR_VALIDATION: '1'");
+  });
+
+  test("keeps EAS runtime evidence out of the agent-authored git diff", () => {
+    expect(gitignore).toContain(".eas/issue-triage/issue.json");
+    expect(gitignore).toContain(".eas/issue-triage/ANALYSIS.md");
+    expect(gitignore).toContain(".eas/issue-triage/sim/");
+    expect(gitignore).not.toContain(".github/issue-triage/");
   });
 });
