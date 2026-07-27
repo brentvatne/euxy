@@ -256,15 +256,26 @@ it unfurls with the generic card, and the architecture guarantees it: *no one*
 ever has the canonical URL in their address bar unless you put it back.
 
 On the internal page, rewrite history to the shareable form once the item
-actually loads:
+actually loads. **A single `replaceState` silently loses a race**: expo-router's
+linking layer re-syncs the address bar from navigation state after hydration —
+twice in production, and the second sync lands ~20ms *after* a mount effect
+(parent effects run after children's), stomping the rewrite back. It looks like
+the code never ran. Re-assert briefly until the router goes quiet:
 
 ```tsx
 // app/view/[id].tsx
 useEffect(() => {
   if (!item || typeof window === 'undefined') return;
-  if (!window.location.pathname.startsWith('/share/')) {
-    window.history.replaceState(null, '', `/share/${id}`);
-  }
+  const rewrite = () => {
+    if (!window.location.pathname.startsWith('/share/')) {
+      // Preserve history.state — the router stores {id} there for popstate.
+      window.history.replaceState(window.history.state, '', `/share/${id}`);
+    }
+  };
+  rewrite();
+  const interval = setInterval(rewrite, 150);
+  const stop = setTimeout(() => clearInterval(interval), 1600);
+  return () => { clearInterval(interval); clearTimeout(stop); };
 }, [item, id]);
 ```
 
@@ -272,6 +283,12 @@ Pure history rewrite — no navigation, router state untouched. A later reload
 replays the (cached, `immutable`) share-route hop, the same two-load cost as
 clicking a shared link. Rewrite only on successful load, so an error page keeps
 the real broken URL for debugging.
+
+To see the race for yourself (or verify the fix), trace URL writes with an
+init script that wraps `history.replaceState` to log `(t, url, stack)` into
+`window.__urlLog` before the page's scripts run — e.g.
+`agent-browser --init-script trace.js open <share-url>`, then read the log.
+The stomp shows up as router-originated writes bracketing yours.
 
 While you're in the share route, check its `rel="canonical"`: it must point at
 the shareable URL itself, matching `og:url` — not at the redirect target. The
