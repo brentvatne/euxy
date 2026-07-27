@@ -127,17 +127,17 @@ export default function Home() {
             pattern lives inside the link.
           </Text>
           <Link
-            href={{
-              pathname: '/p',
-              params: {
-                d: (() => {
-                  // Encode the EFFECTIVE glyph — preset glyphs come from the
-                  // id-keyed curated map, and ids don't travel in the payload.
-                  const p = presets.find((x) => x.name === 'Four on the Floor') ?? presets[0];
-                  return encodePattern({ ...p, icon: effectiveChipName(p) });
-                })(),
-              },
-            }}
+            // The canonical share shape is /p/<payload>, not ?d= — the CDN cache
+            // key is query-blind, so only a path segment gets a per-pattern
+            // unfurl. Linking the real shape means a copied link works too.
+            href={
+              `/p/${(() => {
+                // Encode the EFFECTIVE glyph — preset glyphs come from the
+                // id-keyed curated map, and ids don't travel in the payload.
+                const p = presets.find((x) => x.name === 'Four on the Floor') ?? presets[0];
+                return encodePattern({ ...p, icon: effectiveChipName(p) });
+              })()}` as never
+            }
             style={styles.tryKey}
             {...webAttrs({ anim: '', pill: '' })}
           >

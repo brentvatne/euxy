@@ -15,6 +15,23 @@ import { decodePattern } from '@/core/share-codec';
 
 const SAFE = /^[A-Za-z0-9_-]+$/;
 
+/**
+ * The worker sees the PER-DEPLOYMENT hostname in `request.url`
+ * (euxy--<id>.expo.app) even when the request arrived via euxy.expo.app — so
+ * deriving the origin from the request makes shared links advertise a URL that
+ * the next deploy rotates away from. Pin the canonical origin instead, the same
+ * way app/_layout.tsx hardcodes its tags. Localhost still self-references so
+ * `expo serve` works, and EXPO_PUBLIC_SITE_ORIGIN (inlined at build time) lets
+ * a preview deploy point at itself.
+ */
+const CANONICAL_ORIGIN = process.env.EXPO_PUBLIC_SITE_ORIGIN ?? 'https://euxy.expo.app';
+
+function siteOrigin(request: Request): string {
+  const origin = new URL(request.url).origin;
+  const isLocal = origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1');
+  return (isLocal ? origin : CANONICAL_ORIGIN).replace(/\/$/, '');
+}
+
 const escapeHtml = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -23,7 +40,7 @@ export function GET(request: Request, { d }: { d: string }) {
   // own alphabet.
   if (!SAFE.test(d)) return new Response('Not found', { status: 404 });
 
-  const origin = new URL(request.url).origin;
+  const origin = siteOrigin(request);
   const target = `${origin}/p?d=${d}`;
   const image = `${origin}/og/${d}.png`;
 
