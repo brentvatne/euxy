@@ -1,11 +1,25 @@
 import { Slot } from 'expo-router';
 import Head from 'expo-router/head';
+import { useSyncExternalStore } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 import { color } from '@/theme/tokens';
+import { webAttrs } from '../components/ui';
+
+const subscribeNever = () => () => {};
 
 export default function Layout() {
+  // False until hydration completes — the render where every page has its
+  // real client state (e.g. ?preset= on home). Gating the reveal at the root
+  // means the whole page comes up on ONE fade instead of shell → content pop
+  // → player fade, which read as flicker. Client-side navigations keep the
+  // layout mounted, so the fade runs once per document load, not per route.
+  const hydrated = useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
   return (
-    <View style={styles.root}>
+    <View style={styles.root} {...webAttrs({ reveal: hydrated ? 'in' : '' })}>
       <Head>
         <title>euxy</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -76,11 +90,13 @@ export default function Layout() {
             to { opacity: 1; transform: translateY(0); }
           }
           [data-unfold] { animation: euxy-unfold 200ms cubic-bezier(0.215, 0.61, 0.355, 1); }
-          /* Player fade-in: prerendered at opacity 0 (layout fully reserved,
-             so no shift), revealed once hydration resolves ?preset= — the
-             fade always shows the right preset instead of default-then-swap. */
+          /* Page fade-in, gated at the layout root: hidden (layout reserved)
+             until hydration resolves real client state (e.g. ?preset=), then
+             one fade for the whole page. The 150ms delay lets the eye settle
+             after the browser's white→black canvas commit — animating the
+             instant JS lands read as white → black → pop, three stutters. */
           [data-reveal] { opacity: 0; }
-          [data-reveal="in"] { opacity: 1; transition: opacity 240ms ease-out; }
+          [data-reveal="in"] { opacity: 1; transition: opacity 300ms ease-out 150ms; }
           @media (prefers-reduced-motion: reduce) {
             [data-anim] { transition: none; }
             [data-chevron] { transition: none; }
