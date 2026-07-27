@@ -47,6 +47,12 @@ const headRef: string = pr?.head?.ref || "";
 if (!headRef) skip("could not resolve PR head branch");
 if (pr.state !== "open") skip(`PR #${prNumber} is ${pr.state}`);
 if (!TRIAGE_PREFIXES.some((p) => headRef.startsWith(p))) skip(`#${prNumber} (${headRef}) is not a triage PR`);
+// The agent clones this PR's branch and runs a shell there with CLAUDE_CODE_OAUTH_TOKEN,
+// so only ever run on PRs created by an allowlisted author — verified via the
+// GitHub API (pr.user.login is set by GitHub, not spoofable). This keeps the
+// PR-controlled code the agent executes to trusted authors only.
+const prAuthor = (pr.user?.login || "").toLowerCase();
+if (!allowlist.includes(prAuthor)) skip(`PR #${prNumber} was opened by '${prAuthor || "?"}', not an allowlisted author — refusing to run the agent on untrusted PR code`);
 
 // ---- find the latest actionable feedback from a TRUSTED, API-verified author ----
 // Security boundary: the author LOGIN comes from the GitHub API (a user cannot
