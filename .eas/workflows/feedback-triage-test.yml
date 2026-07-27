@@ -1,0 +1,58 @@
+# Feedback triage — MANUAL dispatch (test / on-demand). Same job as
+# feedback-triage.yml but driven by workflow_dispatch inputs instead of the
+# screenshot trigger, so you can resolve the latest (or a specific) feedback on
+# demand:
+#
+#   eas workflow:run .eas/workflows/feedback-triage-test.yml
+#   eas workflow:run .eas/workflows/feedback-triage-test.yml -F channel=development-simulator
+#   eas workflow:run .eas/workflows/feedback-triage-test.yml -F feedback=<id-or-ASC-url>
+#
+# Kept separate from the production workflow because EAS validates job params
+# against the trigger's context — app_store_connect.* and dispatch inputs can't
+# live in the same file.
+
+name: Feedback triage (test)
+
+on:
+  workflow_dispatch:
+    inputs:
+      feedback:
+        description: Feedback id or App Store Connect URL (blank = latest screenshot feedback)
+        type: string
+        default: ''
+      channel:
+        description: EAS Update channel to publish the fix to (do NOT use production)
+        type: string
+        default: development-simulator
+
+jobs:
+  triage:
+    name: Resolve TestFlight feedback with Claude (test)
+    environment: production
+    runs_on: linux-medium
+    env:
+      REPO_SLUG: brentvatne/euxy
+      ALLOWED_FEEDBACK_EMAILS: brentvatne@gmail.com
+      INPUT_FEEDBACK: ${{ inputs.feedback }}
+      UPDATE_CHANNEL: ${{ inputs.channel }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - name: Install Claude Code + Expo skills
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          command -v bun >/dev/null 2>&1 || npm install -g bun
+          claude plugin marketplace add anthropics/claude-plugins-official || true
+          claude plugin install expo@claude-plugins-official || true
+          claude --version
+      - name: Triage feedback
+        run: bun .eas/feedback-triage/feedback-triage.ts
+      - name: Upload triage summary
+        if: ${{ always() }}
+        uses: eas/upload_artifact
+        with:
+          type: other
+          name: feedback-triage-summary
+          path: |
+            .eas/feedback-triage/ANALYSIS.md
+            .eas/feedback-triage/feedback.json
