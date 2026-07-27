@@ -13,7 +13,7 @@ import { patternForLane } from '@/core/lane-pattern';
 import { drumSlotName } from '@/core/opxy';
 import type { SharedLane } from '@/core/share-codec';
 
-export interface PlayableLane extends SharedLane {}
+export type PlayableLane = SharedLane;
 export interface PlayablePattern {
   name: string;
   bpm: number;

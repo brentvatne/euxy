@@ -13,7 +13,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/ui';
 import { IconMic, IconMidiDin, IconWarning } from '@/components/midi/icons';
 import { enableMidi, useMidiRuntime } from '@/components/midi/runtime';
-import { color, radius, space } from '@/theme/tokens';
+import { color, space } from '@/theme/tokens';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
 export default function EnableMidiSheet() {

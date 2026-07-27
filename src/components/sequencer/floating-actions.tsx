@@ -78,7 +78,7 @@ const REST_CELLS = [
 /** The dice's "light pixel" (E spec) — top-left pip: ticks the downbeat,
  * lands last after a scatter, receives the keep-ring's drained light. */
 const LIGHT_PIP = 0;
-const ALL_CELLS: ReadonlyArray<readonly [number, number]> = [
+const ALL_CELLS: readonly (readonly [number, number])[] = [
   [0, 0], [1, 0], [2, 0],
   [0, 1], [1, 1], [2, 1],
   [0, 2], [1, 2], [2, 2],

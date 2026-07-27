@@ -13,8 +13,6 @@ const DEVICES: MidiDevice[] = [
 
 export function createStubMidiPort(): MidiPort {
   const rawCbs = new Set<(bytes: number[], time: number) => void>();
-  let selectedOut: string | null = 'op-xy';
-  let selectedIn: string | null = 'op-xy';
 
   const emit = (bytes: number[]) => {
     rawCbs.forEach((cb) => cb(bytes, 0));
@@ -25,12 +23,9 @@ export function createStubMidiPort(): MidiPort {
     init: async () => {},
     listInputs: () => DEVICES,
     listOutputs: () => DEVICES,
-    selectInput: (id) => {
-      selectedIn = id;
-    },
-    selectOutput: (id) => {
-      selectedOut = id;
-    },
+    // Device selection isn't modelled: the stub emits to its listeners either way.
+    selectInput: () => {},
+    selectOutput: () => {},
     sendNoteOn: (note, velocity, channel) => emit([0x90 | (channel & 0x0f), note, velocity]),
     sendNoteOff: (note, channel) => emit([0x80 | (channel & 0x0f), note, 0]),
     sendClock: () => emit([0xf8]),

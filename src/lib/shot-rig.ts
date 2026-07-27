@@ -32,6 +32,7 @@ export function useShotRig() {
     let kv: Kv | null = null;
     try {
       // Same guarded require pattern as state/persistence.ts (native dep).
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       kv = require('expo-sqlite/kv-store').default as Kv;
     } catch {
       return;
@@ -40,7 +41,7 @@ export function useShotRig() {
     try {
       raw = kv.getItemSync('shotRig');
       kv.setItemSync('shotRigDebug', `saw:${raw === null ? 'null' : raw.length}`);
-    } catch (e) {
+    } catch {
       return;
     }
     if (!raw) return;
@@ -78,6 +79,5 @@ export function useShotRig() {
       if (cfg.temp) setTimeout(() => useStore.getState().armSnapshot(), 1000);
     }, 1200);
     // One-shot at launch by design.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 }

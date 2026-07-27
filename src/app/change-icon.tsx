@@ -13,7 +13,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { effectiveChipName, type ChipName } from '@/components/patterns/chips';
 import { IconPicker } from '@/components/patterns/icon-picker';
-import { AppText, SheetHeader } from '@/components/ui';
+import { SheetHeader } from '@/components/ui';
 import { useStore } from '@/state/store';
 import { color, font, space } from '@/theme/tokens';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
@@ -25,6 +25,10 @@ export default function ChangeIconSheet() {
     s.patterns.find((p) => p.id === (patternId ?? s.activePatternId)),
   );
   const setPatternIcon = useStore((s) => s.setPatternIcon);
+  // Keyed on id alone, deliberately: `initial` must stay the OPEN-TIME glyph for
+  // onCancel to revert to. Selection applies live, so depending on `pattern` would
+  // retrack every tap and make cancel restore the last pick, not the original.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const initial = useMemo(() => (pattern ? effectiveChipName(pattern) : null), [pattern?.id]);
   const [selected, setSelected] = useState<ChipName | null>(initial);
 

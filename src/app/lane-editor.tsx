@@ -371,7 +371,7 @@ export default function LaneEditorSheet() {
             </Pressable>
           </View>
           <AppText style={styles.groupFootnote}>
-            Listen — play a note from the OP‑XY's aux track to set it. The channel you send on
+            Listen — play a note from the OP‑XY’s aux track to set it. The channel you send on
             selects the track, and euxy echoes the note back so you hear it played from that track.
           </AppText>
         </Section>

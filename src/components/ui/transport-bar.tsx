@@ -32,14 +32,14 @@ import { Key } from './key';
 import { KeyEase } from './key-ease';
 import { EASE_TRANSPORT_PLAY } from '@/lib/flags';
 
-// Wave2 ease spike (concept H comparison surface): ONLY the play button swaps.
-const PlayKey = EASE_TRANSPORT_PLAY ? KeyEase : Key;
-
 import { playheadPlaying, playheadTick } from '@/core/playhead';
 import type { ClockMode, RecordPhase } from '@/state/types';
 import { color, font, ramp, space } from '@/theme/tokens';
 import { AppText } from './text';
 import { IconPause, IconPlay, IconSkipToStart, IconStop } from './icons';
+
+// Wave2 ease spike (concept H comparison surface): ONLY the play button swaps.
+const PlayKey = EASE_TRANSPORT_PLAY ? KeyEase : Key;
 
 export interface TransportBarProps {
   playing: boolean;

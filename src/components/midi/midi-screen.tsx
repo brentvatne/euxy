@@ -15,7 +15,7 @@ import { IconPanic } from '@/components/ui/icons';
 import { useObserve } from '@/lib/shims';
 import { useSettings, useTransport } from '@/state/selectors';
 import { useStore } from '@/state/store';
-import { color, radius, space } from '@/theme/tokens';
+import { color, space } from '@/theme/tokens';
 import { Cell, ClockModeToggle, ConnectionBadge, GRAY, Group, LatencySlider, LogPreview, PushRow, SectionHeader, ValueRow } from './components';
 import { enableMidi, panic, refreshDevices, setLatency, useMidiRuntime } from './runtime';
 
