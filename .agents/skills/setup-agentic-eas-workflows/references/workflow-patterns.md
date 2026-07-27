@@ -119,6 +119,28 @@ Use `Re: #123` only for analysis-only PRs that should not close the tracking iss
 
 Update only the managed workflow block when retrying. On a 422 from PR creation, query open PRs for the exact owner/head branch and reuse the matching PR.
 
+## Human approval for external TestFlight feedback
+
+Create a useful intake issue for every report, but distinguish intake authority
+from remediation authority:
+
+```text
+TestFlight event
+  -> tool-free summary
+  -> fresh tool-free safety rewrite
+  -> deterministic issue + feedback ID + workflow link
+  -> allowlisted tester? continue : stop
+  -> trusted maintainer comments "@automation-bot accept ..."
+  -> validate actor and command again
+  -> coding agent + simulator + PR
+```
+
+The GitHub trigger may use a broad prefix check to avoid awkward expression
+parsing, provided the actor is allowlisted there and the runner parses the exact
+command before starting the agent. Treat everything after the accepted command
+as additional maintainer context. Keep the report title on the issue; do not
+replace it later with the solution-oriented PR title.
+
 ## Independent write verification
 
 Do not trust only the POST response:

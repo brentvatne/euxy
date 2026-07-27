@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 
-import { ensureTriageIssue } from "./github-triage-issue";
+import {
+  ensureTriageIssue,
+  updateTriageIssueStatus,
+} from "./github-triage-issue";
 
 function jsonResponse(value: unknown, status = 200): Response {
   return new Response(JSON.stringify(value), {
@@ -37,12 +40,21 @@ describe("GitHub triage issues", () => {
         owner: "brentvatne",
         repo: "euxy",
         sourceKey: "feedback-123",
+        sourceId: "feedback-id-123",
         workflowUrl: "https://expo.dev/accounts/brent-org/projects/euxy/workflows/runs/run-123",
+        status: "awaiting maintainer approval",
+        approval: {
+          command: "@notbrent accept",
+          actor: "brentvatne",
+        },
         publicFetch: async () =>
           jsonResponse({
             number: 42,
             html_url: "https://github.com/brentvatne/euxy/issues/42",
-            body: "https://expo.dev/accounts/brent-org/projects/euxy/workflows/runs/run-123",
+            body:
+              "<!-- euxy-triage-source:start -->\nfeedback-id-123\n" +
+              "https://expo.dev/accounts/brent-org/projects/euxy/workflows/runs/run-123\n" +
+              "awaiting maintainer approval",
           }),
       })
     ).resolves.toEqual({
@@ -57,6 +69,10 @@ describe("GitHub triage issues", () => {
     ]);
     const updatedBody = JSON.parse(String(calls[2].init?.body)).body;
     expect(updatedBody).toContain("[View the run](https://expo.dev/accounts/brent-org/projects/euxy/workflows/runs/run-123)");
+    expect(updatedBody).toContain("Feedback ID: `feedback-id-123`");
+    expect(updatedBody).toContain("Status: awaiting maintainer approval");
+    expect(updatedBody).toContain("comment `@notbrent accept`");
+    expect(updatedBody).toContain("Only comments from `brentvatne` are authorized");
     expect(updatedBody).not.toContain("feedback-123");
   });
 
@@ -88,7 +104,7 @@ describe("GitHub triage issues", () => {
         jsonResponse({
           number: 7,
           html_url: "https://github.com/brentvatne/euxy/issues/7",
-          body: "https://expo.dev/old-run",
+          body: "https://expo.dev/old-run\ntriage in progress",
         }),
     });
 
@@ -132,7 +148,7 @@ describe("GitHub triage issues", () => {
           body:
             "<!-- euxy-triage-summary:start -->\n" +
             "The sequencer should continue animating while an editor sheet is presented over the active tab.\n" +
-            "https://expo.dev/new-run",
+            "https://expo.dev/new-run\ntriage in progress",
         }),
     });
 
@@ -218,6 +234,7 @@ describe("GitHub triage issues", () => {
             evidence.screenshotUrl,
             evidence.videoUrl,
             "https://expo.dev/new-run",
+            "triage in progress",
           ].join("\n"),
         }),
     });
@@ -270,6 +287,40 @@ describe("GitHub triage issues", () => {
         wait: async () => {},
       })
     ).rejects.toThrow("not publicly visible");
+  });
+
+  test("marks an intake issue in progress and removes the approval instruction", async () => {
+    const calls: { path: string; init?: RequestInit }[] = [];
+    const body =
+      "<!-- euxy-triage-workflow:start -->\n" +
+      "## Automation\n\n" +
+      "- EAS workflow: [View the run](https://expo.dev/run)\n" +
+      "- Status: awaiting maintainer approval\n" +
+      "- Start remediation: comment `@notbrent accept` with optional instructions. " +
+      "Only comments from `brentvatne` are authorized.\n" +
+      "<!-- euxy-triage-workflow:end -->";
+    const gh = async (path: string, init?: RequestInit) => {
+      calls.push({ path, init });
+      if (!init?.method) return jsonResponse({ body });
+      return jsonResponse({});
+    };
+
+    await expect(
+      updateTriageIssueStatus({
+        gh,
+        issueNumber: 26,
+        status: "triage in progress",
+      })
+    ).resolves.toBe(true);
+
+    expect(calls.map((call) => [call.path, call.init?.method])).toEqual([
+      ["/issues/26", undefined],
+      ["/issues/26", "PATCH"],
+    ]);
+    const updatedBody = JSON.parse(String(calls[1].init?.body)).body;
+    expect(updatedBody).toContain("- Status: triage in progress");
+    expect(updatedBody).not.toContain("Start remediation");
+    expect(updatedBody).toContain("https://expo.dev/run");
   });
 
   test("fails when GitHub accepts but suppresses the issue", async () => {

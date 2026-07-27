@@ -3,6 +3,9 @@
 These Markdown files are the editable prompts used by the EAS and GitHub triage
 workflows. Each workflow declares its task prompt with `AGENT_PROMPT_FILE`.
 Simulator-capable workflows additionally append `SIMULATOR_PROMPT_FILE`.
+TestFlight feedback intake uses `INTAKE_PROMPT_FILE` and a fresh
+`INTAKE_SAFETY_PROMPT_FILE` pass to create a neutral public issue before any
+coding agent is authorized.
 
 The AI code-review prompts remain under `.expo-code-review/` because
 `@expo/code-review-cli` discovers its reserved Markdown files there directly:

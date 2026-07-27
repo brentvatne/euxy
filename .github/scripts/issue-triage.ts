@@ -9,9 +9,9 @@
  *   GH_TOKEN                 (req) — GITHUB_TOKEN: push branch, open PR, comment
  *   REPO_SLUG                (req) — owner/repo
  *   EVENT_NAME                     — 'issues' | 'issue_comment'
- *   TRIAGE_ALLOWLIST               — JSON array of allowed GitHub logins (default ["brentvatne"])
+ *   TRIAGE_ALLOWLIST               — JSON array of issue authors eligible for automatic triage
  *   ISSUE_NUMBER / ISSUE_TITLE / ISSUE_BODY / ISSUE_URL / ISSUE_AUTHOR
- *   ACCEPT_COMMENT / ACCEPT_AUTHOR — the `/accept …` comment (issue_comment only)
+ *   ACCEPT_COMMENT / ACCEPT_AUTHOR — the `@notbrent accept …` comment and its author
  *   AGENT_PROMPT_FILE              — Markdown prompt path
  *   SIMULATOR_VALIDATION           — '1' to enable remote iOS verification
  *   PUBLIC_SIMULATOR_EVIDENCE       — '1' to publish and link selected evidence
@@ -20,11 +20,17 @@
  */
 import { prepareAgentSimulator, stopAgentSimulator } from "../../.eas/shared/agent-simulator";
 import { createOrFindPullRequest } from "../../.eas/shared/github-pull-request";
+import { updateTriageIssueStatus } from "../../.eas/shared/github-triage-issue";
 import {
   publishPublicSimulatorEvidence,
   renderPublicSimulatorEvidence,
 } from "../../.eas/shared/public-simulator-evidence";
 import { assertSafeAgentDiff } from "../../.eas/shared/safe-agent-diff";
+import {
+  ISSUE_TRIAGE_APPROVER,
+  isIssueTriageActorAuthorized,
+  parseIssueTriageCommand,
+} from "./issue-triage-command";
 
 const env = process.env;
 const GIT = env.GIT_BIN || "git";
@@ -67,23 +73,10 @@ async function gh(path: string, init: RequestInit = {}) {
   });
 }
 
-// ---- assemble the issue context ----
-const acceptContext =
-  eventName === "issue_comment" ? (env.ACCEPT_COMMENT || "").replace(/^\/accept\b[ \t]*/i, "").trim() : "";
-const issue = {
-  number: Number(issueNumber),
-  title: env.ISSUE_TITLE || "",
-  body: env.ISSUE_BODY || "",
-  url: env.ISSUE_URL || `https://github.com/${owner}/${repo}/issues/${issueNumber}`,
-  author: env.ISSUE_AUTHOR || "",
-  triggeredBy: eventName === "issue_comment" ? `/accept by ${env.ACCEPT_AUTHOR || "?"}` : `opened by ${env.ISSUE_AUTHOR || "?"}`,
-  acceptContext,
-};
-await Bun.write(ISSUE_JSON, JSON.stringify(issue, null, 2));
-console.log(`▸ Triaging issue #${issue.number} (${issue.triggeredBy}): ${issue.title}`);
-
-// Defensive allowlist check — the workflow `if:` is the primary gate, but never
-// act on an actor outside TRIAGE_ALLOWLIST even if the trigger is misconfigured.
+// ---- independently validate the actor and approval command ----
+// The workflow `if:` is the primary gate. These checks ensure a future trigger
+// mistake still cannot turn an arbitrary comment into coding-agent authority.
+// Issue authors use TRIAGE_ALLOWLIST; comment approval is pinned to brentvatne.
 const allowlist: string[] = (() => {
   try {
     return JSON.parse(env.TRIAGE_ALLOWLIST || '["brentvatne"]');
@@ -92,11 +85,57 @@ const allowlist: string[] = (() => {
   }
 })().map((s: string) => String(s).toLowerCase());
 const actor = String((eventName === "issue_comment" ? env.ACCEPT_AUTHOR : env.ISSUE_AUTHOR) || "").toLowerCase();
-if (!allowlist.includes(actor)) {
-  console.log(`▸ Actor ${actor || "(unknown)"} not in allowlist [${allowlist.join(", ")}] → skipping.`);
+const actorAuthorized = isIssueTriageActorAuthorized({
+  eventName,
+  actor,
+  issueAuthorAllowlist: allowlist,
+});
+if (!actorAuthorized) {
+  console.log(
+    eventName === "issue_comment"
+      ? `▸ Only ${ISSUE_TRIAGE_APPROVER} may approve issue remediation; received ${actor || "(unknown)"} → skipping.`
+      : `▸ Actor ${actor || "(unknown)"} is not eligible for automatic issue triage → skipping.`
+  );
   process.exit(0);
 }
 console.log(`▸ Actor ${actor} is allowlisted → proceeding.`);
+
+const parsedAcceptContext =
+  eventName === "issue_comment"
+    ? parseIssueTriageCommand(env.ACCEPT_COMMENT || "")
+    : "";
+if (eventName === "issue_comment" && parsedAcceptContext === null) {
+  console.log("▸ Comment is not a valid @notbrent accept command → skipping.");
+  process.exit(0);
+}
+const acceptContext = parsedAcceptContext || "";
+
+if (eventName === "issue_comment") {
+  const updated = await updateTriageIssueStatus({
+    gh,
+    issueNumber: Number(issueNumber),
+    status: "triage in progress",
+  });
+  if (updated) {
+    console.log(`▸ Marked issue #${issueNumber} triage as in progress.`);
+  }
+}
+
+// ---- assemble the issue context ----
+const issue = {
+  number: Number(issueNumber),
+  title: env.ISSUE_TITLE || "",
+  body: env.ISSUE_BODY || "",
+  url: env.ISSUE_URL || `https://github.com/${owner}/${repo}/issues/${issueNumber}`,
+  author: env.ISSUE_AUTHOR || "",
+  triggeredBy:
+    eventName === "issue_comment"
+      ? `@notbrent accept by ${env.ACCEPT_AUTHOR || "?"}`
+      : `opened by ${env.ISSUE_AUTHOR || "?"}`,
+  acceptContext,
+};
+await Bun.write(ISSUE_JSON, JSON.stringify(issue, null, 2));
+console.log(`▸ Triaging issue #${issue.number} (${issue.triggeredBy}): ${issue.title}`);
 
 // ---- run the agent ----
 const simValidation = await prepareAgentSimulator({ env });
@@ -110,7 +149,7 @@ const simulatorPrompt = simValidation
   : "";
 const prompt = [taskPrompt, simulatorPrompt].filter(Boolean).join("\n\n");
 console.log(`\n===== FULL PROMPT PASSED TO CLAUDE =====\n${prompt}\n===== END PROMPT =====\n(the agent also reads ${ISSUE_JSON})\n`);
-// Security: issue text can be attacker-authored (a `/accept` on someone else's
+// Security: issue text can be attacker-authored (an approval on someone else's
 // issue), so hand the agent a minimal env — drop every token/secret-ish var and
 // all CI internals (GITHUB_TOKEN, ACTIONS_RUNTIME_TOKEN, RUNNER_*), keeping only
 // the agent's own auth plus the robot EXPO_TOKEN when a trusted maintainer has

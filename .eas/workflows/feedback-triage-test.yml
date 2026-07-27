@@ -29,11 +29,13 @@ on:
         default: '1'
 jobs:
   triage:
-    name: Resolve TestFlight feedback with Claude (test)
+    name: Intake and resolve TestFlight feedback (test)
     environment: preview
     runs_on: linux-medium
     env:
       REPO_SLUG: brentvatne/euxy
+      INTAKE_PROMPT_FILE: prompts/automation/feedback-intake.md
+      INTAKE_SAFETY_PROMPT_FILE: prompts/automation/feedback-intake-safety.md
       AGENT_PROMPT_FILE: prompts/automation/feedback-triage.md
       SIMULATOR_PROMPT_FILE: prompts/automation/simulator-verification.md
       SIMULATOR_VALIDATION: ${{ inputs.simulator_validation }}
@@ -60,5 +62,6 @@ jobs:
           path: |
             .eas/feedback-triage/ANALYSIS.md
             .eas/feedback-triage/feedback.json
+            .eas/feedback-triage/PUBLIC_REPORT.json
             .eas/feedback-triage/PUBLIC_PR.json
             .eas/feedback-triage/sim/**/*

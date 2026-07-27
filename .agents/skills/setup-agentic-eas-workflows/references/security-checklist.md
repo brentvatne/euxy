@@ -7,6 +7,11 @@
 - [ ] Pass untrusted text through environment variables or files, never shell interpolation.
 - [ ] Deduplicate events with a stable source key and serialize work per issue/PR.
 - [ ] Cap autonomous retry and review-response loops.
+- [ ] For external feedback, create the issue but stop before remediation until
+      an allowlisted maintainer authors the exact bot-addressed approval command.
+- [ ] Validate the immutable comment-author login and exact command in both the
+      GitHub trigger and the runner; do not authorize based on text that merely
+      claims to come from a maintainer.
 
 ## Credentials
 
@@ -37,7 +42,14 @@
 ## Privacy
 
 - [ ] Redact tester email, screenshots, App Store Connect URLs, crash logs, device details, and private analysis before creating public resources.
-- [ ] Put only a minimal tracking summary in the GitHub issue.
+- [ ] Put a useful, neutral problem summary and stable feedback ID in the GitHub
+      issue without identifying the tester.
+- [ ] Run public intake text through an isolated no-tools summarizer and a fresh
+      no-tools safety rewrite; deterministically reject prompt-injection,
+      profanity, threats, harassment, mentions, links, contact details,
+      Markdown, and secret-like output.
+- [ ] Fall back to a generic review issue when public-safe summarization fails;
+      never publish the raw report as the fallback.
 - [ ] Keep raw reports and the complete raw simulator artifact set in private
       workflow artifacts.
 - [ ] Publish only explicitly selected, project-approved simulator evidence;

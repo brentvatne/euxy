@@ -2,7 +2,8 @@
 #
 # EAS Workflows has no issue trigger, so this runs on GitHub Actions. It fires:
 #   - when brentvatne OPENS an issue, or
-#   - when brentvatne comments `/accept <extra context>` on any issue (not a PR).
+#   - when brentvatne comments `@notbrent accept <extra context>` on any issue
+#     (not a PR).
 # Then it runs the Claude agent (with the expo skills) to investigate and open a
 # PR — same shape as the TestFlight crash-triage flow. Never auto-merges.
 #
@@ -30,16 +31,18 @@ concurrency:
 
 jobs:
   triage:
-    # Only brentvatne, and for comments only `/accept …` on a real issue (not a PR).
-    # Allowlist gate: only actors in TRIAGE_ALLOWLIST (a repo/org Actions Variable,
-    # JSON array of GitHub logins; defaults to just brentvatne). Add people by
-    # editing the variable — Settings → Secrets and variables → Actions → Variables.
+    # Only brentvatne may approve `@notbrent accept …` on a real issue (not a
+    # PR), regardless of who opened that issue. The script checks the exact
+    # commenting actor and parses the command again.
+    # TRIAGE_ALLOWLIST applies only to automatically triaging newly opened
+    # issues (a repo/org Actions Variable; defaults to just brentvatne).
     if: >-
       (github.event_name == 'issues'
+        && github.event.issue.user.login != 'notbrent'
         && contains(fromJSON(vars.TRIAGE_ALLOWLIST || '["brentvatne"]'), github.event.issue.user.login))
       || (github.event_name == 'issue_comment' && !github.event.issue.pull_request
-          && (github.event.comment.body == '/accept' || startsWith(github.event.comment.body, '/accept '))
-          && contains(fromJSON(vars.TRIAGE_ALLOWLIST || '["brentvatne"]'), github.event.comment.user.login))
+          && startsWith(github.event.comment.body, '@notbrent accept')
+          && github.event.comment.user.login == 'brentvatne')
     runs-on: ubuntu-latest
     env:
       DISABLE_AUTOUPDATER: '1'
