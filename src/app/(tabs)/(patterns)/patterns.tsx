@@ -129,11 +129,16 @@ export default function PatternsScreen() {
   }, [patterns, query]);
 
   const openPattern = (id: string) => {
+    // Tapping a pattern swaps it in place (hardware-style, see loadPattern)
+    // so you can audition several in a row without leaving Patterns. Tapping
+    // the already-active one is the "take me to it" gesture — jump to the
+    // Sequencer without reloading (a reload would re-note the §15 "loaded"
+    // moment and clear the lane selection for no reason).
+    if (id === activeId) {
+      router.navigate(SEQUENCER_HREF);
+      return;
+    }
     loadPattern(id);
-    // While playback is running, pattern taps swap the active pattern in
-    // place (hardware-style, see loadPattern) so you can audition several
-    // in a row — jumping to the Sequencer tab on every tap would fight that.
-    if (!isPlaying) router.navigate(SEQUENCER_HREF);
   };
 
   return (
