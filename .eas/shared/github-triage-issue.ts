@@ -11,6 +11,9 @@ import {
 } from "./public-simulator-evidence";
 
 type TriageIssueKind = "crash" | "feedback";
+export type TriageIssueStatus =
+  | "triage in progress"
+  | "awaiting maintainer approval";
 
 type EnsureTriageIssueOptions = {
   gh: GitHubRepoRequest;
@@ -18,7 +21,13 @@ type EnsureTriageIssueOptions = {
   owner: string;
   repo: string;
   sourceKey: string;
+  sourceId?: string;
   workflowUrl: string;
+  status?: TriageIssueStatus;
+  approval?: {
+    command: string;
+    actor: string;
+  };
   summary?: TriageIssueSummary;
   evidence?: PublicSimulatorEvidence;
   publicFetch?: PublicFetch;
@@ -37,6 +46,8 @@ export type TriageIssue = {
 
 const SUMMARY_BLOCK_START = "<!-- euxy-triage-summary:start -->";
 const SUMMARY_BLOCK_END = "<!-- euxy-triage-summary:end -->";
+const SOURCE_BLOCK_START = "<!-- euxy-triage-source:start -->";
+const SOURCE_BLOCK_END = "<!-- euxy-triage-source:end -->";
 const EVIDENCE_BLOCK_START = "<!-- euxy-triage-evidence:start -->";
 const EVIDENCE_BLOCK_END = "<!-- euxy-triage-evidence:end -->";
 const WORKFLOW_BLOCK_START = "<!-- euxy-triage-workflow:start -->";
@@ -86,12 +97,41 @@ function validateSummary(summary: TriageIssueSummary): TriageIssueSummary {
   return { title, body };
 }
 
+function validateSourceId(sourceId: string): string {
+  const value = sourceId.trim();
+  if (!/^[a-zA-Z0-9._:-]{1,200}$/.test(value)) {
+    throw new Error("Triage issue source ID contains unsupported characters.");
+  }
+  return value;
+}
+
+function validateApproval(approval: NonNullable<EnsureTriageIssueOptions["approval"]>) {
+  const command = approval.command.trim();
+  const actor = approval.actor.trim();
+  if (!/^@[a-zA-Z0-9-]+ [a-zA-Z0-9-]+$/.test(command)) {
+    throw new Error("Triage approval command must be a simple bot mention and action.");
+  }
+  if (!/^[a-zA-Z0-9-]{1,39}$/.test(actor)) {
+    throw new Error("Triage approval actor must be a GitHub login.");
+  }
+  return { command, actor };
+}
+
 function withSummary(body: string, summary: TriageIssueSummary): string {
   return managedBlock(
     body,
     SUMMARY_BLOCK_START,
     SUMMARY_BLOCK_END,
     `## Feedback summary\n\n${summary.body}`
+  );
+}
+
+function withSource(body: string, sourceId: string): string {
+  return managedBlock(
+    body,
+    SOURCE_BLOCK_START,
+    SOURCE_BLOCK_END,
+    `## TestFlight feedback\n\n- Feedback ID: \`${sourceId}\``
   );
 }
 
@@ -104,14 +144,25 @@ function withEvidence(body: string, evidence: PublicSimulatorEvidence): string {
   );
 }
 
-function withWorkflowLink(body: string, workflowUrl: string): string {
+function withWorkflowLink(
+  body: string,
+  workflowUrl: string,
+  status: TriageIssueStatus,
+  approval?: NonNullable<EnsureTriageIssueOptions["approval"]>
+): string {
+  const approvalLine =
+    status === "awaiting maintainer approval" && approval
+      ? `\n- Start remediation: comment \`${approval.command}\` with optional instructions. ` +
+        `Only comments from \`${approval.actor}\` are authorized.`
+      : "";
   return managedBlock(
     body,
     WORKFLOW_BLOCK_START,
     WORKFLOW_BLOCK_END,
     `## Automation\n\n` +
       `- EAS workflow: [View the run](${workflowUrl})\n` +
-      `- Status: triage in progress`
+      `- Status: ${status}` +
+      approvalLine
   );
 }
 
@@ -121,7 +172,10 @@ export async function ensureTriageIssue({
   owner,
   repo,
   sourceKey,
+  sourceId,
   workflowUrl,
+  status = "triage in progress",
+  approval,
   summary,
   evidence,
   publicFetch,
@@ -134,6 +188,8 @@ export async function ensureTriageIssue({
 
   const marker = sourceMarker(kind, sourceKey);
   const copy = issueCopy(kind);
+  const publicSourceId = sourceId ? validateSourceId(sourceId) : null;
+  const publicApproval = approval ? validateApproval(approval) : undefined;
   const publicSummary = summary ? validateSummary(summary) : null;
   const list = await gh("/issues?state=all&per_page=100&sort=created&direction=desc");
   if (!list.ok) {
@@ -152,6 +208,7 @@ export async function ensureTriageIssue({
   if (!issue) {
     let createdBody = `${marker}\n${copy.body}`;
     if (publicSummary) createdBody = withSummary(createdBody, publicSummary);
+    if (publicSourceId) createdBody = withSource(createdBody, publicSourceId);
     if (evidence) createdBody = withEvidence(createdBody, evidence);
     const created = await gh("/issues", {
       method: "POST",
@@ -172,12 +229,13 @@ export async function ensureTriageIssue({
 
   const currentBody = typeof issue.body === "string" ? issue.body : `${marker}\n${copy.body}`;
   const summarizedBody = publicSummary ? withSummary(currentBody, publicSummary) : currentBody;
-  const evidenceBody = evidence ? withEvidence(summarizedBody, evidence) : summarizedBody;
+  const sourcedBody = publicSourceId ? withSource(summarizedBody, publicSourceId) : summarizedBody;
+  const evidenceBody = evidence ? withEvidence(sourcedBody, evidence) : sourcedBody;
   const updated = await gh(`/issues/${issue.number}`, {
     method: "PATCH",
     body: JSON.stringify({
       ...(publicSummary ? { title: publicSummary.title } : {}),
-      body: withWorkflowLink(evidenceBody, workflowUrl),
+      body: withWorkflowLink(evidenceBody, workflowUrl, status, publicApproval),
     }),
   });
   if (!updated.ok) {
@@ -192,6 +250,7 @@ export async function ensureTriageIssue({
     ...(publicSummary ? { expectedTitle: publicSummary.title } : {}),
     expectedBodyIncludes: [
       ...(publicSummary ? [SUMMARY_BLOCK_START, publicSummary.body] : []),
+      ...(publicSourceId ? [SOURCE_BLOCK_START, publicSourceId] : []),
       ...(evidence
         ? [
             EVIDENCE_BLOCK_START,
@@ -203,6 +262,7 @@ export async function ensureTriageIssue({
           ]
         : []),
       workflowUrl,
+      status,
     ],
     description: `issue #${issue.number}`,
     publicFetch,
@@ -210,4 +270,47 @@ export async function ensureTriageIssue({
   });
 
   return { number: issue.number, htmlUrl: issue.html_url };
+}
+
+export async function updateTriageIssueStatus({
+  gh,
+  issueNumber,
+  status,
+}: {
+  gh: GitHubRepoRequest;
+  issueNumber: number;
+  status: TriageIssueStatus;
+}): Promise<boolean> {
+  const response = await gh(`/issues/${issueNumber}`);
+  if (!response.ok) {
+    throw new Error(
+      `Could not read triage issue #${issueNumber} (HTTP ${response.status}): ${await response.text()}`
+    );
+  }
+
+  const issue = (await response.json()) as { body?: string | null };
+  const body = issue.body || "";
+  const blockPattern = new RegExp(
+    `${escapeRegExp(WORKFLOW_BLOCK_START)}[\\s\\S]*?${escapeRegExp(WORKFLOW_BLOCK_END)}`
+  );
+  const match = body.match(blockPattern);
+  if (!match) return false;
+
+  const nextBlock = match[0]
+    .replace(/^- Status: .+$/m, `- Status: ${status}`)
+    .replace(/^- Start remediation: .+\n?/m, "");
+  if (nextBlock === match[0]) return false;
+
+  const updated = await gh(`/issues/${issueNumber}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      body: body.replace(blockPattern, nextBlock),
+    }),
+  });
+  if (!updated.ok) {
+    throw new Error(
+      `Could not update triage issue #${issueNumber} status (HTTP ${updated.status}): ${await updated.text()}`
+    );
+  }
+  return true;
 }

@@ -1,9 +1,10 @@
-# Feedback triage — PRODUCTION trigger. When a TestFlight tester submits
-# SCREENSHOT feedback, resolve it with a Claude agent: implement a fix, open a
-# PR, and publish the fix as an EAS Update to a channel for OTA testing.
+# Feedback triage — PRODUCTION trigger. Every TestFlight screenshot report gets
+# a summarized GitHub issue. Feedback from the maintainer continues through
+# implementation, simulator verification, PR creation, and a preview EAS Update.
+# Other testers' reports pause until brentvatne comments `@notbrent accept …`.
 #
-# Mirrors crash-triage, but for screenshot feedback. Only allowlisted testers'
-# feedback is acted on (ALLOWED_FEEDBACK_EMAILS). Never auto-merges.
+# The public summary and its isolated safety review run without tools. Only
+# allowlisted testers start the coding agent automatically. Never auto-merges.
 # For manual runs use .eas/workflows/feedback-triage-test.yml (workflow_dispatch)
 # — App Store Connect context and dispatch inputs can't coexist in one file.
 #
@@ -21,11 +22,13 @@ on:
 
 jobs:
   triage:
-    name: Resolve TestFlight feedback with Claude
+    name: Intake and resolve TestFlight feedback
     environment: preview
     runs_on: linux-medium
     env:
       REPO_SLUG: brentvatne/euxy
+      INTAKE_PROMPT_FILE: prompts/automation/feedback-intake.md
+      INTAKE_SAFETY_PROMPT_FILE: prompts/automation/feedback-intake-safety.md
       AGENT_PROMPT_FILE: prompts/automation/feedback-triage.md
       SIMULATOR_PROMPT_FILE: prompts/automation/simulator-verification.md
       SIMULATOR_VALIDATION: '1'
@@ -34,6 +37,7 @@ jobs:
       ALLOWED_FEEDBACK_EMAILS: brentvatne@gmail.com
       DISABLE_AUTOUPDATER: '1'
       WORKFLOW_URL: ${{ workflow.url }}
+      FEEDBACK_ID: ${{ app_store_connect.beta_feedback.id }}
       FEEDBACK_URL: ${{ app_store_connect.beta_feedback.url }}
       UPDATE_CHANNEL: preview
     steps:
@@ -52,5 +56,6 @@ jobs:
           path: |
             .eas/feedback-triage/ANALYSIS.md
             .eas/feedback-triage/feedback.json
+            .eas/feedback-triage/PUBLIC_REPORT.json
             .eas/feedback-triage/PUBLIC_PR.json
             .eas/feedback-triage/sim/**/*

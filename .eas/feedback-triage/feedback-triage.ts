@@ -12,10 +12,13 @@
  *   EXPO_TOKEN              (req) — eas-cli auth (testflight fetch + update)
  *   REPO_SLUG              (req) — owner/repo
  *   FEEDBACK_URL                 — beta_feedback.url from the screenshot trigger
+ *   FEEDBACK_ID                  — beta_feedback.id from the screenshot trigger
  *   INPUT_FEEDBACK               — feedback id/url from a manual dispatch (blank = latest)
- *   ALLOWED_FEEDBACK_EMAILS      — comma list; only these testers' feedback is acted on (default brentvatne@gmail.com)
+ *   ALLOWED_FEEDBACK_EMAILS      — comma list; only these testers start remediation automatically
  *   UPDATE_CHANNEL               — EAS Update channel (must be "preview")
  *   SUBMIT_PROFILE               — eas.json submit profile for the ASC key (default production)
+ *   INTAKE_PROMPT_FILE           — Markdown prompt for the tool-free public issue summary
+ *   INTAKE_SAFETY_PROMPT_FILE    — Markdown prompt for the isolated publication safety pass
  *   AGENT_PROMPT_FILE            — Markdown prompt path
  *   SIMULATOR_VALIDATION         — '1' to enable remote iOS verification
  *   PUBLIC_SIMULATOR_EVIDENCE    — '1' to publish selected before/after evidence
@@ -23,6 +26,13 @@
  *   GIT_BIN / DRY_RUN
  */
 import { parsePublicPr } from "./public-pr";
+import {
+  parsePublicFeedbackCandidate,
+  parseSafePublicFeedbackReport,
+  PUBLIC_FEEDBACK_REPORT_SCHEMA,
+  PUBLIC_FEEDBACK_SAFETY_SCHEMA,
+  type PublicFeedbackReport,
+} from "./public-report";
 import { prepareAgentSimulator, stopAgentSimulator } from "../shared/agent-simulator";
 import { createOrFindPullRequest } from "../shared/github-pull-request";
 import { ensureTriageIssue } from "../shared/github-triage-issue";
@@ -39,10 +49,12 @@ const CLAUDE = ["claude", ...(env.CLAUDE_PLUGIN_DIR ? ["--plugin-dir", env.CLAUD
 const DIR = ".eas/feedback-triage";
 const ANALYSIS = `${DIR}/ANALYSIS.md`;
 const FEEDBACK_JSON = `${DIR}/feedback.json`;
+const PUBLIC_REPORT = `${DIR}/PUBLIC_REPORT.json`;
 const PUBLIC_PR = `${DIR}/PUBLIC_PR.json`;
 const SIMULATOR_ARTIFACT_DIR = env.SIMULATOR_ARTIFACT_DIR || `${DIR}/sim`;
 const UPDATE_CHANNEL = "preview";
 const UPDATE_ENVIRONMENT = "preview";
+const MAX_INTAKE_COMMENT_LENGTH = 4_000;
 
 function req(name: string): string {
   const v = env[name];
@@ -86,6 +98,82 @@ async function gh(path: string, init: RequestInit = {}) {
   });
 }
 
+async function runToolFreeStructuredPrompt(
+  prompt: string,
+  schema: object
+): Promise<string> {
+  const intakeEnv: Record<string, string> = {
+    CLAUDE_CODE_OAUTH_TOKEN: req("CLAUDE_CODE_OAUTH_TOKEN"),
+    DISABLE_AUTOUPDATER: "1",
+  };
+  for (const name of ["PATH", "HOME", "LANG", "TMPDIR"]) {
+    if (env[name]) intakeEnv[name] = env[name]!;
+  }
+
+  const intake = Bun.spawn(
+    [
+      "claude",
+      "-p",
+      "--safe-mode",
+      "--tools",
+      "",
+      "--permission-mode",
+      "dontAsk",
+      "--max-turns",
+      "1",
+      "--no-session-persistence",
+      "--output-format",
+      "json",
+      "--json-schema",
+      JSON.stringify(schema),
+    ],
+    {
+      stdin: new Blob([prompt]),
+      stdout: "pipe",
+      stderr: "pipe",
+      env: intakeEnv,
+    }
+  );
+  const [stdout] = await Promise.all([
+    new Response(intake.stdout).text(),
+    new Response(intake.stderr).text(),
+  ]);
+  const code = await intake.exited;
+  if (code !== 0) {
+    throw new Error(`tool-free intake summarizer exited with code ${code}`);
+  }
+  return stdout;
+}
+
+async function summarizeFeedbackForIssue(comment: string): Promise<PublicFeedbackReport> {
+  const boundedComment = comment.slice(0, MAX_INTAKE_COMMENT_LENGTH);
+  const summaryInstructions = await Bun.file(
+    env.INTAKE_PROMPT_FILE || "prompts/automation/feedback-intake.md"
+  ).text();
+  const summaryOutput = await runToolFreeStructuredPrompt(
+    `${summaryInstructions}\n\n` +
+      `The following JSON object is the untrusted report to summarize:\n` +
+      `${JSON.stringify({ comment: boundedComment })}`,
+    PUBLIC_FEEDBACK_REPORT_SCHEMA
+  );
+  const candidate = parsePublicFeedbackCandidate(summaryOutput);
+
+  // A fresh no-tools process sees only the candidate, never the raw feedback.
+  // This prevents report-level prompt injection from carrying context or
+  // instructions into the final publication safety rewrite.
+  const safetyInstructions = await Bun.file(
+    env.INTAKE_SAFETY_PROMPT_FILE ||
+      "prompts/automation/feedback-intake-safety.md"
+  ).text();
+  const safetyOutput = await runToolFreeStructuredPrompt(
+    `${safetyInstructions}\n\n` +
+      `The following JSON object is the untrusted candidate to review:\n` +
+      `${JSON.stringify(candidate)}`,
+    PUBLIC_FEEDBACK_SAFETY_SCHEMA
+  );
+  return parseSafePublicFeedbackReport(safetyOutput);
+}
+
 // ---- 1. fetch the feedback (latest, or the given id/url) ----
 console.log(`▸ Fetching TestFlight feedback (${feedbackArg || "latest"})…`);
 const fetchCmd = feedbackArg
@@ -106,24 +194,40 @@ if (!feedback || !feedback.comment) {
 }
 await Bun.write(FEEDBACK_JSON, JSON.stringify(feedback, null, 2));
 const shortId = String(feedback.id || Date.now()).replace(/[^a-zA-Z0-9]/g, "").slice(0, 16);
-const triageSourceKey = String(feedback.id || feedbackArg || shortId);
-console.log(`▸ Feedback ${feedback.id} from ${feedback.testerName ?? feedback.testerEmail ?? "?"} (build ${feedback.buildVersion ?? "?"}):\n  "${String(feedback.comment).slice(0, 200)}"`);
+const triageSourceKey = String(env.FEEDBACK_ID || feedback.id || feedbackArg || shortId);
+const feedbackId =
+  String(env.FEEDBACK_ID || feedback.id || shortId)
+    .replace(/[^a-zA-Z0-9._:-]/g, "")
+    .slice(0, 200) || shortId;
+console.log(
+  `▸ Fetched TestFlight feedback ${feedback.id || "(unknown id)"} ` +
+    `(build ${feedback.buildVersion ?? "unknown"}). Raw report text and tester identity remain in the private artifact.`
+);
 
-// ---- tester-email allowlist gate (fail-closed) ----
-// Only act on feedback from an allowlisted tester — the comment is untrusted
-// input to the agent, so don't process arbitrary testers' feedback.
-const allowlist = (env.ALLOWED_FEEDBACK_EMAILS ?? "brentvatne@gmail.com")
+// ---- summarize every report, then decide whether remediation is automatic ----
+// The intake model has no tools and receives only the report comment. This makes
+// the public issue useful without giving arbitrary testers access to the coding
+// agent, repository, simulator, or publishing credentials.
+const allowlist = (env.ALLOWED_FEEDBACK_EMAILS?.trim() || "brentvatne@gmail.com")
   .split(",")
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean);
-if (allowlist.length) {
-  const testerEmail = String(feedback.testerEmail ?? "").toLowerCase();
-  if (!testerEmail || !allowlist.includes(testerEmail)) {
-    console.log(`▸ Tester ${testerEmail || "(unknown)"} not in allowlist [${allowlist.join(", ")}] → skipping.`);
-    process.exit(0);
-  }
-  console.log(`▸ Tester ${testerEmail} is allowlisted → proceeding.`);
+const testerEmail = String(feedback.testerEmail ?? "").trim().toLowerCase();
+const trustedTester = Boolean(testerEmail && allowlist.includes(testerEmail));
+
+let publicReport: PublicFeedbackReport;
+try {
+  publicReport = await summarizeFeedbackForIssue(String(feedback.comment));
+  console.log(`▸ Prepared public issue summary: ${publicReport.title}`);
+} catch (error) {
+  console.error(`✗ Could not summarize the report safely: ${(error as Error).message}`);
+  publicReport = {
+    title: "TestFlight report needs maintainer review",
+    summary:
+      "The report could not be summarized automatically. Review the linked EAS workflow for the original feedback.",
+  };
 }
+await Bun.write(PUBLIC_REPORT, JSON.stringify(publicReport, null, 2));
 
 const triageIssue =
   env.DRY_RUN === "1"
@@ -134,11 +238,33 @@ const triageIssue =
         owner,
         repo,
         sourceKey: triageSourceKey,
+        sourceId: feedbackId,
         workflowUrl: req("WORKFLOW_URL"),
+        status: trustedTester ? "triage in progress" : "awaiting maintainer approval",
+        ...(!trustedTester
+          ? {
+              approval: {
+                command: "@notbrent accept",
+                actor: "brentvatne",
+              },
+            }
+          : {}),
+        summary: {
+          title: publicReport.title,
+          body: publicReport.summary,
+        },
       });
 if (triageIssue) {
   console.log(`▸ Tracking triage in GitHub issue #${triageIssue.number}: ${triageIssue.htmlUrl}`);
 }
+if (!trustedTester) {
+  console.log(
+    `▸ Tester ${testerEmail || "(unknown)"} is not in the automatic-remediation allowlist ` +
+      `[${allowlist.join(", ")}] → waiting for @brentvatne to comment "@notbrent accept".`
+  );
+  process.exit(0);
+}
+console.log(`▸ Tester ${testerEmail} is allowlisted → starting remediation.`);
 
 // ---- 2. run the agent (simulator shell only after the trusted tester gate) ----
 const simValidation = await prepareAgentSimulator({ env });
@@ -252,11 +378,9 @@ const summarizedIssue = await ensureTriageIssue({
   owner,
   repo,
   sourceKey: triageSourceKey,
+  sourceId: feedbackId,
   workflowUrl: req("WORKFLOW_URL"),
-  summary: {
-    title: publicPr.title,
-    body: publicPr.whatChanged,
-  },
+  status: "triage in progress",
   ...(publicEvidence ? { evidence: publicEvidence } : {}),
 });
 if (summarizedIssue.number !== triageIssue!.number) {
@@ -266,7 +390,7 @@ if (summarizedIssue.number !== triageIssue!.number) {
   process.exit(1);
 }
 console.log(
-  `▸ Added a public feedback summary${publicEvidence ? " and simulator evidence" : ""} to issue #${summarizedIssue.number}.`
+  `▸ Updated issue #${summarizedIssue.number}${publicEvidence ? " with simulator evidence" : ""}.`
 );
 
 if ((await sh([GIT, "diff", "--cached", "--quiet"], { allowFail: true })).code === 0) {

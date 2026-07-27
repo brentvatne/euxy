@@ -33,6 +33,35 @@ Build the automation as a small trusted control plane around an untrusted coding
 
 Use [references/security-checklist.md](references/security-checklist.md) for the full threat-model and credential checklist.
 
+## Intake external tester feedback without starting remediation
+
+For TestFlight feedback from people outside the automatic-remediation
+allowlist:
+
+1. Create or find the tracking issue before the coding agent runs.
+2. Generate a problem-focused public title and report summary with a one-turn
+   model invocation that has no tools, repository access, plugin configuration,
+   session persistence, simulator credential, or publishing credential. Bound
+   both the untrusted input length and the structured output schema.
+3. Run a fresh no-tools safety pass over only that candidate. Require neutral
+   product language and deterministically reject links, contact details,
+   mentions, Markdown, prompt-injection language, secrets, profanity, threats,
+   or harassment. Fall back to a generic review issue on any failure.
+4. Add the stable TestFlight feedback ID and access-controlled EAS workflow link
+   to deterministic managed blocks. Do not let the model choose either value.
+5. Stop before repository inspection, simulator startup, edits, branches,
+   updates, or PR creation unless the tester is allowlisted.
+6. Resume only from an exact bot-addressed approval command such as
+   `@automation-bot accept …`, authored by an allowlisted maintainer. Gate on
+   the immutable comment-author login in the GitHub workflow and validate both
+   actor and command again in the runner.
+7. Ensure an issue created by the publishing bot cannot trigger remediation
+   through the ordinary `issues.opened` path.
+
+Keep the issue title as the reported problem. Use the eventual PR title for the
+solution or user-visible outcome, and preserve any additional maintainer
+instructions after the approval command as agent context.
+
 ## Bootstrap machine users defensively
 
 GitHub may restrict a newly created personal account as suspected automation or spam without making the failure obvious. A token can authenticate, push branches, and receive a successful PR/issue creation response while the account profile and created resources return 404 to everyone else.
@@ -61,7 +90,7 @@ GitHub may restrict a newly created personal account as suspected automation or 
 Use this lifecycle for crash, feedback, and issue automation:
 
 1. Create or find a durable GitHub issue using a stable, hashed source marker.
-2. Add the EAS workflow URL to a managed block in the issue.
+2. Add the provider event ID and EAS workflow URL to managed blocks in the issue.
 3. Let the agent investigate and edit only after the trust gate.
 4. Validate the diff, protected paths, type checks, tests, and simulator evidence.
 5. Push a namespaced branch.
