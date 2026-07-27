@@ -252,6 +252,13 @@ if (publicEvidence) {
 }
 if ((await sh([GIT, "diff", "--cached", "--quiet"], { allowFail: true })).code === 0) {
   console.log("▸ Nothing staged; nothing to open a PR for.");
+  await updateTriageIssueStatus({
+    gh,
+    issueNumber: issue.number,
+    status: "triage complete",
+    workflowUrl,
+  });
+  console.log(`▸ Marked issue #${issue.number} triage as complete.`);
   if (publicEvidence) {
     await gh(`/issues/${issue.number}/comments`, {
       method: "POST",
@@ -290,6 +297,12 @@ console.log(
     ? `▸ Opened and publicly verified PR: ${prUrl}`
     : `▸ PR already open and publicly verified (branch refreshed): ${prUrl}`
 );
+await updateTriageIssueStatus({
+  gh,
+  issueNumber: issue.number,
+  status: "pull request opened",
+  workflowUrl,
+});
 
 // comment the PR link back on the issue
 await gh(`/issues/${issue.number}/comments`, { method: "POST", body: JSON.stringify({ body: `🤖 Opened a triage PR: ${prUrl}` }) });

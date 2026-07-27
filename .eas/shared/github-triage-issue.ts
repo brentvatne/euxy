@@ -13,7 +13,9 @@ import {
 type TriageIssueKind = "crash" | "feedback";
 export type TriageIssueStatus =
   | "triage in progress"
-  | "awaiting maintainer approval";
+  | "awaiting maintainer approval"
+  | "triage complete"
+  | "pull request opened";
 
 type EnsureTriageIssueOptions = {
   gh: GitHubRepoRequest;
