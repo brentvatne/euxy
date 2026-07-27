@@ -46,7 +46,10 @@ allowlist:
 3. Run a fresh no-tools safety pass over only that candidate. Require neutral
    product language and deterministically reject links, contact details,
    mentions, Markdown, prompt-injection language, secrets, profanity, threats,
-   or harassment. Fall back to a generic review issue on any failure.
+   or harassment. Detect common raw token/key formats and high-entropy
+   secret-like values, then reject exact reuse of any string from the complete
+   private feedback payload. Fall back to a generic review issue on any
+   failure.
 4. Add the stable TestFlight feedback ID and access-controlled EAS workflow link
    to deterministic managed blocks. Do not let the model choose either value.
 5. Stop before repository inspection, simulator startup, edits, branches,
@@ -54,7 +57,9 @@ allowlist:
 6. Resume only from an exact bot-addressed approval command such as
    `@automation-bot accept …`, authored by an allowlisted maintainer. Gate on
    the immutable comment-author login in the GitHub workflow and validate both
-   actor and command again in the runner.
+   actor and command again in the runner. Let this command authorize any
+   non-pull-request issue regardless of its author; apply issue-author
+   allowlists only to automatic `issues.opened` triage.
 7. Ensure an issue created by the publishing bot cannot trigger remediation
    through the ordinary `issues.opened` path.
 

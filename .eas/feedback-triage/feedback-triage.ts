@@ -67,6 +67,14 @@ function req(name: string): string {
 function redact(s: string) {
   return s.replace(/x-access-token:[^@]+@/g, "***@");
 }
+function collectStrings(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) return value.flatMap(collectStrings);
+  if (value && typeof value === "object") {
+    return Object.values(value).flatMap(collectStrings);
+  }
+  return [];
+}
 async function sh(cmd: string[], opts: { allowFail?: boolean; quiet?: boolean } = {}) {
   const p = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe" });
   const [out, err] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text()]);
@@ -145,7 +153,10 @@ async function runToolFreeStructuredPrompt(
   return stdout;
 }
 
-async function summarizeFeedbackForIssue(comment: string): Promise<PublicFeedbackReport> {
+async function summarizeFeedbackForIssue(
+  comment: string,
+  privateValues: string[]
+): Promise<PublicFeedbackReport> {
   const boundedComment = comment.slice(0, MAX_INTAKE_COMMENT_LENGTH);
   const summaryInstructions = await Bun.file(
     env.INTAKE_PROMPT_FILE || "prompts/automation/feedback-intake.md"
@@ -171,7 +182,7 @@ async function summarizeFeedbackForIssue(comment: string): Promise<PublicFeedbac
       `${JSON.stringify(candidate)}`,
     PUBLIC_FEEDBACK_SAFETY_SCHEMA
   );
-  return parseSafePublicFeedbackReport(safetyOutput);
+  return parseSafePublicFeedbackReport(safetyOutput, privateValues);
 }
 
 // ---- 1. fetch the feedback (latest, or the given id/url) ----
@@ -214,10 +225,14 @@ const allowlist = (env.ALLOWED_FEEDBACK_EMAILS?.trim() || "brentvatne@gmail.com"
   .filter(Boolean);
 const testerEmail = String(feedback.testerEmail ?? "").trim().toLowerCase();
 const trustedTester = Boolean(testerEmail && allowlist.includes(testerEmail));
+const privateFeedbackValues = collectStrings(feedback);
 
 let publicReport: PublicFeedbackReport;
 try {
-  publicReport = await summarizeFeedbackForIssue(String(feedback.comment));
+  publicReport = await summarizeFeedbackForIssue(
+    String(feedback.comment),
+    privateFeedbackValues
+  );
   console.log(`▸ Prepared public issue summary: ${publicReport.title}`);
 } catch (error) {
   console.error(`✗ Could not summarize the report safely: ${(error as Error).message}`);
@@ -322,13 +337,10 @@ if (env.DRY_RUN === "1") {
 let publicPr;
 try {
   if (!(await Bun.file(PUBLIC_PR).exists())) throw new Error("the agent did not create PUBLIC_PR.json");
-  const collectStrings = (value: unknown): string[] => {
-    if (typeof value === "string") return [value];
-    if (Array.isArray(value)) return value.flatMap(collectStrings);
-    if (value && typeof value === "object") return Object.values(value).flatMap(collectStrings);
-    return [];
-  };
-  publicPr = parsePublicPr(await Bun.file(PUBLIC_PR).text(), collectStrings(feedback));
+  publicPr = parsePublicPr(
+    await Bun.file(PUBLIC_PR).text(),
+    privateFeedbackValues
+  );
 } catch (error) {
   console.error(`✗ Refusing to publish without a safe public PR description: ${(error as Error).message}`);
   process.exit(1);

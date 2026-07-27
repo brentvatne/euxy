@@ -32,7 +32,8 @@ concurrency:
 jobs:
   triage:
     # Only brentvatne may approve `@notbrent accept …` on a real issue (not a
-    # PR). The script checks the exact actor and parses the command again.
+    # PR), regardless of who opened that issue. The script checks the exact
+    # commenting actor and parses the command again.
     # TRIAGE_ALLOWLIST applies only to automatically triaging newly opened
     # issues (a repo/org Actions Variable; defaults to just brentvatne).
     if: >-

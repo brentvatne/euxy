@@ -38,6 +38,16 @@ describe("issue triage approval comments", () => {
     ).toBe(false);
   });
 
+  test("allows Brent to approve work on any issue regardless of its author", () => {
+    expect(
+      isIssueTriageActorAuthorized({
+        eventName: "issue_comment",
+        actor: "brentvatne",
+        issueAuthorAllowlist: [],
+      })
+    ).toBe(true);
+  });
+
   test("accepts the bot mention with optional maintainer direction", () => {
     expect(parseIssueTriageCommand(ISSUE_TRIAGE_COMMAND)).toBe("");
     expect(

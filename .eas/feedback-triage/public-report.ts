@@ -48,10 +48,62 @@ const UNSAFE_PUBLIC_PATTERNS = [
   /\b(?:secret|access token|password|credential)\b/i,
 ] as const;
 
+const SECRET_VALUE_PATTERNS = [
+  /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/i,
+  /\bgh[pousr]_[A-Za-z0-9_]{20,}\b/,
+  /\bgithub_pat_[A-Za-z0-9_]{20,}\b/,
+  /\bsk-(?:ant-|proj-)?[A-Za-z0-9_-]{20,}\b/,
+  /\bAKIA[0-9A-Z]{16}\b/,
+  /\bAIza[0-9A-Za-z_-]{35}\b/,
+  /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/,
+  /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/,
+  /\b(?:EXPO|GH|GITHUB|OPENAI|ANTHROPIC|API|ACCESS|AUTH|SECRET|PRIVATE)[A-Z0-9_]{0,48}\s*[:=]\s*["']?[A-Za-z0-9+/_=-]{16,}/i,
+] as const;
+
+function shannonEntropy(value: string): number {
+  const counts = new Map<string, number>();
+  for (const character of value) {
+    counts.set(character, (counts.get(character) ?? 0) + 1);
+  }
+  return [...counts.values()].reduce((entropy, count) => {
+    const probability = count / value.length;
+    return entropy - probability * Math.log2(probability);
+  }, 0);
+}
+
+function containsSecretLikeValue(text: string): boolean {
+  if (SECRET_VALUE_PATTERNS.some((pattern) => pattern.test(text))) return true;
+
+  const candidates = text.match(/[A-Za-z0-9+/_=-]{32,}/g) ?? [];
+  return candidates.some((candidate) => {
+    if (/^[a-f0-9]{32,}$/i.test(candidate)) return true;
+    const characterClasses = [
+      /[a-z]/.test(candidate),
+      /[A-Z]/.test(candidate),
+      /\d/.test(candidate),
+      /[+/_=-]/.test(candidate),
+    ].filter(Boolean).length;
+    return characterClasses >= 3 && shannonEntropy(candidate) >= 4;
+  });
+}
+
+function containsPrivateFeedbackValue(text: string, privateValues: string[]): boolean {
+  const lower = text.toLocaleLowerCase();
+  return privateValues.some((privateValue) => {
+    const candidate = privateValue
+      .replace(/[\u0000-\u001f\u007f]/g, " ")
+      .replace(/[<>]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    return candidate.length >= 4 && lower.includes(candidate.toLocaleLowerCase());
+  });
+}
+
 function parseField(
   value: unknown,
   label: keyof typeof LIMITS,
-  enforcePublicSafety: boolean
+  enforcePublicSafety: boolean,
+  privateValues: string[] = []
 ): string {
   if (typeof value !== "string") {
     throw new Error(`${label} must be a string`);
@@ -76,6 +128,12 @@ function parseField(
     }
     if (UNSAFE_PUBLIC_PATTERNS.some((pattern) => pattern.test(text))) {
       throw new Error(`${label} contains unsafe or instruction-like language`);
+    }
+    if (containsSecretLikeValue(text)) {
+      throw new Error(`${label} contains a secret-like value`);
+    }
+    if (containsPrivateFeedbackValue(text, privateValues)) {
+      throw new Error(`${label} contains private feedback data`);
     }
   }
   return text;
@@ -103,9 +161,15 @@ function parseStructuredOutput(raw: string): Record<string, unknown> {
 
 function parseReportFields(
   report: Record<string, unknown>,
-  enforcePublicSafety: boolean
+  enforcePublicSafety: boolean,
+  privateValues: string[] = []
 ): PublicFeedbackReport {
-  const title = parseField(report.title, "title", enforcePublicSafety).replace(/[.!?]+$/, "");
+  const title = parseField(
+    report.title,
+    "title",
+    enforcePublicSafety,
+    privateValues
+  ).replace(/[.!?]+$/, "");
   if (title.length < LIMITS.title.min) throw new Error("title is too short");
   if (
     enforcePublicSafety &&
@@ -116,7 +180,7 @@ function parseReportFields(
 
   return {
     title,
-    summary: parseField(report.summary, "summary", enforcePublicSafety),
+    summary: parseField(report.summary, "summary", enforcePublicSafety, privateValues),
   };
 }
 
@@ -124,14 +188,20 @@ export function parsePublicFeedbackCandidate(raw: string): PublicFeedbackReport 
   return parseReportFields(parseStructuredOutput(raw), false);
 }
 
-export function parsePublicFeedbackReport(raw: string): PublicFeedbackReport {
-  return parseReportFields(parseStructuredOutput(raw), true);
+export function parsePublicFeedbackReport(
+  raw: string,
+  privateValues: string[] = []
+): PublicFeedbackReport {
+  return parseReportFields(parseStructuredOutput(raw), true, privateValues);
 }
 
-export function parseSafePublicFeedbackReport(raw: string): PublicFeedbackReport {
+export function parseSafePublicFeedbackReport(
+  raw: string,
+  privateValues: string[] = []
+): PublicFeedbackReport {
   const output = parseStructuredOutput(raw);
   if (output.safe !== true) {
     throw new Error("safety reviewer refused to publish the intake summary");
   }
-  return parseReportFields(output, true);
+  return parseReportFields(output, true, privateValues);
 }

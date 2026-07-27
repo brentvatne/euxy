@@ -143,6 +143,53 @@ describe("public TestFlight report summaries", () => {
     ).toThrow("title contains unsafe or instruction-like language");
   });
 
+  test("rejects raw secret values even when they are not described as secrets", () => {
+    const secretLikeValues = [
+      "ghp_abcdefghijklmnopqrstuvwxyz1234567890",
+      "EXPO_TOKEN=AbCdEfGhIjKlMnOpQrStUvWxYz123456",
+      "sk-proj-AbCdEfGhIjKlMnOpQrStUvWxYz123456",
+      "-----BEGIN PRIVATE KEY-----",
+      "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.AbCdEfGhIjKlMnOpQrStUvWxYz",
+      "9f86d081884c7d659a2feaa0c55ad015",
+      "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789+/=",
+    ];
+
+    for (const secretLikeValue of secretLikeValues) {
+      expect(() =>
+        parsePublicFeedbackReport(
+          JSON.stringify({
+            title: "Sequencer controls overlap unexpectedly",
+            summary: `The report included ${secretLikeValue} while describing the layout problem.`,
+          })
+        )
+      ).toThrow("summary contains a secret-like value");
+    }
+  });
+
+  test("rejects exact reuse of strings from the private feedback payload", () => {
+    const privateValues = [
+      "Taylor Example",
+      "iPhone 17 Pro",
+      "build-2026.07.27.1",
+      "The bass lane vanishes after restoring the Midnight Drive preset.",
+    ];
+
+    for (const privateValue of privateValues) {
+      expect(() =>
+        parseSafePublicFeedbackReport(
+          JSON.stringify({
+            structured_output: {
+              safe: true,
+              title: "Bass lane disappears after restoring a pattern",
+              summary: `A tester reports a sequencer problem involving ${privateValue}.`,
+            },
+          }),
+          privateValues
+        )
+      ).toThrow("summary contains private feedback data");
+    }
+  });
+
   test("keeps the runtime schema aligned with the parser limits", () => {
     expect(PUBLIC_FEEDBACK_REPORT_SCHEMA.properties.title).toMatchObject({
       minLength: 12,
