@@ -40,11 +40,24 @@ export default function SharedPatternPage() {
   // canonical /p/<d> form unfurls with the per-pattern OG card when re-shared.
   // Rewrite history to the canonical form; plain replaceState, no navigation.
   // Only on successful decode, so an error page keeps the broken URL intact.
+  // A single rewrite loses a race: expo-router's linking layer re-syncs the
+  // address bar from navigation state after hydration (twice in production,
+  // the second ~20ms after this effect), stomping the rewrite. Re-assert
+  // briefly until the router goes quiet — nothing else writes the URL here.
   useEffect(() => {
     if (!pattern || typeof d !== 'string' || typeof window === 'undefined') return;
-    if (new URLSearchParams(window.location.search).has('d')) {
-      window.history.replaceState(null, '', `/p/${d}`);
-    }
+    const rewrite = () => {
+      if (new URLSearchParams(window.location.search).has('d')) {
+        window.history.replaceState(window.history.state, '', `/p/${d}`);
+      }
+    };
+    rewrite();
+    const interval = setInterval(rewrite, 150);
+    const stop = setTimeout(() => clearInterval(interval), 1600);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(stop);
+    };
   }, [pattern, d]);
 
   // The prerendered p.html IS this state — the unfurl meta must live here,
