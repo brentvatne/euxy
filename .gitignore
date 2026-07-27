@@ -52,3 +52,9 @@ SETUP-TRACING.md
 # auto-runs scripts for anyone who checks out the repo)
 .agents/
 .codex/
+
+# Transient triage data — contains tester PII + signed URLs; kept as workflow
+# artifacts only, never committed into a PR/branch.
+.eas/crash-triage/crash.json
+.eas/feedback-triage/feedback.json
+.github/issue-triage/issue.json
