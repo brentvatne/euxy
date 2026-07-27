@@ -49,6 +49,7 @@ export default function PatternsScreen() {
   const loadPattern = useStore((s) => s.loadPattern);
   const deletePattern = useStore((s) => s.deletePattern);
   const renamePattern = useStore((s) => s.renamePattern);
+  const duplicatePattern = useStore((s) => s.duplicatePattern);
   const resetPreset = useStore((s) => s.resetPreset);
   const resetAllPresets = useStore((s) => s.resetAllPresets);
   const [query, setQuery] = useState('');
@@ -66,26 +67,36 @@ export default function PatternsScreen() {
     );
   };
 
-  // Long-press context menu (roadmap: Rename / Change Icon / Delete). A plain
-  // ActionSheetIOS instead of @expo/ui MenuView: its long-press trigger is a
-  // SwiftUI ContextMenu whose Host/RNHostView re-parents the row — inside a
-  // ReanimatedSwipeable that puts the swipe/tap gestures at risk, and this
-  // must not break them.
+  // Long-press context menu (roadmap: Rename / Change Icon / Clone / Delete,
+  // plus Restore Default on factory presets). A plain ActionSheetIOS instead
+  // of @expo/ui MenuView: its long-press trigger is a SwiftUI ContextMenu
+  // whose Host/RNHostView re-parents the row — inside a ReanimatedSwipeable
+  // that puts the swipe/tap gestures at risk, and this must not break them.
   const showPatternMenu = (pattern: Pattern) => {
     const changeIcon = () =>
       router.push({ pathname: '/change-icon', params: { patternId: pattern.id } });
+    const clone = () => {
+      haptics.impact('light');
+      duplicatePattern(pattern.id);
+    };
+    const restoreDefault = () => {
+      haptics.impact('light');
+      resetPreset(pattern.id);
+    };
+    const isPreset = isPresetPattern(pattern.id);
     if (Platform.OS === 'ios') {
+      const options = ['Cancel', 'Rename…', 'Change Icon…', 'Clone'];
+      if (isPreset) options.push('Restore Default');
+      options.push('Delete');
+      const destructiveButtonIndex = options.length - 1;
       ActionSheetIOS.showActionSheetWithOptions(
-        {
-          title: pattern.name,
-          options: ['Cancel', 'Rename…', 'Change Icon…', 'Delete'],
-          cancelButtonIndex: 0,
-          destructiveButtonIndex: 3,
-        },
+        { title: pattern.name, options, cancelButtonIndex: 0, destructiveButtonIndex },
         (index) => {
           if (index === 1) promptRename(pattern);
           else if (index === 2) changeIcon();
-          else if (index === 3) deletePattern(pattern.id);
+          else if (index === 3) clone();
+          else if (isPreset && index === 4) restoreDefault();
+          else if (index === destructiveButtonIndex) deletePattern(pattern.id);
         },
       );
       return;
@@ -93,6 +104,8 @@ export default function PatternsScreen() {
     // Android/web: Alert stand-in (no Alert.prompt there, so rename is iOS-only).
     Alert.alert(pattern.name, undefined, [
       { text: 'Change Icon…', onPress: changeIcon },
+      { text: 'Clone', onPress: clone },
+      ...(isPreset ? [{ text: 'Restore Default', onPress: restoreDefault }] : []),
       { text: 'Delete', style: 'destructive', onPress: () => deletePattern(pattern.id) },
       { text: 'Cancel', style: 'cancel' },
     ]);
