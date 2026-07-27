@@ -47,8 +47,9 @@ acting on.
 ## Rules
 - Do NOT run git, commit, push, open a PR, or run `eas` — the wrapper handles the
   PR and the EAS Update.
-- Do NOT start servers or run builds. Static investigation + targeted edits only
-  (`npx tsc --noEmit` is fine to sanity-check).
+- Do not start servers or run builds unless an appended simulator-verification
+  section explicitly enables them. Otherwise use static investigation and
+  targeted edits only (`npx tsc --noEmit` is fine to sanity-check).
 - Be honest about uncertainty; a focused fix or a clear "needs a decision" are
   both fine — a confident guess is not.
 - Treat `PUBLIC_PR.json` as public. It must stand on its own as a useful code

@@ -30,9 +30,9 @@ on:
         type: string
         default: brentvatne@gmail.com
       sim_validation:
-        description: Run argent/EAS-Simulator before-after validation ('1' to enable)
+        description: Use EAS Simulator for applicable app verification ('1' to enable)
         type: string
-        default: '0'
+        default: '1'
 
 jobs:
   triage:
@@ -42,10 +42,12 @@ jobs:
     env:
       REPO_SLUG: brentvatne/euxy
       AGENT_PROMPT_FILE: prompts/automation/crash-triage.md
-      SIMULATOR_AGENT_PROMPT_FILE: prompts/automation/crash-triage-simulator.md
+      SIMULATOR_PROMPT_FILE: prompts/automation/simulator-verification.md
+      SIMULATOR_ARTIFACT_DIR: .eas/crash-triage/sim
       ALLOWED_FEEDBACK_EMAILS: brentvatne@gmail.com
       DISABLE_AUTOUPDATER: '1'
-      SIM_VALIDATION: ${{ inputs.sim_validation }}
+      WORKFLOW_URL: ${{ workflow.url }}
+      SIMULATOR_VALIDATION: ${{ inputs.sim_validation }}
       INPUT_FEEDBACK_ID: ${{ inputs.feedback_id }}
       INPUT_FEEDBACK_URL: ${{ inputs.feedback_url }}
       INPUT_TESTER_EMAIL: ${{ inputs.tester_email }}
@@ -65,5 +67,4 @@ jobs:
           path: |
             .eas/crash-triage/ANALYSIS.md
             .eas/crash-triage/crash.json
-            .eas/crash-triage/sim-sessions.txt
             .eas/crash-triage/sim/**/*

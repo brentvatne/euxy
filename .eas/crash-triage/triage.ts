@@ -19,9 +19,10 @@
  *   ASC_KEY_ID / ASC_ISSUER_ID / ASC_P8  — ASC API key (optional; enables real logs)
  *   GIT_BIN                        — git binary (default 'git'; local: /usr/bin/git)
  *   DRY_RUN                        — '1' to skip the PR (agent + analysis only)
- *   SIM_VALIDATION                 — '1' to run argent/EAS-Simulator before/after
- *   EXPO_TOKEN                     — eas-cli auth (required when SIM_VALIDATION=1)
- *   AGENT_PROMPT_FILE / SIMULATOR_AGENT_PROMPT_FILE — Markdown prompt paths
+ *   SIMULATOR_VALIDATION           — '1' to enable remote iOS verification
+ *   EXPO_TOKEN                     — robot eas-cli auth (required for simulator)
+ *   WORKFLOW_URL                   — current EAS workflow run URL
+ *   AGENT_PROMPT_FILE / SIMULATOR_PROMPT_FILE — Markdown prompt paths
  *   MAX_TRIAGE_PER_HOUR / MAX_TRIAGE_PER_DAY — storm-control rate cap (5 / 20)
  *
  * Storm control (docs/crash-storm-control-design.md): before the agent runs, a
@@ -31,11 +32,13 @@
  */
 import { createSign, createHash } from "node:crypto";
 
+import { prepareAgentSimulator, stopAgentSimulator } from "../shared/agent-simulator";
+import { createOrFindPullRequest } from "../shared/github-pull-request";
+import { ensureTriageIssue } from "../shared/github-triage-issue";
 import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
 
 const env = process.env;
 const GIT = env.GIT_BIN || "git";
-const EAS = ["npx", "--yes", "eas-cli@21.3.0"];
 const CLAUDE = ["claude", ...(env.CLAUDE_PLUGIN_DIR ? ["--plugin-dir", env.CLAUDE_PLUGIN_DIR] : [])];
 const TRIAGE_DIR = ".eas/crash-triage";
 const ANALYSIS = `${TRIAGE_DIR}/ANALYSIS.md`;
@@ -272,34 +275,37 @@ if (owner && repo) {
   console.log("▸ owner/repo unresolved (no REPO_SLUG and no git origin) → skipping storm-control pre-flight.");
 }
 
-// ---- optional: boot an EAS Simulator (argent) session early ----
-// Sim validation lets the agent reproduce the bug on the current build, then
-// verify its fix. Booting takes time, so we kick it off in the background BEFORE
-// the agent runs — it warms up while the agent does its initial investigation.
-let simValidation = env.SIM_VALIDATION === "1" && !!env.EXPO_TOKEN;
+const triageIssue =
+  env.DRY_RUN === "1"
+    ? null
+    : await ensureTriageIssue({
+        gh,
+        kind: "crash",
+        owner,
+        repo,
+        sourceKey: feedbackId || feedbackUrl || signature || String(Date.now()),
+        workflowUrl: req("WORKFLOW_URL"),
+      });
+if (triageIssue) {
+  console.log(`▸ Tracking triage in GitHub issue #${triageIssue.number}: ${triageIssue.htmlUrl}`);
+}
+
+// The availability check is read-only. The agent starts a capped session only
+// after it has a suitable dev-client build ready, and the wrapper stops any
+// session left behind.
+const simValidation = await prepareAgentSimulator({ env });
 if (simValidation) {
-  console.log("▸ Booting EAS Simulator (argent) session in the background (warms up during investigation)…");
-  try {
-    await Bun.write(".env.eas-simulator", "# managed by eas-cli\n"); // clear any stale session
-    Bun.spawn(
-      [...EAS, "simulator:start", "--platform", "ios", "--type", "argent", "--non-interactive"],
-      { stdout: "inherit", stderr: "inherit", env }
-    ); // intentionally not awaited — the agent polls simulator:get for readiness
-  } catch (e: any) {
-    // Optional feature — a boot failure must not take down the whole pipeline.
-    console.log(`▸ Failed to boot the simulator (${e?.message ?? e}) — falling back to investigation-only.`);
-    simValidation = false;
-  }
-} else if (env.SIM_VALIDATION === "1") {
-  console.log("▸ SIM_VALIDATION=1 but EXPO_TOKEN is unset — skipping sim validation.");
+  await sh(["mkdir", "-p", env.SIMULATOR_ARTIFACT_DIR || `${TRIAGE_DIR}/sim`]);
 }
 
 // ---- run the agent ----
 console.log(`▸ Investigating crash ${feedbackId || "(no id)"} with Claude…`);
-const promptFile = simValidation
-  ? env.SIMULATOR_AGENT_PROMPT_FILE || "prompts/automation/crash-triage-simulator.md"
-  : env.AGENT_PROMPT_FILE || "prompts/automation/crash-triage.md";
-const prompt = await Bun.file(promptFile).text();
+const promptFile = env.AGENT_PROMPT_FILE || "prompts/automation/crash-triage.md";
+const taskPrompt = await Bun.file(promptFile).text();
+const simulatorPrompt = simValidation
+  ? await Bun.file(env.SIMULATOR_PROMPT_FILE || "prompts/automation/simulator-verification.md").text()
+  : "";
+const prompt = [taskPrompt, simulatorPrompt].filter(Boolean).join("\n\n");
 console.log(
   `\n===== FULL PROMPT PASSED TO CLAUDE (${simValidation ? "sim-validation" : "investigation-only"}) =====\n${prompt}\n===== END PROMPT =====\n` +
     `(the agent also reads ${CRASH_JSON} for the crash detail printed above)\n`
@@ -308,13 +314,13 @@ console.log(
 // agent a MINIMAL env rather than a narrow denylist — drop every token/secret-ish
 // and ASC_* var (GH_TOKEN, ASC_KEY_ID/ISSUER/P8, and any other stray secret on the
 // runner), keeping only the agent's own auth. EXPO_TOKEN is kept ONLY in
-// sim-validation, where the agent must drive `eas simulator` itself.
+// sim-validation, where the agent must drive the remote simulator itself.
 //   Investigation-only → acceptEdits (file edits, no shell).
 //   Sim-validation → bypassPermissions (needs shell for eas-cli). This is the
 //   weakest point: shell + EXPO_TOKEN on untrusted-ish input. It's mitigated by
 //   the tester-email allowlist (only allowlisted testers' feedback is triaged),
-//   SIM_VALIDATION being off in prod, and mandatory human PR review — but keep
-//   sim-validation for trusted/self-reported crashes.
+//   the tester allowlist, a robot-user EXPO_TOKEN, capped sessions, wrapper
+//   cleanup, and mandatory human PR review.
 const agentEnv: Record<string, string | undefined> = {};
 for (const [k, v] of Object.entries(env)) {
   if (k === "CLAUDE_CODE_OAUTH_TOKEN") {
@@ -328,18 +334,17 @@ for (const [k, v] of Object.entries(env)) {
   if (/TOKEN|SECRET|KEY|PASSWORD|CREDENTIAL/i.test(k) || /^ASC_/i.test(k)) continue;
   agentEnv[k] = v;
 }
-const agent = Bun.spawn(
-  [...CLAUDE, "-p", prompt, "--permission-mode", simValidation ? "bypassPermissions" : "acceptEdits", "--output-format", "text"],
-  { stdout: "inherit", stderr: "inherit", env: agentEnv }
-);
-const agentRc = await agent.exited;
-console.log(`▸ Agent finished (rc=${agentRc}).`);
-
-// safety net: never leave a Simulator session running (it bills until stopped)
-if (simValidation) {
-  console.log("▸ Ensuring the EAS Simulator session is stopped…");
-  await sh([...EAS, "simulator:stop"], { allowFail: true });
+let agentRc = 1;
+try {
+  const agent = Bun.spawn(
+    [...CLAUDE, "-p", prompt, "--permission-mode", simValidation ? "bypassPermissions" : "acceptEdits", "--output-format", "text"],
+    { stdout: "inherit", stderr: "inherit", env: agentEnv }
+  );
+  agentRc = await agent.exited;
+} finally {
+  if (simValidation) await stopAgentSimulator({ env });
 }
+console.log(`▸ Agent finished (rc=${agentRc}).`);
 
 // guarantee an analysis file
 if (!(await Bun.file(ANALYSIS).exists())) {
@@ -347,6 +352,10 @@ if (!(await Bun.file(ANALYSIS).exists())) {
     ANALYSIS,
     `# Crash triage — ${feedbackId || "(no id)"}\n\nThe agent did not produce an analysis (rc=${agentRc}); manual investigation needed.\n\nCrash: ${feedbackUrl || "<no url>"} (id: ${feedbackId || "n/a"})\n`
   );
+}
+if (agentRc !== 0) {
+  console.error(`✗ Agent failed (rc=${agentRc}) — refusing to publish partial or unverified changes.`);
+  process.exit(1);
 }
 
 if (env.DRY_RUN === "1") {
@@ -410,27 +419,30 @@ console.log(`▸ Pushed ${branch}.`);
 // ---- open PR via REST ----
 const title = codeChanged ? `Crash triage + proposed fix: ${feedbackId || shortId}` : `Crash triage: ${feedbackId || shortId}`;
 const body =
+  `Re: #${triageIssue!.number} — ${triageIssue!.htmlUrl}\n\n` +
   `Automated triage of private TestFlight crash feedback \`${feedbackId || shortId}\`.\n\n` +
   `Tester identity, App Store Connect URLs, crash logs, device details, simulator session URLs, and the analysis are intentionally omitted from this public PR. Review the private \`crash-triage-summary\` workflow artifact for those details.\n\n` +
   `---\n_Automated triage. **Not auto-merged** — review before merging._ Code change proposed: **${codeChanged ? "yes" : "no"}**.`;
 
-const res = await gh(`/pulls`, { method: "POST", body: JSON.stringify({ title, head: branch, base: env.PR_BASE || "main", body }) });
-if (res.status === 201) {
-  const j: any = await res.json();
-  console.log(`▸ Opened PR: ${j.html_url}`);
-  // Label with the crash signature so the next report of this crash dedups here.
-  if (signature) {
-    await gh(`/issues/${j.number}/labels`, { method: "POST", body: JSON.stringify({ labels: [`${CRASH_LABEL_PREFIX}${signature}`] }) });
-    console.log(`▸ Labelled ${CRASH_LABEL_PREFIX}${signature} for dedup.`);
-  }
-} else if (res.status === 422) {
-  const existing: any = await (await gh(`/pulls?head=${owner}:${branch}&state=open`)).json();
-  if (existing[0]) console.log(`▸ PR already open for this crash (branch refreshed): ${existing[0].html_url}`);
-  else {
-    console.error(`✗ 422 but no open PR found: ${JSON.stringify(existing)}`);
-    process.exit(1);
-  }
-} else {
-  console.error(`✗ PR create failed (HTTP ${res.status}): ${await res.text()}`);
-  process.exit(1);
+const pullRequest = await createOrFindPullRequest({
+  gh,
+  owner,
+  repo,
+  title,
+  head: branch,
+  base: env.PR_BASE || "main",
+  body,
+});
+console.log(
+  pullRequest.created
+    ? `▸ Opened and publicly verified PR: ${pullRequest.htmlUrl}`
+    : `▸ PR already open and publicly verified (branch refreshed): ${pullRequest.htmlUrl}`
+);
+// Label with the crash signature so the next report of this crash dedups here.
+if (signature) {
+  await gh(`/issues/${pullRequest.number}/labels`, {
+    method: "POST",
+    body: JSON.stringify({ labels: [`${CRASH_LABEL_PREFIX}${signature}`] }),
+  });
+  console.log(`▸ Labelled ${CRASH_LABEL_PREFIX}${signature} for dedup.`);
 }

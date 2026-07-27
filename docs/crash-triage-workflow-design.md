@@ -62,28 +62,31 @@ So after the agent produces a fix on a branch:
 `eas.json` already has the right profiles: `sim` (static iOS simulator build),
 `development-simulator` (dev client, internal), `production`.
 
-## 3. Simulator validation — argent on a Linux runner
+## 3. Simulator validation — agent-device on a Linux runner
 
 Per your ask, the validation job is a `custom` job on `runs_on: linux-medium`
 that drives an **EAS cloud simulator** (EAS Simulator is itself the remote iOS
 device — the Linux runner is just the controller host):
 
 ```bash
-npx --yes eas-cli@latest simulator:availability --json          # gated/experimental — check first
-npx --yes eas-cli@latest simulator:start --platform ios --type argent --non-interactive
-npx --yes eas-cli@latest simulator:exec <argent drive the app, reproduce the crash repro steps, screenshot>
-npx --yes eas-cli@latest simulator:stop
+eas simulator:availability --json
+eas simulator:start --platform ios --type agent-device --max-duration-minutes 30 --non-interactive
+eas simulator:exec agent-device <open/snapshot/press/screenshot commands>
+eas simulator:stop
 ```
 
 - Install the fix build via `install-from-source <eas-build-url>` (native path)
   or install the existing dev build + apply the update (JS path).
 - The agent uses the crash's repro (from the tester feedback, if any) to confirm
   the app no longer crashes on that path, and captures a screenshot as evidence.
-- ⚠️ **EAS Simulator is limited-access / experimental** — must confirm
-  `simulator:availability` is `true` on the account, else this step can't run.
+- EAS Simulator availability is checked before the agent receives simulator
+  access; unavailable accounts fall back to static verification.
 - ⚠️ Driving a nested `eas simulator` session from inside a workflow job needs an
   **`EXPO_TOKEN`** (robot access token) in the job env — built-in workflow auth
-  doesn't automatically cover ad-hoc `npx eas-cli` calls.
+  doesn't automatically cover simulator CLI calls.
+- The worker installs pinned EAS CLI and agent-device versions and verifies that
+  the pinned Expo plugin contains the `eas-simulator` skill. Sessions are capped
+  and the wrapper stops any session left behind.
 
 ## 4. The agent job (the core)
 
@@ -124,14 +127,25 @@ investigate:
   `marketplace add` / `plugin install` names to reproduce them in CI).
 - The agent works on a fresh branch, never touches `main`, and only ever opens a
   **PR** — a human merges.
+- After the trust and storm-control gates pass, the wrapper creates a public
+  GitHub tracking issue without private TestFlight data and updates a managed
+  section of its body with `${{ workflow.url }}`. Re-runs find the same issue by
+  a hashed source marker instead of creating duplicates.
+- A successful authenticated GitHub API response is not enough: the wrapper
+  also fetches each issue and PR without credentials before reporting success.
+  This catches writes suppressed by account suspension or GitHub spam filters.
 
 ## 5. PR + links
 
-The agent (or a follow-on `github-comment` job) opens the PR via `gh` and posts:
+The wrapper opens the PR via the GitHub API and posts:
 - summary of root cause + the fix,
 - the sim-validation screenshot / result,
 - **preview build link** (native path) or **update URL/QR** (JS path),
-- a link back to the ASC crash feedback.
+- `Re: #<issue>` linking back to the public tracking issue without auto-closing
+  it.
+
+Tester identity, App Store Connect URLs, crash logs, device details, simulator
+session URLs, and private analysis stay in the access-controlled EAS artifact.
 
 Needs a GitHub token with PR write (the EAS↔GitHub linkage may provide one; else
 a stored PAT/GitHub App secret).

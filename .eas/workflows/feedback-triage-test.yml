@@ -19,6 +19,10 @@ on:
         description: Feedback id or App Store Connect URL (blank = latest screenshot feedback)
         type: string
         default: ''
+      simulator_validation:
+        description: Use EAS Simulator for applicable app verification ('1' to enable)
+        type: string
+        default: '1'
 jobs:
   triage:
     name: Resolve TestFlight feedback with Claude (test)
@@ -27,8 +31,12 @@ jobs:
     env:
       REPO_SLUG: brentvatne/euxy
       AGENT_PROMPT_FILE: prompts/automation/feedback-triage.md
+      SIMULATOR_PROMPT_FILE: prompts/automation/simulator-verification.md
+      SIMULATOR_VALIDATION: ${{ inputs.simulator_validation }}
+      SIMULATOR_ARTIFACT_DIR: .eas/feedback-triage/sim
       ALLOWED_FEEDBACK_EMAILS: brentvatne@gmail.com
       DISABLE_AUTOUPDATER: '1'
+      WORKFLOW_URL: ${{ workflow.url }}
       INPUT_FEEDBACK: ${{ inputs.feedback }}
       UPDATE_CHANNEL: preview
     steps:
@@ -48,3 +56,4 @@ jobs:
             .eas/feedback-triage/ANALYSIS.md
             .eas/feedback-triage/feedback.json
             .eas/feedback-triage/PUBLIC_PR.json
+            .eas/feedback-triage/sim/**/*

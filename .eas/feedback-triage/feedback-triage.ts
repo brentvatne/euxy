@@ -17,9 +17,14 @@
  *   UPDATE_CHANNEL               — EAS Update channel (must be "preview")
  *   SUBMIT_PROFILE               — eas.json submit profile for the ASC key (default production)
  *   AGENT_PROMPT_FILE            — Markdown prompt path
+ *   SIMULATOR_VALIDATION         — '1' to enable remote iOS verification
+ *   WORKFLOW_URL                 — current EAS workflow run URL
  *   GIT_BIN / DRY_RUN
  */
 import { parsePublicPr } from "./public-pr";
+import { prepareAgentSimulator, stopAgentSimulator } from "../shared/agent-simulator";
+import { createOrFindPullRequest } from "../shared/github-pull-request";
+import { ensureTriageIssue } from "../shared/github-triage-issue";
 import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
 
 const env = process.env;
@@ -113,9 +118,32 @@ if (allowlist.length) {
   console.log(`▸ Tester ${testerEmail} is allowlisted → proceeding.`);
 }
 
-// ---- 2. run the agent (minimal env, acceptEdits — no shell, no secrets) ----
+const triageIssue =
+  env.DRY_RUN === "1"
+    ? null
+    : await ensureTriageIssue({
+        gh,
+        kind: "feedback",
+        owner,
+        repo,
+        sourceKey: String(feedback.id || feedbackArg || shortId),
+        workflowUrl: req("WORKFLOW_URL"),
+      });
+if (triageIssue) {
+  console.log(`▸ Tracking triage in GitHub issue #${triageIssue.number}: ${triageIssue.htmlUrl}`);
+}
+
+// ---- 2. run the agent (simulator shell only after the trusted tester gate) ----
+const simValidation = await prepareAgentSimulator({ env });
+if (simValidation) {
+  await sh(["mkdir", "-p", env.SIMULATOR_ARTIFACT_DIR || `${DIR}/sim`]);
+}
 const promptFile = env.AGENT_PROMPT_FILE || "prompts/automation/feedback-triage.md";
-const prompt = await Bun.file(promptFile).text();
+const taskPrompt = await Bun.file(promptFile).text();
+const simulatorPrompt = simValidation
+  ? await Bun.file(env.SIMULATOR_PROMPT_FILE || "prompts/automation/simulator-verification.md").text()
+  : "";
+const prompt = [taskPrompt, simulatorPrompt].filter(Boolean).join("\n\n");
 console.log(`\n===== FULL PROMPT PASSED TO CLAUDE =====\n${prompt}\n===== END PROMPT =====\n(the agent also reads ${FEEDBACK_JSON})\n`);
 const agentEnv: Record<string, string | undefined> = {};
 for (const [k, v] of Object.entries(env)) {
@@ -123,18 +151,34 @@ for (const [k, v] of Object.entries(env)) {
     agentEnv[k] = v;
     continue;
   }
+  if (k === "EXPO_TOKEN") {
+    if (simValidation) agentEnv[k] = v;
+    continue;
+  }
   if (/TOKEN|SECRET|KEY|PASSWORD|CREDENTIAL/i.test(k) || /^(ASC_|EXPO_)/i.test(k)) continue;
   agentEnv[k] = v;
 }
-const agent = Bun.spawn([...CLAUDE, "-p", prompt, "--permission-mode", "acceptEdits", "--output-format", "text"], {
-  stdout: "inherit",
-  stderr: "inherit",
-  env: agentEnv,
-});
-const agentRc = await agent.exited;
+let agentRc = 1;
+try {
+  const agent = Bun.spawn(
+    [...CLAUDE, "-p", prompt, "--permission-mode", simValidation ? "bypassPermissions" : "acceptEdits", "--output-format", "text"],
+    {
+      stdout: "inherit",
+      stderr: "inherit",
+      env: agentEnv,
+    }
+  );
+  agentRc = await agent.exited;
+} finally {
+  if (simValidation) await stopAgentSimulator({ env });
+}
 console.log(`▸ Agent finished (rc=${agentRc}).`);
 if (!(await Bun.file(ANALYSIS).exists())) {
   await Bun.write(ANALYSIS, `# Feedback triage — ${feedback.id}\n\nThe agent produced no analysis (rc=${agentRc}); manual triage needed.\n\n> ${String(feedback.comment)}\n`);
+}
+if (agentRc !== 0) {
+  console.error(`✗ Agent failed (rc=${agentRc}) — refusing to publish partial or unverified changes.`);
+  process.exit(1);
 }
 
 if (env.DRY_RUN === "1") {
@@ -232,6 +276,7 @@ console.log(`▸ Pushed ${branch}.`);
 const title = publicPr.title;
 const verification = publicPr.howToVerify.map((step, index) => `${index + 1}. ${step}`).join("\n");
 const body =
+  `Re: #${triageIssue!.number} — ${triageIssue!.htmlUrl}\n\n` +
   `Automated triage of private TestFlight feedback.\n\n` +
   `## What changed\n\n${publicPr.whatChanged}\n\n` +
   `## Why\n\n${publicPr.why}\n\n` +
@@ -240,17 +285,17 @@ const body =
   `Tester identity, the original report, screenshots, device details, and private analysis remain in the access-controlled \`feedback-triage-summary\` workflow artifact.\n\n` +
   `---\n_Automated triage. **Not auto-merged** — review before merging._`;
 
-const res = await gh(`/pulls`, { method: "POST", body: JSON.stringify({ title, head: branch, base: env.PR_BASE || "main", body }) });
-if (res.status === 201) {
-  console.log(`▸ Opened PR: ${(await res.json()).html_url}`);
-} else if (res.status === 422) {
-  const existing: any = await (await gh(`/pulls?head=${owner}:${branch}&state=open`)).json();
-  if (existing[0]) console.log(`▸ PR already open (branch refreshed): ${existing[0].html_url}`);
-  else {
-    console.error(`✗ 422 but no open PR: ${JSON.stringify(existing)}`);
-    process.exit(1);
-  }
-} else {
-  console.error(`✗ PR create failed (HTTP ${res.status}): ${await res.text()}`);
-  process.exit(1);
-}
+const pullRequest = await createOrFindPullRequest({
+  gh,
+  owner,
+  repo,
+  title,
+  head: branch,
+  base: env.PR_BASE || "main",
+  body,
+});
+console.log(
+  pullRequest.created
+    ? `▸ Opened and publicly verified PR: ${pullRequest.htmlUrl}`
+    : `▸ PR already open and publicly verified (branch refreshed): ${pullRequest.htmlUrl}`
+);

@@ -10,7 +10,7 @@
 #
 # Requires: the App Store Connect connection AND the GitHub repo connected to the
 # EAS project (Project settings). EAS env vars (production, secret):
-#   CLAUDE_CODE_OAUTH_TOKEN ✅   GH_TOKEN ✅
+#   CLAUDE_CODE_OAUTH_TOKEN ✅   GH_TOKEN ✅   EXPO_TOKEN ✅
 #   ASC_KEY_ID / ASC_ISSUER_ID / ASC_P8 ⬜ (optional — real stack traces + tester
 #     email; without them the allowlist gate can't verify the tester and skips).
 
@@ -30,9 +30,12 @@ jobs:
     env:
       REPO_SLUG: brentvatne/euxy
       AGENT_PROMPT_FILE: prompts/automation/crash-triage.md
-      SIMULATOR_AGENT_PROMPT_FILE: prompts/automation/crash-triage-simulator.md
+      SIMULATOR_PROMPT_FILE: prompts/automation/simulator-verification.md
+      SIMULATOR_VALIDATION: '1'
+      SIMULATOR_ARTIFACT_DIR: .eas/crash-triage/sim
       ALLOWED_FEEDBACK_EMAILS: brentvatne@gmail.com
       DISABLE_AUTOUPDATER: '1'
+      WORKFLOW_URL: ${{ workflow.url }}
       FEEDBACK_ID: ${{ app_store_connect.beta_feedback.id }}
       FEEDBACK_TYPE: ${{ app_store_connect.beta_feedback.type }}
       FEEDBACK_URL: ${{ app_store_connect.beta_feedback.url }}
@@ -53,5 +56,4 @@ jobs:
           path: |
             .eas/crash-triage/ANALYSIS.md
             .eas/crash-triage/crash.json
-            .eas/crash-triage/sim-sessions.txt
             .eas/crash-triage/sim/**/*

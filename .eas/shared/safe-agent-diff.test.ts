@@ -7,7 +7,7 @@ describe("safe agent diff", () => {
     expect(
       findProtectedAutomationChanges([
         "app/index.tsx",
-        ".github/scripts/issue-triage.ts",
+        "scripts/local-development.ts",
         "prompts/README.md",
       ])
     ).toEqual([]);
@@ -18,6 +18,7 @@ describe("safe agent diff", () => {
       findProtectedAutomationChanges([
         "./.github/workflows/review.yml",
         ".eas/workflows/feedback-triage.yml",
+        ".github/scripts/setup-agent-toolchain.sh",
         "prompts/automation/feedback-triage.md",
         ".expo-code-review/agents/security.md",
         ".github/workflows/review.yml",
@@ -25,6 +26,7 @@ describe("safe agent diff", () => {
     ).toEqual([
       ".eas/workflows/feedback-triage.yml",
       ".expo-code-review/agents/security.md",
+      ".github/scripts/setup-agent-toolchain.sh",
       ".github/workflows/review.yml",
       "prompts/automation/feedback-triage.md",
     ]);

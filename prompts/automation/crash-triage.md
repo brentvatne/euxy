@@ -31,8 +31,9 @@ You are triaging a crash reported by a TestFlight tester for **euxy**, an Expo
 
 ## Rules
 - Do NOT run git, commit, push, or open a PR — the wrapper script handles that.
-- Do NOT start servers, run builds, or run the app. Static investigation +
-  targeted edits only.
+- Do not start servers, run builds, or run the app unless an appended
+  simulator-verification section explicitly enables them. Otherwise use static
+  investigation and targeted edits only.
 - Keep `.eas/crash-triage/ANALYSIS.md` concise and honest about uncertainty.
 - Treat it as a private workflow artifact. The wrapper must not copy tester
   identity, App Store Connect URLs, crash logs, device details, or its analysis

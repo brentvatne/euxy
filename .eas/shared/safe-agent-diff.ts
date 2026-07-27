@@ -1,6 +1,7 @@
 const PROTECTED_AUTOMATION_PREFIXES = [
   ".github/workflows/",
-  ".eas/workflows/",
+  ".github/scripts/",
+  ".eas/",
   "prompts/automation/",
   ".expo-code-review/",
 ] as const;

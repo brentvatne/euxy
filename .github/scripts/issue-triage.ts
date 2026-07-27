@@ -13,9 +13,12 @@
  *   ISSUE_NUMBER / ISSUE_TITLE / ISSUE_BODY / ISSUE_URL / ISSUE_AUTHOR
  *   ACCEPT_COMMENT / ACCEPT_AUTHOR — the `/accept …` comment (issue_comment only)
  *   AGENT_PROMPT_FILE              — Markdown prompt path
+ *   SIMULATOR_VALIDATION           — '1' to enable remote iOS verification
  *   GIT_BIN                        — git binary (default 'git')
  *   DRY_RUN                        — '1' to skip the PR (agent + analysis only)
  */
+import { prepareAgentSimulator, stopAgentSimulator } from "../../.eas/shared/agent-simulator";
+import { createOrFindPullRequest } from "../../.eas/shared/github-pull-request";
 import { assertSafeAgentDiff } from "../../.eas/shared/safe-agent-diff";
 
 const env = process.env;
@@ -91,36 +94,62 @@ if (!allowlist.includes(actor)) {
 console.log(`▸ Actor ${actor} is allowlisted → proceeding.`);
 
 // ---- run the agent ----
+const simValidation = await prepareAgentSimulator({ env });
+if (simValidation) {
+  await sh(["mkdir", "-p", env.SIMULATOR_ARTIFACT_DIR || `${DIR}/sim`]);
+}
 const promptFile = env.AGENT_PROMPT_FILE || "prompts/automation/issue-triage.md";
-const prompt = await Bun.file(promptFile).text();
+const taskPrompt = await Bun.file(promptFile).text();
+const simulatorPrompt = simValidation
+  ? await Bun.file(env.SIMULATOR_PROMPT_FILE || "prompts/automation/simulator-verification.md").text()
+  : "";
+const prompt = [taskPrompt, simulatorPrompt].filter(Boolean).join("\n\n");
 console.log(`\n===== FULL PROMPT PASSED TO CLAUDE =====\n${prompt}\n===== END PROMPT =====\n(the agent also reads ${ISSUE_JSON})\n`);
 // Security: issue text can be attacker-authored (a `/accept` on someone else's
 // issue), so hand the agent a minimal env — drop every token/secret-ish var and
 // all CI internals (GITHUB_TOKEN, ACTIONS_RUNTIME_TOKEN, RUNNER_*), keeping only
-// the agent's own auth. It runs acceptEdits (no shell) and has no GH_TOKEN to push.
+// the agent's own auth plus the robot EXPO_TOKEN when a trusted maintainer has
+// enabled simulator verification. It never receives GH_TOKEN.
 // Residual: CLAUDE_CODE_OAUTH_TOKEN is unavoidably reachable (the agent needs it)
-// and acceptEdits still allows file writes — so the real backstop is mandatory
-// human PR review (never auto-merged); any exfiltration attempt shows in the diff.
+// and simulator mode grants a shell. The actor gate, scoped robot token, capped
+// session, wrapper cleanup, protected automation paths, and mandatory human PR
+// review are the backstops.
 const agentEnv: Record<string, string | undefined> = {};
 for (const [k, v] of Object.entries(env)) {
   if (k === "CLAUDE_CODE_OAUTH_TOKEN") {
     agentEnv[k] = v;
     continue;
   }
+  if (k === "EXPO_TOKEN") {
+    if (simValidation) agentEnv[k] = v;
+    continue;
+  }
   if (/TOKEN|SECRET|KEY|PASSWORD|CREDENTIAL/i.test(k)) continue;
   if (/^(ACTIONS_|GITHUB_|RUNNER_)/.test(k)) continue;
   agentEnv[k] = v;
 }
-const agent = Bun.spawn([...CLAUDE, "-p", prompt, "--permission-mode", "acceptEdits", "--output-format", "text"], {
-  stdout: "inherit",
-  stderr: "inherit",
-  env: agentEnv,
-});
-const agentRc = await agent.exited;
+let agentRc = 1;
+try {
+  const agent = Bun.spawn(
+    [...CLAUDE, "-p", prompt, "--permission-mode", simValidation ? "bypassPermissions" : "acceptEdits", "--output-format", "text"],
+    {
+      stdout: "inherit",
+      stderr: "inherit",
+      env: agentEnv,
+    }
+  );
+  agentRc = await agent.exited;
+} finally {
+  if (simValidation) await stopAgentSimulator({ env });
+}
 console.log(`▸ Agent finished (rc=${agentRc}).`);
 
 if (!(await Bun.file(ANALYSIS).exists())) {
   await Bun.write(ANALYSIS, `# Issue triage — #${issue.number}\n\nThe agent did not produce an analysis (rc=${agentRc}); manual triage needed.\n\nIssue: ${issue.url}\n`);
+}
+if (agentRc !== 0) {
+  console.error(`✗ Agent failed (rc=${agentRc}) — refusing to publish partial or unverified changes.`);
+  process.exit(1);
 }
 
 if (env.DRY_RUN === "1") {
@@ -156,24 +185,21 @@ const title = codeChanged ? `Address #${issue.number}: ${issue.title}` : `Triage
 const linkLine = codeChanged ? `Closes #${issue.number}` : `Re: #${issue.number}`;
 const body = `${linkLine} — 🔗 ${issue.url}\n_Triggered: ${issue.triggeredBy}._${acceptContext ? `\n_Accept context: ${acceptContext}_` : ""}\n\n${await Bun.file(ANALYSIS).text()}\n\n---\n_Automated triage. **Not auto-merged** — review before merging._ Code change proposed: **${codeChanged ? "yes" : "no"}**.`;
 
-const res = await gh(`/pulls`, { method: "POST", body: JSON.stringify({ title: title.slice(0, 250), head: branch, base: env.PR_BASE || "main", body }) });
-let prUrl = "";
-if (res.status === 201) {
-  prUrl = (await res.json()).html_url;
-  console.log(`▸ Opened PR: ${prUrl}`);
-} else if (res.status === 422) {
-  const existing: any = await (await gh(`/pulls?head=${owner}:${branch}&state=open`)).json();
-  if (existing[0]) {
-    prUrl = existing[0].html_url;
-    console.log(`▸ PR already open for this issue (branch refreshed): ${prUrl}`);
-  } else {
-    console.error(`✗ 422 but no open PR found: ${JSON.stringify(existing)}`);
-    process.exit(1);
-  }
-} else {
-  console.error(`✗ PR create failed (HTTP ${res.status}): ${await res.text()}`);
-  process.exit(1);
-}
+const pullRequest = await createOrFindPullRequest({
+  gh,
+  owner,
+  repo,
+  title: title.slice(0, 250),
+  head: branch,
+  base: env.PR_BASE || "main",
+  body,
+});
+const prUrl = pullRequest.htmlUrl;
+console.log(
+  pullRequest.created
+    ? `▸ Opened and publicly verified PR: ${prUrl}`
+    : `▸ PR already open and publicly verified (branch refreshed): ${prUrl}`
+);
 
 // comment the PR link back on the issue
 await gh(`/issues/${issue.number}/comments`, { method: "POST", body: JSON.stringify({ body: `🤖 Opened a triage PR: ${prUrl}` }) });

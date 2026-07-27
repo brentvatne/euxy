@@ -1,8 +1,8 @@
 # Automation prompts
 
 These Markdown files are the editable prompts used by the EAS and GitHub triage
-workflows. Each workflow declares its prompt path with `AGENT_PROMPT_FILE`; crash
-simulation additionally declares `SIMULATOR_AGENT_PROMPT_FILE`.
+workflows. Each workflow declares its task prompt with `AGENT_PROMPT_FILE`.
+Simulator-capable workflows additionally append `SIMULATOR_PROMPT_FILE`.
 
 The AI code-review prompts remain under `.expo-code-review/` because
 `@expo/code-review-cli` discovers its reserved Markdown files there directly:

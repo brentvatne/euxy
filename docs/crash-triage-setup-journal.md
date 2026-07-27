@@ -153,6 +153,11 @@ got past it.*
     key. Filed Expo product feedback (docs category). Brent is now **adding
     feedback-fetch to eas-cli**, so the screenshot handler is on hold to use that
     instead of a hand-rolled ASC key.
+29. **A `201 Created` PR can still be invisible.** A fresh machine-user token
+    successfully pushed a branch and GitHub returned a PR URL, but the bot
+    account was no longer publicly resolvable and the PR was suppressed. Treat
+    an authenticated create response as provisional: fetch the resulting issue
+    or PR anonymously before logging success.
 
 ---
 

@@ -19,8 +19,9 @@ verify the result.
    - `npx tsc --noEmit` must stay clean.
    - Run the test suite if one exists (`bun test` / `npm test`) and lint if quick;
      fix what your change broke.
-   - You can't run the full iOS app here (no simulator on this runner) — verify
-     statically + with tests, and call out anything needing on-device checking.
+   - If an appended simulator-verification section is present, use it for
+     behavior/UI changes. Otherwise verify statically + with tests and call out
+     anything needing on-device checking.
 4. Write `.eas/pr-review/RESPONSE.md`:
    - **What I changed** (with `file:line`) and which feedback point it addresses.
    - **Verification** — what you ran and the result.

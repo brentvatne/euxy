@@ -26,7 +26,8 @@ accepted it for triage, so it's worth acting on.
 
 ## Rules
 - Do NOT run git, commit, push, or open a PR — the wrapper handles that.
-- Do NOT start servers or run builds. Static investigation + targeted edits only.
-  (`npx tsc --noEmit` is fine to sanity-check a change if quick.)
+- Do not start servers or run builds unless an appended simulator-verification
+  section explicitly enables them. Otherwise use static investigation and
+  targeted edits only (`npx tsc --noEmit` is fine if quick).
 - Be honest about uncertainty. "Here's a focused fix" and "this needs a product
   decision, here are the options" are both good outcomes; a confident guess isn't.

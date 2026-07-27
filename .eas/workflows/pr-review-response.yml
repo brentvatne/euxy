@@ -7,7 +7,8 @@
 # pr-review-response.yml) after it gates on the verified event author — or run
 # manually:  eas workflow:run .eas/workflows/pr-review-response.yml -F pr=12
 #
-# Uses EAS secrets CLAUDE_CODE_OAUTH_TOKEN + GH_TOKEN. No Claude token on GitHub.
+# Uses EAS secrets CLAUDE_CODE_OAUTH_TOKEN + GH_TOKEN + EXPO_TOKEN. No Claude
+# token or autonomous agent runs on GitHub.
 
 name: PR review response
 
@@ -30,6 +31,9 @@ jobs:
     env:
       REPO_SLUG: brentvatne/euxy
       AGENT_PROMPT_FILE: prompts/automation/pr-review-response.md
+      SIMULATOR_PROMPT_FILE: prompts/automation/simulator-verification.md
+      SIMULATOR_VALIDATION: '1'
+      SIMULATOR_ARTIFACT_DIR: .eas/pr-review/sim
       TRIAGE_PR_AUTHOR_ALLOWLIST: '["brentvatne","euxy-bot","github-actions[bot]"]'
       TRIAGE_REVIEWER_ALLOWLIST: '["brentvatne"]'
       DISABLE_AUTOUPDATER: '1'
@@ -43,3 +47,12 @@ jobs:
         run: bash .github/scripts/setup-agent-toolchain.sh
       - name: Respond to review feedback
         run: bun .eas/pr-review/pr-review-response.ts
+      - name: Upload response and simulator evidence
+        if: ${{ always() }}
+        uses: eas/upload_artifact
+        with:
+          type: other
+          name: pr-review-response
+          path: |
+            .eas/pr-review/RESPONSE.md
+            .eas/pr-review/sim/**/*

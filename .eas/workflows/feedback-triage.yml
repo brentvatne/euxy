@@ -27,8 +27,12 @@ jobs:
     env:
       REPO_SLUG: brentvatne/euxy
       AGENT_PROMPT_FILE: prompts/automation/feedback-triage.md
+      SIMULATOR_PROMPT_FILE: prompts/automation/simulator-verification.md
+      SIMULATOR_VALIDATION: '1'
+      SIMULATOR_ARTIFACT_DIR: .eas/feedback-triage/sim
       ALLOWED_FEEDBACK_EMAILS: brentvatne@gmail.com
       DISABLE_AUTOUPDATER: '1'
+      WORKFLOW_URL: ${{ workflow.url }}
       FEEDBACK_URL: ${{ app_store_connect.beta_feedback.url }}
       UPDATE_CHANNEL: preview
     steps:
@@ -48,3 +52,4 @@ jobs:
             .eas/feedback-triage/ANALYSIS.md
             .eas/feedback-triage/feedback.json
             .eas/feedback-triage/PUBLIC_PR.json
+            .eas/feedback-triage/sim/**/*

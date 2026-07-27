@@ -5,6 +5,8 @@ set -euo pipefail
 # in a reviewed change; never replace them with tags, ranges, or "latest".
 readonly CLAUDE_CODE_VERSION="2.1.220"
 readonly BUN_VERSION="1.3.14"
+readonly EAS_CLI_VERSION="21.3.0"
+readonly AGENT_DEVICE_VERSION="0.20.1"
 readonly EXPO_SKILLS_VERSION="1.8.5"
 readonly EXPO_SKILLS_SHA="09eb052410e7f609624cb161ea4cd9576c69cd5d"
 readonly TOOLCHAIN_TEMP_BASE="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
@@ -14,7 +16,9 @@ readonly EXPO_PLUGIN_DIR="${EXPO_SKILLS_ROOT}/plugins/expo"
 
 npm install --global --no-audit --no-fund \
   "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
-  "bun@${BUN_VERSION}"
+  "bun@${BUN_VERSION}" \
+  "eas-cli@${EAS_CLI_VERSION}" \
+  "agent-device@${AGENT_DEVICE_VERSION}"
 
 git init --quiet "${EXPO_SKILLS_ROOT}"
 git -C "${EXPO_SKILLS_ROOT}" remote add origin https://github.com/expo/skills.git
@@ -32,18 +36,27 @@ if ! grep -Fq "\"version\": \"${EXPO_SKILLS_VERSION}\"" "${EXPO_PLUGIN_DIR}/.cla
   echo "Expo plugin version mismatch at pinned commit ${EXPO_SKILLS_SHA}" >&2
   exit 1
 fi
+if [[ ! -s "${EXPO_PLUGIN_DIR}/skills/eas-simulator/SKILL.md" ]]; then
+  echo "Pinned Expo plugin is missing the eas-simulator skill" >&2
+  exit 1
+fi
 
 # EAS Workflows exposes set-env; GitHub Actions exposes GITHUB_ENV. Persist the
 # unique path without assuming that shell exports survive across workflow steps.
 if command -v set-env >/dev/null 2>&1; then
   set-env CLAUDE_PLUGIN_DIR "${EXPO_PLUGIN_DIR}"
+  set-env EAS_CLI_BIN "eas"
+  set-env AGENT_DEVICE_BIN "agent-device"
 fi
 if [[ -n "${GITHUB_ENV:-}" ]]; then
   printf 'CLAUDE_PLUGIN_DIR=%s\n' "${EXPO_PLUGIN_DIR}" >> "${GITHUB_ENV}"
+  printf 'EAS_CLI_BIN=eas\nAGENT_DEVICE_BIN=agent-device\n' >> "${GITHUB_ENV}"
 fi
 
 claude_version="$(claude --version)"
 bun_version="$(bun --version)"
+eas_version="$(eas --version)"
+agent_device_version="$(agent-device --version)"
 if [[ "${claude_version}" != "${CLAUDE_CODE_VERSION}"* ]]; then
   echo "Claude Code version mismatch: expected ${CLAUDE_CODE_VERSION}, got ${claude_version}" >&2
   exit 1
@@ -52,5 +65,14 @@ if [[ "${bun_version}" != "${BUN_VERSION}" ]]; then
   echo "Bun version mismatch: expected ${BUN_VERSION}, got ${bun_version}" >&2
   exit 1
 fi
-printf 'Claude Code %s\nBun %s\nExpo skills %s (%s)\n' \
-  "${claude_version}" "${bun_version}" "${EXPO_SKILLS_VERSION}" "${EXPO_SKILLS_SHA}"
+if [[ "${eas_version}" != "eas-cli/${EAS_CLI_VERSION}"* ]]; then
+  echo "EAS CLI version mismatch: expected ${EAS_CLI_VERSION}, got ${eas_version}" >&2
+  exit 1
+fi
+if [[ "${agent_device_version}" != "${AGENT_DEVICE_VERSION}" ]]; then
+  echo "agent-device version mismatch: expected ${AGENT_DEVICE_VERSION}, got ${agent_device_version}" >&2
+  exit 1
+fi
+printf 'Claude Code %s\nBun %s\nEAS CLI %s\nagent-device %s\nExpo skills %s (%s; eas-simulator present)\n' \
+  "${claude_version}" "${bun_version}" "${eas_version}" "${agent_device_version}" \
+  "${EXPO_SKILLS_VERSION}" "${EXPO_SKILLS_SHA}"

@@ -15,8 +15,12 @@
  *        (default ["brentvatne","euxy-bot","github-actions[bot]"]),
  *      TRIAGE_REVIEWER_ALLOWLIST (default ["brentvatne"]),
  *      AGENT_PROMPT_FILE (Markdown prompt path),
+ *      SIMULATOR_VALIDATION ('1' enables remote iOS verification),
  *      MAX_ITERS (default 3), GIT_BIN, DRY_RUN.
  */
+import { existsSync } from "node:fs";
+
+import { prepareAgentSimulator, stopAgentSimulator } from "../shared/agent-simulator";
 import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
 
 const env = process.env;
@@ -135,18 +139,47 @@ for (const [k, v] of Object.entries(env)) {
 await sh(["bun", "install", "--ignore-scripts"], { cwd: WORK, allowFail: true, env: cleanEnv });
 
 // ---- run the agent in the clone (shell to verify; secrets stripped) ----
+const simValidation = await prepareAgentSimulator({ cwd: WORK, env });
+if (simValidation) {
+  await sh(["mkdir", "-p", env.SIMULATOR_ARTIFACT_DIR || ".eas/pr-review/sim"], { cwd: WORK });
+}
 const promptFile = env.AGENT_PROMPT_FILE || "prompts/automation/pr-review-response.md";
-const prompt = await Bun.file(promptFile).text();
+const taskPrompt = await Bun.file(promptFile).text();
+const simulatorPrompt = simValidation
+  ? await Bun.file(env.SIMULATOR_PROMPT_FILE || "prompts/automation/simulator-verification.md").text()
+  : "";
+const prompt = [taskPrompt, simulatorPrompt].filter(Boolean).join("\n\n");
 const agentEnv: Record<string, string | undefined> = {};
 for (const [k, v] of Object.entries(env)) {
   if (k === "CLAUDE_CODE_OAUTH_TOKEN") { agentEnv[k] = v; continue; }
+  if (k === "EXPO_TOKEN") {
+    if (simValidation) agentEnv[k] = v;
+    continue;
+  }
   if (/TOKEN|SECRET|KEY|PASSWORD|CREDENTIAL/i.test(k) || /^(ASC_|EXPO_)/i.test(k)) continue;
   agentEnv[k] = v;
 }
 console.log(`\n===== FULL PROMPT PASSED TO CLAUDE =====\n${prompt}\n===== END PROMPT =====\n`);
-const agent = Bun.spawn([...CLAUDE, "-p", prompt, "--permission-mode", "bypassPermissions", "--output-format", "text"], { stdout: "inherit", stderr: "inherit", env: agentEnv, cwd: WORK });
-const agentRc = await agent.exited;
+let agentRc = 1;
+try {
+  const agent = Bun.spawn([...CLAUDE, "-p", prompt, "--permission-mode", "bypassPermissions", "--output-format", "text"], {
+    stdout: "inherit",
+    stderr: "inherit",
+    env: agentEnv,
+    cwd: WORK,
+  });
+  agentRc = await agent.exited;
+} finally {
+  if (simValidation) await stopAgentSimulator({ cwd: WORK, env });
+}
 console.log(`▸ Agent finished (rc=${agentRc}).`);
+await sh(["mkdir", "-p", ".eas/pr-review"]);
+if (await Bun.file(`${WORK}/.eas/pr-review/RESPONSE.md`).exists()) {
+  await Bun.write(".eas/pr-review/RESPONSE.md", await Bun.file(`${WORK}/.eas/pr-review/RESPONSE.md`).text());
+}
+if (existsSync(`${WORK}/.eas/pr-review/sim`)) {
+  await sh(["cp", "-R", `${WORK}/.eas/pr-review/sim`, ".eas/pr-review/"]);
+}
 // A failed agent run may have left partial/unverified edits — never commit those.
 if (agentRc !== 0) {
   await gh(`/issues/${prNumber}/comments`, { method: "POST", body: JSON.stringify({ body: `${MARKER} (${iters + 1}/${MAX_ITERS}): the agent exited non-zero (rc=${agentRc}) — nothing pushed, needs a human.` }) });

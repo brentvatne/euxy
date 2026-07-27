@@ -6,9 +6,9 @@
 # Then it runs the Claude agent (with the expo skills) to investigate and open a
 # PR — same shape as the TestFlight crash-triage flow. Never auto-merges.
 #
-# Setup: add CLAUDE_CODE_OAUTH_TOKEN as a GitHub Actions repository secret
-# (Settings → Secrets and variables → Actions). The built-in GITHUB_TOKEN handles
-# the branch push + PR (no PAT needed).
+# Setup: add CLAUDE_CODE_OAUTH_TOKEN and the scoped robot EXPO_TOKEN as GitHub
+# Actions repository secrets. The built-in GITHUB_TOKEN handles the branch push
+# + PR (no GitHub PAT needed).
 
 name: Issue triage
 
@@ -56,10 +56,14 @@ jobs:
       - name: Triage the issue
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           GH_TOKEN: ${{ github.token }}
           REPO_SLUG: ${{ github.repository }}
           EVENT_NAME: ${{ github.event_name }}
           AGENT_PROMPT_FILE: prompts/automation/issue-triage.md
+          SIMULATOR_PROMPT_FILE: prompts/automation/simulator-verification.md
+          SIMULATOR_VALIDATION: '1'
+          SIMULATOR_ARTIFACT_DIR: .github/issue-triage/sim
           TRIAGE_ALLOWLIST: ${{ vars.TRIAGE_ALLOWLIST || '["brentvatne"]' }}
           # passed via env (never interpolated into the shell) to avoid injection
           ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -78,4 +82,5 @@ jobs:
           path: |
             .github/issue-triage/ANALYSIS.md
             .github/issue-triage/issue.json
+            .github/issue-triage/sim/**/*
           if-no-files-found: ignore

@@ -45,6 +45,13 @@ example
 # EAS Simulator session (carries a token)
 .env.eas-simulator
 
+# Runtime-only simulator verification artifacts
+.eas/crash-triage/sim-sessions.txt
+.eas/crash-triage/sim/
+.eas/feedback-triage/sim/
+.github/issue-triage/sim/
+.eas/pr-review/sim/
+
 # --- .easignore addendum ---
 # This file REPLACES .gitignore for EAS uploads (and is the only filter under
 # EAS_NO_VCS). Keep it a superset of .gitignore's sensitive entries.
