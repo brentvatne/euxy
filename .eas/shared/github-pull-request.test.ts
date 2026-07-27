@@ -15,7 +15,7 @@ const request = {
   title: "Fix the pattern menu",
   head: "feedback-triage/abc",
   base: "main",
-  body: "Re: #16",
+  body: "Closes #16",
 };
 
 describe("GitHub pull requests", () => {

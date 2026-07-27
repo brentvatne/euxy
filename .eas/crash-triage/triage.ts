@@ -389,8 +389,8 @@ if (!owner || !repo) {
 const shortId = (feedbackId || String(Date.now())).replace(/[^a-zA-Z0-9]/g, "").slice(0, 12) || String(Date.now());
 const branch = `crash-triage/${signature || shortId}`;
 
-await sh([GIT, "config", "user.name", "euxy crash-triage bot"]);
-await sh([GIT, "config", "user.email", "crash-triage@users.noreply.github.com"]);
+await sh([GIT, "config", "user.name", "notbrent"]);
+await sh([GIT, "config", "user.email", "16714793+notbrent@users.noreply.github.com"]);
 await sh([GIT, "checkout", "-B", branch]);
 await sh([GIT, "add", "-A"]);
 
@@ -418,8 +418,9 @@ console.log(`▸ Pushed ${branch}.`);
 
 // ---- open PR via REST ----
 const title = codeChanged ? `Crash triage + proposed fix: ${feedbackId || shortId}` : `Crash triage: ${feedbackId || shortId}`;
+const linkLine = codeChanged ? `Closes #${triageIssue!.number}` : `Re: #${triageIssue!.number}`;
 const body =
-  `Re: #${triageIssue!.number} — ${triageIssue!.htmlUrl}\n\n` +
+  `${linkLine} — ${triageIssue!.htmlUrl}\n\n` +
   `Automated triage of private TestFlight crash feedback \`${feedbackId || shortId}\`.\n\n` +
   `Tester identity, App Store Connect URLs, crash logs, device details, simulator session URLs, and the analysis are intentionally omitted from this public PR. Review the private \`crash-triage-summary\` workflow artifact for those details.\n\n` +
   `---\n_Automated triage. **Not auto-merged** — review before merging._ Code change proposed: **${codeChanged ? "yes" : "no"}**.`;

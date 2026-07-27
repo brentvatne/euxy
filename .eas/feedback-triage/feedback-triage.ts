@@ -200,8 +200,8 @@ if (!isRepo) {
   await sh([GIT, "fetch", "-q", "--depth=1", "origin", base]);
   await sh([GIT, "reset", "--mixed", "FETCH_HEAD"]);
 }
-await sh([GIT, "config", "user.name", "euxy feedback-triage bot"]);
-await sh([GIT, "config", "user.email", "feedback-triage@users.noreply.github.com"]);
+await sh([GIT, "config", "user.name", "notbrent"]);
+await sh([GIT, "config", "user.email", "16714793+notbrent@users.noreply.github.com"]);
 await sh([GIT, "checkout", "-B", branch]);
 await sh([GIT, "add", "-A"]);
 const staged = await sh([GIT, "diff", "--cached", "--name-only"]);
@@ -275,8 +275,9 @@ await sh([GIT, "push", "-f", `https://x-access-token:${GH_TOKEN}@github.com/${ow
 console.log(`▸ Pushed ${branch}.`);
 const title = publicPr.title;
 const verification = publicPr.howToVerify.map((step, index) => `${index + 1}. ${step}`).join("\n");
+const linkLine = codeChanged ? `Closes #${triageIssue!.number}` : `Re: #${triageIssue!.number}`;
 const body =
-  `Re: #${triageIssue!.number} — ${triageIssue!.htmlUrl}\n\n` +
+  `${linkLine} — ${triageIssue!.htmlUrl}\n\n` +
   `Automated triage of private TestFlight feedback.\n\n` +
   `## What changed\n\n${publicPr.whatChanged}\n\n` +
   `## Why\n\n${publicPr.why}\n\n` +

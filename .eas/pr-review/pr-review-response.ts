@@ -12,7 +12,7 @@
  * Env: CLAUDE_CODE_OAUTH_TOKEN, GH_TOKEN, REPO_SLUG (req); INPUT_PR (req),
  *      INPUT_REVIEW_ID (optional),
  *      TRIAGE_PR_AUTHOR_ALLOWLIST
- *        (default ["brentvatne","euxy-bot","github-actions[bot]"]),
+ *        (default ["brentvatne","notbrent","github-actions[bot]"]),
  *      TRIAGE_REVIEWER_ALLOWLIST (default ["brentvatne"]),
  *      AGENT_PROMPT_FILE (Markdown prompt path),
  *      SIMULATOR_VALIDATION ('1' enables remote iOS verification),
@@ -27,7 +27,8 @@ const env = process.env;
 const GIT = env.GIT_BIN || "git";
 const CLAUDE = ["claude", ...(env.CLAUDE_PLUGIN_DIR ? ["--plugin-dir", env.CLAUDE_PLUGIN_DIR] : [])];
 const MAX_ITERS = Number(env.MAX_ITERS ?? "3");
-const BOT_NAME = "euxy review-response bot";
+const BOT_NAME = "notbrent";
+const BOT_EMAIL = "16714793+notbrent@users.noreply.github.com";
 const MARKER = "🤖 Auto-review-response";
 const TRIAGE_PREFIXES = ["crash-triage/", "issue-triage/", "feedback-triage/"];
 const WORK = "/tmp/euxy-pr-review";
@@ -56,7 +57,7 @@ function loginAllowlist(name: string, fallback: string[]): string[] {
 }
 const prAuthorAllowlist = loginAllowlist("TRIAGE_PR_AUTHOR_ALLOWLIST", [
   "brentvatne",
-  "euxy-bot",
+  "notbrent",
   "github-actions[bot]",
 ]);
 const reviewerAllowlist = loginAllowlist("TRIAGE_REVIEWER_ALLOWLIST", ["brentvatne"]);
@@ -190,7 +191,7 @@ if (env.DRY_RUN === "1") { console.log("▸ DRY_RUN=1 → not pushing."); proces
 
 // ---- commit + push to the PR branch (feedback/RESPONSE are under a gitignored path) ----
 await sh([GIT, "-C", WORK, "config", "user.name", BOT_NAME]);
-await sh([GIT, "-C", WORK, "config", "user.email", "review-response@users.noreply.github.com"]);
+await sh([GIT, "-C", WORK, "config", "user.email", BOT_EMAIL]);
 await sh([GIT, "-C", WORK, "add", "-A"]);
 // Never commit the transient feedback/response files (the PR branch predates the
 // gitignore entry for them) — keep only the agent's actual code changes.
