@@ -47,3 +47,8 @@ example
 
 # Internal tooling notes (carries a capability URL — purged from history 2026-07-25)
 SETUP-TRACING.md
+
+# Local agent tooling (session hooks/skills — never commit; a committed .codex/hooks.json
+# auto-runs scripts for anyone who checks out the repo)
+.agents/
+.codex/
