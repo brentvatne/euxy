@@ -74,8 +74,9 @@ export default function SequencerScreen() {
     initialRender.current = false;
   }, []);
 
-  // The playhead runs on under a full-detent Lane Editor sheet or another tab;
-  // the strips stop painting while nobody can see them (principle 6's spirit).
+  // The playhead runs on under the Lane Editor / Tempo sheets (still this
+  // tab, just covered); it stops once another tab is actually up and nobody
+  // can see the strips (principle 6's spirit).
   const screenFocused = useScreenFocused();
 
   // Per-route TTI for EAS Observe.
@@ -111,13 +112,15 @@ export default function SequencerScreen() {
   const onMenuAction = (action: PatternMenuAction) => {
     switch (action) {
       case 'new':
-        router.push('/new-pattern');
+        // Tagged so useScreenFocused can tell this sheet apart from the same
+        // route pushed by the Patterns tab (src/components/ui/use-screen-focused.ts).
+        router.push({ pathname: '/new-pattern', params: { from: 'sequencer' } });
         break;
       case 'rename':
         renamePattern();
         break;
       case 'icon':
-        router.push('/change-icon');
+        router.push({ pathname: '/change-icon', params: { from: 'sequencer' } });
         break;
       case 'share':
         router.push('/share-pattern');
