@@ -33,6 +33,10 @@ on:
         description: Use EAS Simulator for applicable app verification ('1' to enable)
         type: string
         default: '1'
+      public_simulator_evidence:
+        description: Publish selected post-change simulator evidence to EAS Hosting ('1' to enable)
+        type: string
+        default: '1'
 
 jobs:
   triage:
@@ -44,6 +48,7 @@ jobs:
       AGENT_PROMPT_FILE: prompts/automation/crash-triage.md
       SIMULATOR_PROMPT_FILE: prompts/automation/simulator-verification.md
       SIMULATOR_ARTIFACT_DIR: .eas/crash-triage/sim
+      PUBLIC_SIMULATOR_EVIDENCE: ${{ inputs.public_simulator_evidence }}
       ALLOWED_FEEDBACK_EMAILS: brentvatne@gmail.com
       DISABLE_AUTOUPDATER: '1'
       WORKFLOW_URL: ${{ workflow.url }}

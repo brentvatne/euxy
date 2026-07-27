@@ -32,11 +32,47 @@ Record why you skipped it in the workflow's analysis/response file.
 
 ## Evidence
 
-- Put screenshots, logs, or recordings under the directory named by
-  `SIMULATOR_ARTIFACT_DIR`.
-- Capture evidence of the final behavior. Reproduce the old behavior before
-  editing when practical and safe; otherwise state what was verified after the
-  change.
+- Keep all evidence under the directory named by `SIMULATOR_ARTIFACT_DIR`.
+- The euxy app does not display sensitive data, so simulator evidence is
+  public-safe. Whenever you test something in the simulator, capture and publish
+  the useful evidence even for analysis-only outcomes or changes outside app
+  code.
+- Before editing, reproduce the existing behavior when possible and capture its
+  state at `$SIMULATOR_ARTIFACT_DIR/before.png`:
+
+  `eas simulator:exec agent-device screenshot "$SIMULATOR_ARTIFACT_DIR/before.png"`
+
+- When the before-change behavior involves interaction, timing, animation, or
+  navigation, record the complete reproduction as
+  `$SIMULATOR_ARTIFACT_DIR/before.mp4`:
+
+  `eas simulator:exec agent-device record start "$SIMULATOR_ARTIFACT_DIR/before.mp4" --max-size 1024`
+
+  `eas simulator:exec agent-device record stop`
+
+- After editing or completing the investigation, capture the final state at
+  `$SIMULATOR_ARTIFACT_DIR/final.png`:
+
+  `eas simulator:exec agent-device screenshot "$SIMULATOR_ARTIFACT_DIR/final.png"`
+
+- Before taking either still screenshot, wait until navigation, layout, and
+  animations have settled unless the transient state itself is under test.
+  Recordings may include those transitions, but stills must represent a stable
+  rendered frame.
+- For behavior involving interaction, timing, animation, or navigation, record
+  the complete after-change verification pass unchanged. Start immediately
+  before the verification steps, stop immediately after the expected result,
+  and use `$SIMULATOR_ARTIFACT_DIR/verification.mp4`:
+
+  `eas simulator:exec agent-device record start "$SIMULATOR_ARTIFACT_DIR/verification.mp4" --max-size 1024`
+
+  `eas simulator:exec agent-device record stop`
+
+  Record the complete reproduction/verification interactions, but stop while
+  reading code, building, or waiting so the evidence remains easy to review.
+- The public evidence page includes every fixed evidence file that exists:
+  `before.png`, `before.mp4`, `final.png`, and `verification.mp4`. `final.png`
+  is required to publish a page; the other three are optional.
 - In the workflow's analysis/response file, record the interaction performed,
   expected and observed results, artifact paths, and whether verification passed.
 - If the change needs a native rebuild or cannot be exercised reliably, do not

@@ -38,7 +38,15 @@
 
 - [ ] Redact tester email, screenshots, App Store Connect URLs, crash logs, device details, and private analysis before creating public resources.
 - [ ] Put only a minimal tracking summary in the GitHub issue.
-- [ ] Keep raw reports and simulator artifacts in private workflow artifacts.
+- [ ] Keep raw reports and the complete raw simulator artifact set in private
+      workflow artifacts.
+- [ ] Publish only explicitly selected, project-approved simulator evidence;
+      before/after captures are appropriate when the simulated app contains no
+      sensitive data. Validate
+      fixed filenames, regular files, magic bytes, dimensions, size, host, and
+      exact unauthenticated public readback.
+- [ ] Never publish tester screenshots, crash details, logs, private URLs, or
+      simulator session credentials as review evidence.
 - [ ] Do not let model output choose labels, assignees, reviewers, or external recipients without validation.
 
 ## Publishing and verification

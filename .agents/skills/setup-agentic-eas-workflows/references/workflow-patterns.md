@@ -158,3 +158,26 @@ The wrapper should:
 6. redact `EXPO_TOKEN` from all captured output.
 
 Use a unique temporary directory under the runner-provided temp base. Do not assume a fixed shared `/tmp` path or place session credentials in a publishable directory.
+
+## Public simulator evidence
+
+Keep the raw evidence directory private. When an issue or PR benefits from
+visual proof, select fixed filenames such as `before.png`, `before.mp4`,
+`final.png`, and `verification.mp4`. For apps whose simulator contains no
+sensitive data, publish every available before/after capture whenever simulator
+testing occurred, including analysis-only outcomes. A trusted wrapper should:
+
+1. reject symlinks, unknown formats, oversized media, and unexpected image
+   dimensions;
+2. build a minimal static bundle that contains no agent-authored application
+   code or local `.env` files;
+3. create an immutable EAS Hosting preview deployment without an alias or
+   `--prod`;
+4. require same-origin `https://*.expo.app` URLs;
+5. fetch the page and media without credentials and compare the public bytes to
+   the selected local files; and
+6. place only those verified URLs in managed issue/PR evidence blocks.
+
+Record bounded before/after passes immediately around the reproduction and
+expected result. Exclude idle build/debugging time so the complete recordings
+remain useful to reviewers.

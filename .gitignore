@@ -63,6 +63,7 @@ SETUP-TRACING.md
 .eas/feedback-triage/ANALYSIS.md
 .eas/feedback-triage/PUBLIC_PR.json
 .eas/feedback-triage/sim/
+.eas/public-evidence-site/dist/
 .github/issue-triage/issue.json
 .github/issue-triage/ANALYSIS.md
 .github/issue-triage/sim/

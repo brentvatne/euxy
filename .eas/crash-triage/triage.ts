@@ -20,6 +20,7 @@
  *   GIT_BIN                        — git binary (default 'git'; local: /usr/bin/git)
  *   DRY_RUN                        — '1' to skip the PR (agent + analysis only)
  *   SIMULATOR_VALIDATION           — '1' to enable remote iOS verification
+ *   PUBLIC_SIMULATOR_EVIDENCE      — '1' to publish selected before/after evidence
  *   EXPO_TOKEN                     — robot eas-cli auth (required for simulator)
  *   WORKFLOW_URL                   — current EAS workflow run URL
  *   AGENT_PROMPT_FILE / SIMULATOR_PROMPT_FILE — Markdown prompt paths
@@ -35,6 +36,10 @@ import { createSign, createHash } from "node:crypto";
 import { prepareAgentSimulator, stopAgentSimulator } from "../shared/agent-simulator";
 import { createOrFindPullRequest } from "../shared/github-pull-request";
 import { ensureTriageIssue } from "../shared/github-triage-issue";
+import {
+  publishPublicSimulatorEvidence,
+  renderPublicSimulatorEvidence,
+} from "../shared/public-simulator-evidence";
 import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
 
 const env = process.env;
@@ -43,6 +48,7 @@ const CLAUDE = ["claude", ...(env.CLAUDE_PLUGIN_DIR ? ["--plugin-dir", env.CLAUD
 const TRIAGE_DIR = ".eas/crash-triage";
 const ANALYSIS = `${TRIAGE_DIR}/ANALYSIS.md`;
 const CRASH_JSON = `${TRIAGE_DIR}/crash.json`;
+const SIMULATOR_ARTIFACT_DIR = env.SIMULATOR_ARTIFACT_DIR || `${TRIAGE_DIR}/sim`;
 
 // Storm control (see docs/crash-storm-control-design.md). GitHub is the store —
 // signature-keyed branch + `crash:<sig>` label — so no DB / third-party service.
@@ -275,6 +281,7 @@ if (owner && repo) {
   console.log("▸ owner/repo unresolved (no REPO_SLUG and no git origin) → skipping storm-control pre-flight.");
 }
 
+const triageSourceKey = feedbackId || feedbackUrl || signature || String(Date.now());
 const triageIssue =
   env.DRY_RUN === "1"
     ? null
@@ -283,7 +290,7 @@ const triageIssue =
         kind: "crash",
         owner,
         repo,
-        sourceKey: feedbackId || feedbackUrl || signature || String(Date.now()),
+        sourceKey: triageSourceKey,
         workflowUrl: req("WORKFLOW_URL"),
       });
 if (triageIssue) {
@@ -295,7 +302,7 @@ if (triageIssue) {
 // session left behind.
 const simValidation = await prepareAgentSimulator({ env });
 if (simValidation) {
-  await sh(["mkdir", "-p", env.SIMULATOR_ARTIFACT_DIR || `${TRIAGE_DIR}/sim`]);
+  await sh(["mkdir", "-p", SIMULATOR_ARTIFACT_DIR]);
 }
 
 // ---- run the agent ----
@@ -405,6 +412,31 @@ try {
 }
 const codeChanged = stagedPaths
   .some((f) => !f.startsWith(`${TRIAGE_DIR}/crash.json`) && !f.startsWith(`${TRIAGE_DIR}/ANALYSIS.md`));
+const publicEvidence = await publishPublicSimulatorEvidence({
+  enabled:
+    simValidation &&
+    env.PUBLIC_SIMULATOR_EVIDENCE === "1",
+  artifactDir: SIMULATOR_ARTIFACT_DIR,
+  env,
+});
+if (publicEvidence) {
+  console.log(`▸ Published and independently verified simulator evidence: ${publicEvidence.pageUrl}`);
+  const evidencedIssue = await ensureTriageIssue({
+    gh,
+    kind: "crash",
+    owner,
+    repo,
+    sourceKey: triageSourceKey,
+    workflowUrl: req("WORKFLOW_URL"),
+    evidence: publicEvidence,
+  });
+  if (evidencedIssue.number !== triageIssue!.number) {
+    console.error(
+      `✗ Public evidence updated unexpected issue #${evidencedIssue.number}; expected #${triageIssue!.number}.`
+    );
+    process.exit(1);
+  }
+}
 
 const nothing = (await sh([GIT, "diff", "--cached", "--quiet"], { allowFail: true })).code === 0;
 if (nothing) {
@@ -419,10 +451,15 @@ console.log(`▸ Pushed ${branch}.`);
 // ---- open PR via REST ----
 const title = codeChanged ? `Crash triage + proposed fix: ${feedbackId || shortId}` : `Crash triage: ${feedbackId || shortId}`;
 const linkLine = codeChanged ? `Closes #${triageIssue!.number}` : `Re: #${triageIssue!.number}`;
+const evidenceSection = publicEvidence
+  ? `\n\n${renderPublicSimulatorEvidence(publicEvidence)}`
+  : "";
 const body =
   `${linkLine} — ${triageIssue!.htmlUrl}\n\n` +
   `Automated triage of private TestFlight crash feedback \`${feedbackId || shortId}\`.\n\n` +
-  `Tester identity, App Store Connect URLs, crash logs, device details, simulator session URLs, and the analysis are intentionally omitted from this public PR. Review the private \`crash-triage-summary\` workflow artifact for those details.\n\n` +
+  `Tester identity, App Store Connect URLs, crash logs, device details, simulator session URLs, and the analysis are intentionally omitted from this public PR. Review the private \`crash-triage-summary\` workflow artifact for those details.` +
+  evidenceSection +
+  `${publicEvidence ? "\n\nThe evidence above was captured during before/after verification in a clean simulator and intentionally published." : ""}\n\n` +
   `---\n_Automated triage. **Not auto-merged** — review before merging._ Code change proposed: **${codeChanged ? "yes" : "no"}**.`;
 
 const pullRequest = await createOrFindPullRequest({

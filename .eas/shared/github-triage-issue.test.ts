@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 
 import { ensureTriageIssue } from "./github-triage-issue";
 
@@ -41,6 +42,7 @@ describe("GitHub triage issues", () => {
           jsonResponse({
             number: 42,
             html_url: "https://github.com/brentvatne/euxy/issues/42",
+            body: "https://expo.dev/accounts/brent-org/projects/euxy/workflows/runs/run-123",
           }),
       })
     ).resolves.toEqual({
@@ -77,15 +79,16 @@ describe("GitHub triage issues", () => {
     };
     await ensureTriageIssue({
       gh: firstGh,
-      kind: "crash",
+      kind: "feedback",
       owner: "brentvatne",
       repo: "euxy",
-      sourceKey: "crash-abc",
+      sourceKey: "feedback-abc",
       workflowUrl: "https://expo.dev/old-run",
       publicFetch: async () =>
         jsonResponse({
           number: 7,
           html_url: "https://github.com/brentvatne/euxy/issues/7",
+          body: "https://expo.dev/old-run",
         }),
     });
 
@@ -98,7 +101,10 @@ describe("GitHub triage issues", () => {
             number: 7,
             html_url: "https://github.com/brentvatne/euxy/issues/7",
             body:
-              `${createdBody}\n\n<!-- euxy-triage-workflow:start -->\n` +
+              `${createdBody}\n\n<!-- euxy-triage-summary:start -->\n` +
+              "## Feedback summary\n\nOld public summary.\n" +
+              "<!-- euxy-triage-summary:end -->\n\n" +
+              "<!-- euxy-triage-workflow:start -->\n" +
               "## Automation\n\n- EAS workflow: [View the run](https://expo.dev/old-run)\n" +
               "<!-- euxy-triage-workflow:end -->\n\nHuman note.",
           },
@@ -109,23 +115,161 @@ describe("GitHub triage issues", () => {
 
     await ensureTriageIssue({
       gh,
-      kind: "crash",
+      kind: "feedback",
       owner: "brentvatne",
       repo: "euxy",
-      sourceKey: "crash-abc",
+      sourceKey: "feedback-abc",
       workflowUrl: "https://expo.dev/new-run",
+      summary: {
+        title: "Keep the sequencer animating under editor sheets",
+        body: "The sequencer should continue animating while an editor sheet is presented over the active tab.",
+      },
       publicFetch: async () =>
         jsonResponse({
           number: 7,
           html_url: "https://github.com/brentvatne/euxy/issues/7",
+          title: "Keep the sequencer animating under editor sheets",
+          body:
+            "<!-- euxy-triage-summary:start -->\n" +
+            "The sequencer should continue animating while an editor sheet is presented over the active tab.\n" +
+            "https://expo.dev/new-run",
         }),
     });
 
     expect(calls.some((call) => call.path === "/issues")).toBe(false);
     const updatedBody = JSON.parse(String(calls[1].init?.body)).body;
+    const updatedRequest = JSON.parse(String(calls[1].init?.body));
+    expect(updatedRequest.title).toBe("Keep the sequencer animating under editor sheets");
     expect(updatedBody).toContain("Human note.");
+    expect(updatedBody).toContain("## Feedback summary");
+    expect(updatedBody).toContain(
+      "The sequencer should continue animating while an editor sheet is presented over the active tab."
+    );
     expect(updatedBody).toContain("https://expo.dev/new-run");
+    expect(updatedBody).not.toContain("Old public summary.");
     expect(updatedBody).not.toContain("https://expo.dev/old-run");
+  });
+
+  test("rejects malformed public summaries before writing", async () => {
+    let called = false;
+    const gh = async () => {
+      called = true;
+      return jsonResponse([]);
+    };
+
+    await expect(
+      ensureTriageIssue({
+        gh,
+        kind: "feedback",
+        owner: "brentvatne",
+        repo: "euxy",
+        sourceKey: "feedback-invalid-summary",
+        workflowUrl: "https://expo.dev/run",
+        summary: {
+          title: "Too short",
+          body: "This otherwise valid summary should never be written.",
+        },
+      })
+    ).rejects.toThrow("summary title must contain between 12 and 90 characters");
+    expect(called).toBe(false);
+  });
+
+  test("adds public simulator evidence without exposing private workflow artifacts", async () => {
+    const sourceMarker = `<!-- euxy-triage:feedback:${createHash("sha256").update("source").digest("hex").slice(0, 20)} -->`;
+    const calls: { path: string; init?: RequestInit }[] = [];
+    const gh = async (path: string, init?: RequestInit) => {
+      calls.push({ path, init });
+      if (path.startsWith("/issues?")) {
+        return jsonResponse([
+          {
+            number: 11,
+            html_url: "https://github.com/brentvatne/euxy/issues/11",
+            body: `${sourceMarker}\nPrivate inputs are omitted.`,
+          },
+        ]);
+      }
+      return jsonResponse({});
+    };
+    const evidence = {
+      pageUrl: "https://euxy--evidence123.expo.app/",
+      beforeScreenshotUrl: "https://euxy--evidence123.expo.app/before.png",
+      beforeVideoUrl: "https://euxy--evidence123.expo.app/before.mp4",
+      screenshotUrl: "https://euxy--evidence123.expo.app/final.png",
+      videoUrl: "https://euxy--evidence123.expo.app/verification.mp4",
+    };
+
+    await ensureTriageIssue({
+      gh,
+      kind: "feedback",
+      owner: "brentvatne",
+      repo: "euxy",
+      sourceKey: "source",
+      workflowUrl: "https://expo.dev/new-run",
+      evidence,
+      publicFetch: async () =>
+        jsonResponse({
+          number: 11,
+          html_url: "https://github.com/brentvatne/euxy/issues/11",
+          body: [
+            "<!-- euxy-triage-evidence:start -->",
+            evidence.pageUrl,
+            evidence.beforeScreenshotUrl,
+            evidence.beforeVideoUrl,
+            evidence.screenshotUrl,
+            evidence.videoUrl,
+            "https://expo.dev/new-run",
+          ].join("\n"),
+        }),
+    });
+
+    const updatedBody = JSON.parse(String(calls[1].init?.body)).body;
+    expect(updatedBody).toContain("## Verification evidence");
+    expect(updatedBody).toContain("### Before");
+    expect(updatedBody).toContain(evidence.beforeScreenshotUrl);
+    expect(updatedBody).toContain(evidence.screenshotUrl);
+    expect(updatedBody).toContain("Watch or download the complete after-change recording");
+    expect(updatedBody).not.toContain("feedback-triage-summary");
+  });
+
+  test("fails when the public readback does not include the updated summary", async () => {
+    const gh = async (path: string, init?: RequestInit) => {
+      if (path.startsWith("/issues?")) return jsonResponse([]);
+      if (path === "/issues") {
+        const request = JSON.parse(String(init?.body));
+        return jsonResponse(
+          {
+            number: 8,
+            html_url: "https://github.com/brentvatne/euxy/issues/8",
+            body: request.body,
+          },
+          201
+        );
+      }
+      return jsonResponse({});
+    };
+
+    await expect(
+      ensureTriageIssue({
+        gh,
+        kind: "feedback",
+        owner: "brentvatne",
+        repo: "euxy",
+        sourceKey: "feedback-summary-readback",
+        workflowUrl: "https://expo.dev/new-run",
+        summary: {
+          title: "Open cloned patterns in the rename dialog",
+          body: "A newly cloned pattern should be immediately visible and ready to rename.",
+        },
+        publicFetch: async () =>
+          jsonResponse({
+            number: 8,
+            html_url: "https://github.com/brentvatne/euxy/issues/8",
+            title: "Automated TestFlight feedback triage",
+            body: "Generic feedback issue.",
+          }),
+        wait: async () => {},
+      })
+    ).rejects.toThrow("not publicly visible");
   });
 
   test("fails when GitHub accepts but suppresses the issue", async () => {

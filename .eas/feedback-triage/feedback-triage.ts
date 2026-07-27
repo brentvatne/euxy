@@ -18,6 +18,7 @@
  *   SUBMIT_PROFILE               — eas.json submit profile for the ASC key (default production)
  *   AGENT_PROMPT_FILE            — Markdown prompt path
  *   SIMULATOR_VALIDATION         — '1' to enable remote iOS verification
+ *   PUBLIC_SIMULATOR_EVIDENCE    — '1' to publish selected before/after evidence
  *   WORKFLOW_URL                 — current EAS workflow run URL
  *   GIT_BIN / DRY_RUN
  */
@@ -25,6 +26,10 @@ import { parsePublicPr } from "./public-pr";
 import { prepareAgentSimulator, stopAgentSimulator } from "../shared/agent-simulator";
 import { createOrFindPullRequest } from "../shared/github-pull-request";
 import { ensureTriageIssue } from "../shared/github-triage-issue";
+import {
+  publishPublicSimulatorEvidence,
+  renderPublicSimulatorEvidence,
+} from "../shared/public-simulator-evidence";
 import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
 
 const env = process.env;
@@ -35,6 +40,7 @@ const DIR = ".eas/feedback-triage";
 const ANALYSIS = `${DIR}/ANALYSIS.md`;
 const FEEDBACK_JSON = `${DIR}/feedback.json`;
 const PUBLIC_PR = `${DIR}/PUBLIC_PR.json`;
+const SIMULATOR_ARTIFACT_DIR = env.SIMULATOR_ARTIFACT_DIR || `${DIR}/sim`;
 const UPDATE_CHANNEL = "preview";
 const UPDATE_ENVIRONMENT = "preview";
 
@@ -100,6 +106,7 @@ if (!feedback || !feedback.comment) {
 }
 await Bun.write(FEEDBACK_JSON, JSON.stringify(feedback, null, 2));
 const shortId = String(feedback.id || Date.now()).replace(/[^a-zA-Z0-9]/g, "").slice(0, 16);
+const triageSourceKey = String(feedback.id || feedbackArg || shortId);
 console.log(`▸ Feedback ${feedback.id} from ${feedback.testerName ?? feedback.testerEmail ?? "?"} (build ${feedback.buildVersion ?? "?"}):\n  "${String(feedback.comment).slice(0, 200)}"`);
 
 // ---- tester-email allowlist gate (fail-closed) ----
@@ -126,7 +133,7 @@ const triageIssue =
         kind: "feedback",
         owner,
         repo,
-        sourceKey: String(feedback.id || feedbackArg || shortId),
+        sourceKey: triageSourceKey,
         workflowUrl: req("WORKFLOW_URL"),
       });
 if (triageIssue) {
@@ -136,7 +143,7 @@ if (triageIssue) {
 // ---- 2. run the agent (simulator shell only after the trusted tester gate) ----
 const simValidation = await prepareAgentSimulator({ env });
 if (simValidation) {
-  await sh(["mkdir", "-p", env.SIMULATOR_ARTIFACT_DIR || `${DIR}/sim`]);
+  await sh(["mkdir", "-p", SIMULATOR_ARTIFACT_DIR]);
 }
 const promptFile = env.AGENT_PROMPT_FILE || "prompts/automation/feedback-triage.md";
 const taskPrompt = await Bun.file(promptFile).text();
@@ -186,6 +193,21 @@ if (env.DRY_RUN === "1") {
   process.exit(0);
 }
 
+let publicPr;
+try {
+  if (!(await Bun.file(PUBLIC_PR).exists())) throw new Error("the agent did not create PUBLIC_PR.json");
+  const collectStrings = (value: unknown): string[] => {
+    if (typeof value === "string") return [value];
+    if (Array.isArray(value)) return value.flatMap(collectStrings);
+    if (value && typeof value === "object") return Object.values(value).flatMap(collectStrings);
+    return [];
+  };
+  publicPr = parsePublicPr(await Bun.file(PUBLIC_PR).text(), collectStrings(feedback));
+} catch (error) {
+  console.error(`✗ Refusing to publish without a safe public PR description: ${(error as Error).message}`);
+  process.exit(1);
+}
+
 // ---- 3. branch + commit ----
 const branch = `feedback-triage/${shortId}`;
 const base = env.PR_BASE || "main";
@@ -213,24 +235,43 @@ try {
   process.exit(1);
 }
 const codeChanged = stagedPaths.some((f) => !f.startsWith(`${DIR}/`));
+const publicEvidence = await publishPublicSimulatorEvidence({
+  enabled:
+    simValidation &&
+    env.PUBLIC_SIMULATOR_EVIDENCE === "1",
+  artifactDir: SIMULATOR_ARTIFACT_DIR,
+  env,
+});
+if (publicEvidence) {
+  console.log(`▸ Published and independently verified simulator evidence: ${publicEvidence.pageUrl}`);
+}
+
+const summarizedIssue = await ensureTriageIssue({
+  gh,
+  kind: "feedback",
+  owner,
+  repo,
+  sourceKey: triageSourceKey,
+  workflowUrl: req("WORKFLOW_URL"),
+  summary: {
+    title: publicPr.title,
+    body: publicPr.whatChanged,
+  },
+  ...(publicEvidence ? { evidence: publicEvidence } : {}),
+});
+if (summarizedIssue.number !== triageIssue!.number) {
+  console.error(
+    `✗ Public summary updated unexpected issue #${summarizedIssue.number}; expected #${triageIssue!.number}.`
+  );
+  process.exit(1);
+}
+console.log(
+  `▸ Added a public feedback summary${publicEvidence ? " and simulator evidence" : ""} to issue #${summarizedIssue.number}.`
+);
+
 if ((await sh([GIT, "diff", "--cached", "--quiet"], { allowFail: true })).code === 0) {
   console.log("▸ Nothing staged; nothing to open a PR for.");
   process.exit(0);
-}
-
-let publicPr;
-try {
-  if (!(await Bun.file(PUBLIC_PR).exists())) throw new Error("the agent did not create PUBLIC_PR.json");
-  const collectStrings = (value: unknown): string[] => {
-    if (typeof value === "string") return [value];
-    if (Array.isArray(value)) return value.flatMap(collectStrings);
-    if (value && typeof value === "object") return Object.values(value).flatMap(collectStrings);
-    return [];
-  };
-  publicPr = parsePublicPr(await Bun.file(PUBLIC_PR).text(), collectStrings(feedback));
-} catch (error) {
-  console.error(`✗ Refusing to publish without a safe public PR description: ${(error as Error).message}`);
-  process.exit(1);
 }
 
 await sh([
@@ -276,14 +317,18 @@ console.log(`▸ Pushed ${branch}.`);
 const title = publicPr.title;
 const verification = publicPr.howToVerify.map((step, index) => `${index + 1}. ${step}`).join("\n");
 const linkLine = codeChanged ? `Closes #${triageIssue!.number}` : `Re: #${triageIssue!.number}`;
+const evidenceSection = publicEvidence
+  ? `\n\n${renderPublicSimulatorEvidence(publicEvidence)}`
+  : "";
 const body =
   `${linkLine} — ${triageIssue!.htmlUrl}\n\n` +
   `Automated triage of private TestFlight feedback.\n\n` +
   `## What changed\n\n${publicPr.whatChanged}\n\n` +
   `## Why\n\n${publicPr.why}\n\n` +
   `## How to verify\n\n${verification}\n\n` +
-  `## Preview\n\n${updateLine}\n\n` +
-  `Tester identity, the original report, screenshots, device details, and private analysis remain in the access-controlled \`feedback-triage-summary\` workflow artifact.\n\n` +
+  `## Preview\n\n${updateLine}` +
+  evidenceSection +
+  `\n\nTester identity, the original report and screenshot, device details, private analysis, and raw simulator artifacts remain in the access-controlled \`feedback-triage-summary\` workflow artifact. Any evidence above was captured during before/after verification in a clean simulator and intentionally published.\n\n` +
   `---\n_Automated triage. **Not auto-merged** — review before merging._`;
 
 const pullRequest = await createOrFindPullRequest({

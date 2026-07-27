@@ -23,6 +23,10 @@ on:
         description: Use EAS Simulator for applicable app verification ('1' to enable)
         type: string
         default: '1'
+      public_simulator_evidence:
+        description: Publish selected post-change simulator evidence to EAS Hosting ('1' to enable)
+        type: string
+        default: '1'
 jobs:
   triage:
     name: Resolve TestFlight feedback with Claude (test)
@@ -34,6 +38,7 @@ jobs:
       SIMULATOR_PROMPT_FILE: prompts/automation/simulator-verification.md
       SIMULATOR_VALIDATION: ${{ inputs.simulator_validation }}
       SIMULATOR_ARTIFACT_DIR: .eas/feedback-triage/sim
+      PUBLIC_SIMULATOR_EVIDENCE: ${{ inputs.public_simulator_evidence }}
       ALLOWED_FEEDBACK_EMAILS: brentvatne@gmail.com
       DISABLE_AUTOUPDATER: '1'
       WORKFLOW_URL: ${{ workflow.url }}

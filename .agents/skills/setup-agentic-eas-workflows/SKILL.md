@@ -50,7 +50,11 @@ GitHub may restrict a newly created personal account as suspected automation or 
 3. Put editable prompts in Markdown files such as `prompts/automation/*.md`; pass the selected path in an environment variable.
 4. Keep private source material out of prompts, summaries, issues, PR bodies, and logs. Give the model a redacted task artifact.
 5. Run the agent with a minimal environment. Do not inherit all workflow secrets.
-6. Capture analysis and simulator evidence as private workflow artifacts.
+6. Capture analysis and the complete raw simulator evidence set as private
+   workflow artifacts. If public review evidence is useful, let a deterministic
+   wrapper publish the project-approved before/after screenshots and bounded
+   recordings. For apps whose simulator contains no sensitive data, publish
+   evidence whenever simulator testing occurred rather than only for code fixes.
 
 ## Publish through a deterministic wrapper
 
@@ -65,6 +69,13 @@ Use this lifecycle for crash, feedback, and issue automation:
 7. Verify the created issue and PR through an independent read. For a public repository, use an unauthenticated API request; for a private repository, use a separate read-only observer credential.
 8. Report success only after that independent read succeeds.
 
+When publishing simulator evidence, use a separate immutable EAS Hosting
+preview deployment rather than the workflow artifact URL. Accept only fixed
+filenames, regular files, known media signatures, bounded dimensions/sizes, and
+same-origin `https://*.expo.app` results. Independently download the public
+files and compare them to the selected local bytes before adding their links to
+the issue or PR. Never promote evidence deployments to the production alias.
+
 Read [references/workflow-patterns.md](references/workflow-patterns.md) for implementation patterns and failure handling.
 
 ## Add EAS Simulator verification safely
@@ -73,6 +84,8 @@ Read [references/workflow-patterns.md](references/workflow-patterns.md) for impl
 2. Create the simulator session file outside the repository or protect it from publication.
 3. Tell the agent which simulator skill to read and cap the session duration.
 4. Compare before/after behavior and save screenshots or recordings as private artifacts.
+   Wait for navigation, layout, and animations to settle before still captures
+   unless the transient frame itself is what the test is exercising.
 5. Stop the session in a `finally`/always-run cleanup path. Redact the Expo token from subprocess output.
 6. Fall back to static verification only when the workflow's policy explicitly permits it.
 

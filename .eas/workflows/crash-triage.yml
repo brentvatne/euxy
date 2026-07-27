@@ -33,6 +33,7 @@ jobs:
       SIMULATOR_PROMPT_FILE: prompts/automation/simulator-verification.md
       SIMULATOR_VALIDATION: '1'
       SIMULATOR_ARTIFACT_DIR: .eas/crash-triage/sim
+      PUBLIC_SIMULATOR_EVIDENCE: '1'
       ALLOWED_FEEDBACK_EMAILS: brentvatne@gmail.com
       DISABLE_AUTOUPDATER: '1'
       WORKFLOW_URL: ${{ workflow.url }}

@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "euxy verification evidence",
+    "slug": "euxy",
+    "owner": "brent-org",
+    "version": "1.0.0",
+    "web": {
+      "output": "static"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "2ee288d6-807b-4316-8331-d0f5cd5eebe8"
+      }
+    }
+  }
+}

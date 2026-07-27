@@ -4,6 +4,8 @@ export type GitHubRepoRequest = (path: string, init?: RequestInit) => Promise<Re
 type AssertPubliclyVisibleOptions = {
   apiUrl: string;
   expectedHtmlUrl: string;
+  expectedTitle?: string;
+  expectedBodyIncludes?: string[];
   description: string;
   publicFetch?: PublicFetch;
   wait?: (milliseconds: number) => Promise<void>;
@@ -12,6 +14,8 @@ type AssertPubliclyVisibleOptions = {
 export async function assertPubliclyVisible({
   apiUrl,
   expectedHtmlUrl,
+  expectedTitle,
+  expectedBodyIncludes = [],
   description,
   publicFetch = fetch,
   wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
@@ -23,8 +27,11 @@ export async function assertPubliclyVisible({
     });
     lastStatus = response.status;
     if (response.ok) {
-      const resource = (await response.json()) as { html_url?: string };
-      if (resource.html_url === expectedHtmlUrl) return;
+      const resource = (await response.json()) as { html_url?: string; title?: string; body?: string | null };
+      const titleMatches = expectedTitle === undefined || resource.title === expectedTitle;
+      const body = typeof resource.body === "string" ? resource.body : "";
+      const bodyMatches = expectedBodyIncludes.every((value) => body.includes(value));
+      if (resource.html_url === expectedHtmlUrl && titleMatches && bodyMatches) return;
     }
     if (attempt < 2) await wait(500 * (attempt + 1));
   }
