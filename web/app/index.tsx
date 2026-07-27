@@ -52,6 +52,14 @@ export default function Home() {
     (tappedId && presets.find((p) => p.id === tappedId)) ||
     (urlPreset && presets.find((p) => p.id === `preset_${urlPreset}`)) ||
     presets[0];
+  // False in the prerender and during hydration, true immediately after —
+  // the same render where ?preset= resolves. Gates the player's fade-in
+  // (data-reveal) so the reveal never shows the default-then-swap flicker.
+  const hydrated = useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
 
   const selectPreset = (id: string) => {
     setTappedId(id);
@@ -90,7 +98,7 @@ export default function Home() {
           </Link>
         </View>
 
-        <View style={styles.player}>
+        <View style={styles.player} {...webAttrs({ reveal: hydrated ? 'in' : '' })}>
           {/* The payoff leads: with 24 presets the pill list is taller than
               the player, and below it Play sat ~380px under the fold on a
               phone. No remount key — the player swaps schedulers on pattern

@@ -31,6 +31,11 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="color-scheme" content="dark" />
         <ScrollViewStyleReset />
         <style dangerouslySetInnerHTML={{ __html: FIRST_PAINT }} />
+        {/* The player section (data-reveal, styled in _layout) hides until
+            hydration reveals it — without JS that would be forever. */}
+        <noscript>
+          <style dangerouslySetInnerHTML={{ __html: `[data-reveal] { opacity: 1; }` }} />
+        </noscript>
       </head>
       <body>{children}</body>
     </html>

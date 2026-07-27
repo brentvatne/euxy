@@ -76,11 +76,17 @@ export default function Layout() {
             to { opacity: 1; transform: translateY(0); }
           }
           [data-unfold] { animation: euxy-unfold 200ms cubic-bezier(0.215, 0.61, 0.355, 1); }
+          /* Player fade-in: prerendered at opacity 0 (layout fully reserved,
+             so no shift), revealed once hydration resolves ?preset= — the
+             fade always shows the right preset instead of default-then-swap. */
+          [data-reveal] { opacity: 0; }
+          [data-reveal="in"] { opacity: 1; transition: opacity 240ms ease-out; }
           @media (prefers-reduced-motion: reduce) {
             [data-anim] { transition: none; }
             [data-chevron] { transition: none; }
             [data-cta]:active { transform: none; }
             [data-unfold] { animation: none; }
+            [data-reveal="in"] { transition: none; }
           }
         `}</style>
       </Head>
