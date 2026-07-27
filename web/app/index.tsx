@@ -2,8 +2,8 @@
  * euxy.expo.app — home. What euxy is, hear the factory presets in the
  * browser, how to point the app at this page (IDAM), get the app.
  */
-import { Link, router, type Href } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { Link, router, useLocalSearchParams, type Href } from 'expo-router';
+import { useEffect, useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { chipForPattern, effectiveChipName } from '@/components/patterns/chips';
 import { encodePattern } from '@/core/share-codec';
@@ -29,8 +29,13 @@ export default function Home() {
     const p = presets.find((x) => x.name === 'Four on the Floor') ?? presets[0];
     return encodePattern({ ...p, icon: effectiveChipName(p) });
   }, [presets]);
-  const [selectedId, setSelectedId] = useState(presets[0].id);
-  const selected = presets.find((p) => p.id === selectedId) ?? presets[0];
+  // The pill selection lives in the URL (?preset=lofi ↔ preset_lofi) so a
+  // copied or reloaded link lands on the same preset. Written via
+  // router.setParams — the router owns the write, so its post-hydration URL
+  // sync can't stomp it the way it stomps a raw replaceState (see p.tsx).
+  // Unknown or absent param falls back to the first preset.
+  const { preset: presetParam } = useLocalSearchParams<{ preset?: string }>();
+  const selected = presets.find((p) => p.id === `preset_${presetParam}`) ?? presets[0];
 
   // The selected preset's glyph becomes the tab icon.
   useEffect(() => setFavicon(chipForPattern(selected)), [selected]);
@@ -76,24 +81,32 @@ export default function Home() {
           />
           <View style={styles.pills}>
             {presets.map((p) => {
-              const selected = p.id === selectedId;
+              const active = p.id === selected.id;
               return (
                 <Pressable
                   key={p.id}
-                  onPress={() => setSelectedId(p.id)}
+                  // replace, not setParams: selection is one URL that mutates
+                  // in place — setParams pushes an entry per click, and Back
+                  // would page through every pill you ever tapped.
+                  onPress={() =>
+                    router.replace({
+                      pathname: '/',
+                      params: { preset: p.id.replace(/^preset_/, '') },
+                    } as Href)
+                  }
                   accessibilityRole="button"
-                  accessibilityState={{ selected }}
+                  accessibilityState={{ selected: active }}
                   // data-pill only when idle so the CSS hover tint never
                   // fights the selected white fill.
-                  {...webAttrs(selected ? { anim: '' } : { anim: '', pill: '' })}
+                  {...webAttrs(active ? { anim: '' } : { anim: '', pill: '' })}
                   style={({ pressed }) => [
                     styles.pill,
-                    selected && styles.pillActive,
+                    active && styles.pillActive,
                     pressed && styles.pillPressed,
                   ]}
                 >
                   <LedChip shades={chipForPattern(p)} size={18} />
-                  <Text style={[styles.pillLabel, selected && styles.pillLabelActive]}>
+                  <Text style={[styles.pillLabel, active && styles.pillLabelActive]}>
                     {p.name}
                   </Text>
                 </Pressable>
