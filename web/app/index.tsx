@@ -2,8 +2,8 @@
  * euxy.expo.app — home. What euxy is, hear the factory presets in the
  * browser, how to point the app at this page (IDAM), get the app.
  */
-import { Link, router, useLocalSearchParams, type Href } from 'expo-router';
-import { useEffect, useMemo } from 'react';
+import { Link, router, type Href } from 'expo-router';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { chipForPattern, effectiveChipName } from '@/components/patterns/chips';
 import { encodePattern } from '@/core/share-codec';
@@ -21,6 +21,10 @@ import {
   webAttrs,
 } from '../components/ui';
 
+// The URL never changes out from under us (we're the only writer), so the
+// store never notifies.
+const subscribeNever = () => () => {};
+
 export default function Home() {
   const presets = useMemo(() => presetPatterns(), []);
   // Encode the EFFECTIVE glyph — preset glyphs come from the id-keyed curated
@@ -30,12 +34,31 @@ export default function Home() {
     return encodePattern({ ...p, icon: effectiveChipName(p) });
   }, [presets]);
   // The pill selection lives in the URL (?preset=lofi ↔ preset_lofi) so a
-  // copied or reloaded link lands on the same preset. Written via
-  // router.setParams — the router owns the write, so its post-hydration URL
-  // sync can't stomp it the way it stomps a raw replaceState (see p.tsx).
-  // Unknown or absent param falls back to the first preset.
-  const { preset: presetParam } = useLocalSearchParams<{ preset?: string }>();
-  const selected = presets.find((p) => p.id === `preset_${presetParam}`) ?? presets[0];
+  // copied or reloaded link lands on the same preset. Deliberately NOT routed
+  // through expo-router: router.replace/setParams scroll the page to the top
+  // on every tap. State drives the UI; a bare replaceState mirrors it into
+  // the URL (no scroll, no history entry). Taps happen long after the
+  // router's hydration-time URL syncs, so the /p stomp race doesn't apply.
+  // useSyncExternalStore instead of an adopt-on-mount effect: the server
+  // snapshot (null) keeps the hydration pass identical to the prerender, and
+  // the param applies on the very next client render — no setState-in-effect.
+  const urlPreset = useSyncExternalStore(
+    subscribeNever,
+    () => new URLSearchParams(window.location.search).get('preset'),
+    () => null,
+  );
+  const [tappedId, setTappedId] = useState<string | null>(null);
+  const selected =
+    (tappedId && presets.find((p) => p.id === tappedId)) ||
+    (urlPreset && presets.find((p) => p.id === `preset_${urlPreset}`)) ||
+    presets[0];
+
+  const selectPreset = (id: string) => {
+    setTappedId(id);
+    const url = new URL(window.location.href);
+    url.searchParams.set('preset', id.replace(/^preset_/, ''));
+    window.history.replaceState(window.history.state, '', url);
+  };
 
   // The selected preset's glyph becomes the tab icon.
   useEffect(() => setFavicon(chipForPattern(selected)), [selected]);
@@ -65,7 +88,6 @@ export default function Home() {
           >
             <Text style={styles.betaKeyLabel}>Join the TestFlight beta</Text>
           </Link>
-          <MonoLabel dim>BETA IN APPLE REVIEW — LINK GOES LIVE ON APPROVAL</MonoLabel>
         </View>
 
         <View style={styles.player}>
@@ -85,15 +107,7 @@ export default function Home() {
               return (
                 <Pressable
                   key={p.id}
-                  // replace, not setParams: selection is one URL that mutates
-                  // in place — setParams pushes an entry per click, and Back
-                  // would page through every pill you ever tapped.
-                  onPress={() =>
-                    router.replace({
-                      pathname: '/',
-                      params: { preset: p.id.replace(/^preset_/, '') },
-                    } as Href)
-                  }
+                  onPress={() => selectPreset(p.id)}
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
                   // data-pill only when idle so the CSS hover tint never
