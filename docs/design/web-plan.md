@@ -212,123 +212,74 @@ TTFs (OFL) in `assets/og-fonts/` — satori can't read woff2. Meta: layout
 Head carries the site-wide og/twitter tags (Brent's wiring → /og.png);
 /p's prerendered state carries the og-p variant.
 
-**Per-pattern OG images: attempted, reverted — three walls** (feedback
-ea3f4348): (1) runtime wasm compilation is refused ("Wasm code generation
-disallowed by embedder"), which killed resvg-wasm; (2) SSR
-(`web.output: "server"` + `unstable_useServerRendering`) renders head
-metadata correctly under local `expo serve` but the deployed worker
-returns an EMPTY head — no generateMetadata output, no <Head> tags (body
-renders); (3) the CDN caches SSR HTML for 1h with a query-blind cache
-key, so every `?d=` would unfurl with whichever pattern cached first. The
-full working-locally SSR implementation (generateMetadata on /p +
-/api/og+api.ts) lives in git history on this branch.
+## Per-pattern OG images — SHIPPED (2026-07-26)
 
-### Revised plan (2026-07-26) — route around all three
+Every shared link now unfurls with its own card: the real Paper design, real
+Space Mono, the pattern's actual name, lane grid and stats, rendered on demand
+in the EAS Hosting worker. Live on euxy.expo.app.
 
-Wall (1) was misdiagnosed. Workers don't forbid wasm; they refuse runtime
-*compilation of wasm bytes*, which is exactly what a Node-focused lib's
-manual `WebAssembly.instantiate` does. A statically imported `.wasm` is
-compiled at deploy time and runs fine. Both libraries already ship the
-affordance — their package exports expose the wasm as an importable
-subpath, precisely for this:
+Three walls were recorded here as platform limits (feedback ea3f4348). All
+three turned out to be shape problems, and none of them needed EAS Hosting to
+change.
 
-    @resvg/resvg-wasm  →  "./index_bg.wasm"
-    satori 0.29.0      →  "./yoga.wasm"  (+ a ./standalone entry)
+**(1) wasm — "Wasm code generation disallowed by embedder".** Not a
+prohibition on wasm. Workers refuse codegen *at request time only*; compiling
+in module top-level scope succeeds, and instantiating an already-compiled
+`WebAssembly.Module` per request is fine. Verified against workerd directly.
 
-`yoga-wasm-web/asm` is additionally a pure-JS asm.js build, so satori's
-layout half can avoid wasm entirely, leaving resvg as the only wasm
-dependency to solve.
+The documented fix — a static `.wasm` import, which both libraries support
+(they export the binary as a subpath for exactly this) — is NOT reachable
+through Metro: `wasm` is in neither `assetExts` nor `sourceExts`, and forcing
+it into `assetExts` yields a URL *string* rather than a Module while never
+emitting the file, so the URL 404s. The binaries therefore ship as base64
+**source** modules, which Metro always bundles: compiled at import,
+instantiated lazily. See `lib/og-render.ts` and
+`scripts/generate-wasm-modules.mjs`.
 
-Walls (2) and (3) get bypassed at the app level rather than waiting on the
-platform:
+The open platform ask is therefore "bundle .wasm as a worker-bindable module",
+not "allow runtime wasm".
 
-- **(2)** Serve the crawler-facing HTML from an API route, which is a
-  worker we control end to end. Hand-write `<head>` there and Expo's
-  broken head injection stops mattering.
-- **(3)** Put the payload in a **route param**, not a query param, so the
-  cache key varies. A payload deterministically produces one card, so the
-  URL is content-addressed: serve
-  `Cache-Control: public, max-age=31536000, immutable` and the 1h CDN
-  cache becomes the delivery mechanism instead of the obstacle. This is
-  strictly better than the `no-store` workaround, which would have
-  re-rasterized a PNG on every crawler hit.
+**(2) empty `<head>` on deployed SSR.** Bypassed rather than fixed:
+`app/p/[d]+api.ts` is a worker we control end to end, so it writes the head
+itself. It returns 200 plus a client-side redirect, never a 302 — some
+previewers follow redirects and would land on the generic card. Note that
+static routes stay *prerendered* under `web.output: "server"`, so the rest of
+the site kept its build-time meta; this bug only ever hit per-request metadata.
 
-Shape:
+**(3) query-blind CDN cache.** Dissolved by moving the payload from a query
+param to a **route param**. A payload deterministically produces one card, so
+the URL is content-addressed: cached `immutable` rather than fought with
+`no-store`, and each pattern renders exactly once. Free, too — the codec was
+already unpadded base64url, and the AASA already wildcards `/p*`.
 
-    web/app/p/[d]+api.ts     worker writes <head> itself        → bypasses (2)
-    web/app/og/[d]+api.ts    resvg-wasm via static .wasm import → bypasses (1)
-    path param + immutable   correct cache key                  → solves (3)
+Two more surfaced during the build:
 
-The route param is nearly free: the codec is already unpadded base64url
-over `A-Za-z0-9-_` (`base64urlEncode` breaks early rather than padding),
-so a payload is a legal single path segment with no escaping — ~134 chars
-for a 4-lane pattern. `shareUrl()` in core/share-codec.ts is the single
-source of the URL shape, and the AASA already wildcards (`"paths":
-["/p*"]`), so `/p/<payload>` needs no native config change.
+**(4) `request.url` is the deployment hostname.** Inside the worker it reports
+`euxy--<id>.expo.app` even for requests arriving via euxy.expo.app, so the
+first prod deploy advertised og:image against a host the next deploy rotates
+away from. The canonical origin is pinned now, the same way `_layout.tsx`
+hardcodes its tags.
 
-Two things to get right:
+**(5) a URL is either a server route or a client page, never both.** `/p/[d]`
+must be an API route to carry the head, so it has no client route — an
+expo-router `<Link>` to it renders Unmatched Route without ever hitting the
+network. Home's example link is a real `<a>` carrying the shareable href, with
+plain clicks intercepted into `router.push` of the `?d=` page: one in-app
+navigation instead of two document loads, which also removed a visible
+flicker. Relatedly, `app/+html.tsx` now sets `color-scheme: dark` and an
+`<html>` background — Expo Router's default document sets neither, so the
+browser painted a white canvas before any CSS on every cold load.
 
-- **Old `?d=` links must keep working** — QR codes are already generated
-  and possibly printed. Keep the static `/p?d=` page, add `/p/<d>` as the
-  new canonical, switch `shareUrl()` going forward. Native needs a
-  `src/app/p/[d].tsx` too; today only `src/app/p.tsx` exists, reading
-  `?d=`.
-- **Serve the crawler HTML as 200 + meta/JS redirect, never a 302.** Some
-  previewers follow redirects and would land on the static page's generic
-  og-p.png. A 200 whose head carries the per-pattern tags makes them stop
-  and read.
+Budget: ~19 ms startup compile, ~70 ms per render (satori 22 + resvg 44),
+4.1 MB route / ~1.3 MB gzipped. Old `/p?d=` links keep working and remain what
+the app's legacy route reads; undecodable payloads fall back to the static
+og-p.png.
 
-### Spike result (2026-07-26) — wall (1) stands, for a sharper reason
+Not pursued: a hand-rolled PNG encoder over a pixel grid
+(`CompressionStream('deflate')` emits zlib-wrapped deflate, which is exactly
+what a PNG IDAT chunk wants). It works and is dependency-free, but it would
+have meant giving up real Space Mono, and the wasm route made it unnecessary.
 
-Spiked it: `web.output: "server"`, `assetExts.push('wasm')`, and an
-`app/wasm-probe+api.ts` that statically imports
-`@resvg/resvg-wasm/index_bg.wasm` and reports what it got. Expo 57.0.8 /
-Metro 0.84.4. **The static-import path is not expressible through Metro
-today**, on two counts:
-
-1. `wasm` is in neither `assetExts` nor `sourceExts` by default, so the
-   import doesn't resolve at all. Pushing it into `assetExts` makes it
-   resolve — but as an *asset*, so the imported value is a URL string:
-
-       { "typeof": "string", "isWebAssemblyModule": false,
-         "serialized": "/assets/node_modules/@resvg/resvg-wasm/index_bg.9484…wasm" }
-
-   A URL means `fetch` + `WebAssembly.instantiate` at runtime, which is
-   exactly the manual dance the worker refuses. No `WebAssembly.Module`,
-   no deploy-time compilation.
-2. The `.wasm` isn't even emitted — no `.wasm` anywhere under `dist/`, and
-   that asset URL 404s. So even the (already-doomed) runtime-fetch
-   fallback dead-ends before reaching the wasm restriction.
-
-So the diagnosis moves from "the worker forbids wasm" to **"Metro has no
-wasm-module path"** — a much more actionable ask for ea3f4348: Expo needs
-`.wasm` to bundle as a worker-bindable module, not an asset URL.
-
-### Therefore: plan B is the path — drop resvg entirely
-
-No wasm, no dependency, and it makes all three walls app-level:
-
-- **PNG encoding is ~100 lines with zero deps.** Workers expose
-  `CompressionStream('deflate')`, which emits zlib-wrapped deflate
-  (RFC1950) — verified locally, first byte `0x78`, exactly what a PNG
-  IDAT chunk wants. The rest is signature + IHDR + IDAT + IEND and a
-  CRC32 table.
-- **The design is already a pixel grid.** The card is dot-matrix cells and
-  mono text, and `chips.ts` already stores glyphs as 5×5 shade strings.
-  Rasterizing rectangles into a pixel buffer is not a compromise here, it
-  is the design language — so a small bitmap font for the pattern name is
-  on-brand rather than a downgrade.
-- Satori and resvg both stop being needed on the dynamic path. Keep them
-  for the build-time static cards (`resvg-js` is native there and fine).
-
-With wasm out of the picture, wall (1) disappears rather than gets
-worked around, and (2)+(3) fall to the API-route + route-param shape
-above. Nothing then waits on EAS Hosting.
-
-**Still untested:** whether an API route's hand-written `<head>` actually
-survives the deployed worker (wall 2). That's the next spike, and it needs
-a real `eas deploy` — local `expo serve` can't reproduce the empty-head
-bug.
 
 ## Open questions
 

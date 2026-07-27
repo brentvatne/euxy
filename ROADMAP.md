@@ -620,31 +620,29 @@ real shared modules → public/og.png + og-p.png, meta wired (layout +
 hit three walls (feedback ea3f4348); the SSR implementation lives in git
 history. Details: web-plan.md "OG images — BUILT".
 
-**REVISED PLAN (2026-07-26)** — there's a route around all three, so this
-no longer waits on EAS Hosting. The wasm wall was a misdiagnosis: workers
-refuse runtime *compilation* of wasm bytes, not wasm itself, and both
-satori and @resvg/resvg-wasm already export their `.wasm` as an importable
-subpath for exactly this. The empty-`<head>` wall gets bypassed by serving
-the crawler HTML from an API route we control instead of Expo's SSR head
-injection. The cache wall dissolves if the payload moves from a query
-param to a **route param** (`/p/<payload>`) — content-addressed, so cache
-it `immutable` rather than fighting it with `no-store`. Nearly free: the
-codec is already unpadded base64url, so the payload is a legal path
-segment, and the AASA already wildcards `/p*`.
+**PER-PATTERN CARDS SHIPPED (2026-07-26)** — live on euxy.expo.app, with
+the real Paper design and real Space Mono. None of the three walls needed
+EAS Hosting to change; all three were shape problems.
 
-**SPIKED (2026-07-26):** the wasm import does NOT work through Metro
-0.84.4 / Expo 57.0.8. `wasm` is in neither assetExts nor sourceExts; force
-it into assetExts and the import resolves to a URL *string*, not a
-WebAssembly.Module — and the .wasm is never emitted, so the URL 404s. The
-real ask for ea3f4348 is therefore "bundle .wasm as a worker-bindable
-module", not "allow runtime wasm". So drop resvg on the dynamic path
-instead: `CompressionStream('deflate')` gives zlib-wrapped deflate
-(verified), which is exactly PNG IDAT, so a ~100-line dependency-free PNG
-encoder over a pixel grid works — and the card is dot-matrix cells and
-mono text already, with chips.ts holding glyphs as 5×5 shade strings. That
-removes wall 1 entirely and leaves everything app-level. Next spike needs
-a real deploy: does an API route's hand-written <head> survive the
-worker? Full write-up in web-plan.md.
+Workers refuse wasm codegen *at request time only* — compiling at module
+top-level works, and instantiating a compiled Module per request is fine.
+But the documented static `.wasm` import isn't reachable through Metro
+(wasm is in neither assetExts nor sourceExts; forced into assetExts it
+resolves to a URL string and the file is never emitted, so the URL 404s),
+so the binaries ship as base64 SOURCE modules instead. The empty-`<head>`
+wall is bypassed by writing the head from an API route. The cache wall
+dissolved by moving the payload to a route param — content-addressed, so
+cached `immutable` rather than fought with `no-store`.
+
+Two more found while building: `request.url` reports the per-deployment
+hostname inside the worker (so og:image pointed at a host that rotates),
+and a path served by an API route has no client route, so an expo-router
+`<Link>` to it renders Unmatched Route. Old `/p?d=` links still work.
+
+Remaining platform ask for ea3f4348: bundle `.wasm` as a worker-bindable
+module, and fix deployed SSR head injection. Neither blocks us now. Full
+write-up in web-plan.md "Per-pattern OG images — SHIPPED"; the reusable
+version is the `expo-dynamic-og-images` skill.
 
 Original brief — every page unfurled with text-only meta. Generate proper
 Open Graph images (1200×630) for the site's pages — **design them in
