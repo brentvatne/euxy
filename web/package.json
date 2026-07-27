@@ -7,9 +7,10 @@
     "sync": "node scripts/sync-shared.mjs",
     "og": "node scripts/sync-shared.mjs && bun scripts/generate-og.ts",
     "start": "node scripts/sync-shared.mjs && expo start --web",
-    "export": "node scripts/sync-shared.mjs && bun scripts/generate-og.ts && expo export --platform web",
-    "typecheck": "node scripts/sync-shared.mjs && tsc --noEmit",
-    "deploy": "node scripts/sync-shared.mjs && bun scripts/generate-og.ts && expo export --platform web && node scripts/check-dist.mjs && npx --yes eas-cli deploy --prod --non-interactive"
+    "export": "node scripts/sync-shared.mjs && bun scripts/generate-og.ts && node scripts/generate-wasm-modules.mjs && expo export --platform web",
+    "typecheck": "node scripts/sync-shared.mjs && node scripts/generate-wasm-modules.mjs && tsc --noEmit",
+    "deploy": "node scripts/sync-shared.mjs && bun scripts/generate-og.ts && expo export --platform web && node scripts/check-dist.mjs && npx --yes eas-cli deploy --prod --non-interactive",
+    "og:wasm": "node scripts/generate-wasm-modules.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.7",

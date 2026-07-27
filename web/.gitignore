@@ -8,3 +8,5 @@ shared/
 
 expo-env.d.ts
 # @end expo-cli
+# @generated base64 wasm/font modules for the OG route (scripts/generate-wasm-modules.mjs)
+lib/generated/
