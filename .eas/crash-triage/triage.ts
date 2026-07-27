@@ -21,6 +21,7 @@
  *   DRY_RUN                        — '1' to skip the PR (agent + analysis only)
  *   SIM_VALIDATION                 — '1' to run argent/EAS-Simulator before/after
  *   EXPO_TOKEN                     — eas-cli auth (required when SIM_VALIDATION=1)
+ *   AGENT_PROMPT_FILE / SIMULATOR_AGENT_PROMPT_FILE — Markdown prompt paths
  *   MAX_TRIAGE_PER_HOUR / MAX_TRIAGE_PER_DAY — storm-control rate cap (5 / 20)
  *
  * Storm control (docs/crash-storm-control-design.md): before the agent runs, a
@@ -295,7 +296,9 @@ if (simValidation) {
 
 // ---- run the agent ----
 console.log(`▸ Investigating crash ${feedbackId || "(no id)"} with Claude…`);
-const promptFile = simValidation ? `${TRIAGE_DIR}/triage-prompt-sim.md` : `${TRIAGE_DIR}/triage-prompt.md`;
+const promptFile = simValidation
+  ? env.SIMULATOR_AGENT_PROMPT_FILE || "prompts/automation/crash-triage-simulator.md"
+  : env.AGENT_PROMPT_FILE || "prompts/automation/crash-triage.md";
 const prompt = await Bun.file(promptFile).text();
 console.log(
   `\n===== FULL PROMPT PASSED TO CLAUDE (${simValidation ? "sim-validation" : "investigation-only"}) =====\n${prompt}\n===== END PROMPT =====\n` +

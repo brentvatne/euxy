@@ -29,6 +29,8 @@ jobs:
     runs_on: linux-medium
     env:
       REPO_SLUG: brentvatne/euxy
+      AGENT_PROMPT_FILE: prompts/automation/crash-triage.md
+      SIMULATOR_AGENT_PROMPT_FILE: prompts/automation/crash-triage-simulator.md
       ALLOWED_FEEDBACK_EMAILS: brentvatne@gmail.com
       DISABLE_AUTOUPDATER: '1'
       FEEDBACK_ID: ${{ app_store_connect.beta_feedback.id }}

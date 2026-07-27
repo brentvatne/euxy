@@ -12,9 +12,12 @@
  *   TRIAGE_ALLOWLIST               — JSON array of allowed GitHub logins (default ["brentvatne"])
  *   ISSUE_NUMBER / ISSUE_TITLE / ISSUE_BODY / ISSUE_URL / ISSUE_AUTHOR
  *   ACCEPT_COMMENT / ACCEPT_AUTHOR — the `/accept …` comment (issue_comment only)
+ *   AGENT_PROMPT_FILE              — Markdown prompt path
  *   GIT_BIN                        — git binary (default 'git')
  *   DRY_RUN                        — '1' to skip the PR (agent + analysis only)
  */
+import { assertSafeAgentDiff } from "../../.eas/shared/safe-agent-diff";
+
 const env = process.env;
 const GIT = env.GIT_BIN || "git";
 const CLAUDE = ["claude", ...(env.CLAUDE_PLUGIN_DIR ? ["--plugin-dir", env.CLAUDE_PLUGIN_DIR] : [])];
@@ -88,7 +91,8 @@ if (!allowlist.includes(actor)) {
 console.log(`▸ Actor ${actor} is allowlisted → proceeding.`);
 
 // ---- run the agent ----
-const prompt = await Bun.file(`${DIR}/../scripts/issue-triage-prompt.md`).text();
+const promptFile = env.AGENT_PROMPT_FILE || "prompts/automation/issue-triage.md";
+const prompt = await Bun.file(promptFile).text();
 console.log(`\n===== FULL PROMPT PASSED TO CLAUDE =====\n${prompt}\n===== END PROMPT =====\n(the agent also reads ${ISSUE_JSON})\n`);
 // Security: issue text can be attacker-authored (a `/accept` on someone else's
 // issue), so hand the agent a minimal env — drop every token/secret-ish var and
@@ -131,10 +135,14 @@ await sh([GIT, "config", "user.email", "issue-triage@users.noreply.github.com"])
 await sh([GIT, "checkout", "-B", branch]);
 await sh([GIT, "add", "-A"]);
 const staged = await sh([GIT, "diff", "--cached", "--name-only"]);
-const codeChanged = staged.out
-  .split("\n")
-  .filter(Boolean)
-  .some((f) => !f.startsWith(`${DIR}/`));
+const stagedPaths = staged.out.split("\n").filter(Boolean);
+try {
+  assertSafeAgentDiff(stagedPaths);
+} catch (error) {
+  console.error(`✗ ${(error as Error).message}`);
+  process.exit(1);
+}
+const codeChanged = stagedPaths.some((f) => !f.startsWith(`${DIR}/`));
 if ((await sh([GIT, "diff", "--cached", "--quiet"], { allowFail: true })).code === 0) {
   console.log("▸ Nothing staged; nothing to open a PR for.");
   process.exit(0);

@@ -1,4 +1,9 @@
-const PROTECTED_AUTOMATION_PREFIXES = [".github/workflows/", ".eas/workflows/"] as const;
+const PROTECTED_AUTOMATION_PREFIXES = [
+  ".github/workflows/",
+  ".eas/workflows/",
+  "prompts/automation/",
+  ".expo-code-review/",
+] as const;
 
 function normalizeRepoPath(path: string): string {
   return path.trim().replace(/^\.\/+/, "");

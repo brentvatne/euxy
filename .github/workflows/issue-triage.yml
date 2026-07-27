@@ -59,6 +59,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO_SLUG: ${{ github.repository }}
           EVENT_NAME: ${{ github.event_name }}
+          AGENT_PROMPT_FILE: prompts/automation/issue-triage.md
           TRIAGE_ALLOWLIST: ${{ vars.TRIAGE_ALLOWLIST || '["brentvatne"]' }}
           # passed via env (never interpolated into the shell) to avoid injection
           ISSUE_NUMBER: ${{ github.event.issue.number }}

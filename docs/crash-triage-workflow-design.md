@@ -111,7 +111,7 @@ investigate:
     - id: agent
       name: Run the agent (headless)
       run: |
-        claude -p "$(cat scripts/triage-prompt.md)" \
+        claude -p "$(cat prompts/automation/crash-triage.md)" \
           --permission-mode acceptEdits \
           --append-system-prompt "Crash: $(cat crash.json)"
         # agent creates a branch, applies a fix, writes outputs (branch/fixed)

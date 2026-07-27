@@ -14,6 +14,7 @@
  *      TRIAGE_PR_AUTHOR_ALLOWLIST
  *        (default ["brentvatne","euxy-bot","github-actions[bot]"]),
  *      TRIAGE_REVIEWER_ALLOWLIST (default ["brentvatne"]),
+ *      AGENT_PROMPT_FILE (Markdown prompt path),
  *      MAX_ITERS (default 3), GIT_BIN, DRY_RUN.
  */
 import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
@@ -134,7 +135,8 @@ for (const [k, v] of Object.entries(env)) {
 await sh(["bun", "install", "--ignore-scripts"], { cwd: WORK, allowFail: true, env: cleanEnv });
 
 // ---- run the agent in the clone (shell to verify; secrets stripped) ----
-const prompt = await Bun.file(".eas/pr-review/pr-review-prompt.md").text();
+const promptFile = env.AGENT_PROMPT_FILE || "prompts/automation/pr-review-response.md";
+const prompt = await Bun.file(promptFile).text();
 const agentEnv: Record<string, string | undefined> = {};
 for (const [k, v] of Object.entries(env)) {
   if (k === "CLAUDE_CODE_OAUTH_TOKEN") { agentEnv[k] = v; continue; }

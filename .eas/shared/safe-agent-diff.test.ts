@@ -7,29 +7,40 @@ describe("safe agent diff", () => {
     expect(
       findProtectedAutomationChanges([
         "app/index.tsx",
-        ".eas/feedback-triage/feedback-prompt.md",
         ".github/scripts/issue-triage.ts",
+        "prompts/README.md",
       ])
     ).toEqual([]);
   });
 
-  test("blocks GitHub and EAS workflow changes", () => {
+  test("blocks workflow and prompt changes", () => {
     expect(
       findProtectedAutomationChanges([
         "./.github/workflows/review.yml",
         ".eas/workflows/feedback-triage.yml",
+        "prompts/automation/feedback-triage.md",
+        ".expo-code-review/agents/security.md",
         ".github/workflows/review.yml",
       ])
-    ).toEqual([".eas/workflows/feedback-triage.yml", ".github/workflows/review.yml"]);
+    ).toEqual([
+      ".eas/workflows/feedback-triage.yml",
+      ".expo-code-review/agents/security.md",
+      ".github/workflows/review.yml",
+      "prompts/automation/feedback-triage.md",
+    ]);
   });
 
   test("throws with every protected path in the error", () => {
     expect(() =>
-      assertSafeAgentDiff(["src/example.ts", ".github/workflows/review.yml", ".eas/workflows/update.yml"])
+      assertSafeAgentDiff([
+        "src/example.ts",
+        "prompts/automation/issue-triage.md",
+        ".github/workflows/review.yml",
+      ])
     ).toThrow(
       "Refusing to publish agent-authored changes to protected automation paths:\n" +
-        "  - .eas/workflows/update.yml\n" +
-        "  - .github/workflows/review.yml"
+        "  - .github/workflows/review.yml\n" +
+        "  - prompts/automation/issue-triage.md"
     );
   });
 });

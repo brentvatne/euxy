@@ -16,6 +16,7 @@
  *   ALLOWED_FEEDBACK_EMAILS      — comma list; only these testers' feedback is acted on (default brentvatne@gmail.com)
  *   UPDATE_CHANNEL               — EAS Update channel (must be "preview")
  *   SUBMIT_PROFILE               — eas.json submit profile for the ASC key (default production)
+ *   AGENT_PROMPT_FILE            — Markdown prompt path
  *   GIT_BIN / DRY_RUN
  */
 import { parsePublicPr } from "./public-pr";
@@ -113,7 +114,8 @@ if (allowlist.length) {
 }
 
 // ---- 2. run the agent (minimal env, acceptEdits — no shell, no secrets) ----
-const prompt = await Bun.file(`${DIR}/feedback-prompt.md`).text();
+const promptFile = env.AGENT_PROMPT_FILE || "prompts/automation/feedback-triage.md";
+const prompt = await Bun.file(promptFile).text();
 console.log(`\n===== FULL PROMPT PASSED TO CLAUDE =====\n${prompt}\n===== END PROMPT =====\n(the agent also reads ${FEEDBACK_JSON})\n`);
 const agentEnv: Record<string, string | undefined> = {};
 for (const [k, v] of Object.entries(env)) {
