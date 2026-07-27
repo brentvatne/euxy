@@ -42,13 +42,15 @@
   // HTML marker used to find + update the single PR comment. Keep it stable.
   "commentTag": "expo-ai-code-reviewer",
 
-  // ChatGPT/Codex subscription (OAuth): tokenEnv holds the REFRESH token from an
-  // `opencode auth login` ChatGPT sign-in (`ecr setup-auth` walks through it);
-  // OpenCode mints short-lived access tokens from it on demand. All models above
-  // are on the subscription's allowlist, so reviews draw no metered spend.
+  // ChatGPT/Codex subscription (OAuth): tokenEnv holds the ACCESS token from an
+  // `opencode auth login` ChatGPT sign-in (`ecr setup-auth` extracts it) — a
+  // plain bearer with no rotation involvement; re-mint when it expires (~10
+  // days; doctor + the run preflight warn first). NEVER use the refresh token
+  // here: it is single-use and dies on first rotation. All models above are on
+  // the subscription's allowlist, so reviews draw no metered spend.
   "auth": {
     "mode": "oauth",
     "provider": "openai",
-    "tokenEnv": "CODEX_OAUTH_REFRESH_TOKEN"
+    "tokenEnv": "CODEX_OAUTH_ACCESS_TOKEN"
   }
 }
