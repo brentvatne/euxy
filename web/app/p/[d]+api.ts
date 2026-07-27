@@ -56,10 +56,15 @@ export function GET(request: Request, { d }: { d: string }) {
   }
 
   const html = `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="background-color:#000">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Same canvas as the rest of the site (color.ground) declared before any
+     paint, so the hand-off to /p?d= never flashes white. -->
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#000000">
+<style>html,body{background-color:#000;margin:0}</style>
 <title>${escapeHtml(title)}</title>
 <meta name="description" content="${escapeHtml(description)}">
 <meta property="og:type" content="website">
@@ -76,7 +81,7 @@ export function GET(request: Request, { d }: { d: string }) {
 <meta name="twitter:image" content="${escapeHtml(image)}">
 <link rel="canonical" href="${escapeHtml(target)}">
 </head>
-<body style="margin:0;background:#08080A;color:#98989F;font-family:ui-monospace,Menlo,monospace">
+<body style="color:#98989F;font-family:ui-monospace,Menlo,monospace">
 <noscript><p style="padding:24px">Open <a style="color:#F6F4F4" href="${escapeHtml(target)}">${escapeHtml(target)}</a> to play this pattern.</p></noscript>
 <script>location.replace(${JSON.stringify(target)})</script>
 </body>

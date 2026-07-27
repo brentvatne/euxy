@@ -126,23 +126,27 @@ export default function Home() {
             app — or, without the app, plays it on this site. No server, no account: the whole
             pattern lives inside the link.
           </Text>
-          <Link
-            // The canonical share shape is /p/<payload>, not ?d= — the CDN cache
-            // key is query-blind, so only a path segment gets a per-pattern
-            // unfurl. Linking the real shape means a copied link works too.
-            href={
-              `/p/${(() => {
+          {/* A real <a>, deliberately NOT expo-router's <Link>. /p/<payload> is
+              served by an API route and has no client route, so SPA navigation
+              would match nothing and render Unmatched Route without ever
+              reaching the worker. A full page load lets the server answer.
+              The path shape (not ?d=) is what carries the per-pattern unfurl,
+              so a link copied from here behaves like a real share link. */}
+          <Text
+            accessibilityRole="link"
+            {...({
+              href: `/p/${(() => {
                 // Encode the EFFECTIVE glyph — preset glyphs come from the
                 // id-keyed curated map, and ids don't travel in the payload.
                 const p = presets.find((x) => x.name === 'Four on the Floor') ?? presets[0];
                 return encodePattern({ ...p, icon: effectiveChipName(p) });
-              })()}` as never
-            }
-            style={styles.tryKey}
+              })()}`,
+            } as object)}
+            style={[styles.tryKey, styles.tryKeyLabel]}
             {...webAttrs({ anim: '', pill: '' })}
           >
-            <Text style={styles.tryKeyLabel}>Open an example shared link</Text>
-          </Link>
+            Open an example shared link
+          </Text>
         </CollapsibleSection>
 
         <View style={styles.footer}>
