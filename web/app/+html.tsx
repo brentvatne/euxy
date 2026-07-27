@@ -17,7 +17,9 @@ import { color } from '@/theme/tokens';
 
 // Paint the canvas before a single byte of CSS or JS is parsed. `color-scheme`
 // also makes form controls and scrollbars render dark instead of flashing light.
-const FIRST_PAINT = `html,body{background-color:${color.ground};}`;
+// zoom: RNW styles are absolute px, so a root zoom is the one knob that scales
+// type, chips, the player, and spacing together ("everything, just a touch").
+const FIRST_PAINT = `html,body{background-color:${color.ground};}html{zoom:1.08;}`;
 
 export default function Root({ children }: PropsWithChildren) {
   return (
