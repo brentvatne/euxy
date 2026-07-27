@@ -248,7 +248,38 @@ container and text styles merge onto the one element. You get the shareable URL
 on copy-link, a new tab on cmd-click, and an instant transition on a normal
 click.
 
-## 7. Stop the first-paint flash
+## 7. Hand the address bar back to the canonical URL
+
+The client redirect in step 5 means every human ends up on the internal page —
+`/view/[id]` is what the address bar shows, so it's what people copy. Re-shared,
+it unfurls with the generic card, and the architecture guarantees it: *no one*
+ever has the canonical URL in their address bar unless you put it back.
+
+On the internal page, rewrite history to the shareable form once the item
+actually loads:
+
+```tsx
+// app/view/[id].tsx
+useEffect(() => {
+  if (!item || typeof window === 'undefined') return;
+  if (!window.location.pathname.startsWith('/share/')) {
+    window.history.replaceState(null, '', `/share/${id}`);
+  }
+}, [item, id]);
+```
+
+Pure history rewrite — no navigation, router state untouched. A later reload
+replays the (cached, `immutable`) share-route hop, the same two-load cost as
+clicking a shared link. Rewrite only on successful load, so an error page keeps
+the real broken URL for debugging.
+
+While you're in the share route, check its `rel="canonical"`: it must point at
+the shareable URL itself, matching `og:url` — not at the redirect target. The
+target is sitting right there in a variable, so pointing canonical at the
+internal page is an easy slip, and it tells search engines the non-unfurlable
+form is the real one.
+
+## 8. Stop the first-paint flash
 
 **Expo Router's default root HTML sets neither `color-scheme` nor a background
 on `<html>`**, so the browser paints its default white canvas before a byte of
@@ -284,7 +315,7 @@ Use your app's real background token here and the identical value in the
 shareable route's inline styles — a near-miss between the two reads as a
 flicker even when nothing is white.
 
-## 8. Wire the build scripts
+## 9. Wire the build scripts
 
 The generated directory is gitignored, so **every script that bundles must run
 the generator** — `start`, `export`, `typecheck`, and `deploy` each have their
@@ -303,7 +334,7 @@ The built filename keeps its `+api` suffix, and under server output prerendered
 HTML lands in `dist/server/` while static assets go to `dist/` and
 `dist/client/`.
 
-## 9. Deploy and verify
+## 10. Deploy and verify
 
 ```bash
 npx expo export -p web
@@ -346,8 +377,9 @@ you pay the render once per item.
 | Every link unfurls with the same item's card | Query-blind CDN cache key. Move the id into a route param (step 4). |
 | `og:image` points at `yoursite--<id>.expo.app` | Derived from `request.url`. Pin the canonical origin (step 5). |
 | Unmatched Route clicking an in-site link, but pasting the URL works | The router's `<Link>` did SPA navigation to a path with no client route. Use a real `<a>` and intercept the click (step 6). |
-| White flash on navigation | No `color-scheme` / `<html>` background before CSS loads (step 7). |
-| Works locally, unresolvable import in CI | The generator isn't wired into that script (step 8). |
+| URL copied from the address bar unfurls with the generic card | Humans land on the internal page after the redirect and copy that. `replaceState` the shareable URL back on load (step 7). |
+| White flash on navigation | No `color-scheme` / `<html>` background before CSS loads (step 8). |
+| Works locally, unresolvable import in CI | The generator isn't wired into that script (step 9). |
 
 ## Testing locally without deploying
 
@@ -375,6 +407,8 @@ deploy.
 - [ ] Head written by an API route; 200 + client redirect, never 302
 - [ ] Route param validated before being echoed into HTML
 - [ ] Canonical origin pinned — never derived from `request.url`
+- [ ] Internal page rewrites the address bar back to the shareable URL on successful load
+- [ ] Share route’s `rel=canonical` points at itself, matching `og:url`
 - [ ] In-site links: real `<a>` with the shareable href, plain clicks intercepted into `router.push`
 - [ ] `+html.tsx` sets `color-scheme` and an `<html>` background matching the app's real token
 - [ ] Generator wired into every script: start, export, typecheck, deploy
