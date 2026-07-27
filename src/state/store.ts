@@ -197,6 +197,9 @@ export interface AppState {
   /** Add a decoded shared pattern (share-codec) to the library and select it.
    * Fresh ids throughout; returns the new pattern id. */
   importPattern: (shared: SharedPattern) => string;
+  /** Copy a pattern (fresh id + lane ids, "<name> Copy") without switching to
+   * it — the library gains a row next to the original. Returns the new id. */
+  duplicatePattern: (id: string) => string;
   deletePattern: (id: string) => void;
   /** Rename any pattern by id (blank names keep the old one). */
   renamePattern: (id: string, name: string) => void;
@@ -510,6 +513,20 @@ export const useStore = create<AppState>((set, get) => {
         snapshotActive: false,
       }));
       return pattern.id;
+    },
+    duplicatePattern: (id) => {
+      const source = get().patterns.find((p) => p.id === id);
+      const newId = uid('pattern');
+      if (!source) return newId;
+      const pattern: Pattern = {
+        ...source,
+        id: newId,
+        name: `${source.name} Copy`,
+        lanes: source.lanes.map((lane) => makeLane({ ...lane, id: uid('lane') })),
+        updatedAt: Date.now(),
+      };
+      set((s) => ({ patterns: [...s.patterns, pattern] }));
+      return newId;
     },
     loadPattern: (id) =>
       set((s) => {
