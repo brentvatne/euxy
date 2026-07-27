@@ -1,6 +1,6 @@
 /**
  * Share-pattern form sheet (Paper "Sheet · Share Pattern"): the ShareCard
- * (Skia — QR encodes https://euxy.expo.app/p?d=…) over two keys. Share Card
+ * (Skia — QR encodes https://euxy.expo.app/p/<payload>) over two keys. Share Card
  * snapshots the canvas (device pixel ratio ≈ 3×) and hands the PNG to the
  * share sheet; on builds without expo-sharing/file-system it falls back to
  * sharing the bare link. Copy Link uses expo-clipboard with the same

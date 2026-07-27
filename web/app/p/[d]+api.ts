@@ -79,7 +79,7 @@ export function GET(request: Request, { d }: { d: string }) {
 <meta name="twitter:title" content="${escapeHtml(title)}">
 <meta name="twitter:description" content="${escapeHtml(description)}">
 <meta name="twitter:image" content="${escapeHtml(image)}">
-<link rel="canonical" href="${escapeHtml(target)}">
+<link rel="canonical" href="${escapeHtml(`${origin}/p/${d}`)}">
 </head>
 <body style="color:#98989F;font-family:ui-monospace,Menlo,monospace">
 <noscript><p style="padding:24px">Open <a style="color:#F6F4F4" href="${escapeHtml(target)}">${escapeHtml(target)}</a> to play this pattern.</p></noscript>

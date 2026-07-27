@@ -35,6 +35,18 @@ export default function SharedPatternPage() {
     if (pattern) setFavicon(CHIPS[(pattern.icon ?? 'euxy') as keyof typeof CHIPS] ?? CHIPS.euxy);
   }, [pattern]);
 
+  // Humans land here via /p?d=… (the [d]+api.ts hop, or the homepage example
+  // link), so that legacy shape is what the address bar shows — but only the
+  // canonical /p/<d> form unfurls with the per-pattern OG card when re-shared.
+  // Rewrite history to the canonical form; plain replaceState, no navigation.
+  // Only on successful decode, so an error page keeps the broken URL intact.
+  useEffect(() => {
+    if (!pattern || typeof d !== 'string' || typeof window === 'undefined') return;
+    if (new URLSearchParams(window.location.search).has('d')) {
+      window.history.replaceState(null, '', `/p/${d}`);
+    }
+  }, [pattern, d]);
+
   // The prerendered p.html IS this state — the unfurl meta must live here,
   // not inside the pattern branch the prerender never reaches.
   if (!ready) {
