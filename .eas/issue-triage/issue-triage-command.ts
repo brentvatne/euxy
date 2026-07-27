@@ -30,6 +30,15 @@ export function parseIssueTriageCommand(comment: string): string | null {
   return (match[1] || "").trim();
 }
 
+export function parseIssueTriageFollowUp(comment: string): string | null {
+  const match = comment
+    .trim()
+    .match(/^@notbrent(?:[ \t]*[,:-])?[ \t]+([\s\S]+)$/i);
+  if (!match) return null;
+  const instruction = match[1].trim();
+  return instruction || null;
+}
+
 type GitHubIssue = {
   id?: number;
   number?: number;
@@ -56,6 +65,7 @@ export function validateIssueTriageDispatch({
   expectedCommentId,
   issue,
   comment,
+  issueComments = [],
   issueAuthorAllowlist,
 }: {
   eventName: string;
@@ -66,6 +76,7 @@ export function validateIssueTriageDispatch({
   expectedCommentId?: string;
   issue: GitHubIssue;
   comment?: GitHubIssueComment;
+  issueComments?: GitHubIssueComment[];
   issueAuthorAllowlist: string[];
 }): {
   acceptContext: string;
@@ -132,14 +143,45 @@ export function validateIssueTriageDispatch({
       }.`
     );
   }
-  const acceptContext = parseIssueTriageCommand(comment.body || "");
-  if (acceptContext === null) {
-    throw new Error("The fetched GitHub comment is not a valid @notbrent accept command.");
+  const commandBody = comment.body || "";
+  const acceptContext = parseIssueTriageCommand(commandBody);
+  if (acceptContext !== null) {
+    return {
+      acceptContext,
+      actor: commentAuthor,
+      triggeredBy: `@notbrent accept by ${commentAuthor}`,
+    };
+  }
+
+  const followUpContext = parseIssueTriageFollowUp(commandBody);
+  if (followUpContext === null) {
+    throw new Error("The fetched GitHub comment is not a valid @notbrent instruction.");
+  }
+
+  const currentCommentId = Number(comment.id);
+  const issueApiUrl =
+    `https://api.github.com/repos/${owner}/${repo}/issues/${expectedIssueNumber}`;
+  const hasPriorAcceptance = Number.isSafeInteger(currentCommentId) &&
+    issueComments.some((candidate) => {
+      const candidateId = Number(candidate.id);
+      const candidateAuthor = String(candidate.user?.login || "").toLowerCase();
+      return (
+        Number.isSafeInteger(candidateId) &&
+        candidateId < currentCommentId &&
+        candidate.issue_url === issueApiUrl &&
+        candidateAuthor === ISSUE_TRIAGE_APPROVER &&
+        parseIssueTriageCommand(candidate.body || "") !== null
+      );
+    });
+  if (!hasPriorAcceptance) {
+    throw new Error(
+      `A follow-up @notbrent instruction requires an earlier @notbrent accept from ${ISSUE_TRIAGE_APPROVER} on this issue.`
+    );
   }
 
   return {
-    acceptContext,
+    acceptContext: followUpContext,
     actor: commentAuthor,
-    triggeredBy: `@notbrent accept by ${commentAuthor}`,
+    triggeredBy: `@notbrent follow-up by ${commentAuthor}`,
   };
 }

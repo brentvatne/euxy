@@ -6,6 +6,7 @@ import {
   ISSUE_TRIAGE_COMMAND,
   isIssueTriageActorAuthorized,
   parseIssueTriageCommand,
+  parseIssueTriageFollowUp,
   validateIssueTriageDispatch,
 } from "./issue-triage-command";
 
@@ -68,6 +69,20 @@ describe("issue triage approval comments", () => {
     expect(parseIssueTriageCommand("please @notbrent accept")).toBeNull();
     expect(parseIssueTriageCommand("@notbrent accepted")).toBeNull();
     expect(parseIssueTriageCommand("@euxy-bot accept")).toBeNull();
+  });
+
+  test("parses a direct follow-up instruction to the bot", () => {
+    expect(
+      parseIssueTriageFollowUp(
+        "@notbrent actually preserve the lane order and add a test"
+      )
+    ).toBe("actually preserve the lane order and add a test");
+    expect(parseIssueTriageFollowUp("@notbrent: use the shared helper")).toBe(
+      "use the shared helper"
+    );
+    expect(parseIssueTriageFollowUp("@notbrent")).toBeNull();
+    expect(parseIssueTriageFollowUp("please @notbrent do this")).toBeNull();
+    expect(parseIssueTriageFollowUp("@euxy-bot do this")).toBeNull();
   });
 
   test("validates an immutable issue-open dispatch", () => {
@@ -153,7 +168,111 @@ describe("issue triage approval comments", () => {
     ).toThrow("does not belong to the dispatched issue");
   });
 
-  test("rejects a changed command or unauthorized comment author", () => {
+  test("inherits authorization for Brent's later instruction on the same issue", () => {
+    expect(
+      validateIssueTriageDispatch({
+        eventName: "issue_comment",
+        owner: "brentvatne",
+        repo: "euxy",
+        expectedIssueId: "9001",
+        expectedIssueNumber: 29,
+        expectedCommentId: "7002",
+        issueAuthorAllowlist: [],
+        issue: {
+          id: 9001,
+          number: 29,
+          html_url: "https://github.com/brentvatne/euxy/issues/29",
+          user: { login: "someone-else" },
+        },
+        comment: {
+          id: 7002,
+          issue_url: "https://api.github.com/repos/brentvatne/euxy/issues/29",
+          user: { login: "brentvatne" },
+          body: "@notbrent actually keep Pressable and add a regression test",
+        },
+        issueComments: [
+          {
+            id: 7001,
+            issue_url: "https://api.github.com/repos/brentvatne/euxy/issues/29",
+            user: { login: "brentvatne" },
+            body: "@notbrent accept. verify the existing Pressable usage",
+          },
+          {
+            id: 7002,
+            issue_url: "https://api.github.com/repos/brentvatne/euxy/issues/29",
+            user: { login: "brentvatne" },
+            body: "@notbrent actually keep Pressable and add a regression test",
+          },
+        ],
+      })
+    ).toEqual({
+      acceptContext: "actually keep Pressable and add a regression test",
+      actor: "brentvatne",
+      triggeredBy: "@notbrent follow-up by brentvatne",
+    });
+  });
+
+  test("requires a prior same-issue acceptance from Brent for follow-ups", () => {
+    const base = {
+      eventName: "issue_comment",
+      owner: "brentvatne",
+      repo: "euxy",
+      expectedIssueId: "9001",
+      expectedIssueNumber: 29,
+      expectedCommentId: "7002",
+      issueAuthorAllowlist: [],
+      issue: {
+        id: 9001,
+        number: 29,
+        html_url: "https://github.com/brentvatne/euxy/issues/29",
+        user: { login: "someone-else" },
+      },
+      comment: {
+        id: 7002,
+        issue_url: "https://api.github.com/repos/brentvatne/euxy/issues/29",
+        user: { login: "brentvatne" },
+        body: "@notbrent do the smaller version instead",
+      },
+    };
+    const acceptance = {
+      id: 7001,
+      issue_url: "https://api.github.com/repos/brentvatne/euxy/issues/29",
+      user: { login: "brentvatne" },
+      body: "@notbrent accept",
+    };
+
+    expect(() => validateIssueTriageDispatch(base)).toThrow(
+      "requires an earlier @notbrent accept from brentvatne on this issue"
+    );
+    expect(() =>
+      validateIssueTriageDispatch({
+        ...base,
+        issueComments: [
+          { ...acceptance, user: { login: "another-maintainer" } },
+        ],
+      })
+    ).toThrow("requires an earlier @notbrent accept");
+    expect(() =>
+      validateIssueTriageDispatch({
+        ...base,
+        issueComments: [
+          {
+            ...acceptance,
+            issue_url:
+              "https://api.github.com/repos/brentvatne/euxy/issues/28",
+          },
+        ],
+      })
+    ).toThrow("requires an earlier @notbrent accept");
+    expect(() =>
+      validateIssueTriageDispatch({
+        ...base,
+        issueComments: [{ ...acceptance, id: 7003 }],
+      })
+    ).toThrow("requires an earlier @notbrent accept");
+  });
+
+  test("rejects an invalid instruction or unauthorized comment author", () => {
     const base = {
       eventName: "issue_comment",
       owner: "brentvatne",
@@ -190,6 +309,6 @@ describe("issue triage approval comments", () => {
           body: "please @notbrent accept",
         },
       })
-    ).toThrow("not a valid @notbrent accept command");
+    ).toThrow("not a valid @notbrent instruction");
   });
 });

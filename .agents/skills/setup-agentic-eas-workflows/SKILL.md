@@ -59,7 +59,12 @@ allowlist:
    the immutable comment-author login in the GitHub workflow and validate both
    actor and command again in the runner. Let this command authorize any
    non-pull-request issue regardless of its author; apply issue-author
-   allowlists only to automatic `issues.opened` triage.
+   allowlists only to automatic `issues.opened` triage. If later maintainer
+   instructions should not need to repeat `accept`, treat the initial approval
+   as issue-scoped authorization: dispatch later bot-addressed comments from
+   that maintainer, re-fetch the full issue comment history in the trusted
+   runner, and require an earlier exact approval by the same maintainer on the
+   same issue before accepting the current instruction.
 7. Ensure an issue created by the publishing bot cannot trigger remediation
    through the ordinary `issues.opened` path.
 

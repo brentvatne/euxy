@@ -4,7 +4,8 @@ accepted it for triage, so it's worth acting on.
 
 ## What you have
 - `.eas/issue-triage/issue.json` — the issue (title, body, url, author, how it
-  was triggered, and any extra context from an `@notbrent accept` comment).
+  was triggered, and the current maintainer instruction from an acceptance or
+  authorized follow-up comment).
 - The full repo at the current working directory.
 - The Expo skills (expo-router, expo-module, etc.) — consult them when relevant.
 
@@ -13,11 +14,14 @@ accepted it for triage, so it's worth acting on.
    a feature, a change. If there's `acceptContext`, treat it as the maintainer's
    extra guidance and weight it heavily.
 2. Investigate the codebase for the relevant area(s).
-3. Treat `@notbrent accept` as affirmative authorization to proceed. If a
+3. The wrapper starts a comment-triggered run only after a fresh
+   `@notbrent accept` or a later `@notbrent …` follow-up on an issue the
+   maintainer previously accepted. Treat either as affirmative authorization
+   to proceed, with the current `acceptContext` as the latest instruction. If a
    reasonable, safe, well-scoped implementation exists, apply it by editing
    files. Make ordinary implementation decisions yourself and prefer a focused
    patch over stopping for non-essential ambiguity. Lack of perfect confidence
-   alone is not a reason to stop after acceptance.
+   alone is not a reason to stop after authorization.
    Make no code change only when the maintainer asked for investigation alone
    and the findings answer it, no meaningful improvement is warranted, a
    product/external decision is genuinely required, or proceeding would be
@@ -49,6 +53,6 @@ accepted it for triage, so it's worth acting on.
 - Do not start servers or run builds unless an appended simulator-verification
   section explicitly enables them. Otherwise use static investigation and
   targeted edits only (`npx tsc --noEmit` is fine if quick).
-- Be honest about uncertainty without defaulting to inaction. After an accepted
-  command, proceed with a reasonable scoped implementation unless one of the
-  concrete no-change conditions above applies.
+- Be honest about uncertainty without defaulting to inaction. After an
+  authorized command, proceed with a reasonable scoped implementation unless
+  one of the concrete no-change conditions above applies.

@@ -11,7 +11,7 @@
  *   REPO_SLUG                (req) — owner/repo
  *   EVENT_NAME               (req) — 'issues' | 'issue_comment'
  *   ISSUE_NUMBER / ISSUE_ID  (req) — immutable issue identity from the dispatcher
- *   COMMENT_ID                     — immutable approval-comment identity
+ *   COMMENT_ID                     — immutable command-comment identity
  *   WORKFLOW_URL             (req) — current EAS workflow run URL
  *   TRIAGE_ALLOWLIST               — JSON array of issue authors eligible for automatic triage
  *   AGENT_PROMPT_FILE              — Markdown prompt path
@@ -29,7 +29,10 @@ import {
   renderPublicSimulatorEvidence,
 } from "../shared/public-simulator-evidence";
 import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
-import { validateIssueTriageDispatch } from "./issue-triage-command";
+import {
+  parseIssueTriageCommand,
+  validateIssueTriageDispatch,
+} from "./issue-triage-command";
 import {
   parsePublicIssueFindings,
   renderPublicIssueFindings,
@@ -99,7 +102,7 @@ async function ghJson<T>(path: string, description: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-// ---- independently fetch and validate the actor, issue, and approval command ----
+// ---- independently fetch and validate the actor, issue, and command history ----
 // GitHub Actions dispatches only immutable IDs. EAS resolves their contents with
 // its own scoped machine-user token, then repeats every authorization check
 // before untrusted issue text can reach the coding agent.
@@ -129,8 +132,34 @@ const fetchedComment =
         body?: string | null;
         issue_url?: string;
         user?: { login?: string };
-      }>(`/issues/comments/${commentId}`, `approval comment ${commentId || "(blank)"}`)
+      }>(`/issues/comments/${commentId}`, `command comment ${commentId || "(blank)"}`)
     : undefined;
+type FetchedIssueComment = {
+  id?: number;
+  body?: string | null;
+  issue_url?: string;
+  user?: { login?: string };
+};
+async function fetchIssueComments(): Promise<FetchedIssueComment[]> {
+  const comments: FetchedIssueComment[] = [];
+  const maxPages = 10;
+  for (let page = 1; page <= maxPages; page += 1) {
+    const batch = await ghJson<FetchedIssueComment[]>(
+      `/issues/${parsedIssueNumber}/comments?per_page=100&page=${page}`,
+      `comment history for issue #${parsedIssueNumber}, page ${page}`
+    );
+    comments.push(...batch);
+    if (batch.length < 100) return comments;
+  }
+  throw new Error(
+    `Issue #${parsedIssueNumber} has at least ${maxPages * 100} comments; refusing to infer prior authorization from a truncated history.`
+  );
+}
+const issueComments =
+  eventName === "issue_comment" &&
+  parseIssueTriageCommand(fetchedComment?.body || "") === null
+    ? await fetchIssueComments()
+    : [];
 const dispatch = validateIssueTriageDispatch({
   eventName,
   owner,
@@ -140,6 +169,7 @@ const dispatch = validateIssueTriageDispatch({
   expectedCommentId: commentId,
   issue: fetchedIssue,
   comment: fetchedComment,
+  issueComments,
   issueAuthorAllowlist: allowlist,
 });
 console.log(`▸ Re-fetched and authorized GitHub actor ${dispatch.actor} → proceeding.`);
@@ -319,7 +349,7 @@ const linkLine = codeChanged ? `Closes #${issue.number}` : `Re: #${issue.number}
 const evidenceSection = publicEvidence
   ? `\n\n${renderPublicSimulatorEvidence(publicEvidence)}`
   : "";
-const body = `${linkLine} — 🔗 ${issue.url}\n_Triggered: ${issue.triggeredBy}._${issue.acceptContext ? `\n_Accept context: ${issue.acceptContext}_` : ""}\n\n${await Bun.file(ANALYSIS).text()}${evidenceSection}\n\n---\n_Automated triage. **Not auto-merged** — review before merging._ Code change proposed: **${codeChanged ? "yes" : "no"}**.`;
+const body = `${linkLine} — 🔗 ${issue.url}\n_Triggered: ${issue.triggeredBy}._${issue.acceptContext ? `\n_Maintainer context: ${issue.acceptContext}_` : ""}\n\n${await Bun.file(ANALYSIS).text()}${evidenceSection}\n\n---\n_Automated triage. **Not auto-merged** — review before merging._ Code change proposed: **${codeChanged ? "yes" : "no"}**.`;
 
 const pullRequest = await createOrFindPullRequest({
   gh,

@@ -26,6 +26,18 @@ describe("issue triage execution boundary", () => {
     expect(dispatcher).not.toContain("setup-agent-toolchain.sh");
     expect(dispatcher).not.toContain("issue-triage.ts");
     expect(dispatcher).not.toContain("actions/checkout");
+    expect(dispatcher).toContain(
+      "startsWith(github.event.comment.body, '@notbrent ')"
+    );
+    expect(dispatcher).toContain(
+      "startsWith(github.event.comment.body, '@notbrent:')"
+    );
+    expect(dispatcher).toContain(
+      "startsWith(github.event.comment.body, '@notbrent,')"
+    );
+    expect(dispatcher).not.toContain(
+      "startsWith(github.event.comment.body, '@notbrent accept')"
+    );
   });
 
   test("runs the credentialed agent only on EAS", () => {
@@ -41,6 +53,9 @@ describe("issue triage execution boundary", () => {
     expect(runner).toContain('status: "triage complete"');
     expect(runner).toContain('status: "pull request opened"');
     expect(runner).toContain("createVerifiedIssueComment");
+    expect(runner).toContain(
+      "/comments?per_page=100&page=${page}"
+    );
     expect(runner.indexOf("createVerifiedIssueComment")).toBeLessThan(
       runner.lastIndexOf('status: "triage complete"')
     );
@@ -59,13 +74,13 @@ describe("issue triage execution boundary", () => {
     expect(gitignore).not.toContain(".github/issue-triage/");
   });
 
-  test("treats an accepted command as authorization to implement", () => {
+  test("treats accepted and inherited follow-up commands as authorization", () => {
     expect(prompt).toContain(
-      "Treat `@notbrent accept` as affirmative authorization to proceed."
+      "`@notbrent accept` or a later `@notbrent …` follow-up"
     );
     expect(prompt).toContain("Lack of perfect confidence");
     expect(prompt).toContain(
-      "alone is not a reason to stop after acceptance."
+      "alone is not a reason to stop after authorization."
     );
     expect(prompt).toContain(
       ".eas/issue-triage/PUBLIC_FINDINGS.json"
