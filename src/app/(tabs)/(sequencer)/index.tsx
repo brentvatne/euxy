@@ -74,8 +74,9 @@ export default function SequencerScreen() {
     initialRender.current = false;
   }, []);
 
-  // The playhead runs on under a full-detent Lane Editor sheet or another tab;
-  // the strips stop painting while nobody can see them (principle 6's spirit).
+  // The playhead runs on under the Lane Editor / Tempo sheets (still this
+  // tab, just covered); it stops once another tab is actually up and nobody
+  // can see the strips (principle 6's spirit).
   const screenFocused = useScreenFocused();
 
   // Per-route TTI for EAS Observe.
