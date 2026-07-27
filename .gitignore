@@ -53,8 +53,14 @@ SETUP-TRACING.md
 .agents/
 .codex/
 
-# Transient triage data — contains tester PII + signed URLs; kept as workflow
-# artifacts only, never committed into a PR/branch.
+# Transient triage data — feedback JSON (tester PII + signed URLs) and the
+# agent's summary markdown. Kept as workflow artifacts / in the PR body, never
+# committed into a PR/branch.
 .eas/crash-triage/crash.json
+.eas/crash-triage/ANALYSIS.md
 .eas/feedback-triage/feedback.json
+.eas/feedback-triage/ANALYSIS.md
 .github/issue-triage/issue.json
+.github/issue-triage/ANALYSIS.md
+.eas/pr-review/
+.github/pr-review/
