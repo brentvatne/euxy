@@ -2,7 +2,7 @@
  * euxy.expo.app — home. What euxy is, hear the factory presets in the
  * browser, how to point the app at this page (IDAM), get the app.
  */
-import { Link, type Href } from 'expo-router';
+import { Link, router, type Href } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { chipForPattern, effectiveChipName } from '@/components/patterns/chips';
@@ -23,6 +23,12 @@ import {
 
 export default function Home() {
   const presets = useMemo(() => presetPatterns(), []);
+  // Encode the EFFECTIVE glyph — preset glyphs come from the id-keyed curated
+  // map, and ids don't travel in the payload.
+  const examplePayload = useMemo(() => {
+    const p = presets.find((x) => x.name === 'Four on the Floor') ?? presets[0];
+    return encodePattern({ ...p, icon: effectiveChipName(p) });
+  }, [presets]);
   const [selectedId, setSelectedId] = useState(presets[0].id);
   const selected = presets.find((p) => p.id === selectedId) ?? presets[0];
 
@@ -126,21 +132,35 @@ export default function Home() {
             app — or, without the app, plays it on this site. No server, no account: the whole
             pattern lives inside the link.
           </Text>
-          {/* A real <a>, deliberately NOT expo-router's <Link>. /p/<payload> is
-              served by an API route and has no client route, so SPA navigation
-              would match nothing and render Unmatched Route without ever
-              reaching the worker. A full page load lets the server answer.
-              The path shape (not ?d=) is what carries the per-pattern unfurl,
-              so a link copied from here behaves like a real share link. */}
+          {/* The href is the REAL share URL (/p/<payload>) so copy-link and
+              cmd-click both yield something that unfurls — but a plain click is
+              intercepted and routed client-side to the ?d= page instead.
+              Following the href would mean two full page loads (the API route
+              serves head-only HTML, then redirects), which blinks. This is one
+              instant in-app navigation with no document teardown.
+
+              Not expo-router's <Link>: /p/<payload> has no client route (it's
+              an API route), so the router would match nothing and render
+              Unmatched Route. */}
           <Text
             accessibilityRole="link"
             {...({
-              href: `/p/${(() => {
-                // Encode the EFFECTIVE glyph — preset glyphs come from the
-                // id-keyed curated map, and ids don't travel in the payload.
-                const p = presets.find((x) => x.name === 'Four on the Floor') ?? presets[0];
-                return encodePattern({ ...p, icon: effectiveChipName(p) });
-              })()}`,
+              href: `/p/${examplePayload}`,
+              onClick: (event: {
+                metaKey?: boolean;
+                ctrlKey?: boolean;
+                shiftKey?: boolean;
+                altKey?: boolean;
+                button?: number;
+                preventDefault: () => void;
+              }) => {
+                // Leave modified clicks alone — cmd/ctrl/shift/middle should
+                // open the real, shareable URL in a new tab or window.
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                if (event.button !== undefined && event.button !== 0) return;
+                event.preventDefault();
+                router.push(`/p?d=${examplePayload}` as Href);
+              },
             } as object)}
             style={[styles.tryKey, styles.tryKeyLabel]}
             {...webAttrs({ anim: '', pill: '' })}
