@@ -2,12 +2,16 @@ import { lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 const BEFORE_SCREENSHOT_NAME = "before.png";
+const BEFORE_CAPTION_NAME = "before.txt";
 const BEFORE_VIDEO_NAME = "before.mp4";
 const SCREENSHOT_NAME = "final.png";
+const CAPTION_NAME = "final.txt";
 const VIDEO_NAME = "verification.mp4";
 const PAGE_MARKER = "euxy-public-simulator-evidence";
 const MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+const MAX_CAPTION_BYTES = 1024;
+const MAX_CAPTION_CHARACTERS = 280;
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 export type PublicSimulatorEvidence = {
@@ -103,37 +107,91 @@ function validateMp4(contents: Buffer, path: string): void {
   }
 }
 
+function validateCaption(contents: Buffer, path: string): string {
+  let decoded: string;
+  try {
+    decoded = new TextDecoder("utf-8", { fatal: true }).decode(contents);
+  } catch {
+    throw new Error(`Public simulator caption is not valid UTF-8: ${path}`);
+  }
+  const caption = decoded.trim().replace(/\s+/g, " ");
+  if (!caption || [...caption].length > MAX_CAPTION_CHARACTERS) {
+    throw new Error(
+      `Public simulator caption must contain 1-${MAX_CAPTION_CHARACTERS} characters: ${path}`
+    );
+  }
+  return caption;
+}
+
+function escapeHtml(value: string): string {
+  const entities: Record<string, string> = {
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  };
+  return value.replace(/[&<>"']/g, (character) => entities[character]);
+}
+
 function evidenceHtml({
   hasBeforeScreenshot,
   hasBeforeVideo,
   hasVideo,
+  beforeCaption,
+  caption,
 }: {
   hasBeforeScreenshot: boolean;
   hasBeforeVideo: boolean;
   hasVideo: boolean;
+  beforeCaption: string | null;
+  caption: string | null;
 }): string {
-  const before = hasBeforeScreenshot || hasBeforeVideo
+  const renderedBeforeCaption = escapeHtml(
+    beforeCaption || "Baseline state captured before the change."
+  );
+  const renderedCaption = escapeHtml(
+    caption || "Final state captured after verification."
+  );
+  const beforeScreenshot = hasBeforeScreenshot
     ? `
-      <section id="before">
-        <h2>Before change</h2>
-        ${hasBeforeScreenshot ? `<img src="./${BEFORE_SCREENSHOT_NAME}" alt="Behavior before the change in EAS Simulator">` : ""}
-        ${
-          hasBeforeVideo
-            ? `<video controls playsinline preload="metadata"${hasBeforeScreenshot ? ` poster="./${BEFORE_SCREENSHOT_NAME}"` : ""}>
-          <source src="./${BEFORE_VIDEO_NAME}" type="video/mp4">
-        </video>
-        <p><a href="./${BEFORE_VIDEO_NAME}">Download the complete before-change recording</a></p>`
-            : ""
-        }
+        <article class="evidence-card" id="before">
+          <header class="card-header">
+            <div>
+              <p class="card-kicker">Baseline</p>
+              <h2>Before change</h2>
+            </div>
+            <span class="state state-before">Before</span>
+          </header>
+          <figure class="capture-frame">
+            <img src="./${BEFORE_SCREENSHOT_NAME}" alt="Behavior before the change in EAS Simulator">
+            <figcaption>
+              <strong>What to look for</strong>
+              <span>${renderedBeforeCaption}</span>
+            </figcaption>
+          </figure>
+        </article>`
+    : "";
+  const beforeRecording = hasBeforeVideo
+    ? `
+          <a class="recording-link" href="./${BEFORE_VIDEO_NAME}">
+            <span class="play-icon" aria-hidden="true"></span>
+            <span>Play baseline simulator run</span>
+          </a>`
+    : "";
+  const afterRecording = hasVideo
+    ? `
+          <a class="recording-link" href="./${VIDEO_NAME}">
+            <span class="play-icon" aria-hidden="true"></span>
+            <span>Play full simulator run</span>
+          </a>`
+    : "";
+  const recordings = hasBeforeVideo || hasVideo
+    ? `
+      <section class="recordings" aria-label="Simulator recordings">${beforeRecording}${afterRecording}
       </section>`
     : "";
-  const video = hasVideo
-    ? `
-        <video controls playsinline preload="metadata" poster="./${SCREENSHOT_NAME}">
-          <source src="./${VIDEO_NAME}" type="video/mp4">
-        </video>
-        <p><a href="./${VIDEO_NAME}">Download the complete after-change recording</a></p>`
-    : "";
+  const comparisonClass = hasBeforeScreenshot ? "comparison" : "comparison comparison-single";
   return `<!doctype html>
 <html lang="en" data-evidence="${PAGE_MARKER}">
   <head>
@@ -142,25 +200,143 @@ function evidenceHtml({
     <meta name="robots" content="noindex,nofollow,noarchive">
     <title>euxy verification evidence</title>
     <style>
-      :root { color-scheme: dark; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-      body { margin: 0 auto; max-width: 1040px; padding: 32px 20px 64px; background: #08080a; color: #f5f5f7; }
-      h1 { font-size: 24px; margin-bottom: 8px; }
-      h2 { font-size: 16px; margin-top: 32px; }
-      p { color: #a7a7ad; line-height: 1.5; }
-      section { display: grid; gap: 16px; align-content: start; }
-      img, video { display: block; max-width: min(100%, 480px); max-height: 760px; border: 1px solid #2c2c32; border-radius: 16px; background: #000; }
-      a { color: #7bb7ff; }
-      @media (min-width: 900px) { main { display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px; } main > h1, main > p { grid-column: 1 / -1; } }
+      * { box-sizing: border-box; }
+      :root {
+        color-scheme: dark;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        background: #08080a;
+        color: #f5f5f7;
+      }
+      body { margin: 0; min-height: 100vh; background: #08080a; }
+      main { width: min(1120px, 100%); margin: 0 auto; padding: 56px 24px 80px; }
+      h1, h2, p, figure { margin: 0; }
+      h1 { max-width: 760px; font-size: clamp(30px, 5vw, 52px); line-height: 1.04; letter-spacing: -0.04em; }
+      h2 { font-size: 17px; line-height: 1.25; letter-spacing: -0.02em; }
+      .page-header { display: grid; gap: 12px; margin-bottom: 32px; }
+      .eyebrow, .card-kicker {
+        color: #8e8e98;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .lede { color: #a7a7ad; font-size: 14px; line-height: 1.6; white-space: nowrap; }
+      .comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+      .comparison-single { grid-template-columns: minmax(0, 536px); }
+      .evidence-card { overflow: hidden; border: 1px solid #2a2a30; border-radius: 20px; background: #111114; }
+      .card-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 18px; }
+      .card-header > div { display: grid; gap: 5px; }
+      .state {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 28px;
+        padding: 0 10px;
+        border: 1px solid #34343a;
+        border-radius: 999px;
+        color: #b6b6bd;
+        font-size: 11px;
+        font-weight: 700;
+      }
+      .state::before { width: 6px; height: 6px; border-radius: 50%; background: #7c7c85; content: ""; }
+      .state-after { color: #d8f8e3; border-color: #28553a; background: #12281a; }
+      .state-after::before { background: #58d783; box-shadow: 0 0 10px #58d78366; }
+      .capture-frame { padding: 12px; border-top: 1px solid #242429; background: #060607; }
+      .capture-frame img {
+        display: block;
+        width: 100%;
+        aspect-ratio: 390 / 844;
+        object-fit: contain;
+        border: 1px solid #25252a;
+        border-radius: 12px;
+        background: #000;
+      }
+      .capture-frame figcaption { display: grid; gap: 6px; padding: 14px 4px 3px; }
+      .capture-frame figcaption strong {
+        color: #8e8e98;
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .capture-frame figcaption span { color: #c8c8ce; font-size: 12px; line-height: 1.55; }
+      .recordings {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 18px;
+      }
+      .recording-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        min-height: 48px;
+        padding: 0 18px;
+        border: 1px solid #f5f5f7;
+        border-radius: 999px;
+        background: #f5f5f7;
+        color: #111114;
+        font-size: 12px;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      .play-icon {
+        display: grid;
+        width: 22px;
+        height: 22px;
+        place-items: center;
+        border-radius: 50%;
+        background: #111114;
+      }
+      .play-icon::before {
+        width: 0;
+        height: 0;
+        margin-left: 2px;
+        border-top: 4px solid transparent;
+        border-bottom: 4px solid transparent;
+        border-left: 6px solid #f5f5f7;
+        content: "";
+      }
+      .recording-link:focus-visible { outline: 2px solid #8fc2ff; outline-offset: 3px; }
+      @media (hover: hover) {
+        .recording-link:hover { border-color: #d6d6db; background: #d6d6db; }
+      }
+      @media (max-width: 720px) {
+        main { padding: 36px 14px 56px; }
+        .lede { white-space: normal; }
+        .comparison, .comparison-single { grid-template-columns: minmax(0, 1fr); }
+        .recordings { align-items: stretch; flex-direction: column; }
+        .recording-link { width: 100%; }
+      }
     </style>
   </head>
   <body>
     <main>
-      <h1>Simulator verification evidence</h1>
-      <p>Behavior captured before and after the change in EAS Simulator.</p>${before}
-      <section id="after">
-        <h2>After change</h2>
-        <img src="./${SCREENSHOT_NAME}" alt="Behavior after the change in EAS Simulator">${video}
-      </section>
+      <header class="page-header">
+        <p class="eyebrow">Simulator verification</p>
+        <h1>Before and after</h1>
+        <p class="lede">A direct visual comparison, plus complete recordings when the test captured them.</p>
+      </header>
+      <section class="${comparisonClass}" aria-label="Before and after screenshots">${beforeScreenshot}
+        <article class="evidence-card" id="after">
+          <header class="card-header">
+            <div>
+              <p class="card-kicker">Verification</p>
+              <h2>After change</h2>
+            </div>
+            <span class="state state-after">After</span>
+          </header>
+          <figure class="capture-frame">
+            <img src="./${SCREENSHOT_NAME}" alt="Behavior after the change in EAS Simulator">
+            <figcaption>
+              <strong>What to look for</strong>
+              <span>${renderedCaption}</span>
+            </figcaption>
+          </figure>
+        </article>
+      </section>${recordings}
     </main>
   </body>
 </html>
@@ -301,7 +477,8 @@ export function renderPublicSimulatorEvidence(evidence: PublicSimulatorEvidence)
       ? `[Watch or download the complete after-change recording](${evidence.pageUrl}#after)`
       : `[Open the verification evidence](${evidence.pageUrl}#after)`,
   ].join("\n\n");
-  return ["## Verification evidence", before, after].filter(Boolean).join("\n\n");
+  const pageLink = `[Open the full simulator evidence page](${evidence.pageUrl})`;
+  return ["## Verification evidence", pageLink, before, after].filter(Boolean).join("\n\n");
 }
 
 export async function publishPublicSimulatorEvidence({
@@ -316,14 +493,23 @@ export async function publishPublicSimulatorEvidence({
 
   const artifactRoot = resolve(artifactDir);
   const beforeScreenshotPath = join(artifactRoot, BEFORE_SCREENSHOT_NAME);
+  const beforeCaptionPath = join(artifactRoot, BEFORE_CAPTION_NAME);
   const beforeVideoPath = join(artifactRoot, BEFORE_VIDEO_NAME);
   const screenshotPath = join(artifactRoot, SCREENSHOT_NAME);
+  const captionPath = join(artifactRoot, CAPTION_NAME);
   const videoPath = join(artifactRoot, VIDEO_NAME);
   const beforeScreenshot = await optionalRegularFile(
     beforeScreenshotPath,
     MAX_SCREENSHOT_BYTES
   );
   if (beforeScreenshot) validatePng(beforeScreenshot, beforeScreenshotPath);
+  const beforeCaptionContents = await optionalRegularFile(
+    beforeCaptionPath,
+    MAX_CAPTION_BYTES
+  );
+  const beforeCaption = beforeCaptionContents
+    ? validateCaption(beforeCaptionContents, beforeCaptionPath)
+    : null;
   const beforeVideo = await optionalRegularFile(beforeVideoPath, MAX_VIDEO_BYTES);
   if (beforeVideo) validateMp4(beforeVideo, beforeVideoPath);
   const screenshot = await optionalRegularFile(screenshotPath, MAX_SCREENSHOT_BYTES);
@@ -332,6 +518,8 @@ export async function publishPublicSimulatorEvidence({
     return null;
   }
   validatePng(screenshot, screenshotPath);
+  const captionContents = await optionalRegularFile(captionPath, MAX_CAPTION_BYTES);
+  const caption = captionContents ? validateCaption(captionContents, captionPath) : null;
   const video = await optionalRegularFile(videoPath, MAX_VIDEO_BYTES);
   if (video) validateMp4(video, videoPath);
 
@@ -346,6 +534,8 @@ export async function publishPublicSimulatorEvidence({
         hasBeforeScreenshot: Boolean(beforeScreenshot),
         hasBeforeVideo: Boolean(beforeVideo),
         hasVideo: Boolean(video),
+        beforeCaption,
+        caption,
       })
     ),
     ...(beforeScreenshot

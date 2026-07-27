@@ -63,6 +63,7 @@ jobs:
           AGENT_PROMPT_FILE: prompts/automation/issue-triage.md
           SIMULATOR_PROMPT_FILE: prompts/automation/simulator-verification.md
           SIMULATOR_VALIDATION: '1'
+          PUBLIC_SIMULATOR_EVIDENCE: '1'
           SIMULATOR_ARTIFACT_DIR: .github/issue-triage/sim
           TRIAGE_ALLOWLIST: ${{ vars.TRIAGE_ALLOWLIST || '["brentvatne"]' }}
           # passed via env (never interpolated into the shell) to avoid injection

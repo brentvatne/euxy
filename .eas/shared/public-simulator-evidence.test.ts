@@ -31,8 +31,10 @@ describe("public simulator evidence", () => {
     const { artifactDir, siteDir } = await fixture();
     await Promise.all([
       writeFile(join(artifactDir, "before.png"), PNG_1X1),
+      writeFile(join(artifactDir, "before.txt"), 'Look for <lane> & its "separator".'),
       writeFile(join(artifactDir, "before.mp4"), MP4),
       writeFile(join(artifactDir, "final.png"), PNG_1X1),
+      writeFile(join(artifactDir, "final.txt"), "Confirm the separator remains below the cells."),
       writeFile(join(artifactDir, "verification.mp4"), MP4),
     ]);
     const commands: string[][] = [];
@@ -103,14 +105,24 @@ describe("public simulator evidence", () => {
     expect(await readFile(join(siteDir, "dist", "before.mp4"))).toEqual(MP4);
     expect(await readFile(join(siteDir, "dist", "final.png"))).toEqual(PNG_1X1);
     expect(await readFile(join(siteDir, "dist", "verification.mp4"))).toEqual(MP4);
-    expect(await readFile(join(siteDir, "dist", "index.html"), "utf8")).toContain(
-      "Download the complete before-change recording"
+    const page = await readFile(join(siteDir, "dist", "index.html"), "utf8");
+    expect(page).toContain('href="./before.mp4"');
+    expect(page).toContain("Play baseline simulator run");
+    expect(page).toContain("Play full simulator run");
+    expect(page).toContain('class="comparison"');
+    expect(page.match(/<img /g)).toHaveLength(2);
+    expect(page).not.toContain("<video");
+    expect(page).not.toContain("poster=");
+    expect(page).not.toContain("recording-arrow");
+    expect(page).toContain("Look for &lt;lane&gt; &amp; its &quot;separator&quot;.");
+    expect(page).not.toContain("<lane>");
+    expect(page).toContain("Confirm the separator remains below the cells.");
+    const rendered = renderPublicSimulatorEvidence(evidence!);
+    expect(rendered).toContain(
+      "[Open the full simulator evidence page](https://euxy--evidence123.expo.app/)"
     );
-    expect(await readFile(join(siteDir, "dist", "index.html"), "utf8")).toContain(
-      "Download the complete after-change recording"
-    );
-    expect(renderPublicSimulatorEvidence(evidence!)).toContain("### Before");
-    expect(renderPublicSimulatorEvidence(evidence!)).toContain(
+    expect(rendered).toContain("### Before");
+    expect(rendered).toContain(
       "![Behavior after the change in EAS Simulator]"
     );
   });
@@ -146,6 +158,23 @@ describe("public simulator evidence", () => {
         env: { EXPO_TOKEN: "expo-test-token" },
       })
     ).rejects.toThrow("must be a regular file");
+  });
+
+  test("rejects an oversized public caption", async () => {
+    const { artifactDir, siteDir } = await fixture();
+    await Promise.all([
+      writeFile(join(artifactDir, "final.png"), PNG_1X1),
+      writeFile(join(artifactDir, "final.txt"), "x".repeat(281)),
+    ]);
+
+    await expect(
+      publishPublicSimulatorEvidence({
+        enabled: true,
+        artifactDir,
+        siteDir,
+        env: { EXPO_TOKEN: "expo-test-token" },
+      })
+    ).rejects.toThrow("must contain 1-280 characters");
   });
 
   test("rejects a deployment URL outside EAS Hosting", async () => {

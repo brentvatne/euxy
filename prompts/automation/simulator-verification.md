@@ -42,6 +42,12 @@ Record why you skipped it in the workflow's analysis/response file.
 
   `eas simulator:exec agent-device screenshot "$SIMULATOR_ARTIFACT_DIR/before.png"`
 
+- When `before.png` exists, write one public-safe plain-text sentence of at most
+  280 characters to `$SIMULATOR_ARTIFACT_DIR/before.txt`. Describe the exact
+  visible behavior a reviewer should inspect. Do not quote feedback or crash
+  reports or include identities, URLs, file paths, device details, or private
+  metadata.
+
 - When the before-change behavior involves interaction, timing, animation, or
   navigation, record the complete reproduction as
   `$SIMULATOR_ARTIFACT_DIR/before.mp4`:
@@ -54,6 +60,14 @@ Record why you skipped it in the workflow's analysis/response file.
   `$SIMULATOR_ARTIFACT_DIR/final.png`:
 
   `eas simulator:exec agent-device screenshot "$SIMULATOR_ARTIFACT_DIR/final.png"`
+
+- Write one public-safe plain-text sentence of at most 280 characters to
+  `$SIMULATOR_ARTIFACT_DIR/final.txt`. Describe the expected corrected behavior
+  and the visual signal that confirms it. Follow the same privacy restrictions
+  as `before.txt`.
+- Keep the preset, viewport, navigation state, and relevant app data identical
+  between the before and after captures unless changing one of them is the
+  behavior under test.
 
 - Before taking either still screenshot, wait until navigation, layout, and
   animations have settled unless the transient state itself is under test.
@@ -70,9 +84,11 @@ Record why you skipped it in the workflow's analysis/response file.
 
   Record the complete reproduction/verification interactions, but stop while
   reading code, building, or waiting so the evidence remains easy to review.
-- The public evidence page includes every fixed evidence file that exists:
-  `before.png`, `before.mp4`, `final.png`, and `verification.mp4`. `final.png`
-  is required to publish a page; the other three are optional.
+- The public evidence publisher recognizes these fixed evidence files:
+  `before.png`, `before.txt`, `before.mp4`, `final.png`, `final.txt`, and
+  `verification.mp4`. The text files become escaped captions beneath their
+  corresponding screenshots. `final.png` is required to publish a page; the
+  other files are optional.
 - In the workflow's analysis/response file, record the interaction performed,
   expected and observed results, artifact paths, and whether verification passed.
 - If the change needs a native rebuild or cannot be exercised reliably, do not

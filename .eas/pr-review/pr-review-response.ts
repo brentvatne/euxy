@@ -16,11 +16,14 @@
  *      TRIAGE_REVIEWER_ALLOWLIST (default ["brentvatne"]),
  *      AGENT_PROMPT_FILE (Markdown prompt path),
  *      SIMULATOR_VALIDATION ('1' enables remote iOS verification),
+ *      PUBLIC_SIMULATOR_EVIDENCE ('1' publishes and links selected evidence),
  *      MAX_ITERS (default 3), GIT_BIN, DRY_RUN.
  */
 import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 
 import { prepareAgentSimulator, stopAgentSimulator } from "../shared/agent-simulator";
+import { publishPublicSimulatorEvidence } from "../shared/public-simulator-evidence";
 import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
 
 const env = process.env;
@@ -188,6 +191,17 @@ if (agentRc !== 0) {
   process.exit(1);
 }
 if (env.DRY_RUN === "1") { console.log("▸ DRY_RUN=1 → not pushing."); process.exit(0); }
+const publicEvidence = await publishPublicSimulatorEvidence({
+  enabled: simValidation && env.PUBLIC_SIMULATOR_EVIDENCE === "1",
+  artifactDir: resolve(WORK, env.SIMULATOR_ARTIFACT_DIR || ".eas/pr-review/sim"),
+  env,
+});
+if (publicEvidence) {
+  console.log(`▸ Published and independently verified simulator evidence: ${publicEvidence.pageUrl}`);
+}
+const evidenceLink = publicEvidence
+  ? `\n\n[Open the full simulator evidence page](${publicEvidence.pageUrl})`
+  : "";
 
 // ---- commit + push to the PR branch (feedback/RESPONSE are under a gitignored path) ----
 await sh([GIT, "-C", WORK, "config", "user.name", BOT_NAME]);
@@ -206,11 +220,11 @@ try {
 const summary = (await Bun.file(`${WORK}/.eas/pr-review/RESPONSE.md`).exists()) ? await Bun.file(`${WORK}/.eas/pr-review/RESPONSE.md`).text() : "Reviewed the feedback.";
 if ((await sh([GIT, "-C", WORK, "diff", "--cached", "--quiet"], { allowFail: true })).code === 0) {
   console.log("▸ Agent made no changes.");
-  await gh(`/issues/${prNumber}/comments`, { method: "POST", body: JSON.stringify({ body: `${MARKER} (${iters + 1}/${MAX_ITERS}): no code change.\n\n${summary.slice(0, 3000)}` }) });
+  await gh(`/issues/${prNumber}/comments`, { method: "POST", body: JSON.stringify({ body: `${MARKER} (${iters + 1}/${MAX_ITERS}): no code change.\n\n${summary.slice(0, 3000)}${evidenceLink}` }) });
   process.exit(0);
 }
 await sh([GIT, "-C", WORK, "commit", "-m", `review-response: address feedback on #${prNumber}`, "-m", `Automated response (iteration ${iters + 1}/${MAX_ITERS}).`]);
 await sh([GIT, "-C", WORK, "push", pushUrl, `HEAD:refs/heads/${headRef}`]);
 console.log(`▸ Pushed the fix to ${headRef}.`);
-await gh(`/issues/${prNumber}/comments`, { method: "POST", body: JSON.stringify({ body: `${MARKER} (${iters + 1}/${MAX_ITERS}) — pushed a fix.\n\n${summary.slice(0, 3000)}` }) });
+await gh(`/issues/${prNumber}/comments`, { method: "POST", body: JSON.stringify({ body: `${MARKER} (${iters + 1}/${MAX_ITERS}) — pushed a fix.\n\n${summary.slice(0, 3000)}${evidenceLink}` }) });
 console.log("▸ Commented the response summary on the PR.");

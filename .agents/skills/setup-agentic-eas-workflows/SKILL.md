@@ -71,10 +71,15 @@ Use this lifecycle for crash, feedback, and issue automation:
 
 When publishing simulator evidence, use a separate immutable EAS Hosting
 preview deployment rather than the workflow artifact URL. Accept only fixed
-filenames, regular files, known media signatures, bounded dimensions/sizes, and
-same-origin `https://*.expo.app` results. Independently download the public
-files and compare them to the selected local bytes before adding their links to
-the issue or PR. Never promote evidence deployments to the production alias.
+filenames, regular files, known media signatures, bounded dimensions/sizes,
+bounded plain-text captions, and same-origin `https://*.expo.app` results.
+Normalize and HTML-escape captions before embedding them. Independently
+download the public files and compare them to the selected local bytes before
+adding their links to the issue or PR. Never promote evidence deployments to
+the production alias. Include the initial evidence and a clear full-page link
+in every automation-created PR body. For later review-response runs, preserve
+the original description and prior comments; add a new concise PR comment that
+links to that run's evidence page.
 
 Read [references/workflow-patterns.md](references/workflow-patterns.md) for implementation patterns and failure handling.
 
@@ -83,11 +88,20 @@ Read [references/workflow-patterns.md](references/workflow-patterns.md) for impl
 1. Check simulator availability before exposing the robot `EXPO_TOKEN` to the agent.
 2. Create the simulator session file outside the repository or protect it from publication.
 3. Tell the agent which simulator skill to read and cap the session duration.
-4. Compare before/after behavior and save screenshots or recordings as private artifacts.
-   Wait for navigation, layout, and animations to settle before still captures
-   unless the transient frame itself is what the test is exercising.
-5. Stop the session in a `finally`/always-run cleanup path. Redact the Expo token from subprocess output.
-6. Fall back to static verification only when the workflow's policy explicitly permits it.
+4. Compare before/after behavior and save screenshots or recordings as private
+   artifacts. Keep the preset, viewport, navigation state, and relevant app
+   data identical unless their change is under test. Wait for navigation,
+   layout, and animations to settle before still captures unless the transient
+   frame itself is what the test is exercising.
+5. Add a short, public-safe plain-text caption for each still that tells the
+   reviewer exactly what visual signal to inspect. Do not quote private reports,
+   identities, URLs, device details, or workflow metadata.
+6. Present exactly one before screenshot and one after screenshot in matched
+   cards. Put recordings in a separate, clearly labeled section or link list;
+   do not reuse a screenshot as a video poster where it reads as a duplicate
+   before/after capture.
+7. Stop the session in a `finally`/always-run cleanup path. Redact the Expo token from subprocess output.
+8. Fall back to static verification only when the workflow's policy explicitly permits it.
 
 ## Validate end to end
 

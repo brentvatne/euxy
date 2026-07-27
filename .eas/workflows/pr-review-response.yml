@@ -33,6 +33,7 @@ jobs:
       AGENT_PROMPT_FILE: prompts/automation/pr-review-response.md
       SIMULATOR_PROMPT_FILE: prompts/automation/simulator-verification.md
       SIMULATOR_VALIDATION: '1'
+      PUBLIC_SIMULATOR_EVIDENCE: '1'
       SIMULATOR_ARTIFACT_DIR: .eas/pr-review/sim
       TRIAGE_PR_AUTHOR_ALLOWLIST: '["brentvatne","notbrent","github-actions[bot]"]'
       TRIAGE_REVIEWER_ALLOWLIST: '["brentvatne"]'

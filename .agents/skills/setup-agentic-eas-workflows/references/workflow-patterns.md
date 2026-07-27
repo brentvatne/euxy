@@ -163,9 +163,12 @@ Use a unique temporary directory under the runner-provided temp base. Do not ass
 
 Keep the raw evidence directory private. When an issue or PR benefits from
 visual proof, select fixed filenames such as `before.png`, `before.mp4`,
-`final.png`, and `verification.mp4`. For apps whose simulator contains no
-sensitive data, publish every available before/after capture whenever simulator
-testing occurred, including analysis-only outcomes. A trusted wrapper should:
+`final.png`, and `verification.mp4`. Add bounded plain-text captions such as
+`before.txt` and `final.txt` when reviewers need issue-specific guidance about
+what to inspect. Escape captions before embedding them and keep private report
+details out of them. For apps whose simulator contains no sensitive data,
+publish every available before/after capture whenever simulator testing
+occurred, including analysis-only outcomes. A trusted wrapper should:
 
 1. reject symlinks, unknown formats, oversized media, and unexpected image
    dimensions;
@@ -177,6 +180,10 @@ testing occurred, including analysis-only outcomes. A trusted wrapper should:
 5. fetch the page and media without credentials and compare the public bytes to
    the selected local files; and
 6. place only those verified URLs in managed issue/PR evidence blocks.
+
+Embed the initial evidence and a clear full-page link in an automation-created
+PR body. For follow-up review-response runs, preserve the original description
+and add a new concise PR comment linking to that run's evidence page.
 
 Record bounded before/after passes immediately around the reproduction and
 expected result. Exclude idle build/debugging time so the complete recordings

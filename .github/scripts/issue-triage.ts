@@ -14,11 +14,16 @@
  *   ACCEPT_COMMENT / ACCEPT_AUTHOR — the `/accept …` comment (issue_comment only)
  *   AGENT_PROMPT_FILE              — Markdown prompt path
  *   SIMULATOR_VALIDATION           — '1' to enable remote iOS verification
+ *   PUBLIC_SIMULATOR_EVIDENCE       — '1' to publish and link selected evidence
  *   GIT_BIN                        — git binary (default 'git')
  *   DRY_RUN                        — '1' to skip the PR (agent + analysis only)
  */
 import { prepareAgentSimulator, stopAgentSimulator } from "../../.eas/shared/agent-simulator";
 import { createOrFindPullRequest } from "../../.eas/shared/github-pull-request";
+import {
+  publishPublicSimulatorEvidence,
+  renderPublicSimulatorEvidence,
+} from "../../.eas/shared/public-simulator-evidence";
 import { assertSafeAgentDiff } from "../../.eas/shared/safe-agent-diff";
 
 const env = process.env;
@@ -172,8 +177,25 @@ try {
   process.exit(1);
 }
 const codeChanged = stagedPaths.some((f) => !f.startsWith(`${DIR}/`));
+const publicEvidence = await publishPublicSimulatorEvidence({
+  enabled: simValidation && env.PUBLIC_SIMULATOR_EVIDENCE === "1",
+  artifactDir: env.SIMULATOR_ARTIFACT_DIR || `${DIR}/sim`,
+  env,
+});
+if (publicEvidence) {
+  console.log(`▸ Published and independently verified simulator evidence: ${publicEvidence.pageUrl}`);
+}
 if ((await sh([GIT, "diff", "--cached", "--quiet"], { allowFail: true })).code === 0) {
   console.log("▸ Nothing staged; nothing to open a PR for.");
+  if (publicEvidence) {
+    await gh(`/issues/${issue.number}/comments`, {
+      method: "POST",
+      body: JSON.stringify({
+        body: `🤖 [Open the full simulator evidence page](${publicEvidence.pageUrl})`,
+      }),
+    });
+    console.log("▸ Linked simulator evidence from the issue.");
+  }
   process.exit(0);
 }
 await sh([GIT, "commit", "-m", `issue-triage: #${issue.number} — ${issue.title}`.slice(0, 72), "-m", `Automated triage of #${issue.number} (${issue.triggeredBy}). Analysis in ${ANALYSIS}.\n\n${issue.url}`]);
@@ -183,7 +205,10 @@ console.log(`▸ Pushed ${branch}.`);
 // ---- open PR + comment on the issue ----
 const title = codeChanged ? `Address #${issue.number}: ${issue.title}` : `Triage #${issue.number}: ${issue.title}`;
 const linkLine = codeChanged ? `Closes #${issue.number}` : `Re: #${issue.number}`;
-const body = `${linkLine} — 🔗 ${issue.url}\n_Triggered: ${issue.triggeredBy}._${acceptContext ? `\n_Accept context: ${acceptContext}_` : ""}\n\n${await Bun.file(ANALYSIS).text()}\n\n---\n_Automated triage. **Not auto-merged** — review before merging._ Code change proposed: **${codeChanged ? "yes" : "no"}**.`;
+const evidenceSection = publicEvidence
+  ? `\n\n${renderPublicSimulatorEvidence(publicEvidence)}`
+  : "";
+const body = `${linkLine} — 🔗 ${issue.url}\n_Triggered: ${issue.triggeredBy}._${acceptContext ? `\n_Accept context: ${acceptContext}_` : ""}\n\n${await Bun.file(ANALYSIS).text()}${evidenceSection}\n\n---\n_Automated triage. **Not auto-merged** — review before merging._ Code change proposed: **${codeChanged ? "yes" : "no"}**.`;
 
 const pullRequest = await createOrFindPullRequest({
   gh,
