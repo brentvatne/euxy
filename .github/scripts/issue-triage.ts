@@ -17,6 +17,7 @@
  */
 const env = process.env;
 const GIT = env.GIT_BIN || "git";
+const CLAUDE = ["claude", ...(env.CLAUDE_PLUGIN_DIR ? ["--plugin-dir", env.CLAUDE_PLUGIN_DIR] : [])];
 const DIR = ".github/issue-triage";
 const ANALYSIS = `${DIR}/ANALYSIS.md`;
 const ISSUE_JSON = `${DIR}/issue.json`;
@@ -106,7 +107,7 @@ for (const [k, v] of Object.entries(env)) {
   if (/^(ACTIONS_|GITHUB_|RUNNER_)/.test(k)) continue;
   agentEnv[k] = v;
 }
-const agent = Bun.spawn(["claude", "-p", prompt, "--permission-mode", "acceptEdits", "--output-format", "text"], {
+const agent = Bun.spawn([...CLAUDE, "-p", prompt, "--permission-mode", "acceptEdits", "--output-format", "text"], {
   stdout: "inherit",
   stderr: "inherit",
   env: agentEnv,

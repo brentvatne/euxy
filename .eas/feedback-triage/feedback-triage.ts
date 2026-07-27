@@ -14,16 +14,19 @@
  *   FEEDBACK_URL                 — beta_feedback.url from the screenshot trigger
  *   INPUT_FEEDBACK               — feedback id/url from a manual dispatch (blank = latest)
  *   ALLOWED_FEEDBACK_EMAILS      — comma list; only these testers' feedback is acted on (default brentvatne@gmail.com)
- *   UPDATE_CHANNEL               — EAS Update channel/branch (default development-simulator; never production unless asked)
+ *   UPDATE_CHANNEL               — EAS Update channel (must be "preview")
  *   SUBMIT_PROFILE               — eas.json submit profile for the ASC key (default production)
  *   GIT_BIN / DRY_RUN
  */
 const env = process.env;
 const GIT = env.GIT_BIN || "git";
-const EAS = ["npx", "--yes", "eas-cli@latest"];
+const EAS = ["npx", "--yes", "eas-cli@21.3.0"];
+const CLAUDE = ["claude", ...(env.CLAUDE_PLUGIN_DIR ? ["--plugin-dir", env.CLAUDE_PLUGIN_DIR] : [])];
 const DIR = ".eas/feedback-triage";
 const ANALYSIS = `${DIR}/ANALYSIS.md`;
 const FEEDBACK_JSON = `${DIR}/feedback.json`;
+const UPDATE_CHANNEL = "preview";
+const UPDATE_ENVIRONMENT = "preview";
 
 function req(name: string): string {
   const v = env[name];
@@ -51,7 +54,11 @@ req("CLAUDE_CODE_OAUTH_TOKEN");
 const GH_TOKEN = req("GH_TOKEN");
 req("EXPO_TOKEN");
 const [owner, repo] = req("REPO_SLUG").split("/");
-const channel = env.UPDATE_CHANNEL || "development-simulator";
+const channel = (env.UPDATE_CHANNEL || UPDATE_CHANNEL).trim();
+if (channel !== UPDATE_CHANNEL) {
+  console.error(`✗ Refusing to publish an automated feedback update to "${channel}". Only "${UPDATE_CHANNEL}" is allowed.`);
+  process.exit(1);
+}
 const submitProfile = env.SUBMIT_PROFILE || "production";
 // From the app_store_connect screenshot trigger (FEEDBACK_URL) or a manual
 // dispatch (INPUT_FEEDBACK); blank on manual → resolve the latest.
@@ -113,7 +120,7 @@ for (const [k, v] of Object.entries(env)) {
   if (/TOKEN|SECRET|KEY|PASSWORD|CREDENTIAL/i.test(k) || /^(ASC_|EXPO_)/i.test(k)) continue;
   agentEnv[k] = v;
 }
-const agent = Bun.spawn(["claude", "-p", prompt, "--permission-mode", "acceptEdits", "--output-format", "text"], {
+const agent = Bun.spawn([...CLAUDE, "-p", prompt, "--permission-mode", "acceptEdits", "--output-format", "text"], {
   stdout: "inherit",
   stderr: "inherit",
   env: agentEnv,
@@ -158,9 +165,19 @@ await sh([GIT, "commit", "-m", `feedback-triage: ${feedback.id}`, "-m", `Automat
 // ---- 4. publish an EAS Update (only when there's a real code fix) ----
 let updateLine = "_No code change → no EAS Update published._";
 if (codeChanged) {
-  console.log(`▸ Publishing EAS Update to channel/branch "${channel}"…`);
+  console.log(`▸ Publishing EAS Update to channel "${channel}" using the "${UPDATE_ENVIRONMENT}" environment…`);
   const upd = await sh(
-    [...EAS, "update", "--branch", channel, "--message", `feedback-triage ${shortId}: ${String(feedback.comment).slice(0, 80)}`, "--non-interactive"],
+    [
+      ...EAS,
+      "update",
+      "--channel",
+      channel,
+      "--environment",
+      UPDATE_ENVIRONMENT,
+      "--message",
+      `feedback-triage ${shortId}`,
+      "--non-interactive",
+    ],
     { allowFail: true }
   );
   const url = (upd.out.match(/https:\/\/expo\.dev\/[^\s]+/) || [])[0];
@@ -176,12 +193,11 @@ if (codeChanged) {
 // ---- 5. push + open PR ----
 await sh([GIT, "push", "-f", `https://x-access-token:${GH_TOKEN}@github.com/${owner}/${repo}.git`, branch]);
 console.log(`▸ Pushed ${branch}.`);
-const shot = feedback.screenshots?.[0]?.url;
-const title = codeChanged ? `Address TestFlight feedback: ${String(feedback.comment).slice(0, 60)}` : `Triage TestFlight feedback ${feedback.id}`;
+const title = codeChanged ? `Address TestFlight feedback ${shortId}` : `Triage TestFlight feedback ${shortId}`;
 const body =
-  `**TestFlight feedback** from ${feedback.testerName ?? feedback.testerEmail ?? "a tester"} (build ${feedback.buildVersion ?? "?"}, ${feedback.deviceModel ?? "?"} / ${feedback.osVersion ?? "?"}):\n\n> ${String(feedback.comment)}\n\n` +
-  (shot ? `📷 [screenshot](${shot})\n\n` : "") +
-  `${updateLine}\n\n---\n\n${await Bun.file(ANALYSIS).text()}\n\n---\n_Automated triage. **Not auto-merged** — review before merging._ Code change: **${codeChanged ? "yes" : "no"}**.`;
+  `Automated triage of private TestFlight feedback \`${shortId}\` (build ${feedback.buildVersion ?? "unknown"}).\n\n` +
+  `Tester identity, the original comment, screenshots, device details, and the analysis are intentionally omitted from this public PR. Review the private \`feedback-triage-summary\` workflow artifact for those details.\n\n` +
+  `${updateLine}\n\n---\n_Automated triage. **Not auto-merged** — review before merging._ Code change: **${codeChanged ? "yes" : "no"}**.`;
 
 const res = await gh(`/pulls`, { method: "POST", body: JSON.stringify({ title: title.slice(0, 250), head: branch, base: env.PR_BASE || "main", body }) });
 if (res.status === 201) {

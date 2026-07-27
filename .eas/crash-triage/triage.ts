@@ -32,6 +32,8 @@ import { createSign, createHash } from "node:crypto";
 
 const env = process.env;
 const GIT = env.GIT_BIN || "git";
+const EAS = ["npx", "--yes", "eas-cli@21.3.0"];
+const CLAUDE = ["claude", ...(env.CLAUDE_PLUGIN_DIR ? ["--plugin-dir", env.CLAUDE_PLUGIN_DIR] : [])];
 const TRIAGE_DIR = ".eas/crash-triage";
 const ANALYSIS = `${TRIAGE_DIR}/ANALYSIS.md`;
 const CRASH_JSON = `${TRIAGE_DIR}/crash.json`;
@@ -277,7 +279,7 @@ if (simValidation) {
   try {
     await Bun.write(".env.eas-simulator", "# managed by eas-cli\n"); // clear any stale session
     Bun.spawn(
-      ["npx", "--yes", "eas-cli@latest", "simulator:start", "--platform", "ios", "--type", "argent", "--non-interactive"],
+      [...EAS, "simulator:start", "--platform", "ios", "--type", "argent", "--non-interactive"],
       { stdout: "inherit", stderr: "inherit", env }
     ); // intentionally not awaited — the agent polls simulator:get for readiness
   } catch (e: any) {
@@ -322,7 +324,7 @@ for (const [k, v] of Object.entries(env)) {
   agentEnv[k] = v;
 }
 const agent = Bun.spawn(
-  ["claude", "-p", prompt, "--permission-mode", simValidation ? "bypassPermissions" : "acceptEdits", "--output-format", "text"],
+  [...CLAUDE, "-p", prompt, "--permission-mode", simValidation ? "bypassPermissions" : "acceptEdits", "--output-format", "text"],
   { stdout: "inherit", stderr: "inherit", env: agentEnv }
 );
 const agentRc = await agent.exited;
@@ -331,7 +333,7 @@ console.log(`▸ Agent finished (rc=${agentRc}).`);
 // safety net: never leave a Simulator session running (it bills until stopped)
 if (simValidation) {
   console.log("▸ Ensuring the EAS Simulator session is stopped…");
-  await sh(["npx", "--yes", "eas-cli@latest", "simulator:stop"], { allowFail: true });
+  await sh([...EAS, "simulator:stop"], { allowFail: true });
 }
 
 // guarantee an analysis file
@@ -391,27 +393,16 @@ if (nothing) {
   process.exit(0);
 }
 
-await sh([GIT, "commit", "-m", `crash-triage: investigate ${feedbackId || shortId}`, "-m", `Automated triage. Analysis in ${ANALYSIS}.\n\nCrash: ${feedbackUrl || "<no url>"}`]);
+await sh([GIT, "commit", "-m", `crash-triage: investigate ${feedbackId || shortId}`, "-m", "Automated triage of private TestFlight crash feedback."]);
 await sh([GIT, "push", "-f", `https://x-access-token:${GH_TOKEN}@github.com/${owner}/${repo}.git`, `${branch}`]);
 console.log(`▸ Pushed ${branch}.`);
 
 // ---- open PR via REST ----
 const title = codeChanged ? `Crash triage + proposed fix: ${feedbackId || shortId}` : `Crash triage: ${feedbackId || shortId}`;
-// Link back to the TestFlight crash / App Store Connect feedback when we have it.
-const crashLink = feedbackUrl
-  ? `🔗 **Related TestFlight crash:** [${feedbackId || "feedback"}](${feedbackUrl})\n\n`
-  : feedbackId
-    ? `**Related feedback id:** \`${feedbackId}\`\n\n`
-    : "";
-// Link any EAS Simulator sessions the validation step recorded (one URL/id per
-// line in sim-sessions.txt). Empty in v0 — sim validation lands in a later phase.
-let simSection = "";
-const simFile = `${TRIAGE_DIR}/sim-sessions.txt`;
-if (await Bun.file(simFile).exists()) {
-  const lines = (await Bun.file(simFile).text()).split("\n").map((l) => l.trim()).filter(Boolean);
-  if (lines.length) simSection = `\n\n**🖥 Simulator sessions:**\n${lines.map((l) => `- ${l}`).join("\n")}`;
-}
-const body = `${crashLink}${await Bun.file(ANALYSIS).text()}${simSection}\n\n---\n_Automated triage. **Not auto-merged** — review before merging._ Code change proposed: **${codeChanged ? "yes" : "no"}**.`;
+const body =
+  `Automated triage of private TestFlight crash feedback \`${feedbackId || shortId}\`.\n\n` +
+  `Tester identity, App Store Connect URLs, crash logs, device details, simulator session URLs, and the analysis are intentionally omitted from this public PR. Review the private \`crash-triage-summary\` workflow artifact for those details.\n\n` +
+  `---\n_Automated triage. **Not auto-merged** — review before merging._ Code change proposed: **${codeChanged ? "yes" : "no"}**.`;
 
 const res = await gh(`/pulls`, { method: "POST", body: JSON.stringify({ title, head: branch, base: env.PR_BASE || "main", body }) });
 if (res.status === 201) {

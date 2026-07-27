@@ -8,7 +8,7 @@
 # — App Store Connect context and dispatch inputs can't coexist in one file.
 #
 # Requires: the App Store Connect connection + the GitHub repo connected to the
-# EAS project. EAS env vars (production, secret): CLAUDE_CODE_OAUTH_TOKEN,
+# EAS project. EAS env vars (preview, secret): CLAUDE_CODE_OAUTH_TOKEN,
 # GH_TOKEN, EXPO_TOKEN.
 
 name: Feedback triage
@@ -22,23 +22,19 @@ on:
 jobs:
   triage:
     name: Resolve TestFlight feedback with Claude
-    environment: production
+    environment: preview
     runs_on: linux-medium
     env:
       REPO_SLUG: brentvatne/euxy
       ALLOWED_FEEDBACK_EMAILS: brentvatne@gmail.com
+      DISABLE_AUTOUPDATER: '1'
       FEEDBACK_URL: ${{ app_store_connect.beta_feedback.url }}
-      UPDATE_CHANNEL: development-simulator
+      UPDATE_CHANNEL: preview
     steps:
       - uses: eas/checkout
       - uses: eas/install_node_modules
-      - name: Install Claude Code + Expo skills
-        run: |
-          npm install -g @anthropic-ai/claude-code
-          command -v bun >/dev/null 2>&1 || npm install -g bun
-          claude plugin marketplace add anthropics/claude-plugins-official || true
-          claude plugin install expo@claude-plugins-official || true
-          claude --version
+      - name: Install pinned agent toolchain
+        run: bash .github/scripts/setup-agent-toolchain.sh
       - name: Triage feedback
         run: bun .eas/feedback-triage/feedback-triage.ts
       - name: Upload triage summary

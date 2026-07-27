@@ -15,6 +15,7 @@
  */
 const env = process.env;
 const GIT = env.GIT_BIN || "git";
+const CLAUDE = ["claude", ...(env.CLAUDE_PLUGIN_DIR ? ["--plugin-dir", env.CLAUDE_PLUGIN_DIR] : [])];
 const MAX_ITERS = Number(env.MAX_ITERS ?? "3");
 const BOT_NAME = "euxy review-response bot";
 const MARKER = "🤖 Auto-review-response";
@@ -123,7 +124,7 @@ for (const [k, v] of Object.entries(env)) {
   agentEnv[k] = v;
 }
 console.log(`\n===== FULL PROMPT PASSED TO CLAUDE =====\n${prompt}\n===== END PROMPT =====\n`);
-const agent = Bun.spawn(["claude", "-p", prompt, "--permission-mode", "bypassPermissions", "--output-format", "text"], { stdout: "inherit", stderr: "inherit", env: agentEnv, cwd: WORK });
+const agent = Bun.spawn([...CLAUDE, "-p", prompt, "--permission-mode", "bypassPermissions", "--output-format", "text"], { stdout: "inherit", stderr: "inherit", env: agentEnv, cwd: WORK });
 const agentRc = await agent.exited;
 console.log(`▸ Agent finished (rc=${agentRc}).`);
 // A failed agent run may have left partial/unverified edits — never commit those.

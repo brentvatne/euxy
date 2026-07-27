@@ -41,18 +41,18 @@ jobs:
           && (github.event.comment.body == '/accept' || startsWith(github.event.comment.body, '/accept '))
           && contains(fromJSON(vars.TRIAGE_ALLOWLIST || '["brentvatne"]'), github.event.comment.user.login))
     runs-on: ubuntu-latest
+    env:
+      DISABLE_AUTOUPDATER: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: oven-sh/setup-bun@v2
-      - name: Install deps + Claude Code + Expo skills
+          persist-credentials: false
+      - name: Install pinned agent toolchain
+        run: bash .github/scripts/setup-agent-toolchain.sh
+      - name: Install project dependencies
         run: |
-          bun install --frozen-lockfile || bun install
-          npm install -g @anthropic-ai/claude-code
-          claude plugin marketplace add anthropics/claude-plugins-official || true
-          claude plugin install expo@claude-plugins-official || true
-          claude --version
+          bun install --frozen-lockfile
       - name: Triage the issue
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -71,7 +71,7 @@ jobs:
         run: bun .github/scripts/issue-triage.ts
       - name: Upload triage summary
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: issue-triage-summary
           path: |

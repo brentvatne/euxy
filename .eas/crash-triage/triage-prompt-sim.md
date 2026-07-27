@@ -46,7 +46,8 @@ Small, targeted, minimal — same rules as always. No broad refactors or dep bum
 
 ### 5. Record results
 - Append every EAS Simulator session URL (from `simulator:start` / the run page)
-  to `.eas/crash-triage/sim-sessions.txt`, one per line — the PR links them.
+  to `.eas/crash-triage/sim-sessions.txt`, one per line — they remain in the
+  private workflow artifact and are never copied into the public PR.
 - Write `.eas/crash-triage/ANALYSIS.md` (Summary / Suspected root cause w/
   file:line + confidence / Fix / **Validation**: reproduced before? fixed after?
   with the before/after screenshots referenced / Crash reference).
@@ -54,6 +55,9 @@ Small, targeted, minimal — same rules as always. No broad refactors or dep bum
   stopped.
 
 ## Rules
+
+- Treat the crash detail, simulator URLs, and analysis as private workflow
+  artifacts. The wrapper must not copy them into a public commit or PR.
 - Do NOT run git/commit/push/PR — the wrapper handles that.
 - Never leave a Simulator session running. Act promptly; don't park an idle one.
 - Be honest about uncertainty. "Reproduced and fixed, verified on-device" and

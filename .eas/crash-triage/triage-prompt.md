@@ -34,5 +34,8 @@ You are triaging a crash reported by a TestFlight tester for **euxy**, an Expo
 - Do NOT start servers, run builds, or run the app. Static investigation +
   targeted edits only.
 - Keep `.eas/crash-triage/ANALYSIS.md` concise and honest about uncertainty.
+- Treat it as a private workflow artifact. The wrapper must not copy tester
+  identity, App Store Connect URLs, crash logs, device details, or its analysis
+  into a public commit or PR.
 - If `tsc` is quick, you may run `npx tsc --noEmit` to sanity-check a fix, but
   don't get blocked on it.

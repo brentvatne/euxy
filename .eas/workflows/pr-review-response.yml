@@ -30,18 +30,14 @@ jobs:
     env:
       REPO_SLUG: brentvatne/euxy
       TRIAGE_ALLOWLIST: '["brentvatne"]'
+      DISABLE_AUTOUPDATER: '1'
       MAX_ITERS: '3'
       INPUT_PR: ${{ inputs.pr }}
       INPUT_REVIEW_ID: ${{ inputs.review_id }}
     steps:
       - uses: eas/checkout
       - uses: eas/install_node_modules
-      - name: Install Claude Code + Expo skills
-        run: |
-          npm install -g @anthropic-ai/claude-code
-          command -v bun >/dev/null 2>&1 || npm install -g bun
-          claude plugin marketplace add anthropics/claude-plugins-official || true
-          claude plugin install expo@claude-plugins-official || true
-          claude --version
+      - name: Install pinned agent toolchain
+        run: bash .github/scripts/setup-agent-toolchain.sh
       - name: Respond to review feedback
         run: bun .eas/pr-review/pr-review-response.ts

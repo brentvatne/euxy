@@ -17,6 +17,10 @@ concurrency:
 jobs:
   review:
     runs-on: ubuntu-latest
+    env:
+      # The published engine is trusted workflow code. Keep the guard and review
+      # on the same exact version; bump only in a reviewed change.
+      ECR_VERSION: '0.5.2'
     # Trigger policy lives in .expo-code-review/config.jsonc (review.trigger); `ecr ci`
     # self-gates on it (and honors the ai-review:skip label). This coarse gate just
     # avoids spinning up a runner for a PR that explicitly opted out. Uses the array
@@ -32,39 +36,31 @@ jobs:
     # A reviewer failure must never fail the PR's checks.
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Shallow is enough — the reviewer gets the diff from the API (`gh`).
+          # Load prompts, models, auth routing, and policy only from the trusted
+          # base commit. ECR v0.5.2 separately fetches the PR diff and materializes
+          # its head in a temporary worktree for source reads.
+          ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 1
+          persist-credentials: false
 
-      # SECURITY: this workflow checks out the PR's code, including
-      # .expo-code-review/config.jsonc, whose auth.tokenEnv names the env var the CLI
-      # forwards as the model credential. Refuse to run unless it's the expected value
-      # (below / repo var ECR_EXPECTED_TOKEN_ENV) so a PR can't repoint it at another
-      # secret in the runner. Keep this in sync with auth.tokenEnv in config.jsonc.
-      - name: Guard config.jsonc tokenEnv
-        env:
-          EXPECTED: ${{ vars.ECR_EXPECTED_TOKEN_ENV || 'CODEX_OAUTH_ACCESS_TOKEN' }}
-        run: |
-          values=$(grep -oE '"tokenEnv"[[:space:]]*:[[:space:]]*"[A-Za-z0-9_]+"' .expo-code-review/config.jsonc | sed -E 's/.*"([A-Za-z0-9_]+)"$/\1/')
-          count=$(printf '%s\n' "$values" | grep -c .)
-          if [ "$count" != "1" ] || [ "$values" != "$EXPECTED" ]; then
-            echo "::error::.expo-code-review/config.jsonc auth.tokenEnv must be \"$EXPECTED\" (found: \"${values:-none}\"). Refusing to run so a PR can't redirect which secret is forwarded to the model provider."
-            exit 1
-          fi
-
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
-          # The reviewer runs via npx and never installs with a package manager, so
-          # disable setup-node's auto package-manager cache (its post step would try
-          # to save an empty cache and error).
           package-manager-cache: false
 
+      # Defense in depth: parse every trusted-base ECR config using the same
+      # published engine that will run the review. The PR's config is never loaded.
+      - name: Guard trusted-base review config
+        env:
+          ECR_EXPECTED_TOKEN_ENV: ${{ vars.ECR_EXPECTED_TOKEN_ENV || 'CODEX_OAUTH_ACCESS_TOKEN' }}
+        run: npx --yes -p "@expo/code-review-cli@$ECR_VERSION" ecr verify-config
+
       - name: Run AI review
-        # npx installs @expo/code-review-cli and its bundled `opencode` binary and
-        # puts them on PATH for this process. Pin @latest to a version to freeze it.
-        run: npx --yes -p "@expo/code-review-cli@latest" ecr ci
+        # The trusted-base config is loaded before ECR enters its temporary PR-head
+        # worktree, so PR changes cannot redirect credentials or replace prompts.
+        run: npx --yes -p "@expo/code-review-cli@$ECR_VERSION" ecr ci
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

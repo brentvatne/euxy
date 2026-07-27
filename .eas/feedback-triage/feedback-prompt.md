@@ -27,6 +27,8 @@ acting on.
      a native rebuild.
    - **How to verify** — concrete steps.
    - **Feedback reference** — echo the tester comment + build version.
+     This file is a private workflow artifact; the wrapper must not copy it,
+     tester identity, comments, device details, or screenshot URLs into the PR.
 
 ## Rules
 - Do NOT run git, commit, push, open a PR, or run `eas` — the wrapper handles the

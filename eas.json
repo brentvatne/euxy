@@ -8,6 +8,11 @@
       "channel": "production",
       "autoIncrement": true
     },
+    "preview": {
+      "distribution": "internal",
+      "channel": "preview",
+      "environment": "preview"
+    },
     "sim": {
       "ios": {
         "simulator": true
