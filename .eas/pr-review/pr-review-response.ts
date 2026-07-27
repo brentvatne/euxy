@@ -23,8 +23,8 @@ const WORK = "/tmp/euxy-pr-review";
 
 function req(n: string): string { const v = env[n]; if (!v) { console.error(`✗ Missing required env ${n}`); process.exit(1); } return v; }
 function redact(s: string) { return s.replace(/x-access-token:[^@]+@/g, "***@"); }
-async function sh(cmd: string[], opts: { allowFail?: boolean; cwd?: string } = {}) {
-  const p = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe", cwd: opts.cwd });
+async function sh(cmd: string[], opts: { allowFail?: boolean; cwd?: string; env?: Record<string, string | undefined> } = {}) {
+  const p = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe", cwd: opts.cwd, ...(opts.env ? { env: opts.env } : {}) });
   const [out, err] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text()]);
   const code = await p.exited;
   if (code !== 0 && !opts.allowFail) { console.error(`✗ ${cmd.map(redact).join(" ")}\n${redact(err)}`); process.exit(1); }
@@ -81,9 +81,14 @@ if (fb.kind === "review" && fb.id) {
 }
 
 // ---- clone the PR branch fresh (avoids the archive-upload working tree) ----
-const cloneUrl = `https://x-access-token:${GH_TOKEN}@github.com/${owner}/${repo}.git`;
+// Clone WITHOUT the token so it is never persisted in the clone's .git/config —
+// the agent gets a shell later and could otherwise read it. euxy is public, so
+// tokenless read works; the token is used only inline for the push after the
+// agent exits.
+const readUrl = `https://github.com/${owner}/${repo}.git`;
+const pushUrl = `https://x-access-token:${GH_TOKEN}@github.com/${owner}/${repo}.git`;
 await sh(["rm", "-rf", WORK]);
-await sh([GIT, "clone", "--depth", "50", "--branch", headRef, cloneUrl, WORK]);
+await sh([GIT, "clone", "--depth", "50", "--branch", headRef, readUrl, WORK]);
 
 // ---- loop cap ----
 const prior = await sh([GIT, "-C", WORK, "log", `--author=${BOT_NAME}`, "--oneline"], { allowFail: true });
@@ -93,8 +98,15 @@ console.log(`▸ Auto-response ${iters + 1}/${MAX_ITERS}.`);
 
 await sh(["mkdir", "-p", `${WORK}/.eas/pr-review`]);
 await Bun.write(`${WORK}/.eas/pr-review/feedback.md`, feedbackMd);
-console.log("▸ Installing deps in the clone…");
-await sh(["bun", "install"], { cwd: WORK, allowFail: true });
+// Install with NO lifecycle scripts and a secret-free env, so package scripts on
+// the branch can't run with the workflow's tokens.
+console.log("▸ Installing deps in the clone (--ignore-scripts, sanitized env)…");
+const cleanEnv: Record<string, string | undefined> = {};
+for (const [k, v] of Object.entries(env)) {
+  if (/TOKEN|SECRET|KEY|PASSWORD|CREDENTIAL/i.test(k) || /^(ASC_|EXPO_)/i.test(k)) continue;
+  cleanEnv[k] = v;
+}
+await sh(["bun", "install", "--ignore-scripts"], { cwd: WORK, allowFail: true, env: cleanEnv });
 
 // ---- run the agent in the clone (shell to verify; secrets stripped) ----
 const prompt = await Bun.file(".eas/pr-review/pr-review-prompt.md").text();
@@ -108,6 +120,12 @@ console.log(`\n===== FULL PROMPT PASSED TO CLAUDE =====\n${prompt}\n===== END PR
 const agent = Bun.spawn(["claude", "-p", prompt, "--permission-mode", "bypassPermissions", "--output-format", "text"], { stdout: "inherit", stderr: "inherit", env: agentEnv, cwd: WORK });
 const agentRc = await agent.exited;
 console.log(`▸ Agent finished (rc=${agentRc}).`);
+// A failed agent run may have left partial/unverified edits — never commit those.
+if (agentRc !== 0) {
+  await gh(`/issues/${prNumber}/comments`, { method: "POST", body: JSON.stringify({ body: `${MARKER} (${iters + 1}/${MAX_ITERS}): the agent exited non-zero (rc=${agentRc}) — nothing pushed, needs a human.` }) });
+  console.error(`✗ Agent failed (rc=${agentRc}) — not committing.`);
+  process.exit(1);
+}
 if (env.DRY_RUN === "1") { console.log("▸ DRY_RUN=1 → not pushing."); process.exit(0); }
 
 // ---- commit + push to the PR branch (feedback/RESPONSE are under a gitignored path) ----
@@ -124,7 +142,7 @@ if ((await sh([GIT, "-C", WORK, "diff", "--cached", "--quiet"], { allowFail: tru
   process.exit(0);
 }
 await sh([GIT, "-C", WORK, "commit", "-m", `review-response: address feedback on #${prNumber}`, "-m", `Automated response (iteration ${iters + 1}/${MAX_ITERS}).`]);
-await sh([GIT, "-C", WORK, "push", cloneUrl, `HEAD:refs/heads/${headRef}`]);
+await sh([GIT, "-C", WORK, "push", pushUrl, `HEAD:refs/heads/${headRef}`]);
 console.log(`▸ Pushed the fix to ${headRef}.`);
 await gh(`/issues/${prNumber}/comments`, { method: "POST", body: JSON.stringify({ body: `${MARKER} (${iters + 1}/${MAX_ITERS}) — pushed a fix.\n\n${summary.slice(0, 3000)}` }) });
 console.log("▸ Commented the response summary on the PR.");
