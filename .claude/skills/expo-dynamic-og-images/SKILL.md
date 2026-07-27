@@ -290,6 +290,28 @@ init script that wraps `history.replaceState` to log `(t, url, stack)` into
 `agent-browser --init-script trace.js open <share-url>`, then read the log.
 The stomp shows up as router-originated writes bracketing yours.
 
+**The rewrite leaves a trap in history: back/forward now dead-ends on
+Unmatched Route.** `/share/<id>` sits in the history stack, but only the
+*server* can answer that path. A same-document traversal (back or forward past
+any in-app `<Link>` navigation) replays it through the client router — no
+network request — which has no route for it. Catch it in `+not-found.tsx` and
+bounce back to the routable form; the internal page then re-canonicalizes and
+the loop self-heals on every traversal:
+
+```tsx
+// app/+not-found.tsx
+const SHARE_PATH = /^\/share\/([A-Za-z0-9_-]+)$/;   // same alphabet the API route accepts
+
+export default function NotFound() {
+  const payload = SHARE_PATH.exec(usePathname())?.[1];
+  useEffect(() => {
+    if (payload) router.replace(`/view/${payload}`); // or the query form your page reads
+  }, [payload]);
+  if (payload) return <View style={{ flex: 1 }} />;  // no 404 flash while redirecting
+  return <RealNotFoundPage />;
+}
+```
+
 While you're in the share route, check its `rel="canonical"`: it must point at
 the shareable URL itself, matching `og:url` — not at the redirect target. The
 target is sitting right there in a variable, so pointing canonical at the
