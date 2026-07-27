@@ -310,6 +310,7 @@ describe("GitHub triage issues", () => {
         gh,
         issueNumber: 26,
         status: "triage in progress",
+        workflowUrl: "https://expo.dev/new-remediation-run",
       })
     ).resolves.toBe(true);
 
@@ -320,7 +321,26 @@ describe("GitHub triage issues", () => {
     const updatedBody = JSON.parse(String(calls[1].init?.body)).body;
     expect(updatedBody).toContain("- Status: triage in progress");
     expect(updatedBody).not.toContain("Start remediation");
-    expect(updatedBody).toContain("https://expo.dev/run");
+    expect(updatedBody).toContain("https://expo.dev/new-remediation-run");
+    expect(updatedBody).not.toContain("https://expo.dev/run");
+  });
+
+  test("rejects an invalid remediation workflow URL before reading the issue", async () => {
+    let called = false;
+    const gh = async () => {
+      called = true;
+      return jsonResponse({});
+    };
+
+    await expect(
+      updateTriageIssueStatus({
+        gh,
+        issueNumber: 26,
+        status: "triage in progress",
+        workflowUrl: "https://attacker.example/run",
+      })
+    ).rejects.toThrow("valid EAS workflow URL");
+    expect(called).toBe(false);
   });
 
   test("fails when GitHub accepts but suppresses the issue", async () => {

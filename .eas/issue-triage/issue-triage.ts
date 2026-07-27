@@ -1,41 +1,39 @@
 #!/usr/bin/env bun
 /**
- * Issue triage runner (bun, GitHub Actions). Builds an issue context, runs the
+ * Issue triage runner (bun, EAS Workflows). Re-fetches and validates the
+ * dispatched GitHub issue/comment, builds an issue context, runs the
  * Claude agent to investigate + (maybe) fix, opens a PR, and comments the PR link
  * back on the issue. Never auto-merges. Mirrors the crash-triage security posture.
  *
  * Env (from the workflow):
  *   CLAUDE_CODE_OAUTH_TOKEN  (req) — Claude Code auth
- *   GH_TOKEN                 (req) — GITHUB_TOKEN: push branch, open PR, comment
+ *   GH_TOKEN                 (req) — scoped machine-user PAT: push branch, open PR, comment
  *   REPO_SLUG                (req) — owner/repo
- *   EVENT_NAME                     — 'issues' | 'issue_comment'
+ *   EVENT_NAME               (req) — 'issues' | 'issue_comment'
+ *   ISSUE_NUMBER / ISSUE_ID  (req) — immutable issue identity from the dispatcher
+ *   COMMENT_ID                     — immutable approval-comment identity
+ *   WORKFLOW_URL             (req) — current EAS workflow run URL
  *   TRIAGE_ALLOWLIST               — JSON array of issue authors eligible for automatic triage
- *   ISSUE_NUMBER / ISSUE_TITLE / ISSUE_BODY / ISSUE_URL / ISSUE_AUTHOR
- *   ACCEPT_COMMENT / ACCEPT_AUTHOR — the `@notbrent accept …` comment and its author
  *   AGENT_PROMPT_FILE              — Markdown prompt path
  *   SIMULATOR_VALIDATION           — '1' to enable remote iOS verification
  *   PUBLIC_SIMULATOR_EVIDENCE       — '1' to publish and link selected evidence
  *   GIT_BIN                        — git binary (default 'git')
  *   DRY_RUN                        — '1' to skip the PR (agent + analysis only)
  */
-import { prepareAgentSimulator, stopAgentSimulator } from "../../.eas/shared/agent-simulator";
-import { createOrFindPullRequest } from "../../.eas/shared/github-pull-request";
-import { updateTriageIssueStatus } from "../../.eas/shared/github-triage-issue";
+import { prepareAgentSimulator, stopAgentSimulator } from "../shared/agent-simulator";
+import { createOrFindPullRequest } from "../shared/github-pull-request";
+import { updateTriageIssueStatus } from "../shared/github-triage-issue";
 import {
   publishPublicSimulatorEvidence,
   renderPublicSimulatorEvidence,
-} from "../../.eas/shared/public-simulator-evidence";
-import { assertSafeAgentDiff } from "../../.eas/shared/safe-agent-diff";
-import {
-  ISSUE_TRIAGE_APPROVER,
-  isIssueTriageActorAuthorized,
-  parseIssueTriageCommand,
-} from "./issue-triage-command";
+} from "../shared/public-simulator-evidence";
+import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
+import { validateIssueTriageDispatch } from "./issue-triage-command";
 
 const env = process.env;
 const GIT = env.GIT_BIN || "git";
 const CLAUDE = ["claude", ...(env.CLAUDE_PLUGIN_DIR ? ["--plugin-dir", env.CLAUDE_PLUGIN_DIR] : [])];
-const DIR = ".github/issue-triage";
+const DIR = ".eas/issue-triage";
 const ANALYSIS = `${DIR}/ANALYSIS.md`;
 const ISSUE_JSON = `${DIR}/issue.json`;
 
@@ -65,7 +63,19 @@ req("CLAUDE_CODE_OAUTH_TOKEN"); // fail fast with a clear message if the agent's
 const GH_TOKEN = req("GH_TOKEN");
 const [owner, repo] = req("REPO_SLUG").split("/");
 const issueNumber = req("ISSUE_NUMBER");
-const eventName = env.EVENT_NAME || "issues";
+const issueId = req("ISSUE_ID");
+const eventName = req("EVENT_NAME");
+const workflowUrl = req("WORKFLOW_URL");
+if (owner !== "brentvatne" || repo !== "euxy") {
+  throw new Error("Issue triage is pinned to the brentvatne/euxy repository.");
+}
+if (!/^https:\/\/expo\.dev\//.test(workflowUrl)) {
+  throw new Error("Issue triage requires a valid EAS workflow URL.");
+}
+const parsedIssueNumber = Number(issueNumber);
+if (!Number.isSafeInteger(parsedIssueNumber) || parsedIssueNumber < 1) {
+  throw new Error(`Invalid dispatched issue number: ${issueNumber}.`);
+}
 async function gh(path: string, init: RequestInit = {}) {
   return fetch(`https://api.github.com/repos/${owner}/${repo}${path}`, {
     ...init,
@@ -73,66 +83,82 @@ async function gh(path: string, init: RequestInit = {}) {
   });
 }
 
-// ---- independently validate the actor and approval command ----
-// The workflow `if:` is the primary gate. These checks ensure a future trigger
-// mistake still cannot turn an arbitrary comment into coding-agent authority.
-// Issue authors use TRIAGE_ALLOWLIST; comment approval is pinned to brentvatne.
+async function ghJson<T>(path: string, description: string): Promise<T> {
+  const response = await gh(path);
+  if (!response.ok) {
+    throw new Error(
+      `Could not fetch ${description} (HTTP ${response.status}): ${await response.text()}`
+    );
+  }
+  return (await response.json()) as T;
+}
+
+// ---- independently fetch and validate the actor, issue, and approval command ----
+// GitHub Actions dispatches only immutable IDs. EAS resolves their contents with
+// its own scoped machine-user token, then repeats every authorization check
+// before untrusted issue text can reach the coding agent.
 const allowlist: string[] = (() => {
   try {
-    return JSON.parse(env.TRIAGE_ALLOWLIST || '["brentvatne"]');
+    const value = JSON.parse(env.TRIAGE_ALLOWLIST || '["brentvatne"]');
+    return Array.isArray(value) ? value : ["brentvatne"];
   } catch {
     return ["brentvatne"];
   }
 })().map((s: string) => String(s).toLowerCase());
-const actor = String((eventName === "issue_comment" ? env.ACCEPT_AUTHOR : env.ISSUE_AUTHOR) || "").toLowerCase();
-const actorAuthorized = isIssueTriageActorAuthorized({
+
+const fetchedIssue = await ghJson<{
+  id?: number;
+  number?: number;
+  title?: string;
+  body?: string | null;
+  html_url?: string;
+  user?: { login?: string };
+  pull_request?: unknown;
+}>(`/issues/${parsedIssueNumber}`, `issue #${parsedIssueNumber}`);
+const commentId = env.COMMENT_ID || "";
+const fetchedComment =
+  eventName === "issue_comment"
+    ? await ghJson<{
+        id?: number;
+        body?: string | null;
+        issue_url?: string;
+        user?: { login?: string };
+      }>(`/issues/comments/${commentId}`, `approval comment ${commentId || "(blank)"}`)
+    : undefined;
+const dispatch = validateIssueTriageDispatch({
   eventName,
-  actor,
+  owner,
+  repo,
+  expectedIssueId: issueId,
+  expectedIssueNumber: parsedIssueNumber,
+  expectedCommentId: commentId,
+  issue: fetchedIssue,
+  comment: fetchedComment,
   issueAuthorAllowlist: allowlist,
 });
-if (!actorAuthorized) {
-  console.log(
-    eventName === "issue_comment"
-      ? `▸ Only ${ISSUE_TRIAGE_APPROVER} may approve issue remediation; received ${actor || "(unknown)"} → skipping.`
-      : `▸ Actor ${actor || "(unknown)"} is not eligible for automatic issue triage → skipping.`
-  );
-  process.exit(0);
-}
-console.log(`▸ Actor ${actor} is allowlisted → proceeding.`);
-
-const parsedAcceptContext =
-  eventName === "issue_comment"
-    ? parseIssueTriageCommand(env.ACCEPT_COMMENT || "")
-    : "";
-if (eventName === "issue_comment" && parsedAcceptContext === null) {
-  console.log("▸ Comment is not a valid @notbrent accept command → skipping.");
-  process.exit(0);
-}
-const acceptContext = parsedAcceptContext || "";
+console.log(`▸ Re-fetched and authorized GitHub actor ${dispatch.actor} → proceeding.`);
 
 if (eventName === "issue_comment") {
   const updated = await updateTriageIssueStatus({
     gh,
-    issueNumber: Number(issueNumber),
+    issueNumber: parsedIssueNumber,
     status: "triage in progress",
+    workflowUrl,
   });
   if (updated) {
-    console.log(`▸ Marked issue #${issueNumber} triage as in progress.`);
+    console.log(`▸ Linked the current EAS run and marked issue #${issueNumber} triage as in progress.`);
   }
 }
 
 // ---- assemble the issue context ----
 const issue = {
-  number: Number(issueNumber),
-  title: env.ISSUE_TITLE || "",
-  body: env.ISSUE_BODY || "",
-  url: env.ISSUE_URL || `https://github.com/${owner}/${repo}/issues/${issueNumber}`,
-  author: env.ISSUE_AUTHOR || "",
-  triggeredBy:
-    eventName === "issue_comment"
-      ? `@notbrent accept by ${env.ACCEPT_AUTHOR || "?"}`
-      : `opened by ${env.ISSUE_AUTHOR || "?"}`,
-  acceptContext,
+  number: parsedIssueNumber,
+  title: fetchedIssue.title || "",
+  body: fetchedIssue.body || "",
+  url: fetchedIssue.html_url!,
+  author: fetchedIssue.user?.login || "",
+  triggeredBy: dispatch.triggeredBy,
+  acceptContext: dispatch.acceptContext,
 };
 await Bun.write(ISSUE_JSON, JSON.stringify(issue, null, 2));
 console.log(`▸ Triaging issue #${issue.number} (${issue.triggeredBy}): ${issue.title}`);
@@ -151,7 +177,7 @@ const prompt = [taskPrompt, simulatorPrompt].filter(Boolean).join("\n\n");
 console.log(`\n===== FULL PROMPT PASSED TO CLAUDE =====\n${prompt}\n===== END PROMPT =====\n(the agent also reads ${ISSUE_JSON})\n`);
 // Security: issue text can be attacker-authored (an approval on someone else's
 // issue), so hand the agent a minimal env — drop every token/secret-ish var and
-// all CI internals (GITHUB_TOKEN, ACTIONS_RUNTIME_TOKEN, RUNNER_*), keeping only
+// all workflow internals, keeping only
 // the agent's own auth plus the robot EXPO_TOKEN when a trusted maintainer has
 // enabled simulator verification. It never receives GH_TOKEN.
 // Residual: CLAUDE_CODE_OAUTH_TOKEN is unavoidably reachable (the agent needs it)
@@ -247,7 +273,7 @@ const linkLine = codeChanged ? `Closes #${issue.number}` : `Re: #${issue.number}
 const evidenceSection = publicEvidence
   ? `\n\n${renderPublicSimulatorEvidence(publicEvidence)}`
   : "";
-const body = `${linkLine} — 🔗 ${issue.url}\n_Triggered: ${issue.triggeredBy}._${acceptContext ? `\n_Accept context: ${acceptContext}_` : ""}\n\n${await Bun.file(ANALYSIS).text()}${evidenceSection}\n\n---\n_Automated triage. **Not auto-merged** — review before merging._ Code change proposed: **${codeChanged ? "yes" : "no"}**.`;
+const body = `${linkLine} — 🔗 ${issue.url}\n_Triggered: ${issue.triggeredBy}._${issue.acceptContext ? `\n_Accept context: ${issue.acceptContext}_` : ""}\n\n${await Bun.file(ANALYSIS).text()}${evidenceSection}\n\n---\n_Automated triage. **Not auto-merged** — review before merging._ Code change proposed: **${codeChanged ? "yes" : "no"}**.`;
 
 const pullRequest = await createOrFindPullRequest({
   gh,

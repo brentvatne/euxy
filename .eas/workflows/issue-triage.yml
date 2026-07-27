@@ -1,0 +1,65 @@
+# Issue triage (agent side, runs on EAS). GitHub Actions dispatches only the
+# immutable issue/comment IDs after its event-envelope gate. This workflow
+# re-fetches those records with the machine-user token, repeats authorization,
+# runs Claude and simulator verification, then pushes a branch and opens a PR.
+# Never auto-merges.
+#
+# Requires EAS preview secrets: CLAUDE_CODE_OAUTH_TOKEN, GH_TOKEN, EXPO_TOKEN.
+# No autonomous agent or GitHub write credential runs on GitHub Actions.
+
+name: Issue triage
+
+on:
+  workflow_dispatch:
+    inputs:
+      event_name:
+        description: GitHub event name (issues or issue_comment)
+        type: string
+      issue_number:
+        description: Immutable GitHub issue number
+        type: string
+      issue_id:
+        description: Immutable GitHub issue database ID
+        type: string
+      comment_id:
+        description: Immutable approval comment ID (blank for issue-open events)
+        type: string
+        default: ''
+
+jobs:
+  triage:
+    name: Investigate issue with Claude
+    environment: preview
+    runs_on: linux-medium
+    env:
+      REPO_SLUG: brentvatne/euxy
+      EVENT_NAME: ${{ inputs.event_name }}
+      ISSUE_NUMBER: ${{ inputs.issue_number }}
+      ISSUE_ID: ${{ inputs.issue_id }}
+      COMMENT_ID: ${{ inputs.comment_id }}
+      WORKFLOW_URL: ${{ workflow.url }}
+      TRIAGE_ALLOWLIST: '["brentvatne"]'
+      AGENT_PROMPT_FILE: prompts/automation/issue-triage.md
+      SIMULATOR_PROMPT_FILE: prompts/automation/simulator-verification.md
+      SIMULATOR_VALIDATION: '1'
+      PUBLIC_SIMULATOR_EVIDENCE: '1'
+      SIMULATOR_ARTIFACT_DIR: .eas/issue-triage/sim
+      UPDATE_CHANNEL: preview
+      DISABLE_AUTOUPDATER: '1'
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - name: Install pinned agent toolchain
+        run: bash .github/scripts/setup-agent-toolchain.sh
+      - name: Triage the issue
+        run: bun .eas/issue-triage/issue-triage.ts
+      - name: Upload triage summary
+        if: ${{ always() }}
+        uses: eas/upload_artifact
+        with:
+          type: other
+          name: issue-triage-summary
+          path: |
+            .eas/issue-triage/ANALYSIS.md
+            .eas/issue-triage/issue.json
+            .eas/issue-triage/sim/**/*

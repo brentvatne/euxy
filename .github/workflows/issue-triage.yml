@@ -1,17 +1,8 @@
-# Issue triage — the crash-triage agent, but for GitHub issues.
-#
-# EAS Workflows has no issue trigger, so this runs on GitHub Actions. It fires:
-#   - when brentvatne OPENS an issue, or
-#   - when brentvatne comments `@notbrent accept <extra context>` on any issue
-#     (not a PR).
-# Then it runs the Claude agent (with the expo skills) to investigate and open a
-# PR — same shape as the TestFlight crash-triage flow. Never auto-merges.
-#
-# Setup: add CLAUDE_CODE_OAUTH_TOKEN and the scoped robot EXPO_TOKEN as GitHub
-# Actions repository secrets. The built-in GITHUB_TOKEN handles the branch push
-# + PR (no GitHub PAT needed).
+# GitHub issue events are not EAS Workflow triggers, so this credential-minimal
+# workflow verifies the event envelope and dispatches immutable IDs to trusted
+# workflow code on EAS. The autonomous agent and GitHub write token remain on EAS.
 
-name: Issue triage
+name: Dispatch issue triage
 
 on:
   issues:
@@ -19,72 +10,81 @@ on:
   issue_comment:
     types: [created]
 
-permissions:
-  contents: write
-  pull-requests: write
-  issues: write
+permissions: {}
 
-# Serialize runs per issue so rapid opens/comments don't race on the same branch.
 concurrency:
-  group: issue-triage-${{ github.event.issue.number }}
+  group: issue-triage-dispatch-${{ github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
-  triage:
-    # Only brentvatne may approve `@notbrent accept …` on a real issue (not a
-    # PR), regardless of who opened that issue. The script checks the exact
-    # commenting actor and parses the command again.
-    # TRIAGE_ALLOWLIST applies only to automatically triaging newly opened
-    # issues (a repo/org Actions Variable; defaults to just brentvatne).
+  dispatch:
+    # Automatically triage allowlisted issue authors. On every other real issue,
+    # only brentvatne may authorize work with an exact `@notbrent accept …`
+    # command. EAS re-fetches the issue/comment and repeats these checks.
     if: >-
-      (github.event_name == 'issues'
-        && github.event.issue.user.login != 'notbrent'
-        && contains(fromJSON(vars.TRIAGE_ALLOWLIST || '["brentvatne"]'), github.event.issue.user.login))
-      || (github.event_name == 'issue_comment' && !github.event.issue.pull_request
+      github.repository == 'brentvatne/euxy'
+      && (
+        (github.event_name == 'issues'
+          && github.event.issue.user.login != 'notbrent'
+          && contains(
+            fromJSON(vars.TRIAGE_ALLOWLIST || '["brentvatne"]'),
+            github.event.issue.user.login
+          ))
+        || (
+          github.event_name == 'issue_comment'
+          && !github.event.issue.pull_request
+          && github.event.comment.user.login == 'brentvatne'
           && startsWith(github.event.comment.body, '@notbrent accept')
-          && github.event.comment.user.login == 'brentvatne')
+        )
+      )
     runs-on: ubuntu-latest
-    env:
-      DISABLE_AUTOUPDATER: '1'
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Install pinned agent toolchain
-        run: bash .github/scripts/setup-agent-toolchain.sh
-      - name: Install project dependencies
-        run: |
-          bun install --frozen-lockfile
-      - name: Triage the issue
+      - name: Dispatch trusted EAS workflow
         env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-          GH_TOKEN: ${{ github.token }}
-          REPO_SLUG: ${{ github.repository }}
+          EAS_PROJECT_ID: 2ee288d6-807b-4316-8331-d0f5cd5eebe8
+          TRUSTED_GIT_REF: ${{ github.sha }}
           EVENT_NAME: ${{ github.event_name }}
-          AGENT_PROMPT_FILE: prompts/automation/issue-triage.md
-          SIMULATOR_PROMPT_FILE: prompts/automation/simulator-verification.md
-          SIMULATOR_VALIDATION: '1'
-          PUBLIC_SIMULATOR_EVIDENCE: '1'
-          SIMULATOR_ARTIFACT_DIR: .github/issue-triage/sim
-          TRIAGE_ALLOWLIST: ${{ vars.TRIAGE_ALLOWLIST || '["brentvatne"]' }}
-          # passed via env (never interpolated into the shell) to avoid injection
           ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_TITLE: ${{ github.event.issue.title }}
-          ISSUE_BODY: ${{ github.event.issue.body }}
-          ISSUE_URL: ${{ github.event.issue.html_url }}
-          ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
-          ACCEPT_COMMENT: ${{ github.event.comment.body }}
-          ACCEPT_AUTHOR: ${{ github.event.comment.user.login }}
-        run: bun .github/scripts/issue-triage.ts
-      - name: Upload triage summary
-        if: ${{ always() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: issue-triage-summary
-          path: |
-            .github/issue-triage/ANALYSIS.md
-            .github/issue-triage/issue.json
-            .github/issue-triage/sim/**/*
-          if-no-files-found: ignore
+          ISSUE_ID: ${{ github.event.issue.id }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+        run: |
+          if [[ -z "$EXPO_TOKEN" ]]; then
+            echo "::error::Missing the EXPO_TOKEN repository secret used to dispatch EAS Workflows."
+            exit 1
+          fi
+
+          payload="$(
+            jq -n \
+              --arg app_id "$EAS_PROJECT_ID" \
+              --arg git_ref "$TRUSTED_GIT_REF" \
+              --arg event_name "$EVENT_NAME" \
+              --arg issue_number "$ISSUE_NUMBER" \
+              --arg issue_id "$ISSUE_ID" \
+              --arg comment_id "$COMMENT_ID" \
+              '{
+                appId: $app_id,
+                gitRef: $git_ref,
+                fileName: "issue-triage.yml",
+                inputs: {
+                  event_name: $event_name,
+                  issue_number: $issue_number,
+                  issue_id: $issue_id,
+                  comment_id: $comment_id
+                }
+              }'
+          )"
+          response="$(
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --header "Authorization: Bearer $EXPO_TOKEN" \
+              --header "Content-Type: application/json" \
+              --data "$payload" \
+              https://api.expo.dev/v2/workflows/dispatch
+          )"
+          run_url="$(jq -r '.data.url // empty' <<<"$response")"
+          if [[ -z "$run_url" ]]; then
+            echo "::error::EAS accepted the request but returned no workflow URL."
+            exit 1
+          fi
+          echo "Dispatched EAS workflow: $run_url"

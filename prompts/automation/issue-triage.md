@@ -3,13 +3,13 @@ Euclidean MIDI sequencer for the OP-XY. A maintainer either opened this issue or
 accepted it for triage, so it's worth acting on.
 
 ## What you have
-- `.github/issue-triage/issue.json` — the issue (title, body, url, author, how it
-  was triggered, and any extra context from an `/accept` comment).
+- `.eas/issue-triage/issue.json` — the issue (title, body, url, author, how it
+  was triggered, and any extra context from an `@notbrent accept` comment).
 - The full repo at the current working directory.
 - The Expo skills (expo-router, expo-module, etc.) — consult them when relevant.
 
 ## Your task
-1. Read `.github/issue-triage/issue.json`. Understand what's being asked — a bug,
+1. Read `.eas/issue-triage/issue.json`. Understand what's being asked — a bug,
    a feature, a change. If there's `acceptContext`, treat it as the maintainer's
    extra guidance and weight it heavily.
 2. Investigate the codebase for the relevant area(s).
@@ -17,7 +17,7 @@ accepted it for triage, so it's worth acting on.
    it by editing files. Keep it minimal and focused; match the surrounding code.
    If the issue is ambiguous, large, or you're not confident, make NO code change
    — a clear analysis and a plan is more valuable than a shaky patch.
-4. Write your findings to `.github/issue-triage/ANALYSIS.md`:
+4. Write your findings to `.eas/issue-triage/ANALYSIS.md`:
    - **Summary** — one or two sentences.
    - **Approach** — what you changed and why (with `file:line`), or "No code change
      — needs a decision/discussion" with the specific reason and open questions.

@@ -276,11 +276,16 @@ export async function updateTriageIssueStatus({
   gh,
   issueNumber,
   status,
+  workflowUrl,
 }: {
   gh: GitHubRepoRequest;
   issueNumber: number;
   status: TriageIssueStatus;
+  workflowUrl?: string;
 }): Promise<boolean> {
+  if (workflowUrl && !/^https:\/\/expo\.dev\//.test(workflowUrl)) {
+    throw new Error("Cannot link the triage issue without a valid EAS workflow URL.");
+  }
   const response = await gh(`/issues/${issueNumber}`);
   if (!response.ok) {
     throw new Error(
@@ -297,6 +302,12 @@ export async function updateTriageIssueStatus({
   if (!match) return false;
 
   const nextBlock = match[0]
+    .replace(
+      /^- EAS workflow: \[View the run\]\(.+\)$/m,
+      workflowUrl
+        ? `- EAS workflow: [View the run](${workflowUrl})`
+        : "$&"
+    )
     .replace(/^- Status: .+$/m, `- Status: ${status}`)
     .replace(/^- Start remediation: .+\n?/m, "");
   if (nextBlock === match[0]) return false;
