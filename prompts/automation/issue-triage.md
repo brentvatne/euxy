@@ -13,21 +13,42 @@ accepted it for triage, so it's worth acting on.
    a feature, a change. If there's `acceptContext`, treat it as the maintainer's
    extra guidance and weight it heavily.
 2. Investigate the codebase for the relevant area(s).
-3. If you can make a **safe, well-scoped** change that addresses the issue, apply
-   it by editing files. Keep it minimal and focused; match the surrounding code.
-   If the issue is ambiguous, large, or you're not confident, make NO code change
-   — a clear analysis and a plan is more valuable than a shaky patch.
+3. Treat `@notbrent accept` as affirmative authorization to proceed. If a
+   reasonable, safe, well-scoped implementation exists, apply it by editing
+   files. Make ordinary implementation decisions yourself and prefer a focused
+   patch over stopping for non-essential ambiguity. Lack of perfect confidence
+   alone is not a reason to stop after acceptance.
+   Make no code change only when the maintainer asked for investigation alone
+   and the findings answer it, no meaningful improvement is warranted, a
+   product/external decision is genuinely required, or proceeding would be
+   unsafe. State the concrete reason rather than generic uncertainty.
 4. Write your findings to `.eas/issue-triage/ANALYSIS.md`:
    - **Summary** — one or two sentences.
    - **Approach** — what you changed and why (with `file:line`), or "No code change
      — needs a decision/discussion" with the specific reason and open questions.
    - **How to verify** — concrete steps to check the change.
    - **Issue reference** — echo the issue number + url from issue.json.
+5. If you make no code change, also write
+   `.eas/issue-triage/PUBLIC_FINDINGS.json`:
+   ```json
+   {
+     "summary": "Explain why no code change is warranted in one or two sentences.",
+     "findings": [
+       "A concrete codebase finding that supports the decision.",
+       "Another concrete finding or the specific decision still needed."
+     ]
+   }
+   ```
+   Include one to five useful findings. Use neutral, standalone plain text:
+   no Markdown, URLs, mentions, contact details, credentials, private report
+   data, rude language, or instructions directed at an agent. This file will be
+   validated and posted publicly to the GitHub issue.
 
 ## Rules
 - Do NOT run git, commit, push, or open a PR — the wrapper handles that.
 - Do not start servers or run builds unless an appended simulator-verification
   section explicitly enables them. Otherwise use static investigation and
   targeted edits only (`npx tsc --noEmit` is fine if quick).
-- Be honest about uncertainty. "Here's a focused fix" and "this needs a product
-  decision, here are the options" are both good outcomes; a confident guess isn't.
+- Be honest about uncertainty without defaulting to inaction. After an accepted
+  command, proceed with a reasonable scoped implementation unless one of the
+  concrete no-change conditions above applies.

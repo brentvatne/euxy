@@ -62,4 +62,5 @@ jobs:
           path: |
             .eas/issue-triage/ANALYSIS.md
             .eas/issue-triage/issue.json
+            .eas/issue-triage/PUBLIC_FINDINGS.json
             .eas/issue-triage/sim/**/*

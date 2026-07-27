@@ -21,6 +21,7 @@
  *   DRY_RUN                        — '1' to skip the PR (agent + analysis only)
  */
 import { prepareAgentSimulator, stopAgentSimulator } from "../shared/agent-simulator";
+import { createVerifiedIssueComment } from "../shared/github-issue-comment";
 import { createOrFindPullRequest } from "../shared/github-pull-request";
 import { updateTriageIssueStatus } from "../shared/github-triage-issue";
 import {
@@ -29,6 +30,10 @@ import {
 } from "../shared/public-simulator-evidence";
 import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
 import { validateIssueTriageDispatch } from "./issue-triage-command";
+import {
+  parsePublicIssueFindings,
+  renderPublicIssueFindings,
+} from "./public-findings";
 
 const env = process.env;
 const GIT = env.GIT_BIN || "git";
@@ -36,6 +41,7 @@ const CLAUDE = ["claude", ...(env.CLAUDE_PLUGIN_DIR ? ["--plugin-dir", env.CLAUD
 const DIR = ".eas/issue-triage";
 const ANALYSIS = `${DIR}/ANALYSIS.md`;
 const ISSUE_JSON = `${DIR}/issue.json`;
+const PUBLIC_FINDINGS = `${DIR}/PUBLIC_FINDINGS.json`;
 
 function req(name: string): string {
   const v = env[name];
@@ -252,6 +258,39 @@ if (publicEvidence) {
 }
 if ((await sh([GIT, "diff", "--cached", "--quiet"], { allowFail: true })).code === 0) {
   console.log("▸ Nothing staged; nothing to open a PR for.");
+  let findingsComment: string;
+  try {
+    if (!(await Bun.file(PUBLIC_FINDINGS).exists())) {
+      throw new Error("the agent did not create PUBLIC_FINDINGS.json");
+    }
+    findingsComment = renderPublicIssueFindings({
+      findings: parsePublicIssueFindings(
+        await Bun.file(PUBLIC_FINDINGS).text()
+      ),
+      workflowUrl,
+    });
+  } catch (error) {
+    console.error(
+      `▸ Public findings did not pass validation; using a safe fallback: ${(error as Error).message}`
+    );
+    findingsComment = [
+      "🤖 **Triage complete — no code change**",
+      "",
+      "The investigation completed without a code change, but its detailed findings could not be published safely. Review the private workflow artifact for the analysis.",
+      "",
+      `[View the EAS workflow run](${workflowUrl})`,
+    ].join("\n");
+  }
+  const findingsResult = await createVerifiedIssueComment({
+    gh,
+    owner,
+    repo,
+    issueNumber: issue.number,
+    body: findingsComment,
+  });
+  console.log(
+    `▸ Posted and publicly verified no-change findings: ${findingsResult.htmlUrl}`
+  );
   await updateTriageIssueStatus({
     gh,
     issueNumber: issue.number,
@@ -305,5 +344,11 @@ await updateTriageIssueStatus({
 });
 
 // comment the PR link back on the issue
-await gh(`/issues/${issue.number}/comments`, { method: "POST", body: JSON.stringify({ body: `🤖 Opened a triage PR: ${prUrl}` }) });
-console.log("▸ Commented the PR link on the issue.");
+const prComment = await createVerifiedIssueComment({
+  gh,
+  owner,
+  repo,
+  issueNumber: issue.number,
+  body: `🤖 Opened a triage PR: ${prUrl}`,
+});
+console.log(`▸ Commented and publicly verified the PR link: ${prComment.htmlUrl}`);

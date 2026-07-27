@@ -7,6 +7,7 @@ const worker = await Bun.file(".eas/workflows/issue-triage.yml").text();
 const runner = await Bun.file(
   ".eas/issue-triage/issue-triage.ts"
 ).text();
+const prompt = await Bun.file("prompts/automation/issue-triage.md").text();
 const gitignore = await Bun.file(".gitignore").text();
 
 describe("issue triage execution boundary", () => {
@@ -39,12 +40,35 @@ describe("issue triage execution boundary", () => {
     expect(worker).toContain("SIMULATOR_VALIDATION: '1'");
     expect(runner).toContain('status: "triage complete"');
     expect(runner).toContain('status: "pull request opened"');
+    expect(runner).toContain("createVerifiedIssueComment");
+    expect(runner.indexOf("createVerifiedIssueComment")).toBeLessThan(
+      runner.lastIndexOf('status: "triage complete"')
+    );
+    expect(worker).toContain(
+      ".eas/issue-triage/PUBLIC_FINDINGS.json"
+    );
   });
 
   test("keeps EAS runtime evidence out of the agent-authored git diff", () => {
     expect(gitignore).toContain(".eas/issue-triage/issue.json");
     expect(gitignore).toContain(".eas/issue-triage/ANALYSIS.md");
+    expect(gitignore).toContain(
+      ".eas/issue-triage/PUBLIC_FINDINGS.json"
+    );
     expect(gitignore).toContain(".eas/issue-triage/sim/");
     expect(gitignore).not.toContain(".github/issue-triage/");
+  });
+
+  test("treats an accepted command as authorization to implement", () => {
+    expect(prompt).toContain(
+      "Treat `@notbrent accept` as affirmative authorization to proceed."
+    );
+    expect(prompt).toContain("Lack of perfect confidence");
+    expect(prompt).toContain(
+      "alone is not a reason to stop after acceptance."
+    );
+    expect(prompt).toContain(
+      ".eas/issue-triage/PUBLIC_FINDINGS.json"
+    );
   });
 });
