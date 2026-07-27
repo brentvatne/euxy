@@ -1,7 +1,8 @@
 /**
  * Pattern share codec — the wire format inside a shared euxy URL:
  *
- *   https://euxy.expo.app/p?d=<base64url(bytes)>
+ *   https://euxy.expo.app/p/<base64url(bytes)>      (canonical)
+ *   https://euxy.expo.app/p?d=<base64url(bytes)>    (legacy, still accepted)
  *
  * Versioned compact binary (byte-aligned; ~13 B + name per lane, so a 4-lane
  * pattern lands around 100 B → a scannable QR at EC level H). Encoded by the
@@ -246,7 +247,18 @@ export function decodePattern(payload: string): SharedPattern {
   };
 }
 
-/** The full share URL for a pattern. */
+/**
+ * The full share URL for a pattern.
+ *
+ * The payload is a PATH segment, not a query param: the web CDN's cache key is
+ * query-blind, so `?d=A` and `?d=B` collided on one cached entry and every
+ * shared link unfurled with whichever pattern cached first. A path segment
+ * varies the key, which is what makes the per-pattern OG card possible.
+ * Unpadded base64url is already path-safe, so nothing needs escaping.
+ *
+ * `/p?d=<payload>` still resolves — both the web page and the app's `p` route
+ * keep handling it for links already in the wild.
+ */
 export function shareUrl(pattern: Pattern | SharedPattern): string {
-  return `https://euxy.expo.app/p?d=${encodePattern(pattern)}`;
+  return `https://euxy.expo.app/p/${encodePattern(pattern)}`;
 }

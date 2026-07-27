@@ -1,6 +1,7 @@
 /**
- * /p?d=<payload> — a shared pattern arriving via universal link
- * (https://euxy.expo.app/p?d=…) or the euxy:// scheme. Decodes the payload
+ * /p?d=<payload> — the LEGACY shape, kept for links already in the wild; new
+ * links use /p/<payload> (see p/[d].tsx, which renders this same screen).
+ * Arrives via universal link or the euxy:// scheme. Decodes the payload
  * (untrusted — decodePattern clamps and throws), previews it, and imports on
  * confirm. Malformed links get a friendly error, never a crash.
  */

@@ -112,8 +112,11 @@ function RootLayout() {
             name="share-pattern"
             options={{ ...sheetOptions, sheetAllowedDetents: [0.9] }}
           />
-          {/* /p — shared patterns arriving via universal link or euxy:// */}
+          {/* Shared patterns arriving via universal link or euxy://. Two URL
+              shapes, one sheet: /p/<payload> is canonical, /p?d=<payload> is
+              kept for links already in the wild. */}
           <Stack.Screen name="p" options={{ ...sheetOptions, sheetAllowedDetents: [0.45] }} />
+          <Stack.Screen name="p/[d]" options={{ ...sheetOptions, sheetAllowedDetents: [0.45] }} />
         </Stack>
         {/* LED power-on: a pure LAYER over the live app — the Stack above
             always renders (never conditionally hidden behind the boot), so
