@@ -7,7 +7,8 @@
  * lays the chips out as one non-wrapping row instead (New Pattern's ICON
  * group, scrolled sideways by its host).
  */
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 
 import { haptics } from '@/lib/shims';

@@ -8,7 +8,8 @@
  * lane's channel so you hear the target track.
  */
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 
 import { sendTestNote } from '@/components/midi/runtime';
 import { midiNoteName } from '@/core/note';

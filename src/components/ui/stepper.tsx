@@ -2,7 +2,8 @@
  * Stepper — a value with − / + buttons. Used for steps, pulses, rotation, tempo.
  * Both buttons meet the 44pt hit target; the glyph area may look smaller.
  */
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 
 import { haptics } from '@/lib/shims';
 import { color, HIT_TARGET, radius, space } from '@/theme/tokens';

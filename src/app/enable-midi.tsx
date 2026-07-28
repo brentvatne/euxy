@@ -8,7 +8,8 @@
  */
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 
 import { AppText } from '@/components/ui';
 import { IconMic, IconMidiDin, IconWarning } from '@/components/midi/icons';

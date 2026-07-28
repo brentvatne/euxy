@@ -10,7 +10,8 @@
  * the app's only "active" color). `size="compact"` is the self-sizing variant
  * used inside grouped-form cells (the Jam/Record clock toggle).
  */
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 
 import { haptics } from '@/lib/shims';

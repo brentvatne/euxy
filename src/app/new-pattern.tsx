@@ -11,7 +11,8 @@
  * distinct icon with zero effort), pre-selected and scrolled into view.
  */
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 import { router } from 'expo-router';
 
 import { AppText, SFSymbol, SheetHeader } from '@/components/ui';

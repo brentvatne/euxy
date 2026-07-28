@@ -6,7 +6,8 @@
  * Web MIDI, pick the output, send notes, and watch traffic both directions.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 
 import { generator } from '@/core/euclid';
 import { createMidiPort } from '@/midi/port';

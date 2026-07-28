@@ -8,7 +8,8 @@
  * it, so this never re-renders on the tick.
  */
 import { memo } from 'react';
-import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type ViewStyle } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 
 import { color, radius, ramp } from '@/theme/tokens';
 

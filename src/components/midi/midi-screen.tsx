@@ -8,7 +8,8 @@
  */
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 
 import { AppText, Segmented } from '@/components/ui';
 import { IconPanic } from '@/components/ui/icons';
