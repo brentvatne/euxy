@@ -352,18 +352,17 @@ async function updatePullRequestPreview({
     );
     lastStatus = observed.status;
     if (!observed.ok) {
-      if (attempt === PREVIEW_READBACK_DELAYS_MS.length) {
-        throw new Error(
-          `Pull request #${pullRequestNumber} preview metadata is not publicly visible ` +
-            `(last HTTP ${observed.status} after ${attempt + 1} attempts).`
-        );
-      }
       warn(
         `Warning: pull request #${pullRequestNumber} preview readback returned ` +
           `HTTP ${observed.status} on attempt ${attempt + 1}/${PREVIEW_READBACK_DELAYS_MS.length + 1}; ` +
-          `request-id=${observed.headers.get("x-github-request-id") || "missing"}. Retrying.`
+          `etag=${observed.headers.get("etag") || "missing"}, ` +
+          `age=${observed.headers.get("age") || "missing"}, ` +
+          `request-id=${observed.headers.get("x-github-request-id") || "missing"}.` +
+          (attempt < PREVIEW_READBACK_DELAYS_MS.length ? " Retrying." : "")
       );
-      await wait(PREVIEW_READBACK_DELAYS_MS[attempt]!);
+      if (attempt < PREVIEW_READBACK_DELAYS_MS.length) {
+        await wait(PREVIEW_READBACK_DELAYS_MS[attempt]!);
+      }
       continue;
     }
 
@@ -389,7 +388,7 @@ async function updatePullRequestPreview({
   }
 
   warn(
-    `Warning: pull request #${pullRequestNumber} public preview metadata remained stale ` +
+    `Warning: pull request #${pullRequestNumber} public preview metadata could not be confirmed ` +
       `after ${PREVIEW_READBACK_DELAYS_MS.length + 1} attempts (last HTTP ${lastStatus}); ` +
       "continuing because the authenticated PATCH response contained the expected block."
   );

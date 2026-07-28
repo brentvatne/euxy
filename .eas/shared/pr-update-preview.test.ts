@@ -197,31 +197,38 @@ describe("per-PR EAS Update previews", () => {
     expect(harness.getBody()).toContain("Open the latest EAS Update");
   });
 
-  test("still fails when the pull request itself is not publicly visible", async () => {
+  test("warns and continues when preview readback is not publicly visible", async () => {
     const harness = previewHarness();
+    const waits: number[] = [];
     const warnings: string[] = [];
 
-    await expect(
-      publishPullRequestUpdate({
-        gh: harness.gh,
-        owner: "brentvatne",
-        repo: "euxy",
-        pullRequestNumber: 28,
-        message: "Address the feedback",
-        easCommand: ["eas"],
-        run: harness.run,
-        publicFetch: async () => jsonResponse({ message: "Not Found" }, 404),
-        wait: async () => {},
-        warn: (message) => warnings.push(message),
-      }),
-    ).rejects.toThrow(
-      "preview metadata is not publicly visible (last HTTP 404 after 5 attempts)",
-    );
+    const result = await publishPullRequestUpdate({
+      gh: harness.gh,
+      owner: "brentvatne",
+      repo: "euxy",
+      pullRequestNumber: 28,
+      message: "Address the feedback",
+      easCommand: ["eas"],
+      run: harness.run,
+      publicFetch: async () => jsonResponse({ message: "Not Found" }, 404),
+      wait: async (milliseconds) => {
+        waits.push(milliseconds);
+      },
+      warn: (message) => warnings.push(message),
+    });
 
+    expect(result.published).toBe(true);
     expect(
       harness.commands.some((command) => command.includes("update")),
-    ).toBe(false);
-    expect(warnings).toHaveLength(4);
+    ).toBe(true);
+    expect(waits).toEqual([500, 1_000, 2_000, 4_000, 500, 1_000, 2_000, 4_000]);
+    expect(warnings).toHaveLength(12);
+    expect(warnings[0]).toContain("HTTP 404");
+    expect(
+      warnings.filter((message) =>
+        message.includes("continuing because the authenticated PATCH"),
+      ),
+    ).toHaveLength(2);
   });
 
   test("reuses the channel marker for every later update on the PR", async () => {
