@@ -27,6 +27,7 @@ import {
   stopAgentSimulator,
 } from "../shared/agent-simulator";
 import { runClaudeAgent } from "../shared/claude-agent";
+import { fetchAllGitHubPages } from "../shared/github-pagination";
 import { publishPullRequestUpdate } from "../shared/pr-update-preview";
 import {
   publishPublicSimulatorEvidence,
@@ -199,22 +200,26 @@ if (commentId) {
   ];
 } else {
   const [issueComments, reviews] = await Promise.all([
-    (await gh(`/issues/${prNumber}/comments?per_page=100`)).json() as Promise<
-      any[]
-    >,
-    (await gh(`/pulls/${prNumber}/reviews?per_page=100`)).json() as Promise<
-      any[]
-    >,
+    fetchAllGitHubPages<any>({
+      gh,
+      path: `/issues/${prNumber}/comments`,
+      label: `PR #${prNumber} comments`,
+    }),
+    fetchAllGitHubPages<any>({
+      gh,
+      path: `/pulls/${prNumber}/reviews`,
+      label: `PR #${prNumber} reviews`,
+    }),
   ]);
   cands = [
-    ...(Array.isArray(issueComments) ? issueComments : []).map((c: any) => ({
+    ...issueComments.map((c: any) => ({
       author: c.user?.login,
       body: c.body || "",
       at: c.created_at,
       kind: "comment",
       id: c.id,
     })),
-    ...(Array.isArray(reviews) ? reviews : [])
+    ...reviews
       .filter(
         (r: any) => (r.body || "").trim() || r.state === "CHANGES_REQUESTED",
       )
@@ -246,15 +251,13 @@ console.log(
 // assemble feedback (+ inline comments for a formal review)
 let feedbackMd = `# Review feedback on PR #${prNumber}\n\nFrom: ${fromAI ? "expo-ai-code-reviewer" : fb.author}\n\n${fb.body}\n`;
 if (commentId && requestsExistingReviewFeedback(fb.body)) {
-  const response = await gh(`/issues/${prNumber}/comments?per_page=100`);
-  if (!response.ok) {
-    throw new Error(
-      `Could not fetch existing PR review comments (HTTP ${response.status}).`,
-    );
-  }
-  const comments: any[] = await response.json();
+  const comments = await fetchAllGitHubPages<any>({
+    gh,
+    path: `/issues/${prNumber}/comments`,
+    label: `existing review comments for PR #${prNumber}`,
+  });
   const visibleReview = findLatestAiReviewFeedback({
-    comments: Array.isArray(comments) ? comments : [],
+    comments,
     before: fb.at,
     excludeId: fb.id,
   });
@@ -263,10 +266,12 @@ if (commentId && requestsExistingReviewFeedback(fb.body)) {
   }
 }
 if (fb.kind === "review" && fb.id) {
-  const inline: any = await (
-    await gh(`/pulls/${prNumber}/reviews/${fb.id}/comments`)
-  ).json();
-  if (Array.isArray(inline) && inline.length)
+  const inline = await fetchAllGitHubPages<any>({
+    gh,
+    path: `/pulls/${prNumber}/reviews/${fb.id}/comments`,
+    label: `inline comments for review ${fb.id} on PR #${prNumber}`,
+  });
+  if (inline.length)
     feedbackMd +=
       `\n## Inline comments\n` +
       inline

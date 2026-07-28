@@ -6,6 +6,9 @@ const dispatcher = await Bun.file(
 const workflow = await Bun.file(".eas/workflows/pr-review-response.yml").text();
 const runner = await Bun.file(".eas/pr-review/pr-review-response.ts").text();
 const command = await Bun.file(".eas/pr-review/pr-review-command.ts").text();
+const pagination = await Bun.file(
+  ".eas/shared/github-pagination.ts",
+).text();
 const prompt = await Bun.file(
   "prompts/automation/pr-review-response.md",
 ).text();
@@ -55,6 +58,9 @@ describe("PR comment response workflow", () => {
   test("provides the referenced AI review to a generic review-feedback command", () => {
     expect(runner).toContain("requestsExistingReviewFeedback");
     expect(runner).toContain("Existing code-review feedback");
+    expect(runner).toContain("fetchAllGitHubPages");
+    expect(pagination).toContain("per_page=${perPage}&page=${page}");
+    expect(pagination).toContain("refusing to use a truncated history");
     expect(command).toContain("expo-ai-code-reviewer:(?:fingerprints|state)");
   });
 
