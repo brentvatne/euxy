@@ -13,6 +13,7 @@ import { Pressable } from 'react-native-gesture-handler';
 
 import { AppText, Segmented } from '@/components/ui';
 import { IconPanic } from '@/components/ui/icons';
+import { reportFirstScreenLayout } from '@/components/boot-signal';
 import { haptics, useObserve } from '@/lib/shims';
 import { useActivePattern, useSettings, useTransport } from '@/state/selectors';
 import { useStore } from '@/state/store';
@@ -79,6 +80,11 @@ export default function MidiScreen() {
       style={styles.root}
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={styles.content}
+      // Boot layout gate: this tab can be the LAUNCH route (Observe saw 13 of
+      // 80 startups land here), and NativeTabs won't have mounted the
+      // sequencer in that case — so this root has to be able to release the
+      // boot on its own. First reporter wins; later calls are no-ops.
+      onLayout={reportFirstScreenLayout}
     >
       {/* CONNECTION */}
       <SectionHeader first>Connection</SectionHeader>

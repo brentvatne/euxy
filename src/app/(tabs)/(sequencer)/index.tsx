@@ -16,9 +16,9 @@ import { midiNoteName } from '@/core/note';
 import { laneAudible, useActivePattern, useAnySolo, useSettings } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import type { Lane } from '@/state/types';
-import { reportSequencerLayout } from '@/components/boot-signal';
+import { reportFirstScreenLayout } from '@/components/boot-signal';
 import { useMidiRuntime } from '@/components/midi/runtime';
-import { useObserve } from '@/lib/shims';
+import { logObserveEvent, useObserve } from '@/lib/shims';
 import { color } from '@/theme/tokens';
 import { LaneRow, TransportBar } from '@/components/ui';
 import { useScreenFocused } from '@/components/ui/use-screen-focused';
@@ -88,13 +88,33 @@ export default function SequencerScreen() {
   const outputDevice = midi.outputs.find((d) => d.id === settings.outputId);
   const connected = midi.enabled && outputDevice != null;
 
-  const openEditor = (laneId: string) => {
+  // The lane editor is the app's workhorse — EAS Observe recorded 95 opens vs
+  // 9 for the next-busiest sheet — so how people get INTO it is worth knowing.
+  const openEditor = (laneId: string, source: 'lane_row' | 'add_lane' = 'lane_row') => {
+    logObserveEvent('lane_editor.opened', { attributes: { source } });
     selectLane(laneId);
     router.push('/lane-editor');
   };
 
   // A fresh lane goes straight into the editor to be named and dialed in.
-  const addAndEdit = () => openEditor(addLane());
+  const addAndEdit = () => openEditor(addLane(), 'add_lane');
+
+  // The product question Observe could not answer: does anyone actually press
+  // play? Logged on the stopped→playing edge only, so stopping is not an event
+  // and holding down transport can't spam the stream.
+  const onTogglePlay = () => {
+    if (!transport.playing) {
+      logObserveEvent('transport.play', {
+        attributes: {
+          mode: transport.clockMode,
+          lanes: lanes.length,
+          bpm: Math.round(transport.bpm),
+          connected,
+        },
+      });
+    }
+    togglePlay();
+  };
 
   const renamePattern = () => {
     Alert.prompt(
@@ -135,9 +155,11 @@ export default function SequencerScreen() {
   };
 
   return (
-    // First onLayout tells BootSplash the sequencer has really rendered and
-    // laid out beneath the boot overlay, so the native splash can drop.
-    <View style={styles.root} onLayout={reportSequencerLayout}>
+    // First onLayout tells BootSplash a real screen has rendered and laid out
+    // beneath the boot overlay, so the native splash can drop. Every tab root
+    // reports — the gate must not depend on this route being the one that
+    // mounted (see boot-signal.ts).
+    <View style={styles.root} onLayout={reportFirstScreenLayout}>
       <View style={{ paddingTop: insets.top }} />
       <SequencerNav
         patternName={pattern.name}
@@ -200,7 +222,10 @@ export default function SequencerScreen() {
             canMutate
             snapshotActive={snapshotActive}
             onAddLane={addAndEdit}
-            onMutate={mutatePattern}
+            onMutate={() => {
+              logObserveEvent('pattern.mutated', { attributes: { lanes: lanes.length } });
+              mutatePattern();
+            }}
             onArm={armSnapshot}
             onRevert={revertSnapshot}
             onKeep={keepSnapshot}
@@ -218,7 +243,7 @@ export default function SequencerScreen() {
           recordPhase={transport.recordPhase}
           countInBeat={transport.countInBeat}
           playDisabled={lanes.length === 0}
-          onTogglePlay={togglePlay}
+          onTogglePlay={onTogglePlay}
           onStop={() => {
             stop();
             engine.resetToStart();

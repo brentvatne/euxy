@@ -15,6 +15,7 @@ import { haptics, useObserve } from '@/lib/shims';
 import { GestureHandlerRootView, Pressable, ScrollView } from 'react-native-gesture-handler';
 
 import { AppText, SFSymbol } from '@/components/ui';
+import { reportFirstScreenLayout } from '@/components/boot-signal';
 import { PatternGlyph } from '@/components/patterns/pattern-glyph';
 import { PatternRow } from '@/components/patterns/pattern-row';
 import { isPresetPattern } from '@/state/presets';
@@ -175,6 +176,9 @@ export default function PatternsScreen() {
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
         keyboardDismissMode="on-drag"
+        // Boot layout gate — see boot-signal.ts. Every tab root reports so the
+        // boot never waits on a route that didn't mount. First reporter wins.
+        onLayout={reportFirstScreenLayout}
       >
         {patterns.length === 0 ? (
           <EmptyState />
