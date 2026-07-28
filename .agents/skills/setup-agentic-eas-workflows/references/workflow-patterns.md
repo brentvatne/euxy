@@ -204,8 +204,10 @@ occurred, including analysis-only outcomes. A trusted wrapper should:
 6. place only those verified URLs in managed issue/PR evidence blocks.
 
 Embed the initial evidence and a clear full-page link in an automation-created
-PR body. For follow-up review-response runs, preserve the original description
-and add a new concise PR comment linking to that run's evidence page.
+PR body. Put verified Before and After stills in a two-column GitHub Markdown
+table whenever both exist; use the same compact comparison in issue and PR
+comments. For follow-up review-response runs, preserve the original description
+and add a new concise PR comment with that run's table and evidence-page link.
 
 Record bounded before/after passes immediately around the reproduction and
 expected result. Exclude idle build/debugging time so the complete recordings

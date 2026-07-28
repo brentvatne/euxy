@@ -94,6 +94,11 @@ GitHub may restrict a newly created personal account as suspected automation or 
    wrapper publish the project-approved before/after screenshots and bounded
    recordings. For apps whose simulator contains no sensitive data, publish
    evidence whenever simulator testing occurred rather than only for code fixes.
+7. For long-running headless agents, use structured streaming output and a
+   trusted renderer that emits only generic turn/tool progress and periodic
+   heartbeats. Do not log model text, task-bearing prompts, tool arguments, tool
+   results, raw stdout/stderr, raw JSON events, or partial-message chunks; those
+   can repeat untrusted input, private reports, commands, and secrets.
 
 ## Publish through a deterministic wrapper
 
@@ -105,8 +110,18 @@ Use this lifecycle for crash, feedback, and issue automation:
 4. Validate the diff, protected paths, type checks, tests, and simulator evidence.
 5. Push a namespaced branch.
 6. Open or find the PR and include `Closes #<issue>` when it contains a fix, or `Re: #<issue>` when it contains analysis only.
-7. Verify the created issue and PR through an independent read. For a public repository, use an unauthenticated API request; for a private repository, use a separate read-only observer credential.
-8. Report success only after that independent read succeeds.
+7. Keep the visible PR body scannable. In an `Approach` section, use one-sentence
+   bold highlights and put file references, rationale, caveats, and supporting
+   evidence in a `<details><summary>Details</summary>…</details>` block under
+   each highlight.
+8. For a code-changing PR, allocate an unused readable EAS Update channel and
+   persist it in a wrapper-owned PR-body marker before publishing. Reuse that
+   marker for every later review-response publication on the same PR. List
+   existing channels before allocation, fail closed on a truncated or malformed
+   list, pass the intended EAS environment explicitly, and never let the agent
+   select the channel.
+9. Verify the created issue and PR through an independent read. For a public repository, use an unauthenticated API request; for a private repository, use a separate read-only observer credential.
+10. Report success only after that independent read succeeds.
 
 When publishing simulator evidence, use a separate immutable EAS Hosting
 preview deployment rather than the workflow artifact URL. Accept only fixed
@@ -116,9 +131,11 @@ Normalize and HTML-escape captions before embedding them. Independently
 download the public files and compare them to the selected local bytes before
 adding their links to the issue or PR. Never promote evidence deployments to
 the production alias. Include the initial evidence and a clear full-page link
-in every automation-created PR body. For later review-response runs, preserve
-the original description and prior comments; add a new concise PR comment that
-links to that run's evidence page.
+in every automation-created PR body. When both stills exist, render them in a
+two-column GitHub Markdown table so Before and After remain visually paired in
+issue bodies, PR bodies, and comments. For later review-response runs, preserve
+the original description and prior comments; add a new concise PR comment with
+the comparison table and a link to that run's evidence page.
 
 Read [references/workflow-patterns.md](references/workflow-patterns.md) for implementation patterns and failure handling.
 
