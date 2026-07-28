@@ -13,20 +13,64 @@
 import type { ComponentType } from 'react';
 
 type UseUpdates = () => { isUpdatePending: boolean };
+type ReloadOptions = {
+  reloadScreenOptions?: {
+    backgroundColor?: string;
+    fade?: boolean;
+    spinner?: { enabled?: boolean; size?: 'small' | 'medium' | 'large' };
+  };
+};
+type UpdatesInfo = {
+  /** False in dev clients and on builds without the native module. */
+  isEnabled: boolean;
+  /** Channel active when the app launched (null until a reload applies an override). */
+  channel: string | null;
+  runtimeVersion: string | null;
+  /** Null when running the update embedded in the build. */
+  updateId: string | null;
+  createdAt: Date | null;
+};
+
+const updatesUnavailable = () => new Error('expo-updates unavailable on this build');
 
 let useUpdatesImpl: UseUpdates = () => ({ isUpdatePending: false });
-let reloadAsyncImpl: () => Promise<void> = async () => {};
+let reloadAsyncImpl: (options?: ReloadOptions) => Promise<void> = async () => {};
+let updatesInfoImpl: UpdatesInfo = { isEnabled: false, channel: null, runtimeVersion: null, updateId: null, createdAt: null };
+let setUpdateChannelOverrideImpl: (channel: string | null) => void = () => {
+  throw updatesUnavailable();
+};
+let checkForUpdateImpl: () => Promise<{ isAvailable: boolean }> = () => Promise.reject(updatesUnavailable());
+let fetchUpdateImpl: () => Promise<unknown> = () => Promise.reject(updatesUnavailable());
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const updates = require('expo-updates');
   useUpdatesImpl = updates.useUpdates;
   reloadAsyncImpl = updates.reloadAsync;
+  updatesInfoImpl = {
+    isEnabled: updates.isEnabled ?? false,
+    channel: updates.channel ?? null,
+    runtimeVersion: updates.runtimeVersion ?? null,
+    updateId: updates.updateId ?? null,
+    createdAt: updates.createdAt ?? null,
+  };
+  setUpdateChannelOverrideImpl = (channel) =>
+    updates.setUpdateRequestHeadersOverride(channel ? { 'expo-channel-name': channel } : null);
+  checkForUpdateImpl = () => updates.checkForUpdateAsync();
+  fetchUpdateImpl = () => updates.fetchUpdateAsync();
 } catch {
   console.warn('[euxy] expo-updates native module missing — OTA updates disabled on this build.');
 }
 
 export const useUpdates: UseUpdates = (...args) => useUpdatesImpl(...args);
-export const reloadUpdateAsync = () => reloadAsyncImpl();
+export const reloadUpdateAsync = (options?: ReloadOptions) => reloadAsyncImpl(options);
+/** Static snapshot of the running update (fixed for the app's lifetime). */
+export const updatesInfo: UpdatesInfo = updatesInfoImpl;
+/** Channel surfing: override (or clear, with null) the expo-channel-name
+ * request header for all future update checks on this install. Throws on
+ * builds without the native module. */
+export const setUpdateChannelOverride = (channel: string | null) => setUpdateChannelOverrideImpl(channel);
+export const checkForUpdateAsync = () => checkForUpdateImpl();
+export const fetchUpdateAsync = () => fetchUpdateImpl().then(() => {});
 
 type UseObserve = () => { markInteractive: () => void };
 type LogEventOptions = {

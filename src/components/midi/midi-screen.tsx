@@ -12,7 +12,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 
 import { AppText, Segmented } from '@/components/ui';
 import { IconPanic } from '@/components/ui/icons';
-import { useObserve } from '@/lib/shims';
+import { haptics, useObserve } from '@/lib/shims';
 import { useSettings, useTransport } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import { color, space } from '@/theme/tokens';
@@ -59,6 +59,10 @@ export default function MidiScreen() {
   const inName = rt.inputs.find((d) => d.id === settings.inputId)?.name ?? null;
   const connected = rt.enabled && !!outName;
 
+  const openChannelSurf = () => {
+    haptics.impact('medium');
+    router.push('/channel-surf');
+  };
   const openOutput = () => router.push('/device-picker?kind=output');
   const openInput = () => router.push('/device-picker?kind=input');
   const onConnectionPress = () => {
@@ -120,8 +124,9 @@ export default function MidiScreen() {
           : 'Record — the OP‑XY is the clock master and euxy follows its clock, so the Sequencer has no Play button. Hold Record and press Play on the OP‑XY: euxy waits out the count‑in, then plays its lanes in sync while the device captures them into its own sequencer.'}
       </AppText>
 
-      {/* DIAGNOSTICS */}
-      <SectionHeader>Diagnostics</SectionHeader>
+      {/* DIAGNOSTICS — long-press the header for the hidden channel-surf
+          sheet (runtime EAS Update channel switching). */}
+      <SectionHeader onLongPress={openChannelSurf}>Diagnostics</SectionHeader>
       <Group>
         <PushRow pos="first" label="Activity log" onPress={() => router.push('/activity-log')} />
         <Cell pos="last" contentStyle={styles.logCell}>

@@ -35,14 +35,28 @@ function cornerStyle(pos: CellPos) {
 /**
  * Grouped-list section header, current-iOS style (Settings "My Devices"):
  * title case, ~20pt semibold, secondary gray, sitting close above its group —
- * NOT the legacy small-caps letterspaced header.
+ * NOT the legacy small-caps letterspaced header. `onLongPress` is for hidden
+ * debug entries (no visual affordance by design).
  */
-export function SectionHeader({ children, first = false }: { children: string; first?: boolean }) {
-  return (
-    <View style={[styles.section, first && styles.sectionFirst]}>
-      <AppText style={styles.sectionText}>{children}</AppText>
-    </View>
-  );
+export function SectionHeader({
+  children,
+  first = false,
+  onLongPress,
+}: {
+  children: string;
+  first?: boolean;
+  onLongPress?: () => void;
+}) {
+  const wrapStyle = [styles.section, first && styles.sectionFirst];
+  const text = <AppText style={styles.sectionText}>{children}</AppText>;
+  if (onLongPress) {
+    return (
+      <Pressable onLongPress={onLongPress} delayLongPress={600} style={wrapStyle}>
+        {text}
+      </Pressable>
+    );
+  }
+  return <View style={wrapStyle}>{text}</View>;
 }
 
 /** Inset group container (16px side padding, 1px separators via gap). */

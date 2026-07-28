@@ -22,7 +22,7 @@ import {
 } from '@/lib/shims';
 import { useShotRig } from '@/lib/shot-rig';
 import { navTheme } from '@/theme/navigation';
-import { color } from '@/theme/tokens';
+import { color, radius } from '@/theme/tokens';
 
 // EAS Observe: per-route navigation metrics. Must run at module scope,
 // before any screen mounts.
@@ -52,6 +52,7 @@ function useUpdatePrompt() {
 const sheetOptions = {
   presentation: 'formSheet',
   sheetGrabberVisible: true,
+  sheetCornerRadius: radius.sheet,
   headerShown: false,
   contentStyle: { backgroundColor: color.surface },
 } as const;
@@ -111,6 +112,12 @@ function RootLayout() {
           <Stack.Screen
             name="share-pattern"
             options={{ ...sheetOptions, sheetAllowedDetents: [0.9] }}
+          />
+          {/* Hidden debug sheet — long-press the MIDI tab's Diagnostics
+              header. Switches the EAS Update channel at runtime. */}
+          <Stack.Screen
+            name="channel-surf"
+            options={{ ...sheetOptions, sheetAllowedDetents: [0.6] }}
           />
           {/* Shared patterns arriving via universal link or euxy://. Two URL
               shapes, one sheet: /p/<payload> is canonical, /p?d=<payload> is
