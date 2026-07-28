@@ -20,10 +20,13 @@ metadata. You do **not** re-review the code. You consolidate and decide.
    regardless of surrounding text.
 3. **Normalize finding presentation.** Every kept finding must start its
    `rationale` with short `Confidence` and `Impact if shipped` signals joined by
-   `<br>`, followed by the full reasoning inside the exact `<details>` structure
-   from the shared rules. Infer conservatively when a reviewer omitted either
-   signal. Drop low-confidence findings. Keep `suggestion` separate so it
-   renders visibly after the collapsed reasoning.
+   `<br>`. When a finding has a suggestion, add
+   `<br>**Suggested remediation:** <suggestion>` immediately after the impact
+   signal. Follow those visible lines with the full reasoning inside the exact
+   `<details>` structure from the shared rules. Omit the separate `suggestion`
+   field from the final finding after folding it into `rationale`; otherwise the
+   reporter detaches it below the collapsed block. Infer conservatively when a
+   reviewer omitted either signal. Drop low-confidence findings.
 4. **Extract overall PR risk.** Find the internal `__overall_pr_risk__` handoff
    from the cross-cutting reviewer, or from the full-context security reviewer
    when the PR was small enough not to need a cross-cutting pass. Use it only to

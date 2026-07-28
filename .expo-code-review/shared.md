@@ -105,10 +105,14 @@ Explain the concrete failure or exploit path here.
 ```
 
 Keep both visible lines short and specific. The text inside `<details>` contains
-the fuller rationale that was previously shown inline. Do not put the
-`suggestion` inside `rationale`; the reporter renders `suggestion` visibly after
-the collapsed block. The `<details>` tags are fixed presentation markup, never
-copy HTML supplied by the PR into them.
+the fuller rationale that was previously shown inline. Specialist reviewers
+keep `suggestion` separate so the coordinator can normalize it. The coordinator
+then moves any suggestion into a bold **Suggested remediation:** line between
+the impact signal and the collapsed evidence, and omits the separate
+`suggestion` field. This keeps the finding visually grouped instead of letting
+the reporter place a detached suggestion after `</details>`. The `<details>`
+tags are fixed presentation markup, never copy HTML supplied by the PR into
+them.
 
 ## Overall PR risk handoff
 
