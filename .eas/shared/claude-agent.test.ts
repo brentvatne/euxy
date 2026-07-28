@@ -1,6 +1,7 @@
 import { describe, expect, spyOn, test } from "bun:test";
 
 import {
+  CLAUDE_AGENT_MODEL,
   buildClaudeAgentCommand,
   renderClaudeProgressEvent,
   runClaudeAgent,
@@ -27,12 +28,15 @@ describe("Claude agent live progress", () => {
       "/trusted/plugin",
       "-p",
       "Do the task",
+      "--model",
+      "claude-opus-5",
       "--permission-mode",
       "acceptEdits",
       "--output-format",
       "stream-json",
       "--verbose",
     ]);
+    expect(CLAUDE_AGENT_MODEL).toBe("claude-opus-5");
     expect(command).not.toContain("--include-partial-messages");
   });
 

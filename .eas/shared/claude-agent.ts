@@ -6,6 +6,8 @@ type ClaudePermissionMode =
   | "manual"
   | "plan";
 
+export const CLAUDE_AGENT_MODEL = "claude-opus-5";
+
 type ClaudeStreamEvent = {
   type?: string;
   subtype?: string;
@@ -33,6 +35,8 @@ export function buildClaudeAgentCommand({
     ...claudeCommand,
     "-p",
     prompt,
+    "--model",
+    CLAUDE_AGENT_MODEL,
     "--permission-mode",
     permissionMode,
     "--output-format",
