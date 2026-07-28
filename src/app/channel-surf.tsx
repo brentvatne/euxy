@@ -10,7 +10,8 @@
  */
 import Constants from 'expo-constants';
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 
 import { AppText } from '@/components/ui';
 import { KeyboardAwareScrollView } from '@/components/ui/keyboard';
