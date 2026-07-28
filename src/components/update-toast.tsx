@@ -80,6 +80,10 @@ export function UpdateToast({ onDismiss }: { onDismiss: () => void }) {
         <Key
           onPress={() => reloadUpdateAsync()}
           haptic="medium"
+          // Vertical only: the pill is already wide enough, and expanding
+          // sideways would collide with the dismiss key's own slop across
+          // the 12pt gap. 32 + 6*2 = HIT_TARGET.
+          hitSlop={{ top: 6, bottom: 6 }}
           style={styles.reload}
           accessibilityRole="button"
           accessibilityLabel="Reload to apply update"
