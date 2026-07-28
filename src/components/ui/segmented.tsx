@@ -30,6 +30,9 @@ export interface SegmentedProps<T extends string> {
   onChange: (value: T) => void;
   /** `regular` fills its row (flex segments); `compact` hugs its content. */
   size?: 'regular' | 'compact';
+  /** Dims the control and blocks taps — the setting exists but doesn't apply
+   * to the current context (e.g. count-in while in Jam mode). */
+  disabled?: boolean;
 }
 
 export function Segmented<T extends string>({
@@ -37,16 +40,18 @@ export function Segmented<T extends string>({
   value,
   onChange,
   size = 'regular',
+  disabled = false,
 }: SegmentedProps<T>) {
   const compact = size === 'compact';
   return (
-    <View style={[styles.track, compact && styles.trackCompact]}>
+    <View style={[styles.track, compact && styles.trackCompact, disabled && styles.trackDisabled]}>
       {options.map((opt) => {
         const active = opt.value === value;
         return (
           <Pressable
             key={opt.value}
             onPress={() => {
+              if (disabled) return;
               // Tick only on an actual change — re-tapping the active
               // segment is a no-op and should feel like one.
               if (!active) haptics.selection();
@@ -54,7 +59,7 @@ export function Segmented<T extends string>({
             }}
             style={compact ? styles.segmentCompact : styles.segment}
             accessibilityRole="button"
-            accessibilityState={{ selected: active }}
+            accessibilityState={{ selected: active, disabled }}
           >
             {/* The inactive label is always the base layer; the ACTIVE pill —
                 white fill plus its black label — is a light that mounts over it
@@ -100,6 +105,7 @@ const styles = StyleSheet.create({
     backgroundColor: color.surface2,
     borderRadius: 8,
   },
+  trackDisabled: { opacity: 0.4 },
   segment: {
     flex: 1,
     minHeight: HIT_TARGET - space.md,
