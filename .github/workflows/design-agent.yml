@@ -3,18 +3,21 @@
 # trusted workflow code on EAS. The agent, the Paper session, and the GitHub write
 # token all stay on EAS. Mirrors agent-work.yml deliberately — same trust model.
 #
-# Applying the `design-agent` label starts a run:
-#   - on a fresh request issue, the body is the brief
-#   - on an existing proposal issue, the thread is treated as feedback and the
-#     proposal is revised (EAS decides which, from the issue's own marker)
+# Label an issue `design-agent` once. After that:
+#   - labeling starts the first run (the body is the brief)
+#   - any later comment from an allowlisted author starts another, so feedback
+#     alone drives a revision — no re-labeling
 #
-# Remove and re-apply the label to run again.
+# EAS decides fresh-vs-revision from the issue's own marker. Remove the label to
+# stop comments triggering runs.
 
 name: Dispatch design agent
 
 on:
   issues:
     types: [labeled]
+  issue_comment:
+    types: [created]
 
 permissions: {}
 
@@ -26,16 +29,37 @@ concurrency:
 
 jobs:
   dispatch:
-    # Only the label matters, and only from an allowlisted actor. `github.sha` on
-    # an issues event is the default branch, so EAS runs trusted code rather than
-    # anything a contributor pushed. EAS re-fetches the issue and repeats these
-    # checks before spending a run.
+    # `github.sha` on these events is the default branch, so EAS runs trusted code
+    # rather than anything a contributor pushed. EAS re-fetches the issue and
+    # repeats these checks before spending a run.
+    #
+    # The allowlist check is also what stops a feedback loop: this workflow's own
+    # acknowledgement and the agent's "Proposal opened" comment are posted by bot
+    # identities, which are not on the allowlist and so cannot retrigger it.
+    #
+    # `@notbrent …` comments are excluded because agent-work.yml owns that prefix;
+    # an explicit command there should mean agent work, not a design revision.
     if: >-
       github.repository == 'brentvatne/euxy'
-      && github.event.label.name == 'design-agent'
-      && contains(
-        fromJSON(vars.AGENT_WORK_ALLOWLIST || '["brentvatne"]'),
-        github.event.sender.login
+      && !github.event.issue.pull_request
+      && (
+        (
+          github.event_name == 'issues'
+          && github.event.label.name == 'design-agent'
+          && contains(
+            fromJSON(vars.AGENT_WORK_ALLOWLIST || '["brentvatne"]'),
+            github.event.sender.login
+          )
+        )
+        || (
+          github.event_name == 'issue_comment'
+          && contains(github.event.issue.labels.*.name, 'design-agent')
+          && !startsWith(github.event.comment.body, '@notbrent')
+          && contains(
+            fromJSON(vars.AGENT_WORK_ALLOWLIST || '["brentvatne"]'),
+            github.event.comment.user.login
+          )
+        )
       )
     runs-on: ubuntu-latest
     outputs:
@@ -49,7 +73,7 @@ jobs:
           TRUSTED_GIT_REF: ${{ github.sha }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_ID: ${{ github.event.issue.id }}
-          ACTOR: ${{ github.event.sender.login }}
+          ACTOR: ${{ github.event.comment.user.login || github.event.sender.login }}
         run: |
           if [[ -z "$EXPO_TOKEN" ]]; then
             echo "::error::Missing the EXPO_TOKEN repository secret used to dispatch EAS Workflows."

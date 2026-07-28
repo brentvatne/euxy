@@ -6,9 +6,13 @@ body:
   - type: markdown
     attributes:
       value: |
-        Applying the **design-agent** label starts a run. The agent reads the
-        Paper canvas, draws artboards on it, and opens a separate issue with the
-        proposal and exported mockups.
+        Filing this with the **design-agent** label starts a run. The agent reads
+        the Paper canvas, draws artboards on it, and opens a separate issue with
+        the proposal and exported mockups.
+
+        After that, **any comment on a design-agent issue starts another run**, so
+        replying with feedback is all it takes to get a revision. Remove the label
+        if you want to discuss without triggering one.
 
         It proposes only — no app code is changed.
 

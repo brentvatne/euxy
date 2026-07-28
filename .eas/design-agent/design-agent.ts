@@ -493,9 +493,12 @@ sections.push(`- Status: ${gallery ? "proposal ready for review" : "proposal rea
 sections.push(`- Mockups: ${gallery ? `${gallery.images.length} exported from Paper` : "none"}`);
 if (CONTINUES_ISSUE) sections.push(`- Revises: #${CONTINUES_ISSUE}`);
 
+// Labelled at creation so commenting on the proposal is enough to trigger a
+// revision — the dispatcher keys off this label. Without it the loop would need
+// the label applied by hand before feedback did anything.
 const created = await gh("/issues", {
   method: "POST",
-  body: JSON.stringify({ title, body: sections.join("\n") }),
+  body: JSON.stringify({ title, body: sections.join("\n"), labels: ["design-agent"] }),
 });
 if (created.status !== 201) {
   throw new Error(`Could not create the issue (HTTP ${created.status}): ${await created.text()}`);
