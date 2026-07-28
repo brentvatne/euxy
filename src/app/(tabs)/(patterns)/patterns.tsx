@@ -4,17 +4,19 @@
  * sequencer and switches to the Sequencer tab. A + in the header opens the New
  * Pattern sheet. Empty state (node 2NR-0) shows when there are no patterns.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ActionSheetIOS, Alert, Platform, StyleSheet, View } from 'react-native';
 import { Stack, router } from 'expo-router';
 
-import { haptics, useObserve } from '@/lib/shims';
+import { haptics } from '@/lib/shims';
+import { useMarkInteractive } from '@/lib/use-mark-interactive';
 // Gesture-handler's ScrollView, so the row swipe pan and the list scroll
 // negotiate inside one gesture system — with RN's ScrollView the swipe
 // could lose the horizontal drag on device (ROADMAP §11).
 import { GestureHandlerRootView, Pressable, ScrollView } from 'react-native-gesture-handler';
 
 import { AppText, SFSymbol } from '@/components/ui';
+import { reportFirstScreenLayout } from '@/components/boot-signal';
 import { PatternGlyph } from '@/components/patterns/pattern-glyph';
 import { PatternRow } from '@/components/patterns/pattern-row';
 import { isPresetPattern } from '@/state/presets';
@@ -134,10 +136,7 @@ export default function PatternsScreen() {
   };
 
   // Per-route TTI for EAS Observe.
-  const { markInteractive } = useObserve();
-  useEffect(() => {
-    markInteractive();
-  }, [markInteractive]);
+  useMarkInteractive();
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -175,6 +174,9 @@ export default function PatternsScreen() {
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
         keyboardDismissMode="on-drag"
+        // Boot layout gate — see boot-signal.ts. Every tab root reports so the
+        // boot never waits on a route that didn't mount. First reporter wins.
+        onLayout={reportFirstScreenLayout}
       >
         {patterns.length === 0 ? (
           <EmptyState />

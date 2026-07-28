@@ -23,10 +23,10 @@ import { Pressable } from 'react-native-gesture-handler';
 
 import { midi, midiOut } from '@/components/midi/runtime';
 import { midiNoteName } from '@/core/note';
-import { haptics } from '@/lib/shims';
+import { haptics, logObserveEvent } from '@/lib/shims';
 import { useLane } from '@/state/selectors';
 import { useStore } from '@/state/store';
-import type { CombineOp } from '@/state/types';
+import type { CombineOp, Lane } from '@/state/types';
 import { color, font, radius, ramp, space } from '@/theme/tokens';
 import { AppText, SFSymbol, SheetHeader } from '@/components/ui';
 import { KeyboardAwareScrollView } from '@/components/ui/keyboard';
@@ -57,6 +57,28 @@ const RES_OPTIONS = [
   { label: '1/16', value: '6' },
   { label: '1/16T', value: '4' },
   { label: '1/32', value: '3' },
+];
+
+/**
+ * Which controls a lane-editing session actually touched. Diffed once on
+ * close, NEVER per change: every control here is a slider or a drag, so a
+ * per-change event would emit hundreds per session. Keys are the product
+ * names, not the field names.
+ */
+const EDIT_FIELDS: { key: string; read: (l: Lane) => unknown }[] = [
+  { key: 'genA_pulses', read: (l) => l.genA.pulses },
+  { key: 'genA_rotate', read: (l) => l.genA.rotation },
+  { key: 'genB_pulses', read: (l) => l.genB.pulses },
+  { key: 'genB_rotate', read: (l) => l.genB.rotation },
+  { key: 'op', read: (l) => l.op },
+  { key: 'steps', read: (l) => l.length },
+  { key: 'track_rotate', read: (l) => l.trackRot },
+  { key: 'note', read: (l) => l.note },
+  { key: 'channel', read: (l) => l.channel },
+  { key: 'name', read: (l) => l.name },
+  { key: 'resolution', read: (l) => l.resolutionTicks },
+  { key: 'velocity', read: (l) => l.velocity },
+  { key: 'gate', read: (l) => l.gateMs },
 ];
 
 /** iOS-style section header (matches the MIDI screen's SectionHeader). */
@@ -110,6 +132,39 @@ export default function LaneEditorSheet() {
     const isScrolled = e.nativeEvent.contentOffset.y > 2;
     if (isScrolled !== scrolled) setScrolled(isScrolled);
   };
+
+  // One event per editing session, on close. Observe told us this sheet is
+  // opened more than everything else combined and nothing about what happens
+  // inside it; this is that gap. Cheap (a shallow diff of two lane snapshots)
+  // and bounded (one event no matter how long the session ran).
+  const openedAt = useRef(0);
+  const firstLane = useRef<Lane | null>(null);
+  const lastLane = useRef<Lane | null>(null);
+  const deletedLane = useRef(false);
+  useEffect(() => {
+    if (!lane) return;
+    if (firstLane.current == null) firstLane.current = lane;
+    lastLane.current = lane;
+  }, [lane]);
+  useEffect(() => {
+    openedAt.current = Date.now();
+    return () => {
+      const before = firstLane.current;
+      const after = lastLane.current;
+      const touched =
+        before && after ? EDIT_FIELDS.filter((f) => f.read(before) !== f.read(after)) : [];
+      logObserveEvent('lane_editor.closed', {
+        attributes: {
+          duration_ms: Date.now() - openedAt.current,
+          // Sorted-by-definition (EDIT_FIELDS order) so the same set of edits
+          // always produces the same string — otherwise this is unaggregatable.
+          fields: touched.map((f) => f.key).join(',') || 'none',
+          field_count: touched.length,
+          deleted: deletedLane.current,
+        },
+      });
+    };
+  }, []);
 
   // Listen: while engaged, notes played from the OP-XY's aux track set this
   // lane's note AND its track (the inbound channel selects the track), and
@@ -454,6 +509,7 @@ export default function LaneEditorSheet() {
             accessibilityRole="button"
             onPress={() => {
               haptics.warning();
+              deletedLane.current = true;
               removeLane(id);
               router.back();
             }}

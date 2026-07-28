@@ -20,6 +20,7 @@
 import { useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 
+import { logObserveEvent } from '@/lib/shims';
 import { createMidiPort } from '@/midi/port';
 import type { MidiDevice, MidiPort } from '@/midi/types';
 import { useStore } from '@/state/store';
@@ -263,9 +264,26 @@ export async function enableMidi(): Promise<boolean> {
   return true;
 }
 
+// Last value we reported, so the auto-connect pass that runs on EVERY launch
+// (enableMidi → selectOutput, usually re-selecting the same device or the same
+// null) doesn't emit a launch-rate event stream. Only real changes are logged.
+let loggedOutputId: string | null | undefined;
+
 export function selectOutput(id: string | null) {
   midi.selectOutput(id);
   useStore.getState().setOutput(id);
+  if (id !== loggedOutputId) {
+    loggedOutputId = id;
+    // MIDI is half of what this app IS and had zero instrumentation. Device
+    // names are high-cardinality and user-identifying, so only the KIND ships.
+    const name = id ? snap.outputs.find((d) => d.id === id)?.name : undefined;
+    logObserveEvent(id ? 'midi.output_connected' : 'midi.output_cleared', {
+      attributes: {
+        kind: name ? (isOpXy(name) ? 'op-xy' : 'other') : 'none',
+        outputs_available: snap.outputs.length,
+      },
+    });
+  }
 }
 
 export function selectInput(id: string | null) {
