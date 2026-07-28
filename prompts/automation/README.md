@@ -108,7 +108,8 @@ comments with its findings and publishes only when explicitly requested.
 - The mention must be the first text in the comment. Supported forms are
   `@notbrent …`, `@notbrent: …`, and `@notbrent, …`.
 - PR commands require an open same-repository PR authored by `brentvatne`,
-  `notbrent`, or `github-actions[bot]`; fork PRs are rejected.
+  or `notbrent`; fork PRs and PRs authored by the repository-wide
+  `github-actions[bot]` identity are rejected.
 - Full PR-agent responses stop after three bot-authored response commits on a
   branch. Publish-only commands do not consume an iteration.
 - The agent cannot change protected workflow, runner, prompt, or credential

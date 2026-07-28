@@ -34,6 +34,9 @@ Build the automation as a small trusted control plane around an untrusted coding
    for automation-created branches; for maintainer commands on ordinary PRs,
    revalidate the exact immutable comment and require an allowlisted PR author
    instead of relying on the branch name.
+   Do not grant ordinary PR-author trust to a shared repository-wide identity
+   such as `github-actions[bot]`; if it must create agent-addressable PRs,
+   constrain that identity to explicit automation branch prefixes.
 3. When authorization or agent context depends on GitHub history, exhaust
    paginated comments and reviews up to a hard cap; fail closed instead of
    trusting a truncated history.
@@ -138,10 +141,11 @@ Use this lifecycle for crash, feedback, and issue automation:
 4. Validate the diff, protected paths, type checks, tests, and simulator evidence.
 5. Push a namespaced branch.
 6. Open or find the PR and include `Closes #<issue>` when it contains a fix, or `Re: #<issue>` when it contains analysis only.
-7. Keep the visible PR body scannable. In an `Approach` section, use one-sentence
-   bold highlights and put file references, rationale, caveats, and supporting
-   evidence in a `<details><summary>Details</summary>…</details>` block under
-   each highlight.
+7. Keep the visible PR body scannable. In an `Approach` section, use one
+   `<details>` block per change and make its one-sentence bold highlight the
+   clickable `<summary>` label. Put file references, rationale, caveats, and
+   supporting evidence directly inside that block; do not add a separate
+   generic “Details” label.
 8. For a code-changing PR, allocate an unused readable EAS Update channel and
    persist it in a wrapper-owned PR-body marker before publishing. Reuse that
    marker for every later review-response publication on the same PR. List

@@ -30,7 +30,10 @@ describe("PR comment response workflow", () => {
       "startsWith(github.event.pull_request.head.ref",
     );
     expect(dispatcher).toContain(
-      `fromJSON('["brentvatne","notbrent","github-actions[bot]"]')`,
+      `fromJSON('["brentvatne","notbrent"]')`,
+    );
+    expect(workflow).toContain(
+      `TRIAGE_PR_AUTHOR_ALLOWLIST: '["brentvatne","notbrent"]'`,
     );
     expect(dispatcher).toContain("COMMENT_ID: ${{ github.event.comment.id }}");
     expect(dispatcher).toContain("comment_id: $comment_id");
@@ -52,7 +55,22 @@ describe("PR comment response workflow", () => {
     expect(runner).not.toContain("is not a triage PR");
     expect(runner).toContain("headRepo !== `${owner}/${repo}`");
     expect(runner).toContain("prAuthorAllowlist.includes(prAuthor)");
+    expect(runner).toContain(
+      'const prAuthorAllowlist = loginAllowlist("TRIAGE_PR_AUTHOR_ALLOWLIST", [\n  "brentvatne",\n  "notbrent",\n]);',
+    );
     expect(runner).toContain("validatePullRequestCommentDispatch");
+  });
+
+  test("does not trust the repository-wide GitHub Actions identity as a PR author", () => {
+    expect(dispatcher).not.toContain(
+      `fromJSON('["brentvatne","notbrent","github-actions[bot]"]')`,
+    );
+    expect(workflow).not.toContain(
+      `TRIAGE_PR_AUTHOR_ALLOWLIST: '["brentvatne","notbrent","github-actions[bot]"]'`,
+    );
+    expect(runner).toContain(
+      'l === "github-actions[bot]" && /expo-ai-code-reviewer/i.test(body || "")',
+    );
   });
 
   test("provides the referenced AI review to a generic review-feedback command", () => {

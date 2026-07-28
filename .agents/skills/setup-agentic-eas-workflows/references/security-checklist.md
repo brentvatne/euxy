@@ -6,6 +6,8 @@
       revision. Require a branch prefix for automation-created branches; for
       trusted commands on ordinary PRs, revalidate the immutable comment and
       require an allowlisted PR author.
+- [ ] Do not treat a repository-wide identity such as `github-actions[bot]` as
+      an ordinary trusted PR author; prefix-gate any intentional exception.
 - [ ] Check out a trusted base SHA before running repository scripts.
 - [ ] Pass untrusted text through environment variables or files, never shell interpolation.
 - [ ] Deduplicate events with a stable source key and serialize work per issue/PR.

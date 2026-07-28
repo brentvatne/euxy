@@ -76,9 +76,12 @@ describe("issue triage execution boundary", () => {
   });
 
   test("keeps generated PR approaches concise and expandable", () => {
-    expect(prompt).toContain("Keep each visible bullet");
+    expect(prompt).toContain("clickable `<summary>` label itself");
     expect(prompt).toContain("<details>");
-    expect(prompt).toContain("<summary>Details</summary>");
+    expect(prompt).toContain(
+      "<summary><strong>Added the missing gesture-handler root.</strong></summary>",
+    );
+    expect(prompt).not.toContain("<summary>Details</summary>");
     expect(prompt).toContain("Do not duplicate technical");
     expect(prompt).toContain("detail outside the expandable Approach blocks.");
     expect(prompt).not.toContain("**Issue reference**");

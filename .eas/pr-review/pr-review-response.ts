@@ -12,7 +12,7 @@
  * Env: CLAUDE_CODE_OAUTH_TOKEN, GH_TOKEN, REPO_SLUG (req); INPUT_PR (req),
  *      INPUT_REVIEW_ID / INPUT_COMMENT_ID (optional immutable feedback ids),
  *      TRIAGE_PR_AUTHOR_ALLOWLIST
- *        (default ["brentvatne","notbrent","github-actions[bot]"]),
+ *        (default ["brentvatne","notbrent"]),
  *      TRIAGE_REVIEWER_ALLOWLIST (default ["brentvatne"]),
  *      AGENT_PROMPT_FILE (Markdown prompt path),
  *      SIMULATOR_VALIDATION ('1' enables remote iOS verification),
@@ -116,7 +116,6 @@ function loginAllowlist(name: string, fallback: string[]): string[] {
 const prAuthorAllowlist = loginAllowlist("TRIAGE_PR_AUTHOR_ALLOWLIST", [
   "brentvatne",
   "notbrent",
-  "github-actions[bot]",
 ]);
 const reviewerAllowlist = loginAllowlist("TRIAGE_REVIEWER_ALLOWLIST", [
   "brentvatne",

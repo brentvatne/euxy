@@ -27,7 +27,7 @@ jobs:
           && github.event.review.state == 'changes_requested'
           && github.event.review.user.login == 'brentvatne'
           && contains(
-            fromJSON('["brentvatne","notbrent","github-actions[bot]"]'),
+            fromJSON('["brentvatne","notbrent"]'),
             github.event.pull_request.user.login
           )
           && github.event.pull_request.head.repo.full_name == github.repository
