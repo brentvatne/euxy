@@ -12,6 +12,19 @@ on:
   push:
     branches: ['main']
 
+# A rapid series of pushes to main should only ship the tip, not every
+# intermediate commit — a new GitHub-triggered run cancels whatever is still in
+# progress for this file on this branch.
+#
+# `group` is NOT a name we chose and is NOT evaluated. The schema pins it to
+# this exact literal (a `const`) and also requires it, so any other value — or
+# omitting it — fails validation. It is a placeholder spelling out the grouping
+# EAS currently hard-codes (per workflow file, per branch); typing it verbatim
+# now means behavior won't shift if custom groups ship later.
+concurrency:
+  group: ${{ workflow.filename }}-${{ github.ref }}
+  cancel_in_progress: true
+
 jobs:
   fingerprint:
     name: Fingerprint
