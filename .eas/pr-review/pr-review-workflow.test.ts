@@ -92,6 +92,21 @@ describe("PR comment response workflow", () => {
     expect(prompt).toContain("Do not invoke `eas update` directly");
   });
 
+  test("publishes feedback-first expandable response blocks", () => {
+    expect(prompt).toContain(
+      "Start directly with the first `<details>` block",
+    );
+    expect(prompt).toContain(
+      "<summary><strong>Feedback point (🟡 Warning, <code>id:616b5e25aad3</code>): “MIDI route marks interactive twice”</strong></summary>",
+    );
+    expect(prompt).toContain("Normal Markdown is supported");
+    expect(prompt).toContain("in the `<details>` body.");
+    expect(prompt).toContain(
+      "do not add a document\n   title, PR heading, summary heading, or introductory text",
+    );
+    expect(runner).toContain("normalizePullRequestAgentResponse");
+  });
+
   test("uses a bounded publish-only fast path before simulator or Claude", () => {
     expect(runner).toContain("isPublishOnlyPullRequestCommand");
     expect(runner).toContain(

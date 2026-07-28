@@ -34,7 +34,10 @@ import {
   renderPublicSimulatorEvidence,
 } from "../shared/public-simulator-evidence";
 import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
-import { parsePullRequestAgentActions } from "./pr-review-actions";
+import {
+  normalizePullRequestAgentResponse,
+  parsePullRequestAgentActions,
+} from "./pr-review-actions";
 import {
   findLatestAiReviewFeedback,
   isPublishOnlyPullRequestCommand,
@@ -424,10 +427,11 @@ try {
 console.log(`▸ Agent finished (rc=${agentRc}).`);
 await sh(["mkdir", "-p", ".eas/pr-review"]);
 if (await Bun.file(`${WORK}/.eas/pr-review/RESPONSE.md`).exists()) {
-  await Bun.write(
-    ".eas/pr-review/RESPONSE.md",
+  const normalizedResponse = normalizePullRequestAgentResponse(
     await Bun.file(`${WORK}/.eas/pr-review/RESPONSE.md`).text(),
   );
+  await Bun.write(`${WORK}/.eas/pr-review/RESPONSE.md`, normalizedResponse);
+  await Bun.write(".eas/pr-review/RESPONSE.md", normalizedResponse);
 }
 let actions = { publishUpdate: false };
 if (await Bun.file(`${WORK}/.eas/pr-review/ACTIONS.json`).exists()) {

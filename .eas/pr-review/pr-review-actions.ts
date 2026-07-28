@@ -2,6 +2,18 @@ export type PullRequestAgentActions = {
   publishUpdate: boolean;
 };
 
+const LEADING_REVIEW_RESPONSE_HEADING =
+  /^\s*#\s+Review response(?:\s+[—–-]\s+PR\s+#\d+)?\s*\n+/i;
+
+export function normalizePullRequestAgentResponse(raw: string): string {
+  const normalized = raw
+    .replace(/^\uFEFF/, "")
+    .replace(LEADING_REVIEW_RESPONSE_HEADING, "")
+    .trim();
+
+  return normalized || "Reviewed the feedback.";
+}
+
 export function parsePullRequestAgentActions(
   raw: string,
 ): PullRequestAgentActions {

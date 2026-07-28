@@ -24,10 +24,30 @@ changes, and verify the result.
    - If an appended simulator-verification section is present, use it for
      behavior/UI changes. Otherwise verify statically + with tests and call out
      anything needing on-device checking.
-4. Write `.eas/pr-review/RESPONSE.md`:
-   - **What I changed** (with `file:line`) and which feedback point it addresses.
-   - **Verification** — what you ran and the result.
-   - **Not addressed / needs discussion** — anything you skipped and why.
+4. Write `.eas/pr-review/RESPONSE.md` as one expandable block per feedback
+   point. Start directly with the first `<details>` block: do not add a document
+   title, PR heading, summary heading, or introductory text.
+   - Make the feedback point itself the clickable `<summary>`. Preserve its
+     severity, id, and short title when available. Use HTML such as `<strong>`
+     and `<code>` inside `<summary>` so GitHub renders it reliably.
+   - Put the response beneath the summary, inside the block: what changed (with
+     `file:line`), why it addresses the feedback, verification and results, and
+     anything not addressed or needing discussion. Normal Markdown is supported
+     in the `<details>` body.
+   - Use this exact shape:
+     ```md
+     <details>
+     <summary><strong>Feedback point (🟡 Warning, <code>id:616b5e25aad3</code>): “MIDI route marks interactive twice”</strong></summary>
+
+     Updated `path/to/file.ts:42` so the route has one interactive marker.
+
+     **Verification:** `bun test` passed.
+
+     </details>
+     ```
+   - Do not duplicate the feedback point or technical details outside its
+     expandable block. If there is no code change, keep the same shape and
+     explain the concrete reason inside the block.
 5. Write `.eas/pr-review/ACTIONS.json` with exactly:
    ```json
    { "publishUpdate": false }
