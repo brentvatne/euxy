@@ -168,10 +168,11 @@ findings, analyses, artifacts, branches, and PR conclusions.
 
 ## Per-PR EAS Update publication
 
-Use a wrapper-owned PR-body marker to persist a readable per-PR channel ending
-in `-p<number>`. Reuse it for later publications. Exhaust the channel list up
-to a hard cap before allocating and fail closed on malformed or truncated
-inventory.
+Use a wrapper-owned PR-body marker to persist a readable one-word per-PR
+channel ending in `-<number>` (for example, `wise-43`). Reuse it for later
+publications. Exhaust the channel list up to a hard cap before allocating and
+fail closed on malformed or truncated inventory. Continue accepting an older
+marker format if the project already issued channels under it.
 
 The metadata sequence is:
 

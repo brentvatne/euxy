@@ -306,7 +306,8 @@ neutral findings comment. Never publish arbitrary model prose directly.
 For EAS Update:
 
 - list every channel page before allocating;
-- choose an unused readable channel ending in `-p<PR number>`;
+- choose an unused readable one-word channel ending in `-<PR number>` (for
+  example, `wise-43`);
 - persist the channel in a wrapper-owned PR-body marker and reuse it;
 - write a `publishing` status best-effort;
 - run:

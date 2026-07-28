@@ -48,41 +48,6 @@ const ADJECTIVES = [
   "zesty",
 ] as const;
 
-const NOUNS = [
-  "ant",
-  "bear",
-  "bird",
-  "bloom",
-  "cloud",
-  "comet",
-  "dawn",
-  "deer",
-  "dune",
-  "fern",
-  "fox",
-  "frog",
-  "grove",
-  "gull",
-  "hare",
-  "hill",
-  "kite",
-  "lake",
-  "leaf",
-  "lynx",
-  "moon",
-  "moth",
-  "otter",
-  "pine",
-  "rain",
-  "reed",
-  "robin",
-  "star",
-  "tide",
-  "wolf",
-  "wren",
-  "yarn",
-] as const;
-
 type CommandResult = {
   code: number;
   out: string;
@@ -110,16 +75,11 @@ function channelMarker(channel: string): string {
 }
 
 function markerPattern(): RegExp {
-  return new RegExp(
-    `<!-- ${CHANNEL_MARKER}: ([a-z0-9]+(?:-[a-z0-9]+)*) -->`
-  );
+  return new RegExp(`<!-- ${CHANNEL_MARKER}: ([a-z0-9]+(?:-[a-z0-9]+)*) -->`);
 }
 
 function previewPattern(): RegExp {
-  return new RegExp(
-    `${PREVIEW_START}[\\s\\S]*?${PREVIEW_END}`,
-    "m"
-  );
+  return new RegExp(`${PREVIEW_START}[\\s\\S]*?${PREVIEW_END}`, "m");
 }
 
 function shortDigest(value: string): string {
@@ -135,7 +95,7 @@ export function readableChannelCandidates({
   repo: string;
   pullRequestNumber: number;
 }): string[] {
-  const count = ADJECTIVES.length * NOUNS.length;
+  const count = ADJECTIVES.length;
   const digest = createHash("sha256")
     .update(`${owner}/${repo}#${pullRequestNumber}`)
     .digest();
@@ -143,10 +103,8 @@ export function readableChannelCandidates({
   const step = (digest.readUInt16BE(2) | 1) % count || 1;
   const candidates: string[] = [];
   for (let index = 0; index < count; index += 1) {
-    const pair = (start + index * step) % count;
-    const adjective = ADJECTIVES[Math.floor(pair / NOUNS.length)]!;
-    const noun = NOUNS[pair % NOUNS.length]!;
-    candidates.push(`${adjective}-${noun}-p${pullRequestNumber}`);
+    const adjective = ADJECTIVES[(start + index * step) % count]!;
+    candidates.push(`${adjective}-${pullRequestNumber}`);
   }
   return candidates;
 }
@@ -174,7 +132,7 @@ function extractChannelNames(json: unknown): string[] {
     .map((record) =>
       record && typeof record === "object"
         ? (record as { name?: unknown }).name
-        : undefined
+        : undefined,
     )
     .filter((name): name is string => typeof name === "string");
 }
@@ -212,7 +170,7 @@ async function listChannelNames({
     if (page.length < CHANNEL_PAGE_SIZE) return names;
   }
   throw new Error(
-    `The project has at least ${MAX_CHANNELS} channels; refusing to choose from a truncated list.`
+    `The project has at least ${MAX_CHANNELS} channels; refusing to choose from a truncated list.`,
   );
 }
 
@@ -287,7 +245,7 @@ async function fetchPullRequest({
   const response = await gh(`/pulls/${pullRequestNumber}`);
   if (!response.ok) {
     throw new Error(
-      `Could not fetch pull request #${pullRequestNumber} (HTTP ${response.status}).`
+      `Could not fetch pull request #${pullRequestNumber} (HTTP ${response.status}).`,
     );
   }
   return (await response.json()) as GitHubPullRequest;
@@ -320,7 +278,7 @@ async function updatePullRequestPreview({
   });
   if (!response.ok) {
     throw new Error(
-      `Could not update pull request #${pullRequestNumber} preview metadata (HTTP ${response.status}).`
+      `Could not update pull request #${pullRequestNumber} preview metadata (HTTP ${response.status}).`,
     );
   }
 
@@ -328,7 +286,7 @@ async function updatePullRequestPreview({
   if (!(updatedPullRequest.body || "").includes(block)) {
     throw new Error(
       `GitHub accepted the preview metadata PATCH for pull request #${pullRequestNumber}, ` +
-        "but its authenticated response did not contain the expected block."
+        "but its authenticated response did not contain the expected block.",
     );
   }
 
@@ -348,7 +306,7 @@ async function updatePullRequestPreview({
           "Cache-Control": "no-cache",
           Pragma: "no-cache",
         },
-      }
+      },
     );
     lastStatus = observed.status;
     if (!observed.ok) {
@@ -358,7 +316,7 @@ async function updatePullRequestPreview({
           `etag=${observed.headers.get("etag") || "missing"}, ` +
           `age=${observed.headers.get("age") || "missing"}, ` +
           `request-id=${observed.headers.get("x-github-request-id") || "missing"}.` +
-          (attempt < PREVIEW_READBACK_DELAYS_MS.length ? " Retrying." : "")
+          (attempt < PREVIEW_READBACK_DELAYS_MS.length ? " Retrying." : ""),
       );
       if (attempt < PREVIEW_READBACK_DELAYS_MS.length) {
         await wait(PREVIEW_READBACK_DELAYS_MS[attempt]!);
@@ -380,7 +338,7 @@ async function updatePullRequestPreview({
         `etag=${observed.headers.get("etag") || "missing"}, ` +
         `age=${observed.headers.get("age") || "missing"}, ` +
         `request-id=${observed.headers.get("x-github-request-id") || "missing"}.` +
-        (attempt < PREVIEW_READBACK_DELAYS_MS.length ? " Retrying." : "")
+        (attempt < PREVIEW_READBACK_DELAYS_MS.length ? " Retrying." : ""),
     );
     if (attempt < PREVIEW_READBACK_DELAYS_MS.length) {
       await wait(PREVIEW_READBACK_DELAYS_MS[attempt]!);
@@ -390,7 +348,7 @@ async function updatePullRequestPreview({
   warn(
     `Warning: pull request #${pullRequestNumber} public preview metadata could not be confirmed ` +
       `after ${PREVIEW_READBACK_DELAYS_MS.length + 1} attempts (last HTTP ${lastStatus}); ` +
-      "continuing because the authenticated PATCH response contained the expected block."
+      "continuing because the authenticated PATCH response contained the expected block.",
   );
 }
 
@@ -416,21 +374,21 @@ async function updatePullRequestPreviewBestEffort({
     options.warn(
       `Warning: could not write pull request #${options.pullRequestNumber} ` +
         `${status} preview metadata: ${previewMetadataErrorSummary(error)}; ` +
-        continuation
+        continuation,
     );
   }
 }
 
 function validateMarkedChannel(
   channel: string,
-  pullRequestNumber: number
+  pullRequestNumber: number,
 ): string {
-  if (
-    !/^[a-z]+-[a-z]+-p[1-9][0-9]*$/.test(channel) ||
-    !channel.endsWith(`-p${pullRequestNumber}`)
-  ) {
+  const current = /^[a-z]+-([1-9][0-9]*)$/.exec(channel);
+  const legacy = /^[a-z]+-[a-z]+-p([1-9][0-9]*)$/.exec(channel);
+  const markedPullRequest = Number(current?.[1] ?? legacy?.[1]);
+  if (markedPullRequest !== pullRequestNumber) {
     throw new Error(
-      `Pull request #${pullRequestNumber} has an invalid EAS Update channel marker.`
+      `Pull request #${pullRequestNumber} has an invalid EAS Update channel marker.`,
     );
   }
   return channel;
@@ -478,7 +436,7 @@ export async function publishPullRequestUpdate({
     }).find((name) => !usedChannels.has(name));
     if (!candidate) {
       throw new Error(
-        `Could not allocate an unused readable channel for pull request #${pullRequestNumber}.`
+        `Could not allocate an unused readable channel for pull request #${pullRequestNumber}.`,
       );
     }
     channel = candidate;

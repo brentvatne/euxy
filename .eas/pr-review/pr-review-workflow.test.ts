@@ -6,9 +6,7 @@ const dispatcher = await Bun.file(
 const workflow = await Bun.file(".eas/workflows/pr-review-response.yml").text();
 const runner = await Bun.file(".eas/pr-review/pr-review-response.ts").text();
 const command = await Bun.file(".eas/pr-review/pr-review-command.ts").text();
-const pagination = await Bun.file(
-  ".eas/shared/github-pagination.ts",
-).text();
+const pagination = await Bun.file(".eas/shared/github-pagination.ts").text();
 const prompt = await Bun.file(
   "prompts/automation/pr-review-response.md",
 ).text();
@@ -29,9 +27,7 @@ describe("PR comment response workflow", () => {
     expect(dispatcher).not.toContain(
       "startsWith(github.event.pull_request.head.ref",
     );
-    expect(dispatcher).toContain(
-      `fromJSON('["brentvatne","notbrent"]')`,
-    );
+    expect(dispatcher).toContain(`fromJSON('["brentvatne","notbrent"]')`);
     expect(workflow).toContain(
       `TRIAGE_PR_AUTHOR_ALLOWLIST: '["brentvatne","notbrent"]'`,
     );
@@ -110,10 +106,11 @@ describe("PR comment response workflow", () => {
     expect(runner).toContain("normalizePullRequestAgentResponse");
   });
 
-  test("uses a bounded publish-only fast path before simulator or Claude", () => {
+  test("uses a bounded publish-only preflight before simulator or the full agent", () => {
     expect(runner).toContain("isPublishOnlyPullRequestCommand");
+    expect(runner).toContain("classifyPublishOnlyCommand");
     expect(runner).toContain(
-      "Exact publish-only command verified; skipping Claude and simulator verification.",
+      "Claude command preflight selected publish-only; skipping the full agent and simulator verification.",
     );
     expect(runner.indexOf("if (publishOnly)")).toBeLessThan(
       runner.indexOf("const simValidation = await prepareAgentSimulator"),
