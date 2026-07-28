@@ -1,4 +1,18 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+#
+# NOTE: fingerprint.config.js sets sourceSkips: ['GitIgnore'], so this file's
+# contents do NOT feed the EAS fingerprint. Editing a rule here will not
+# produce a new fingerprint. That is deliberate — automation edits this file
+# often, and a gitignore rule cannot change the native binary while ios/ and
+# android/ stay uncommitted.
+#
+# Be careful if that ever stops being true: once ios/ or android/ are checked
+# in, the rules here decide which native files get hashed, and a change that
+# silently drops one from the fingerprint would no longer announce itself.
+# Revisit fingerprint.config.js at that point.
+#
+# Also note .easignore does NOT inherit from this file — it fully replaces it
+# for EAS uploads, so anything added here must be added there too.
 
 # dependencies
 node_modules/
