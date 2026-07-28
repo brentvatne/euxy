@@ -13,6 +13,13 @@
       "channel": "preview",
       "environment": "preview"
     },
+    "preview-simulator": {
+      "extends": "preview",
+      "ios": {
+        "simulator": true,
+        "buildConfiguration": "Release"
+      }
+    },
     "sim": {
       "ios": {
         "simulator": true
