@@ -384,7 +384,6 @@ const summarizedIssue = await ensureTriageIssue({
   sourceId: feedbackId,
   workflowUrl: req("WORKFLOW_URL"),
   status: "triage in progress",
-  ...(publicEvidence ? { evidence: publicEvidence } : {}),
 });
 if (summarizedIssue.number !== triageIssue!.number) {
   console.error(
@@ -392,9 +391,7 @@ if (summarizedIssue.number !== triageIssue!.number) {
   );
   process.exit(1);
 }
-console.log(
-  `▸ Updated issue #${summarizedIssue.number}${publicEvidence ? " with simulator evidence" : ""}.`
-);
+console.log(`▸ Updated issue #${summarizedIssue.number}.`);
 
 if ((await sh([GIT, "diff", "--cached", "--quiet"], { allowFail: true })).code === 0) {
   console.log("▸ Nothing staged; nothing to open a PR for.");

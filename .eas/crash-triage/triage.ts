@@ -425,21 +425,6 @@ const publicEvidence = await publishPublicSimulatorEvidence({
 });
 if (publicEvidence) {
   console.log(`▸ Published and independently verified simulator evidence: ${publicEvidence.pageUrl}`);
-  const evidencedIssue = await ensureTriageIssue({
-    gh,
-    kind: "crash",
-    owner,
-    repo,
-    sourceKey: triageSourceKey,
-    workflowUrl: req("WORKFLOW_URL"),
-    evidence: publicEvidence,
-  });
-  if (evidencedIssue.number !== triageIssue!.number) {
-    console.error(
-      `✗ Public evidence updated unexpected issue #${evidencedIssue.number}; expected #${triageIssue!.number}.`
-    );
-    process.exit(1);
-  }
 }
 
 const nothing = (await sh([GIT, "diff", "--cached", "--quiet"], { allowFail: true })).code === 0;

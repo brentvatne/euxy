@@ -161,13 +161,16 @@ filenames, regular files, known media signatures, bounded dimensions/sizes,
 bounded plain-text captions, and same-origin `https://*.expo.app` results.
 Normalize and HTML-escape captions before embedding them. Independently
 download the public files and compare them to the selected local bytes before
-adding their links to the issue or PR. Never promote evidence deployments to
-the production alias. Include the initial evidence and a clear full-page link
-in every automation-created PR body. When both stills exist, render them in a
-two-column GitHub Markdown table so Before and After remain visually paired in
-issue bodies, PR bodies, and comments. For later review-response runs, preserve
-the original description and prior comments; add a new concise PR comment with
-the comparison table and a link to that run's evidence page.
+adding their links to a PR. Never put simulator evidence in a tracking issue
+body; keep that body focused on intake, source, workflow, and status. Never
+promote evidence deployments to the production alias. Include the initial
+evidence and a clear full-page link in every automation-created PR body. When
+both stills exist, render them in a two-column GitHub Markdown table so Before
+and After remain visually paired in PR bodies and comments. For later
+review-response runs, preserve the original description and prior comments;
+add a new concise PR comment with the comparison table and a link to that run's
+evidence page. If investigation produces no PR, an issue findings comment may
+link the evidence instead.
 
 Read [references/workflow-patterns.md](references/workflow-patterns.md) for implementation patterns and failure handling.
 

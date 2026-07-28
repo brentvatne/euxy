@@ -391,6 +391,6 @@ const prComment = await createVerifiedIssueComment({
   owner,
   repo,
   issueNumber: issue.number,
-  body: `🤖 Opened a triage PR: ${prUrl}${preview ? `\n\n${preview.summary}` : ""}${publicEvidence ? `\n\n${renderPublicSimulatorEvidence(publicEvidence)}` : ""}`,
+  body: `🤖 Opened a triage PR: ${prUrl}${preview ? `\n\n${preview.summary}` : ""}`,
 });
 console.log(`▸ Commented and publicly verified the PR link: ${prComment.htmlUrl}`);

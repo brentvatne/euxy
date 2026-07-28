@@ -190,10 +190,11 @@ describe("GitHub triage issues", () => {
     expect(called).toBe(false);
   });
 
-  test("adds public simulator evidence without exposing private workflow artifacts", async () => {
+  test("removes legacy simulator evidence from the tracking issue body", async () => {
     const sourceMarker = `<!-- euxy-triage:feedback:${createHash("sha256").update("source").digest("hex").slice(0, 20)} -->`;
     const calls: { path: string; init?: RequestInit }[] = [];
     let publiclyVisibleBody = "";
+    const evidenceUrl = "https://euxy--evidence123.expo.app/";
     const gh = async (path: string, init?: RequestInit) => {
       calls.push({ path, init });
       if (path.startsWith("/issues?")) {
@@ -201,7 +202,12 @@ describe("GitHub triage issues", () => {
           {
             number: 11,
             html_url: "https://github.com/brentvatne/euxy/issues/11",
-            body: `${sourceMarker}\nPrivate inputs are omitted.`,
+            body:
+              `${sourceMarker}\nPrivate inputs are omitted.\n\n` +
+              "<!-- euxy-triage-evidence:start -->\n" +
+              `## Verification evidence\n\n[Open evidence](${evidenceUrl})\n` +
+              "<!-- euxy-triage-evidence:end -->\n\n" +
+              "Human note.",
           },
         ]);
       }
@@ -209,13 +215,6 @@ describe("GitHub triage issues", () => {
         publiclyVisibleBody = JSON.parse(String(init.body)).body;
       }
       return jsonResponse({});
-    };
-    const evidence = {
-      pageUrl: "https://euxy--evidence123.expo.app/",
-      beforeScreenshotUrl: "https://euxy--evidence123.expo.app/before.png",
-      beforeVideoUrl: "https://euxy--evidence123.expo.app/before.mp4",
-      screenshotUrl: "https://euxy--evidence123.expo.app/final.png",
-      videoUrl: "https://euxy--evidence123.expo.app/verification.mp4",
     };
 
     await ensureTriageIssue({
@@ -225,7 +224,6 @@ describe("GitHub triage issues", () => {
       repo: "euxy",
       sourceKey: "source",
       workflowUrl: "https://expo.dev/new-run",
-      evidence,
       publicFetch: async () =>
         jsonResponse({
           number: 11,
@@ -235,16 +233,10 @@ describe("GitHub triage issues", () => {
     });
 
     const updatedBody = JSON.parse(String(calls[1].init?.body)).body;
-    expect(updatedBody).toContain("## Verification evidence");
-    expect(updatedBody).toContain("| Before | After |");
-    expect(updatedBody).toContain(evidence.beforeScreenshotUrl);
-    expect(updatedBody).toContain(evidence.screenshotUrl);
-    expect(updatedBody).toContain(
-      `[Full recording](${evidence.pageUrl}#after)`
-    );
-    expect(updatedBody).not.toContain(evidence.beforeVideoUrl);
-    expect(updatedBody).not.toContain(evidence.videoUrl);
-    expect(updatedBody).not.toContain("feedback-triage-summary");
+    expect(updatedBody).toContain("Human note.");
+    expect(updatedBody).toContain("https://expo.dev/new-run");
+    expect(updatedBody).not.toContain("euxy-triage-evidence");
+    expect(updatedBody).not.toContain(evidenceUrl);
   });
 
   test("fails when the public readback does not include the updated summary", async () => {
@@ -293,6 +285,9 @@ describe("GitHub triage issues", () => {
   test("marks an intake issue in progress and removes the approval instruction", async () => {
     const calls: { path: string; init?: RequestInit }[] = [];
     const body =
+      "<!-- euxy-triage-evidence:start -->\n" +
+      "## Verification evidence\n\nhttps://euxy--legacy.expo.app/\n" +
+      "<!-- euxy-triage-evidence:end -->\n\n" +
       "<!-- euxy-triage-workflow:start -->\n" +
       "## Automation\n\n" +
       "- EAS workflow: [View the run](https://expo.dev/run)\n" +
@@ -324,6 +319,8 @@ describe("GitHub triage issues", () => {
     expect(updatedBody).not.toContain("Start remediation");
     expect(updatedBody).toContain("https://expo.dev/new-remediation-run");
     expect(updatedBody).not.toContain("https://expo.dev/run");
+    expect(updatedBody).not.toContain("euxy-triage-evidence");
+    expect(updatedBody).not.toContain("https://euxy--legacy.expo.app/");
   });
 
   test("rejects an invalid remediation workflow URL before reading the issue", async () => {

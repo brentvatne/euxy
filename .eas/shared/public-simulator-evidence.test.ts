@@ -147,21 +147,45 @@ describe("public simulator evidence", () => {
     );
   });
 
-  test("embeds the comparison in follow-up GitHub comments", async () => {
-    const runner = await Bun.file(
+  test("keeps evidence on PR surfaces and out of tracking issues", async () => {
+    const reviewRunner = await Bun.file(
       ".eas/pr-review/pr-review-response.ts"
     ).text();
     const issueRunner = await Bun.file(
       ".eas/issue-triage/issue-triage.ts"
     ).text();
+    const feedbackRunner = await Bun.file(
+      ".eas/feedback-triage/feedback-triage.ts"
+    ).text();
+    const crashRunner = await Bun.file(
+      ".eas/crash-triage/triage.ts"
+    ).text();
+    const issueHelper = await Bun.file(
+      ".eas/shared/github-triage-issue.ts"
+    ).text();
 
-    expect(runner).toContain(
+    expect(reviewRunner).toContain(
       "renderPublicSimulatorEvidence(publicEvidence)"
     );
-    expect(runner).toContain("${evidenceSection}");
+    expect(reviewRunner).toContain("${evidenceSection}");
     expect(issueRunner).toContain(
       "renderPublicSimulatorEvidence(publicEvidence)"
     );
+    expect(issueRunner).toContain("${evidenceSection}");
+    expect(issueRunner).toContain(
+      'body: `🤖 Opened a triage PR: ${prUrl}${preview ? `\\n\\n${preview.summary}` : ""}`,'
+    );
+    expect(feedbackRunner).toContain(
+      "renderPublicSimulatorEvidence(publicEvidence)"
+    );
+    expect(feedbackRunner).toContain("evidenceSection +");
+    expect(crashRunner).toContain(
+      "renderPublicSimulatorEvidence(publicEvidence)"
+    );
+    expect(crashRunner).toContain("evidenceSection +");
+    expect(feedbackRunner).not.toContain("evidence: publicEvidence");
+    expect(crashRunner).not.toContain("evidence: publicEvidence");
+    expect(issueHelper).not.toContain("evidence?: PublicSimulatorEvidence");
   });
 
   test("does not deploy when the simulator produced no final screenshot", async () => {

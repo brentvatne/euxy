@@ -5,10 +5,6 @@ import {
   type GitHubRepoRequest,
   type PublicFetch,
 } from "./github-public-visibility";
-import {
-  renderPublicSimulatorEvidence,
-  type PublicSimulatorEvidence,
-} from "./public-simulator-evidence";
 
 type TriageIssueKind = "crash" | "feedback";
 export type TriageIssueStatus =
@@ -31,7 +27,6 @@ type EnsureTriageIssueOptions = {
     actor: string;
   };
   summary?: TriageIssueSummary;
-  evidence?: PublicSimulatorEvidence;
   publicFetch?: PublicFetch;
   wait?: (milliseconds: number) => Promise<void>;
 };
@@ -82,9 +77,13 @@ function escapeRegExp(value: string): string {
 }
 
 function managedBlock(body: string, start: string, end: string, content: string): string {
-  const blockPattern = new RegExp(`${escapeRegExp(start)}[\\s\\S]*?${escapeRegExp(end)}`, "g");
-  const withoutOldBlock = body.replace(blockPattern, "").trimEnd();
+  const withoutOldBlock = withoutManagedBlock(body, start, end);
   return `${withoutOldBlock}\n\n${start}\n${content}\n${end}`;
+}
+
+function withoutManagedBlock(body: string, start: string, end: string): string {
+  const blockPattern = new RegExp(`${escapeRegExp(start)}[\\s\\S]*?${escapeRegExp(end)}`, "g");
+  return body.replace(blockPattern, "").replace(/\n{3,}/g, "\n\n").trimEnd();
 }
 
 function validateSummary(summary: TriageIssueSummary): TriageIssueSummary {
@@ -137,15 +136,6 @@ function withSource(body: string, sourceId: string): string {
   );
 }
 
-function withEvidence(body: string, evidence: PublicSimulatorEvidence): string {
-  return managedBlock(
-    body,
-    EVIDENCE_BLOCK_START,
-    EVIDENCE_BLOCK_END,
-    renderPublicSimulatorEvidence(evidence)
-  );
-}
-
 function withWorkflowLink(
   body: string,
   workflowUrl: string,
@@ -179,7 +169,6 @@ export async function ensureTriageIssue({
   status = "triage in progress",
   approval,
   summary,
-  evidence,
   publicFetch,
   wait,
 }: EnsureTriageIssueOptions): Promise<TriageIssue> {
@@ -211,7 +200,6 @@ export async function ensureTriageIssue({
     let createdBody = `${marker}\n${copy.body}`;
     if (publicSummary) createdBody = withSummary(createdBody, publicSummary);
     if (publicSourceId) createdBody = withSource(createdBody, publicSourceId);
-    if (evidence) createdBody = withEvidence(createdBody, evidence);
     const created = await gh("/issues", {
       method: "POST",
       body: JSON.stringify({
@@ -229,15 +217,18 @@ export async function ensureTriageIssue({
     throw new Error("GitHub returned a triage issue without a number or URL.");
   }
 
-  const currentBody = typeof issue.body === "string" ? issue.body : `${marker}\n${copy.body}`;
+  const currentBody = withoutManagedBlock(
+    typeof issue.body === "string" ? issue.body : `${marker}\n${copy.body}`,
+    EVIDENCE_BLOCK_START,
+    EVIDENCE_BLOCK_END
+  );
   const summarizedBody = publicSummary ? withSummary(currentBody, publicSummary) : currentBody;
   const sourcedBody = publicSourceId ? withSource(summarizedBody, publicSourceId) : summarizedBody;
-  const evidenceBody = evidence ? withEvidence(sourcedBody, evidence) : sourcedBody;
   const updated = await gh(`/issues/${issue.number}`, {
     method: "PATCH",
     body: JSON.stringify({
       ...(publicSummary ? { title: publicSummary.title } : {}),
-      body: withWorkflowLink(evidenceBody, workflowUrl, status, publicApproval),
+      body: withWorkflowLink(sourcedBody, workflowUrl, status, publicApproval),
     }),
   });
   if (!updated.ok) {
@@ -253,12 +244,6 @@ export async function ensureTriageIssue({
     expectedBodyIncludes: [
       ...(publicSummary ? [SUMMARY_BLOCK_START, publicSummary.body] : []),
       ...(publicSourceId ? [SOURCE_BLOCK_START, publicSourceId] : []),
-      ...(evidence
-        ? [
-            EVIDENCE_BLOCK_START,
-            renderPublicSimulatorEvidence(evidence),
-          ]
-        : []),
       workflowUrl,
       status,
     ],
@@ -293,10 +278,15 @@ export async function updateTriageIssueStatus({
 
   const issue = (await response.json()) as { body?: string | null };
   const body = issue.body || "";
+  const bodyWithoutEvidence = withoutManagedBlock(
+    body,
+    EVIDENCE_BLOCK_START,
+    EVIDENCE_BLOCK_END
+  );
   const blockPattern = new RegExp(
     `${escapeRegExp(WORKFLOW_BLOCK_START)}[\\s\\S]*?${escapeRegExp(WORKFLOW_BLOCK_END)}`
   );
-  const match = body.match(blockPattern);
+  const match = bodyWithoutEvidence.match(blockPattern);
   if (!match) return false;
 
   const nextBlock = match[0]
@@ -308,12 +298,12 @@ export async function updateTriageIssueStatus({
     )
     .replace(/^- Status: .+$/m, `- Status: ${status}`)
     .replace(/^- Start remediation: .+\n?/m, "");
-  if (nextBlock === match[0]) return false;
+  if (nextBlock === match[0] && bodyWithoutEvidence === body) return false;
 
   const updated = await gh(`/issues/${issueNumber}`, {
     method: "PATCH",
     body: JSON.stringify({
-      body: body.replace(blockPattern, nextBlock),
+      body: bodyWithoutEvidence.replace(blockPattern, nextBlock),
     }),
   });
   if (!updated.ok) {
