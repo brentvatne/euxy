@@ -7,5 +7,8 @@
  * The path shape exists because the web CDN's cache key is query-blind, so
  * only a path segment can carry a per-pattern OG card. See
  * docs/design/web-plan.md.
+ *
+ * Both shapes are registered in the Patterns tab's stack, so opening either one
+ * selects that tab (see ../_layout.tsx).
  */
 export { default } from '../p';

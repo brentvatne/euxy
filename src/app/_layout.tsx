@@ -17,22 +17,14 @@ import { KeyboardProvider } from '@/components/ui/keyboard';
 import { configureObserve, wrapWithObserveRoot } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { useShotRig } from '@/lib/shot-rig';
-import { navTheme } from '@/theme/navigation';
-import { color, radius } from '@/theme/tokens';
+import { navTheme, sheetOptions } from '@/theme/navigation';
+import { color } from '@/theme/tokens';
 
 // EAS Observe: per-route navigation metrics. Must run at module scope,
 // before any screen mounts.
 configureObserve({
   integrations: { 'expo-router': true },
 });
-
-const sheetOptions = {
-  presentation: 'formSheet',
-  sheetGrabberVisible: true,
-  sheetCornerRadius: radius.sheet,
-  headerShown: false,
-  contentStyle: { backgroundColor: color.surface },
-} as const;
 
 function RootLayout() {
   // Simulator screenshot staging (no-op unless the host set the flag).
@@ -99,11 +91,9 @@ function RootLayout() {
             name="channel-surf"
             options={{ ...sheetOptions, sheetAllowedDetents: [0.6] }}
           />
-          {/* Shared patterns arriving via universal link or euxy://. Two URL
-              shapes, one sheet: /p/<payload> is canonical, /p?d=<payload> is
-              kept for links already in the wild. */}
-          <Stack.Screen name="p" options={{ ...sheetOptions, sheetAllowedDetents: [0.45] }} />
-          <Stack.Screen name="p/[d]" options={{ ...sheetOptions, sheetAllowedDetents: [0.45] }} />
+          {/* NOTE: the shared-pattern sheet (/p) is NOT here — it lives in the
+              Patterns tab's stack so an incoming link opens the library it is
+              about. See app/(tabs)/(patterns)/_layout.tsx. */}
         </Stack>
         {/* LED power-on: a pure LAYER over the live app — the Stack above
             always renders (never conditionally hidden behind the boot), so

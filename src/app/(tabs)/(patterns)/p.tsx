@@ -4,19 +4,29 @@
  * Arrives via universal link or the euxy:// scheme. Decodes the payload
  * (untrusted — decodePattern clamps and throws), previews it, and imports on
  * confirm. Malformed links get a friendly error, never a crash.
+ *
+ * The route lives inside the Patterns tab (not the root Stack) so an incoming
+ * link lands the sheet on the library it is about to add to — see the tab's
+ * _layout.tsx. Preview auditions the incoming pattern through the engine
+ * WITHOUT importing it: library, transport, and saved tempo stay untouched
+ * until Add to Library (see engine.startPreview).
  */
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
 import { chipForPattern } from '@/components/patterns/chips';
 import { LedChip } from '@/components/patterns/led-chip';
 import { AppText, SheetHeader } from '@/components/ui';
+import { BeatTicker } from '@/components/ui/beat-ticker';
+import { engine } from '@/core/engine';
 import { decodePattern, type SharedPattern } from '@/core/share-codec';
 import { haptics, logObserveEvent } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
+import { makeLane } from '@/state/lane';
 import { useStore } from '@/state/store';
+import type { Pattern } from '@/state/types';
 import { color, font, space } from '@/theme/tokens';
 
 export default function ImportPatternSheet() {
@@ -31,6 +41,25 @@ export default function ImportPatternSheet() {
     }
   }, [d]);
 
+  // An engine-playable pattern that never enters the library: fresh lane ids
+  // plus the mix state the codec strips (muted/solo), nothing persisted.
+  const previewPattern = useMemo<Pattern | null>(
+    () =>
+      shared
+        ? {
+            id: 'preview',
+            name: shared.name,
+            bpm: shared.bpm,
+            baseResolutionTicks: shared.baseResolutionTicks,
+            lanes: shared.lanes.map((lane) => makeLane({ ...lane })),
+            updatedAt: 0,
+            icon: shared.icon,
+          }
+        : null,
+    [shared],
+  );
+  const [previewing, setPreviewing] = useState(false);
+
   // The receiving end of the share funnel: how many links arrive, how many
   // are damaged, how many convert to an import.
   useMarkInteractive();
@@ -39,13 +68,35 @@ export default function ImportPatternSheet() {
     else logObserveEvent('share.link_invalid', { severity: 'warn' });
   }, [shared]);
 
+  // An audition must never outlive the sheet — Cancel, swipe-down, and Add all
+  // unmount this screen, and the engine hands the output back to the transport.
+  useEffect(() => () => engine.stopPreview(), []);
+
+  const togglePreview = () => {
+    if (!previewPattern) return;
+    haptics.impact('medium');
+    if (previewing) {
+      engine.stopPreview();
+      setPreviewing(false);
+      return;
+    }
+    engine.startPreview(previewPattern);
+    setPreviewing(true);
+    logObserveEvent('share.preview_started', {
+      attributes: { lanes: previewPattern.lanes.length },
+    });
+  };
+
   const add = () => {
     if (!shared) return;
     importPattern(shared);
     haptics.success();
     logObserveEvent('share.pattern_imported', { attributes: { lanes: shared.lanes.length } });
-    // The imported pattern is now active — land on the sequencer.
-    router.dismissTo('/(tabs)/(sequencer)');
+    // The imported pattern is now active — land on the sequencer. Two steps:
+    // this sheet lives in the Patterns stack, so dismissing it and switching
+    // tabs are actions on two different navigators.
+    router.back();
+    router.navigate('/(tabs)/(sequencer)');
   };
 
   if (!shared) {
@@ -84,14 +135,29 @@ export default function ImportPatternSheet() {
           {laneNames}
         </AppText>
         <Pressable
+          onPress={togglePreview}
+          accessibilityRole="button"
+          accessibilityState={{ selected: previewing }}
+          style={({ pressed }) => [styles.key, styles.keySecondary, pressed && styles.pressed]}
+        >
+          <View style={styles.previewLabel}>
+            <AppText style={styles.keyLabel}>{previewing ? 'Stop Preview' : 'Preview'}</AppText>
+            {/* Beats read off the shared playhead — the audition stays visible
+                on a device with no MIDI output attached. */}
+            {previewing ? <BeatTicker /> : null}
+          </View>
+        </Pressable>
+        <Pressable
           onPress={add}
           accessibilityRole="button"
-          style={({ pressed }) => [styles.key, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.key, styles.keyPrimary, pressed && styles.pressed]}
         >
-          <AppText style={styles.keyLabel}>Add to Library</AppText>
+          <AppText style={[styles.keyLabel, styles.keyLabelDark]}>Add to Library</AppText>
         </Pressable>
         <AppText style={styles.footnote}>
-          added as a new pattern — nothing in your library is replaced
+          {previewing
+            ? 'previewing only — nothing is saved until you add it'
+            : 'added as a new pattern — nothing in your library is replaced'}
         </AppText>
       </View>
     </View>
@@ -111,12 +177,16 @@ const styles = StyleSheet.create({
   key: {
     height: 50,
     borderRadius: 12,
-    backgroundColor: color.label,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 4,
   },
+  // Audition first, commit second: Preview is the muted key, Add to Library
+  // keeps the bright one (same primary/secondary pair as the Share sheet).
+  keySecondary: { backgroundColor: color.surface2, marginBottom: -6 },
+  keyPrimary: { backgroundColor: color.label },
+  previewLabel: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   pressed: { transform: [{ scale: 0.97 }] },
-  keyLabel: { fontFamily: font.text, fontWeight: '600', fontSize: 17, lineHeight: 22, color: '#101014' },
+  keyLabel: { fontFamily: font.text, fontWeight: '600', fontSize: 17, lineHeight: 22, color: color.label },
+  keyLabelDark: { color: '#101014' },
   footnote: { fontFamily: font.text, fontSize: 12, lineHeight: 16, color: '#6E6E76', textAlign: 'center' },
 });

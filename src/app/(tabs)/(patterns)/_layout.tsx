@@ -1,8 +1,17 @@
 /**
- * Patterns stack — large-title list (search bar added by Agent C).
+ * Patterns stack — large-title list (search bar added by Agent C), plus the
+ * shared-pattern sheet a euxy link opens.
+ *
+ * The /p sheet is registered HERE rather than in the root Stack so an incoming
+ * universal link / euxy:// link resolves to a route inside this tab: the router
+ * therefore selects Patterns on the way in (cold or warm), landing the sheet on
+ * top of the library it is about to add to. `patterns` is this group's anchor
+ * (it matches the group name), so the list is always underneath — Cancel has
+ * somewhere to go even on a cold link.
  */
 import { Stack } from 'expo-router/stack';
 
+import { sheetOptions } from '@/theme/navigation';
 import { color } from '@/theme/tokens';
 
 export default function PatternsStack() {
@@ -23,6 +32,10 @@ export default function PatternsStack() {
       }}
     >
       <Stack.Screen name="patterns" options={{ title: 'Patterns' }} />
+      {/* Two URL shapes, one sheet: /p/<payload> is canonical, /p?d=<payload>
+          is kept for links already in the wild. */}
+      <Stack.Screen name="p" options={{ ...sheetOptions, sheetAllowedDetents: [0.55] }} />
+      <Stack.Screen name="p/[d]" options={{ ...sheetOptions, sheetAllowedDetents: [0.55] }} />
     </Stack>
   );
 }

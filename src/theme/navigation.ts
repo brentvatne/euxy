@@ -6,7 +6,7 @@
  */
 import { DarkTheme, type Theme } from 'expo-router/react-navigation';
 
-import { color, font } from './tokens';
+import { color, font, radius } from './tokens';
 
 export const navTheme: Theme = {
   ...DarkTheme,
@@ -25,4 +25,19 @@ export const navTheme: Theme = {
 
 /** Tab bar + control tint. White = active/primary per the monochrome rule. */
 export const TINT = color.label;
+
+/**
+ * Shared form-sheet screen options. Lives here (not in the root layout) because
+ * sheets are registered in two navigators: most in the root Stack, and the
+ * shared-pattern sheet inside the Patterns tab's stack (see
+ * app/(tabs)/(patterns)/_layout.tsx). Detents stay per-screen.
+ */
+export const sheetOptions = {
+  presentation: 'formSheet',
+  sheetGrabberVisible: true,
+  sheetCornerRadius: radius.sheet,
+  headerShown: false,
+  contentStyle: { backgroundColor: color.surface },
+} as const;
+
 export { color, font };

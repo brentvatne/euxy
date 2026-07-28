@@ -24,6 +24,7 @@ import { midiOut } from '@/components/midi/runtime';
 import type { InboundEvent, MidiPort } from '@/midi/types';
 import { laneAudible, patternForLane, selectActivePattern } from '@/state/selectors';
 import { useStore } from '@/state/store';
+import type { ClockMode, Pattern } from '@/state/types';
 import { timing } from '@/theme/tokens';
 import { setPlayhead } from './playhead';
 
@@ -89,6 +90,15 @@ class Engine {
   /** Clock ticks left to swallow for the device's record count-in. */
   private countInTicksRemaining = 0;
 
+  /**
+   * Share-link PREVIEW: a pattern the scheduler sounds INSTEAD of the active
+   * one, at its own tempo and always as clock master (see the sheet in
+   * app/(tabs)/(patterns)/p.tsx). Nothing in the store changes while it plays,
+   * so auditioning an incoming link never touches the library, the transport,
+   * or the user's saved tempo.
+   */
+  private preview: Pattern | null = null;
+
   // ---- lifecycle --------------------------------------------------------
 
   /** Idempotent: adopt the shared runtime port, wire inbound (record) + store. */
@@ -119,6 +129,24 @@ class Engine {
   /** The tick currently sounding (fractional). Cheap synchronous read. */
   getCurrentTick(): number {
     return this.currentTick;
+  }
+
+  // ---- what is sounding (preview overrides the library) ------------------
+
+  /** The pattern being sounded: a preview stands in for the active one. */
+  private soundingPattern(): Pattern | undefined {
+    return this.preview ?? selectActivePattern(useStore.getState());
+  }
+
+  /** Tempo source. A preview runs at ITS bpm; the store keeps the user's. */
+  private currentBpm(): number {
+    return this.preview ? this.preview.bpm : useStore.getState().transport.bpm;
+  }
+
+  /** Clock role. A preview is always app-clocked so it sounds even when the
+   * app is otherwise slaved to the device. */
+  private clockMode(): ClockMode {
+    return this.preview ? 'jam' : useStore.getState().transport.clockMode;
   }
 
   // ---- store wiring -----------------------------------------------------
@@ -169,13 +197,13 @@ class Engine {
     this.currentTick = from;
     setPlayhead(from, true);
 
-    if (s.transport.clockMode === 'jam') {
+    if (this.clockMode() === 'jam') {
       if (from > 0) port.sendContinue();
       else port.sendStart();
       // Kick the loop immediately, then on the scheduler interval.
       this.tickLoop();
       this.timer = setInterval(() => this.tickLoop(), timing.schedulerIntervalMs);
-      log(from > 0 ? 'resume jam' : 'start jam', `bpm=${s.transport.bpm} from=${from.toFixed(1)}`);
+      log(from > 0 ? 'resume jam' : 'start jam', `bpm=${this.currentBpm()} from=${from.toFixed(1)}`);
     } else {
       // Record: slave to the device clock — wait for inbound 0xF8 / Start.
       log('start record', 'waiting for device clock');
@@ -190,8 +218,7 @@ class Engine {
     }
     const wasRunning = this.running;
     this.running = false;
-    const s = useStore.getState();
-    if (wasRunning && s.transport.clockMode === 'jam' && this.port) {
+    if (wasRunning && this.clockMode() === 'jam' && this.port) {
       this.port.sendStop();
     }
     this.panic();
@@ -227,11 +254,45 @@ class Engine {
     this.active.clear();
     // All Sound Off + All Notes Off on every channel that could be in use.
     const channels = new Set<number>();
-    const pattern = selectActivePattern(useStore.getState());
-    pattern?.lanes.forEach((l) => channels.add(l.channel & 0x0f));
+    this.soundingPattern()?.lanes.forEach((l) => channels.add(l.channel & 0x0f));
     if (channels.size === 0) channels.add(0);
     channels.forEach((ch) => port.allNotesOff(ch));
     log('panic', `channels=${[...channels].join(',')}`);
+  }
+
+  // ---- share-link preview -----------------------------------------------
+
+  /** True while a shared pattern is auditioning (see `preview`). */
+  isPreviewing(): boolean {
+    return this.preview != null;
+  }
+
+  /**
+   * Audition a pattern that is NOT in the library. Takes the output over from
+   * the top at the pattern's own tempo; stopPreview() hands it back.
+   */
+  startPreview(pattern: Pattern): void {
+    this.init();
+    // Hand the output over cleanly (stops the clock, kills sounding notes).
+    if (this.running) this.pause();
+    this.preview = pattern;
+    this.resumeTick = 0;
+    this.currentTick = 0;
+    this.start();
+    log('preview start', `lanes=${pattern.lanes.length} bpm=${pattern.bpm}`);
+  }
+
+  /** End the audition and give the output back to the app's own transport. */
+  stopPreview(): void {
+    if (!this.preview) return;
+    this.pause();
+    this.preview = null;
+    this.resetToStart();
+    // The store was never touched, so a transport that was already running
+    // when the audition began has to be picked back up explicitly — the store
+    // subscription only fires on CHANGES to `playing`.
+    if (useStore.getState().transport.playing) this.start();
+    log('preview stop', '');
   }
 
   // ---- jam scheduling ---------------------------------------------------
@@ -243,16 +304,14 @@ class Engine {
     // Schedule every tick whose time falls inside the lookahead window.
     // Recompute msPerTick per tick so a mid-play tempo change is honored.
     while (this.nextTickTimeMs < horizon) {
-      const bpm = useStore.getState().transport.bpm;
-      const dt = msPerTickAt(bpm);
+      const dt = msPerTickAt(this.currentBpm());
       this.scheduleTick(this.nextScheduleTick, this.nextTickTimeMs);
       this.nextScheduleTick += 1;
       this.nextTickTimeMs += dt;
     }
     // Advance the "playing now" tick for the playhead (behind the schedule
     // cursor by whatever is still buffered ahead of the audible present).
-    const bpm = useStore.getState().transport.bpm;
-    const buffered = (this.nextTickTimeMs - t) / msPerTickAt(bpm);
+    const buffered = (this.nextTickTimeMs - t) / msPerTickAt(this.currentBpm());
     this.currentTick = Math.max(0, this.nextScheduleTick - buffered);
     setPlayhead(this.currentTick, true);
   }
@@ -260,11 +319,10 @@ class Engine {
   /** Emit clock + any lane note-ons/offs due at this tick. Reads state FRESH. */
   private scheduleTick(tick: number, timeMs: number): void {
     const port = this.port!;
-    const s = useStore.getState();
-    const pattern = selectActivePattern(s);
+    const pattern = this.soundingPattern();
     if (!pattern) return;
 
-    if (s.transport.clockMode === 'jam') port.sendClock(timeMs);
+    if (this.clockMode() === 'jam') port.sendClock(timeMs);
 
     const anySolo = pattern.lanes.some((l) => l.solo);
     for (const lane of pattern.lanes) {
@@ -305,8 +363,9 @@ class Engine {
   // ---- record (device clock master) -------------------------------------
 
   private onInbound(e: InboundEvent): void {
-    const mode = useStore.getState().transport.clockMode;
-    if (mode !== 'record') return;
+    // A preview is app-clocked, so inbound transport/clock is ignored while
+    // one is auditioning (clockMode() reports 'jam').
+    if (this.clockMode() !== 'record') return;
     switch (e.type) {
       case 'start': {
         this.running = true;
