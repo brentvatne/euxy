@@ -1,0 +1,92 @@
+# Paper Desktop MCP feasibility probe (manual dispatch, throwaway).
+#
+# Paper publishes no hosted MCP server — it is local-only HTTP on
+# 127.0.0.1:29979, started by Paper Desktop when a document is open. This job
+# tests the only remaining option: running Paper Desktop itself, headless, on
+# the runner beside the agent.
+#
+#   eas workflow:run .eas/workflows/paper-mcp-probe.yml
+#   eas workflow:run .eas/workflows/paper-mcp-probe.yml -F skip_credentials=1
+#
+# Optional secrets in the `preview` environment, created by
+# .eas/paper-probe/capture-session.sh — the probe runs without them and simply
+# reports on the signed-out case:
+#
+#   PAPER_SESSION_B64[_1..9]  base64 of the captured session JSON, chunked
+#                             because EAS caps secret values at 32 KiB
+#
+# That blob is a live Paper session. Delete it with `eas env:delete` as soon as
+# the probe has answered the question.
+
+name: Paper MCP probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_credentials:
+        description: Ignore any stored Paper profile and probe only the signed-out case ('1' to skip)
+        type: string
+        default: '0'
+
+jobs:
+  probe:
+    name: Probe Paper MCP on a Linux runner
+    environment: preview
+    runs_on: linux-medium
+    env:
+      PAPER_PROBE_OUT: .eas/paper-probe/out
+      SKIP_CREDENTIALS: ${{ inputs.skip_credentials }}
+    steps:
+      - uses: eas/checkout
+      # No install_node_modules step: the probe uses only bash, curl, and the
+      # runner's preinstalled node, so a dependency failure can never be
+      # mistaken for a Paper failure.
+      - name: Probe
+        run: |
+          if [ "${SKIP_CREDENTIALS}" = '1' ]; then
+            unset PAPER_SESSION_B64 \
+              PAPER_SESSION_B64_1 PAPER_SESSION_B64_2 PAPER_SESSION_B64_3 \
+              PAPER_SESSION_B64_4 PAPER_SESSION_B64_5 PAPER_SESSION_B64_6 \
+              PAPER_SESSION_B64_7 PAPER_SESSION_B64_8 PAPER_SESSION_B64_9
+          fi
+          bash .eas/paper-probe/probe.sh
+      - name: Upload probe report
+        if: ${{ always() }}
+        uses: eas/upload_artifact
+        with:
+          type: other
+          name: paper-mcp-probe
+          path: |
+            .eas/paper-probe/out/**/*
+
+  # Same probe on a nested-virtualization worker, purely to settle whether that
+  # image changes the graphics story. Nested virtualization is documented only as
+  # "allows running Android Emulators" — it provides KVM for guest VMs, which is
+  # not the same thing as a GPU, and Chromium's software renderer does not use
+  # it. Running both side by side beats reasoning about it.
+  probe_nested:
+    name: Probe Paper MCP on a nested-virtualization runner
+    environment: preview
+    runs_on: linux-medium-nested-virtualization
+    env:
+      PAPER_PROBE_OUT: .eas/paper-probe/out
+      SKIP_CREDENTIALS: ${{ inputs.skip_credentials }}
+    steps:
+      - uses: eas/checkout
+      - name: Probe
+        run: |
+          if [ "${SKIP_CREDENTIALS}" = '1' ]; then
+            unset PAPER_SESSION_B64 \
+              PAPER_SESSION_B64_1 PAPER_SESSION_B64_2 PAPER_SESSION_B64_3 \
+              PAPER_SESSION_B64_4 PAPER_SESSION_B64_5 PAPER_SESSION_B64_6 \
+              PAPER_SESSION_B64_7 PAPER_SESSION_B64_8 PAPER_SESSION_B64_9
+          fi
+          bash .eas/paper-probe/probe.sh
+      - name: Upload probe report
+        if: ${{ always() }}
+        uses: eas/upload_artifact
+        with:
+          type: other
+          name: paper-mcp-probe-nested
+          path: |
+            .eas/paper-probe/out/**/*
