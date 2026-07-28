@@ -155,7 +155,11 @@ function extractChannelNames(json: unknown): string[] {
           typeof json === "object" &&
           Array.isArray((json as { channels?: unknown }).channels)
         ? (json as { channels: unknown[] }).channels
-        : null;
+        : json &&
+            typeof json === "object" &&
+            Array.isArray((json as { currentPage?: unknown }).currentPage)
+          ? (json as { currentPage: unknown[] }).currentPage
+          : null;
   if (!records) {
     throw new Error("EAS returned an unexpected channel-list response.");
   }

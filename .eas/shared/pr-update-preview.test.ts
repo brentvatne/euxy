@@ -169,6 +169,47 @@ describe("per-PR EAS Update previews", () => {
     expect(result.channel).not.toBe(firstCandidate);
   });
 
+  test("accepts the current EAS CLI currentPage channel-list response", async () => {
+    const harness = previewHarness();
+    harness.run = async (command: string[]) => {
+      harness.commands.push(command);
+      if (command.includes("channel:list")) {
+        return {
+          code: 0,
+          out: JSON.stringify({
+            currentPage: [{ name: "production" }, { name: "preview" }],
+          }),
+          err: "",
+        };
+      }
+      return {
+        code: 0,
+        out: JSON.stringify({
+          updateGroup: {
+            url: "https://expo.dev/accounts/brent-org/projects/euxy/updates/abc",
+          },
+        }),
+        err: "",
+      };
+    };
+
+    const result = await publishPullRequestUpdate({
+      gh: harness.gh,
+      owner: "brentvatne",
+      repo: "euxy",
+      pullRequestNumber: 28,
+      message: "Publish the current PR",
+      easCommand: ["eas"],
+      run: harness.run,
+      publicFetch: harness.publicFetch,
+    });
+
+    expect(result.published).toBe(true);
+    expect(harness.commands.some((command) => command.includes("update"))).toBe(
+      true,
+    );
+  });
+
   test("checks every capped channel-list page before allocating", async () => {
     const candidates = readableChannelCandidates({
       owner: "brentvatne",

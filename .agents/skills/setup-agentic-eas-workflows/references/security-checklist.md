@@ -2,7 +2,10 @@
 
 ## Event and source trust
 
-- [ ] Gate actor, event type/state, repository, head repository, branch prefix, and base revision.
+- [ ] Gate actor, event type/state, repository, head repository, and base
+      revision. Require a branch prefix for automation-created branches; for
+      trusted commands on ordinary PRs, revalidate the immutable comment and
+      require an allowlisted PR author.
 - [ ] Check out a trusted base SHA before running repository scripts.
 - [ ] Pass untrusted text through environment variables or files, never shell interpolation.
 - [ ] Deduplicate events with a stable source key and serialize work per issue/PR.

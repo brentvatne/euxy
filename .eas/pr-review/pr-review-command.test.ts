@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  findLatestAiReviewFeedback,
+  isPublishOnlyPullRequestCommand,
   parsePullRequestCommand,
+  requestsExistingReviewFeedback,
   validatePullRequestCommentDispatch,
 } from "./pr-review-command";
 
@@ -28,6 +31,80 @@ describe("PR comment commands", () => {
     expect(
       parsePullRequestCommand("@notbrent-helper publish an update"),
     ).toBeNull();
+  });
+});
+
+describe("publish-only PR commands", () => {
+  test.each([
+    "publish update",
+    "publish an update",
+    "publish an update for this PR",
+    "please publish an EAS update for this pull request",
+    "publish the latest update as per our guidelines.",
+  ])("accepts an unambiguous publication request", (instruction) => {
+    expect(isPublishOnlyPullRequestCommand(instruction)).toBe(true);
+  });
+
+  test.each([
+    "publish",
+    "fix the layout and publish an update",
+    "publish an update after rerunning the simulator",
+    "publish an an update",
+    "do not publish an update",
+    "explain how to publish an update",
+  ])(
+    "routes ambiguous or composite instructions through the agent",
+    (instruction) => {
+      expect(isPublishOnlyPullRequestCommand(instruction)).toBe(false);
+    },
+  );
+});
+
+describe("review-feedback commands", () => {
+  test.each([
+    "fix the code review feedback",
+    "address review feedback",
+    "please resolve the code-review feedback",
+  ])("recognizes a request for the existing review", (instruction) => {
+    expect(requestsExistingReviewFeedback(instruction)).toBe(true);
+  });
+
+  test.each([
+    "fix the toast",
+    "publish an update",
+    "explain the review feedback",
+  ])("does not attach review context to unrelated commands", (instruction) => {
+    expect(requestsExistingReviewFeedback(instruction)).toBe(false);
+  });
+
+  test("selects the latest prior AI review and removes hidden state", () => {
+    expect(
+      findLatestAiReviewFeedback({
+        before: "2026-07-28T02:32:29Z",
+        excludeId: 30,
+        comments: [
+          {
+            id: 10,
+            created_at: "2026-07-28T02:20:00Z",
+            user: { login: "github-actions[bot]" },
+            body: "<!-- expo-ai-code-reviewer -->\nOlder review",
+          },
+          {
+            id: 20,
+            created_at: "2026-07-28T02:26:00Z",
+            user: { login: "github-actions[bot]" },
+            body:
+              "<!-- expo-ai-code-reviewer -->\nCurrent review\n<!-- expo-ai-code-reviewer:state=private-state -->",
+          },
+          {
+            id: 40,
+            created_at: "2026-07-28T02:40:00Z",
+            user: { login: "github-actions[bot]" },
+            body: "<!-- expo-ai-code-reviewer -->\nFuture review",
+          },
+        ],
+      }),
+    ).toBe("<!-- expo-ai-code-reviewer -->\nCurrent review");
   });
 });
 

@@ -29,7 +29,11 @@ Build the automation as a small trusted control plane around an untrusted coding
 ## Establish trust before exposing credentials
 
 1. Treat issue bodies, comments, review text, crash reports, screenshots, branch contents, and model output as untrusted.
-2. Gate on immutable event fields: actor login, event type/state, repository identity, base SHA, head repository, and an allowlisted branch prefix.
+2. Gate on immutable event fields: actor login, event type/state, repository
+   identity, base SHA, and head repository. Require an allowlisted branch prefix
+   for automation-created branches; for maintainer commands on ordinary PRs,
+   revalidate the exact immutable comment and require an allowlisted PR author
+   instead of relying on the branch name.
 3. Check out trusted workflow code first. Do not execute automation from an untrusted PR head.
 4. Give the agent only task data and the minimum credential it actually needs. Prefer giving it no GitHub write token.
 5. Keep branch creation, commits, issue creation, PR creation, EAS Update publication, and cleanup in a deterministic wrapper.
@@ -80,6 +84,14 @@ needs a credentialed wrapper action such as publishing an EAS Update, have the
 agent emit a narrow validated action manifest; do not create a deterministic
 command-only workflow. Keep channel allocation, channel reuse, publication, and
 PR-body updates in the wrapper.
+
+Use a hybrid fast path for a small, explicit, bounded command such as
+publish-only. Revalidate the immutable comment, actor, PR, branch, and command in
+the trusted runner, then let the existing wrapper perform only that action.
+Composite or ambiguous instructions must continue through the full agent. Do
+not fetch a mutable CLI through an unversioned `npx` command to implement the
+fast path; use the reviewed pinned CLI and cover its real JSON output shape with
+a fixture test.
 
 Keep the issue title as the reported problem. Use the eventual PR title for the
 solution or user-visible outcome, and preserve any additional maintainer
