@@ -23,11 +23,17 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { prepareAgentSimulator, stopAgentSimulator } from "../shared/agent-simulator";
-import { publishPublicSimulatorEvidence } from "../shared/public-simulator-evidence";
+import { runClaudeAgent } from "../shared/claude-agent";
+import { publishPullRequestUpdate } from "../shared/pr-update-preview";
+import {
+  publishPublicSimulatorEvidence,
+  renderPublicSimulatorEvidence,
+} from "../shared/public-simulator-evidence";
 import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
 
 const env = process.env;
 const GIT = env.GIT_BIN || "git";
+const EAS = [env.EAS_CLI_BIN || "eas"];
 const CLAUDE = ["claude", ...(env.CLAUDE_PLUGIN_DIR ? ["--plugin-dir", env.CLAUDE_PLUGIN_DIR] : [])];
 const MAX_ITERS = Number(env.MAX_ITERS ?? "3");
 const BOT_NAME = "notbrent";
@@ -166,13 +172,13 @@ for (const [k, v] of Object.entries(env)) {
 console.log(`\n===== FULL PROMPT PASSED TO CLAUDE =====\n${prompt}\n===== END PROMPT =====\n`);
 let agentRc = 1;
 try {
-  const agent = Bun.spawn([...CLAUDE, "-p", prompt, "--permission-mode", "bypassPermissions", "--output-format", "text"], {
-    stdout: "inherit",
-    stderr: "inherit",
+  agentRc = await runClaudeAgent({
+    claudeCommand: CLAUDE,
+    prompt,
+    permissionMode: "bypassPermissions",
     env: agentEnv,
     cwd: WORK,
   });
-  agentRc = await agent.exited;
 } finally {
   if (simValidation) await stopAgentSimulator({ cwd: WORK, env });
 }
@@ -199,8 +205,8 @@ const publicEvidence = await publishPublicSimulatorEvidence({
 if (publicEvidence) {
   console.log(`▸ Published and independently verified simulator evidence: ${publicEvidence.pageUrl}`);
 }
-const evidenceLink = publicEvidence
-  ? `\n\n[Open the full simulator evidence page](${publicEvidence.pageUrl})`
+const evidenceSection = publicEvidence
+  ? `\n\n${renderPublicSimulatorEvidence(publicEvidence)}`
   : "";
 
 // ---- commit + push to the PR branch (feedback/RESPONSE are under a gitignored path) ----
@@ -220,11 +226,21 @@ try {
 const summary = (await Bun.file(`${WORK}/.eas/pr-review/RESPONSE.md`).exists()) ? await Bun.file(`${WORK}/.eas/pr-review/RESPONSE.md`).text() : "Reviewed the feedback.";
 if ((await sh([GIT, "-C", WORK, "diff", "--cached", "--quiet"], { allowFail: true })).code === 0) {
   console.log("▸ Agent made no changes.");
-  await gh(`/issues/${prNumber}/comments`, { method: "POST", body: JSON.stringify({ body: `${MARKER} (${iters + 1}/${MAX_ITERS}): no code change.\n\n${summary.slice(0, 3000)}${evidenceLink}` }) });
+  await gh(`/issues/${prNumber}/comments`, { method: "POST", body: JSON.stringify({ body: `${MARKER} (${iters + 1}/${MAX_ITERS}): no code change.\n\n${summary.slice(0, 3000)}${evidenceSection}` }) });
   process.exit(0);
 }
 await sh([GIT, "-C", WORK, "commit", "-m", `review-response: address feedback on #${prNumber}`, "-m", `Automated response (iteration ${iters + 1}/${MAX_ITERS}).`]);
 await sh([GIT, "-C", WORK, "push", pushUrl, `HEAD:refs/heads/${headRef}`]);
 console.log(`▸ Pushed the fix to ${headRef}.`);
-await gh(`/issues/${prNumber}/comments`, { method: "POST", body: JSON.stringify({ body: `${MARKER} (${iters + 1}/${MAX_ITERS}) — pushed a fix.\n\n${summary.slice(0, 3000)}${evidenceLink}` }) });
+const preview = await publishPullRequestUpdate({
+  gh,
+  owner,
+  repo,
+  pullRequestNumber: Number(prNumber),
+  message: `Review response for PR #${prNumber}`,
+  easCommand: EAS,
+  run: (command) => sh(command, { allowFail: true, cwd: WORK }),
+});
+console.log(`▸ ${preview.summary}`);
+await gh(`/issues/${prNumber}/comments`, { method: "POST", body: JSON.stringify({ body: `${MARKER} (${iters + 1}/${MAX_ITERS}) — pushed a fix.\n\n${summary.slice(0, 3000)}${evidenceSection}\n\n${preview.summary}` }) });
 console.log("▸ Commented the response summary on the PR.");

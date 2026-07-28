@@ -28,8 +28,24 @@ accepted it for triage, so it's worth acting on.
    unsafe. State the concrete reason rather than generic uncertainty.
 4. Write your findings to `.eas/issue-triage/ANALYSIS.md`:
    - **Summary** — one or two sentences.
-   - **Approach** — what you changed and why (with `file:line`), or "No code change
-     — needs a decision/discussion" with the specific reason and open questions.
+   - **Approach** — a short bullet list of what changed. Keep each visible bullet
+     to one sentence, beginning with a bold, plain-language highlight. Put file
+     references, implementation details, rationale, caveats, and supporting
+     evidence inside an expandable block directly beneath that bullet:
+     ```md
+     - **Added the missing gesture-handler root.** This keeps migrated touch
+       targets working throughout the app.
+
+       <details>
+       <summary>Details</summary>
+
+       Longer technical context, including `file:line` references.
+
+       </details>
+     ```
+     If there is no code change, use the same concise format to say "No code
+     change — needs a decision/discussion," then put the specific reason and
+     open questions in its Details block.
    - **How to verify** — concrete steps to check the change.
    - **Issue reference** — echo the issue number + url from issue.json.
 5. If you make no code change, also write
@@ -56,3 +72,5 @@ accepted it for triage, so it's worth acting on.
 - Be honest about uncertainty without defaulting to inaction. After an
   authorized command, proceed with a reasonable scoped implementation unless
   one of the concrete no-change conditions above applies.
+- Keep the visible PR description easy to scan. Do not duplicate technical
+  detail outside the expandable Approach blocks.

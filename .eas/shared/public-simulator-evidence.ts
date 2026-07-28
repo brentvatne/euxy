@@ -459,26 +459,37 @@ export function renderPublicSimulatorEvidence(evidence: PublicSimulatorEvidence)
   ) {
     throw new Error("Public simulator evidence URLs must use the fixed evidence filenames.");
   }
-  const before = evidence.beforeScreenshotUrl || evidence.beforeVideoUrl
-    ? [
-        "### Before",
-        ...(evidence.beforeScreenshotUrl
-          ? [`![Behavior before the change in EAS Simulator](${evidence.beforeScreenshotUrl})`]
-          : []),
-        ...(evidence.beforeVideoUrl
-          ? [`[Watch or download the complete before-change recording](${evidence.pageUrl}#before)`]
-          : []),
-      ].join("\n\n")
+  const pageLink = `[Open the full simulator evidence page](${evidence.pageUrl})`;
+  const afterRecording = evidence.videoUrl
+    ? `[Full recording](${evidence.pageUrl}#after)`
+    : `[Verification details](${evidence.pageUrl}#after)`;
+  if (evidence.beforeScreenshotUrl) {
+    const beforeRecording = evidence.beforeVideoUrl
+      ? `[Full recording](${evidence.pageUrl}#before)`
+      : `[Baseline details](${evidence.pageUrl}#before)`;
+    return [
+      "## Verification evidence",
+      "",
+      "| Before | After |",
+      "| :---: | :---: |",
+      `| ![Behavior before the change in EAS Simulator](${evidence.beforeScreenshotUrl}) | ![Behavior after the change in EAS Simulator](${evidence.screenshotUrl}) |`,
+      `| ${beforeRecording} | ${afterRecording} |`,
+      "",
+      pageLink,
+    ].join("\n");
+  }
+
+  const beforeRecording = evidence.beforeVideoUrl
+    ? `[Watch or download the complete before-change recording](${evidence.pageUrl}#before)`
     : "";
-  const after = [
+  return [
+    "## Verification evidence",
+    pageLink,
+    beforeRecording,
     "### After",
     `![Behavior after the change in EAS Simulator](${evidence.screenshotUrl})`,
-    evidence.videoUrl
-      ? `[Watch or download the complete after-change recording](${evidence.pageUrl}#after)`
-      : `[Open the verification evidence](${evidence.pageUrl}#after)`,
-  ].join("\n\n");
-  const pageLink = `[Open the full simulator evidence page](${evidence.pageUrl})`;
-  return ["## Verification evidence", pageLink, before, after].filter(Boolean).join("\n\n");
+    afterRecording,
+  ].filter(Boolean).join("\n\n");
 }
 
 export async function publishPublicSimulatorEvidence({

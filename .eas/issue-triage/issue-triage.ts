@@ -28,6 +28,8 @@ import {
   publishPublicSimulatorEvidence,
   renderPublicSimulatorEvidence,
 } from "../shared/public-simulator-evidence";
+import { runClaudeAgent } from "../shared/claude-agent";
+import { publishPullRequestUpdate } from "../shared/pr-update-preview";
 import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
 import {
   parseIssueTriageCommand,
@@ -40,6 +42,7 @@ import {
 
 const env = process.env;
 const GIT = env.GIT_BIN || "git";
+const EAS = [env.EAS_CLI_BIN || "eas"];
 const CLAUDE = ["claude", ...(env.CLAUDE_PLUGIN_DIR ? ["--plugin-dir", env.CLAUDE_PLUGIN_DIR] : [])];
 const DIR = ".eas/issue-triage";
 const ANALYSIS = `${DIR}/ANALYSIS.md`;
@@ -236,15 +239,12 @@ for (const [k, v] of Object.entries(env)) {
 }
 let agentRc = 1;
 try {
-  const agent = Bun.spawn(
-    [...CLAUDE, "-p", prompt, "--permission-mode", simValidation ? "bypassPermissions" : "acceptEdits", "--output-format", "text"],
-    {
-      stdout: "inherit",
-      stderr: "inherit",
-      env: agentEnv,
-    }
-  );
-  agentRc = await agent.exited;
+  agentRc = await runClaudeAgent({
+    claudeCommand: CLAUDE,
+    prompt,
+    permissionMode: simValidation ? "bypassPermissions" : "acceptEdits",
+    env: agentEnv,
+  });
 } finally {
   if (simValidation) await stopAgentSimulator({ env });
 }
@@ -332,7 +332,7 @@ if ((await sh([GIT, "diff", "--cached", "--quiet"], { allowFail: true })).code =
     await gh(`/issues/${issue.number}/comments`, {
       method: "POST",
       body: JSON.stringify({
-        body: `🤖 [Open the full simulator evidence page](${publicEvidence.pageUrl})`,
+        body: `🤖 Simulator verification completed.\n\n${renderPublicSimulatorEvidence(publicEvidence)}`,
       }),
     });
     console.log("▸ Linked simulator evidence from the issue.");
@@ -349,7 +349,7 @@ const linkLine = codeChanged ? `Closes #${issue.number}` : `Re: #${issue.number}
 const evidenceSection = publicEvidence
   ? `\n\n${renderPublicSimulatorEvidence(publicEvidence)}`
   : "";
-const body = `${linkLine} — 🔗 ${issue.url}\n_Triggered: ${issue.triggeredBy}._${issue.acceptContext ? `\n_Maintainer context: ${issue.acceptContext}_` : ""}\n\n${await Bun.file(ANALYSIS).text()}${evidenceSection}\n\n---\n_Automated triage. **Not auto-merged** — review before merging._ Code change proposed: **${codeChanged ? "yes" : "no"}**.`;
+const body = `${linkLine} — 🔗 ${issue.url}\n_Triggered: ${issue.triggeredBy}._${issue.acceptContext ? `\n_Maintainer context: ${issue.acceptContext}_` : ""}\n\n${await Bun.file(ANALYSIS).text()}${evidenceSection}`;
 
 const pullRequest = await createOrFindPullRequest({
   gh,
@@ -366,6 +366,18 @@ console.log(
     ? `▸ Opened and publicly verified PR: ${prUrl}`
     : `▸ PR already open and publicly verified (branch refreshed): ${prUrl}`
 );
+const preview = codeChanged
+  ? await publishPullRequestUpdate({
+      gh,
+      owner,
+      repo,
+      pullRequestNumber: pullRequest.number,
+      message: `Issue #${issue.number}: ${issue.title}`,
+      easCommand: EAS,
+      run: (command) => sh(command, { allowFail: true }),
+    })
+  : undefined;
+if (preview) console.log(`▸ ${preview.summary}`);
 await updateTriageIssueStatus({
   gh,
   issueNumber: issue.number,
@@ -379,6 +391,6 @@ const prComment = await createVerifiedIssueComment({
   owner,
   repo,
   issueNumber: issue.number,
-  body: `🤖 Opened a triage PR: ${prUrl}`,
+  body: `🤖 Opened a triage PR: ${prUrl}${preview ? `\n\n${preview.summary}` : ""}${publicEvidence ? `\n\n${renderPublicSimulatorEvidence(publicEvidence)}` : ""}`,
 });
 console.log(`▸ Commented and publicly verified the PR link: ${prComment.htmlUrl}`);

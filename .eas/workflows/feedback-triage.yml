@@ -39,7 +39,6 @@ jobs:
       WORKFLOW_URL: ${{ workflow.url }}
       FEEDBACK_ID: ${{ app_store_connect.beta_feedback.id }}
       FEEDBACK_URL: ${{ app_store_connect.beta_feedback.url }}
-      UPDATE_CHANNEL: preview
     steps:
       - uses: eas/checkout
       - uses: eas/install_node_modules

@@ -241,10 +241,12 @@ describe("GitHub triage issues", () => {
 
     const updatedBody = JSON.parse(String(calls[1].init?.body)).body;
     expect(updatedBody).toContain("## Verification evidence");
-    expect(updatedBody).toContain("### Before");
+    expect(updatedBody).toContain("| Before | After |");
     expect(updatedBody).toContain(evidence.beforeScreenshotUrl);
     expect(updatedBody).toContain(evidence.screenshotUrl);
-    expect(updatedBody).toContain("Watch or download the complete after-change recording");
+    expect(updatedBody).toContain(
+      `[Full recording](${evidence.pageUrl}#after)`
+    );
     expect(updatedBody).not.toContain("feedback-triage-summary");
   });
 

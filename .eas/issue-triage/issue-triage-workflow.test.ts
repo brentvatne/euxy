@@ -86,4 +86,16 @@ describe("issue triage execution boundary", () => {
       ".eas/issue-triage/PUBLIC_FINDINGS.json"
     );
   });
+
+  test("keeps generated PR approaches concise and expandable", () => {
+    expect(prompt).toContain(
+      "Keep each visible bullet"
+    );
+    expect(prompt).toContain("<details>");
+    expect(prompt).toContain("<summary>Details</summary>");
+    expect(prompt).toContain(
+      "Do not duplicate technical"
+    );
+    expect(prompt).toContain("detail outside the expandable Approach blocks.");
+  });
 });

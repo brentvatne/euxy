@@ -40,10 +40,13 @@ import {
   publishPublicSimulatorEvidence,
   renderPublicSimulatorEvidence,
 } from "../shared/public-simulator-evidence";
+import { runClaudeAgent } from "../shared/claude-agent";
+import { publishPullRequestUpdate } from "../shared/pr-update-preview";
 import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
 
 const env = process.env;
 const GIT = env.GIT_BIN || "git";
+const EAS = [env.EAS_CLI_BIN || "eas"];
 const CLAUDE = ["claude", ...(env.CLAUDE_PLUGIN_DIR ? ["--plugin-dir", env.CLAUDE_PLUGIN_DIR] : [])];
 const TRIAGE_DIR = ".eas/crash-triage";
 const ANALYSIS = `${TRIAGE_DIR}/ANALYSIS.md`;
@@ -343,11 +346,12 @@ for (const [k, v] of Object.entries(env)) {
 }
 let agentRc = 1;
 try {
-  const agent = Bun.spawn(
-    [...CLAUDE, "-p", prompt, "--permission-mode", simValidation ? "bypassPermissions" : "acceptEdits", "--output-format", "text"],
-    { stdout: "inherit", stderr: "inherit", env: agentEnv }
-  );
-  agentRc = await agent.exited;
+  agentRc = await runClaudeAgent({
+    claudeCommand: CLAUDE,
+    prompt,
+    permissionMode: simValidation ? "bypassPermissions" : "acceptEdits",
+    env: agentEnv,
+  });
 } finally {
   if (simValidation) await stopAgentSimulator({ env });
 }
@@ -459,8 +463,7 @@ const body =
   `Automated triage of private TestFlight crash feedback \`${feedbackId || shortId}\`.\n\n` +
   `Tester identity, App Store Connect URLs, crash logs, device details, simulator session URLs, and the analysis are intentionally omitted from this public PR. Review the private \`crash-triage-summary\` workflow artifact for those details.` +
   evidenceSection +
-  `${publicEvidence ? "\n\nThe evidence above was captured during before/after verification in a clean simulator and intentionally published." : ""}\n\n` +
-  `---\n_Automated triage. **Not auto-merged** — review before merging._ Code change proposed: **${codeChanged ? "yes" : "no"}**.`;
+  `${publicEvidence ? "\n\nThe evidence above was captured during before/after verification in a clean simulator and intentionally published." : ""}`;
 
 const pullRequest = await createOrFindPullRequest({
   gh,
@@ -476,6 +479,18 @@ console.log(
     ? `▸ Opened and publicly verified PR: ${pullRequest.htmlUrl}`
     : `▸ PR already open and publicly verified (branch refreshed): ${pullRequest.htmlUrl}`
 );
+if (codeChanged) {
+  const preview = await publishPullRequestUpdate({
+    gh,
+    owner,
+    repo,
+    pullRequestNumber: pullRequest.number,
+    message: `Crash triage PR #${pullRequest.number}`,
+    easCommand: EAS,
+    run: (command) => sh(command, { allowFail: true }),
+  });
+  console.log(`▸ ${preview.summary}`);
+}
 // Label with the crash signature so the next report of this crash dedups here.
 if (signature) {
   await gh(`/issues/${pullRequest.number}/labels`, {

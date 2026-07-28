@@ -121,9 +121,46 @@ describe("public simulator evidence", () => {
     expect(rendered).toContain(
       "[Open the full simulator evidence page](https://euxy--evidence123.expo.app/)"
     );
-    expect(rendered).toContain("### Before");
+    expect(rendered).toContain("| Before | After |");
+    expect(rendered).toContain("| :---: | :---: |");
+    expect(rendered).toContain(
+      "| ![Behavior before the change in EAS Simulator]"
+    );
     expect(rendered).toContain(
       "![Behavior after the change in EAS Simulator]"
+    );
+    expect(rendered).toContain(
+      "| [Full recording](https://euxy--evidence123.expo.app/#before) | [Full recording](https://euxy--evidence123.expo.app/#after) |"
+    );
+  });
+
+  test("uses a readable single-column fallback without a before screenshot", () => {
+    const rendered = renderPublicSimulatorEvidence({
+      pageUrl: "https://euxy--evidence123.expo.app/",
+      screenshotUrl: "https://euxy--evidence123.expo.app/final.png",
+    });
+
+    expect(rendered).not.toContain("| Before | After |");
+    expect(rendered).toContain("### After");
+    expect(rendered).toContain(
+      "![Behavior after the change in EAS Simulator]"
+    );
+  });
+
+  test("embeds the comparison in follow-up GitHub comments", async () => {
+    const runner = await Bun.file(
+      ".eas/pr-review/pr-review-response.ts"
+    ).text();
+    const issueRunner = await Bun.file(
+      ".eas/issue-triage/issue-triage.ts"
+    ).text();
+
+    expect(runner).toContain(
+      "renderPublicSimulatorEvidence(publicEvidence)"
+    );
+    expect(runner).toContain("${evidenceSection}");
+    expect(issueRunner).toContain(
+      "renderPublicSimulatorEvidence(publicEvidence)"
     );
   });
 
