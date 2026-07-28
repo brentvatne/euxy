@@ -11,7 +11,8 @@
  * inside the original 80×52 box) with an LedGrid pulse overlay on top.
  */
 import { useMemo } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 import Svg, { Path } from 'react-native-svg';
 
 import { haptics } from '@/lib/shims';

@@ -5,7 +5,8 @@
  * a thin light ring that blooms out and fades. Pure Reanimated on the UI
  * thread; a drop-in Pressable replacement (no PanResponder anywhere).
  */
-import { Pressable, StyleSheet, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, type PressableProps } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
   ReduceMotion,

@@ -5,7 +5,8 @@
  * shared `Segmented` primitive uses a gray (#48484A) selected fill, which is the
  * Steps|Graph toggle style, not this one.
  */
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 
 import { color, font } from '@/theme/tokens';

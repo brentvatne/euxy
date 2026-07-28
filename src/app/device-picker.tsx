@@ -6,7 +6,8 @@
  */
 import { useEffect } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 
 import { AppText } from '@/components/ui';
 import { IconBus, IconCheck, IconClose, IconDevice, IconNone, IconUsb } from '@/components/midi/icons';

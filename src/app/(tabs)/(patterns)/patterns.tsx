@@ -5,14 +5,14 @@
  * Pattern sheet. Empty state (node 2NR-0) shows when there are no patterns.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { ActionSheetIOS, Alert, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { ActionSheetIOS, Alert, Platform, StyleSheet, View } from 'react-native';
 import { Stack, router } from 'expo-router';
 
 import { haptics, useObserve } from '@/lib/shims';
 // Gesture-handler's ScrollView, so the row swipe pan and the list scroll
 // negotiate inside one gesture system — with RN's ScrollView the swipe
 // could lose the horizontal drag on device (ROADMAP §11).
-import { GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, Pressable, ScrollView } from 'react-native-gesture-handler';
 
 import { AppText, SFSymbol } from '@/components/ui';
 import { PatternGlyph } from '@/components/patterns/pattern-glyph';

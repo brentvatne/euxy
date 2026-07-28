@@ -5,7 +5,8 @@
  * treatment), so it is built locally rather than reusing the gray-active shared
  * primitive. Values are tick counts (24 PPQN).
  */
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 
 import { AppText } from '@/components/ui';
 import { color, HIT_TARGET, radius, space } from '@/theme/tokens';

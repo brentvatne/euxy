@@ -8,6 +8,7 @@ import { Stack } from 'expo-router/stack';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
 import { Alert, Platform } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { BootSplash } from '@/components/boot-splash';
@@ -79,6 +80,11 @@ function RootLayout() {
   }, [markInteractive]);
 
   return (
+    // Every touch target now goes through gesture-handler's Pressable, whose
+    // GestureDetector requires a GestureHandlerRootView ancestor somewhere in
+    // the tree — without one it throws at render time (any screen not nested
+    // under one of the older screen-local wrappers).
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaProvider>
       <KeyboardProvider>
       <ThemeProvider value={navTheme}>
@@ -133,6 +139,7 @@ function RootLayout() {
       </ThemeProvider>
       </KeyboardProvider>
     </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

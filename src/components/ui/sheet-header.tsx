@@ -3,7 +3,8 @@
  * the monochrome scheme: Cancel is muted gray, Done is bright white (never the
  * system blue). Used at the top of every form sheet.
  */
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 
 import { color, font, HIT_TARGET, space } from '@/theme/tokens';
 import { AppText } from './text';

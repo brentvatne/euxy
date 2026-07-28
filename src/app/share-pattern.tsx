@@ -11,7 +11,8 @@ import type { CanvasRef } from '@shopify/react-native-skia';
 import { ImageFormat } from '@shopify/react-native-skia';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { ScrollView, Share, StyleSheet, View } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 
 import { effectiveChipName } from '@/components/patterns/chips';
 import { ShareCard } from '@/components/patterns/share-card';

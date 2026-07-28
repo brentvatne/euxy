@@ -7,7 +7,8 @@
  */
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 
 import { chipForPattern } from '@/components/patterns/chips';
 import { LedChip } from '@/components/patterns/led-chip';

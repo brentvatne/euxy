@@ -6,7 +6,8 @@
  * clock toggle, and a draggable latency slider — is specific to this screen.
  */
 import { Slider } from '@expo/ui/community/slider';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 
 import { AppText, Segmented } from '@/components/ui';
 import { color, radius, space } from '@/theme/tokens';

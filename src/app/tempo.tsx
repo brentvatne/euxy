@@ -14,7 +14,8 @@
  * never rewrites existing lanes (see store.setBaseResolution).
  */
 import { useRef } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 import { router } from 'expo-router';
 
 import { AppText, SFSymbol, SheetHeader } from '@/components/ui';

@@ -6,7 +6,8 @@
  * lets the web tester verify the output link.
  */
 import { Stack } from 'expo-router/stack';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 
 import { AppText } from '@/components/ui';
 import { color, radius, space } from '@/theme/tokens';

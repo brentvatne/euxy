@@ -12,7 +12,6 @@ import { useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import { MenuView } from '@expo/ui/community/menu';
 import {
-  Pressable,
   StyleSheet,
   TextInput,
   View,
@@ -20,6 +19,7 @@ import {
   type NativeSyntheticEvent,
   type ScrollView,
 } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 
 import { midi, midiOut } from '@/components/midi/runtime';
 import { midiNoteName } from '@/core/note';

@@ -8,7 +8,8 @@
  * live in the Sequencer.
  */
 import { useEffect, useRef } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 
 import { haptics } from '@/lib/shims';
 import { color, font, HIT_TARGET, ramp, space } from '@/theme/tokens';
