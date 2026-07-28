@@ -34,10 +34,13 @@ Build the automation as a small trusted control plane around an untrusted coding
    for automation-created branches; for maintainer commands on ordinary PRs,
    revalidate the exact immutable comment and require an allowlisted PR author
    instead of relying on the branch name.
-3. Check out trusted workflow code first. Do not execute automation from an untrusted PR head.
-4. Give the agent only task data and the minimum credential it actually needs. Prefer giving it no GitHub write token.
-5. Keep branch creation, commits, issue creation, PR creation, EAS Update publication, and cleanup in a deterministic wrapper.
-6. Reject agent-authored changes to workflow definitions, agent runners, prompt files, credential helpers, and other protected automation paths.
+3. When authorization or agent context depends on GitHub history, exhaust
+   paginated comments and reviews up to a hard cap; fail closed instead of
+   trusting a truncated history.
+4. Check out trusted workflow code first. Do not execute automation from an untrusted PR head.
+5. Give the agent only task data and the minimum credential it actually needs. Prefer giving it no GitHub write token.
+6. Keep branch creation, commits, issue creation, PR creation, EAS Update publication, and cleanup in a deterministic wrapper.
+7. Reject agent-authored changes to workflow definitions, agent runners, prompt files, credential helpers, and other protected automation paths.
 
 Use [references/security-checklist.md](references/security-checklist.md) for the full threat-model and credential checklist.
 
