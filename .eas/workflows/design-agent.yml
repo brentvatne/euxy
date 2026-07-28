@@ -1,0 +1,60 @@
+# Design agent (manual dispatch).
+#
+# Takes a free-text design brief, gives Claude live access to the team's Paper
+# canvas, and opens a GitHub issue with the proposal and the mockups it drew,
+# inlined from EAS Hosting.
+#
+#   bun run design-agent "Design an interaction where …"
+#
+# or directly:
+#
+#   eas workflow:run .eas/workflows/design-agent.yml -F prompt="…"
+#
+# Requires these in the `preview` environment: PAPER_SESSION_FILE (see the
+# paper-mcp-in-eas-workflows skill), CLAUDE_CODE_OAUTH_TOKEN, GH_TOKEN, EXPO_TOKEN.
+#
+# SECURITY: this job binds a live Paper account session and runs shell from the
+# checked-out ref. Dispatch it only on a ref you have read. It never commits, and
+# the agent is instructed to write only under .eas/design-agent/out/.
+
+name: Design agent
+
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: What to design, in plain language
+        type: string
+      continues_issue:
+        description: Issue number of a prior proposal to revise (blank for a fresh one)
+        type: string
+        default: ''
+
+jobs:
+  design:
+    name: Design a proposal in Paper and open an issue
+    environment: preview
+    runs_on: linux-medium
+    env:
+      REPO_SLUG: brentvatne/euxy
+      DESIGN_PROMPT: ${{ inputs.prompt }}
+      CONTINUES_ISSUE: ${{ inputs.continues_issue }}
+      WORKFLOW_URL: ${{ workflow.url }}
+      DISABLE_AUTOUPDATER: '1'
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - name: Install pinned agent toolchain
+        run: bash .github/scripts/setup-agent-toolchain.sh
+      - name: Start Paper
+        run: bash .claude/skills/paper-mcp-in-eas-workflows/scripts/start-paper.sh
+      - name: Design and open the issue
+        run: bun .eas/design-agent/design-agent.ts
+      - name: Upload the proposal
+        if: ${{ always() }}
+        uses: eas/upload_artifact
+        with:
+          type: other
+          name: design-agent
+          path: |
+            .eas/design-agent/out/**/*
