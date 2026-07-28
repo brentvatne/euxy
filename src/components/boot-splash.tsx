@@ -34,9 +34,10 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { bootChipProgress, onSequencerLayout } from '@/components/boot-signal';
+import { bootChipProgress, bootElapsedMs, onFirstScreenLayout } from '@/components/boot-signal';
 import { CHIPS, chipForPattern } from '@/components/patterns/chips';
 import { LedGrid, litCount } from '@/components/ui/led-grid';
+import { logObserveEvent } from '@/lib/shims';
 import { useStore } from '@/state/store';
 
 // Keep the native splash up until our first frame has rendered AND laid out
@@ -94,14 +95,25 @@ export function BootSplash() {
 
   const started = useRef(false);
   const overlayLaidOut = useRef(false);
-  const sequencerLaidOut = useRef(false);
+  const firstScreenLaidOut = useRef(false);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /** Drop the native splash and power on. Guarded to run exactly once —
    * callable from either layout gate or the failsafe. */
-  const start = () => {
+  const start = (gate: 'layout' | 'failsafe') => {
     if (started.current) return;
     started.current = true;
+    // Real readiness, separate from `expo.app_startup.tti`. TTI legitimately
+    // measures the whole boot sequence (this overlay is pointerEvents:'auto'
+    // for its full ~900ms, so the app genuinely is not interactive until the
+    // fade completes) — which means TTI alone can never tell us whether the
+    // app underneath got slower. This event is that number, plus which gate
+    // actually released the boot: 'failsafe' means both layout callbacks were
+    // missed and the user waited out FAILSAFE_MS for nothing.
+    logObserveEvent('boot.ready', {
+      attributes: { gate, elapsed_ms: bootElapsedMs(), reduce_motion: reduceMotion },
+      severity: gate === 'failsafe' ? 'warn' : 'info',
+    });
     SplashScreen.hide();
     const typeMs = reduceMotion ? 0 : TYPE_MS;
     if (reduceMotion) {
@@ -125,26 +137,28 @@ export function BootSplash() {
     }, typeMs + HOLD_MS);
   };
 
-  /** Both gates must pass: this overlay AND the sequencer screen beneath it
-   * have really laid out — only then is the handoff frame guaranteed live. */
+  /** Both gates must pass: this overlay AND the screen beneath it have really
+   * laid out — only then is the handoff frame guaranteed live. */
   const maybeStart = () => {
-    if (overlayLaidOut.current && sequencerLaidOut.current) start();
+    if (overlayLaidOut.current && firstScreenLaidOut.current) start('layout');
   };
 
   useEffect(() => {
     // The header chip starts dark (hidden behind this opaque overlay) and
     // relights as we decay out.
     bootChipProgress.value = 0;
-    // Gate 2: the sequencer screen (the initial route) reports its first
-    // onLayout. Fires immediately if it laid out before this effect ran, so
-    // subscription order can't race.
-    const unsubscribe = onSequencerLayout(() => {
-      sequencerLaidOut.current = true;
+    // Gate 2: the app's first screen — WHICHEVER route it is — reports its
+    // first onLayout. Fires immediately if it laid out before this effect ran,
+    // so subscription order can't race.
+    const unsubscribe = onFirstScreenLayout(() => {
+      firstScreenLaidOut.current = true;
       maybeStart();
     });
     // Failsafe: NEVER deadlock behind the native splash if a layout callback
-    // is missed — boot anyway after FAILSAFE_MS.
-    const failsafe = setTimeout(start, FAILSAFE_MS);
+    // is missed — boot anyway after FAILSAFE_MS. With the gate no longer tied
+    // to one specific route this should be unreachable; `boot.ready`'s `gate`
+    // attribute is how we find out if it still fires in the field.
+    const failsafe = setTimeout(() => start('failsafe'), FAILSAFE_MS);
     return () => {
       unsubscribe();
       clearTimeout(failsafe);

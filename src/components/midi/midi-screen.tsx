@@ -13,7 +13,8 @@ import { Pressable } from 'react-native-gesture-handler';
 
 import { AppText, Segmented } from '@/components/ui';
 import { IconPanic } from '@/components/ui/icons';
-import { haptics, useObserve } from '@/lib/shims';
+import { reportFirstScreenLayout } from '@/components/boot-signal';
+import { haptics } from '@/lib/shims';
 import { useActivePattern, useSettings, useTransport } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import { color, space } from '@/theme/tokens';
@@ -39,11 +40,8 @@ export default function MidiScreen() {
     }, []),
   );
 
-  // Per-route TTI for EAS Observe.
-  const { markInteractive } = useObserve();
-  useEffect(() => {
-    markInteractive();
-  }, [markInteractive]);
+  // Per-route TTI for EAS Observe is marked once at the route boundary in
+  // `src/app/(tabs)/(midi)/midi.tsx` — don't mark it again here.
   const settings = useSettings();
   const transport = useTransport();
   const setClockMode = useStore((s) => s.setClockMode);
@@ -79,6 +77,11 @@ export default function MidiScreen() {
       style={styles.root}
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={styles.content}
+      // Boot layout gate: this tab can be the LAUNCH route (Observe saw 13 of
+      // 80 startups land here), and NativeTabs won't have mounted the
+      // sequencer in that case — so this root has to be able to release the
+      // boot on its own. First reporter wins; later calls are no-ops.
+      onLayout={reportFirstScreenLayout}
     >
       {/* CONNECTION */}
       <SectionHeader first>Connection</SectionHeader>

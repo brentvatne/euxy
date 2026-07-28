@@ -25,8 +25,8 @@ import {
   haptics,
   logObserveEvent,
   sharePng,
-  useObserve,
 } from '@/lib/shims';
+import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { useStore } from '@/state/store';
 import { color, font, space } from '@/theme/tokens';
 
@@ -48,11 +48,10 @@ export default function SharePatternSheet() {
 
   // Nav TTI for this sheet (the QR render is its real readiness moment) +
   // the top of the share funnel.
-  const { markInteractive } = useObserve();
+  useMarkInteractive();
   useEffect(() => {
-    markInteractive();
     logObserveEvent('share.sheet_opened');
-  }, [markInteractive]);
+  }, []);
 
   if (!pattern) return null;
   // Same effective-glyph resolution as the card's QR (see share-card.tsx).
