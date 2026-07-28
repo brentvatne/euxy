@@ -15,7 +15,6 @@ import { AppText, Segmented } from '@/components/ui';
 import { IconPanic } from '@/components/ui/icons';
 import { reportFirstScreenLayout } from '@/components/boot-signal';
 import { haptics } from '@/lib/shims';
-import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { useActivePattern, useSettings, useTransport } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import { color, space } from '@/theme/tokens';
@@ -41,8 +40,8 @@ export default function MidiScreen() {
     }, []),
   );
 
-  // Per-route TTI for EAS Observe.
-  useMarkInteractive();
+  // Per-route TTI for EAS Observe is marked once at the route boundary in
+  // `src/app/(tabs)/(midi)/midi.tsx` — don't mark it again here.
   const settings = useSettings();
   const transport = useTransport();
   const setClockMode = useStore((s) => s.setClockMode);
