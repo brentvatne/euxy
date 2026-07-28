@@ -11,6 +11,7 @@ import Svg, { Path } from 'react-native-svg';
 import { color, font } from '@/theme/tokens';
 import { AppText } from '@/components/ui';
 import { LedChip } from '@/components/patterns/led-chip';
+import { UpdateMarker } from '@/components/update-marker';
 
 export type PatternMenuAction = 'new' | 'rename' | 'icon' | 'share' | 'revert' | 'clear';
 
@@ -70,6 +71,8 @@ export function SequencerNav({
           />
           <AppText style={styles.pillText}>{deviceName}</AppText>
         </View>
+        {/* Renders nothing unless an OTA update is staged. */}
+        <UpdateMarker />
       </View>
     </View>
   );

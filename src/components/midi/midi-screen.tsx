@@ -1,6 +1,6 @@
 /**
  * MIDI tab (Paper MC-0 connected / 1A8-0 disconnected). Large-title grouped
- * form: Connection · Timing · Diagnostics · Defaults · Panic. This screen is
+ * form: Connection · Timing · Diagnostics · Routing · Panic. This screen is
  * also the entire web experience — it drives the platform `MidiPort` via the
  * shared runtime, so on web it doubles as the minimal MIDI connection tester
  * (enable → pick output/input → watch traffic → panic; send a test note from
@@ -14,7 +14,7 @@ import { Pressable } from 'react-native-gesture-handler';
 import { AppText, Segmented } from '@/components/ui';
 import { IconPanic } from '@/components/ui/icons';
 import { haptics, useObserve } from '@/lib/shims';
-import { useSettings, useTransport } from '@/state/selectors';
+import { useActivePattern, useSettings, useTransport } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import { color, space } from '@/theme/tokens';
 import { Cell, ClockModeToggle, ConnectionBadge, GRAY, Group, LatencySlider, LogPreview, PushRow, SectionHeader, ValueRow } from './components';
@@ -48,7 +48,10 @@ export default function MidiScreen() {
   const transport = useTransport();
   const setClockMode = useStore((s) => s.setClockMode);
   const setCountInBeats = useStore((s) => s.setCountInBeats);
-  const lanes = useStore((s) => (s.patterns.find((p) => p.id === s.activePatternId) ?? s.patterns[0]).lanes);
+  // Routing is scoped to the active pattern, so the section needs its name
+  // as well as its lanes.
+  const activePattern = useActivePattern();
+  const lanes = activePattern.lanes;
 
   // Native/stub can enable without a gesture; web requires the Enable-MIDI tap.
   useEffect(() => {
@@ -135,12 +138,13 @@ export default function MidiScreen() {
         </Cell>
       </Group>
 
-      {/* DEFAULTS — track → channel map */}
-      <SectionHeader>Defaults</SectionHeader>
+      {/* ROUTING — lane → channel map for the ACTIVE pattern. Read-only:
+          the channel is edited by tap-cycling in the lane editor. */}
+      <SectionHeader>Routing</SectionHeader>
       <Group>
         {lanes.length === 0 ? (
           <Cell pos="single">
-            <AppText style={styles.emptyDefaults}>No lanes yet</AppText>
+            <AppText style={styles.emptyRouting}>No lanes yet</AppText>
           </Cell>
         ) : (
           lanes.map((l, i) => (
@@ -151,6 +155,11 @@ export default function MidiScreen() {
           ))
         )}
       </Group>
+      {/* Names the pattern — this section is the only per-pattern thing on an
+          otherwise app-wide screen — and says where the channel is editable. */}
+      <AppText style={styles.sectionFooter}>
+        Where each lane in {activePattern.name} sends. Set a lane&apos;s channel in the lane editor.
+      </AppText>
 
       {/* PANIC — the one red destructive control */}
       <View style={styles.panicWrap}>
@@ -191,7 +200,7 @@ const styles = StyleSheet.create({
   latencyValue: { fontSize: 16, lineHeight: 20, fontWeight: '600', color: GRAY },
 
   logCell: { flexDirection: 'column', alignItems: 'stretch', gap: 3, paddingVertical: 12 },
-  emptyDefaults: { fontSize: 16, lineHeight: 20, color: GRAY },
+  emptyRouting: { fontSize: 16, lineHeight: 20, color: GRAY },
 
   panicWrap: { paddingTop: 22, paddingBottom: 8, paddingHorizontal: space.lg },
   panic: {
