@@ -394,6 +394,33 @@ async function updatePullRequestPreview({
   );
 }
 
+function previewMetadataErrorSummary(error: unknown): string {
+  const message =
+    error instanceof Error ? error.message : "Unknown preview metadata error.";
+  return message.replace(/\s+/g, " ").trim().slice(0, 300);
+}
+
+async function updatePullRequestPreviewBestEffort({
+  status,
+  ...options
+}: Parameters<typeof updatePullRequestPreview>[0] & {
+  status: "publishing" | "published" | "failed";
+}): Promise<void> {
+  try {
+    await updatePullRequestPreview(options);
+  } catch (error) {
+    const continuation =
+      status === "publishing"
+        ? "continuing with EAS Update publication."
+        : "publication result is unchanged.";
+    options.warn(
+      `Warning: could not write pull request #${options.pullRequestNumber} ` +
+        `${status} preview metadata: ${previewMetadataErrorSummary(error)}; ` +
+        continuation
+    );
+  }
+}
+
 function validateMarkedChannel(
   channel: string,
   pullRequestNumber: number
@@ -457,7 +484,7 @@ export async function publishPullRequestUpdate({
     channel = candidate;
   }
 
-  await updatePullRequestPreview({
+  await updatePullRequestPreviewBestEffort({
     gh,
     publicFetch,
     wait,
@@ -466,6 +493,7 @@ export async function publishPullRequestUpdate({
     repo,
     pullRequestNumber,
     block: renderPreviewBlock({ channel, status: "publishing" }),
+    status: "publishing",
   });
 
   const result = await run([
@@ -494,7 +522,7 @@ export async function publishPullRequestUpdate({
     status: published ? "published" : "failed",
     updateUrl,
   });
-  await updatePullRequestPreview({
+  await updatePullRequestPreviewBestEffort({
     gh,
     publicFetch,
     wait,
@@ -503,9 +531,10 @@ export async function publishPullRequestUpdate({
     repo,
     pullRequestNumber,
     block: finalBlock,
+    status: published ? "published" : "failed",
   });
 
-  return {
+  const preview: PullRequestUpdatePreview = {
     channel,
     published,
     ...(updateUrl ? { updateUrl } : {}),
@@ -513,4 +542,8 @@ export async function publishPullRequestUpdate({
       ? `Published the latest PR update to \`${channel}\`${updateUrl ? ` — ${updateUrl}` : ""}.`
       : `EAS Update publication to \`${channel}\` failed; see the workflow logs.`,
   };
+  if (!published) {
+    throw new Error(preview.summary);
+  }
+  return preview;
 }

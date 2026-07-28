@@ -231,6 +231,123 @@ describe("per-PR EAS Update previews", () => {
     ).toHaveLength(2);
   });
 
+  test("publishes when the initial PR preview metadata write fails", async () => {
+    const harness = previewHarness();
+    const originalGh = harness.gh;
+    const warnings: string[] = [];
+    let patchAttempts = 0;
+    harness.gh = async (path, init = {}) => {
+      if (init.method === "PATCH") {
+        patchAttempts += 1;
+        if (patchAttempts === 1) {
+          return jsonResponse({ message: "Service unavailable" }, 503);
+        }
+      }
+      return originalGh(path, init);
+    };
+
+    const result = await publishPullRequestUpdate({
+      gh: harness.gh,
+      owner: "brentvatne",
+      repo: "euxy",
+      pullRequestNumber: 28,
+      message: "Address the feedback",
+      easCommand: ["eas"],
+      run: harness.run,
+      publicFetch: harness.publicFetch,
+      wait: async () => {},
+      warn: (message) => warnings.push(message),
+    });
+
+    expect(result.published).toBe(true);
+    expect(
+      harness.commands.some((command) => command.includes("update")),
+    ).toBe(true);
+    expect(warnings).toContainEqual(
+      expect.stringContaining(
+        "continuing with EAS Update publication",
+      ),
+    );
+    expect(harness.getBody()).toContain("Open the latest EAS Update");
+  });
+
+  test("preserves a successful publication when final PR metadata fails", async () => {
+    const harness = previewHarness();
+    const originalGh = harness.gh;
+    const warnings: string[] = [];
+    let patchAttempts = 0;
+    harness.gh = async (path, init = {}) => {
+      if (init.method === "PATCH") {
+        patchAttempts += 1;
+        if (patchAttempts === 2) {
+          return jsonResponse({ message: "Service unavailable" }, 503);
+        }
+      }
+      return originalGh(path, init);
+    };
+
+    const result = await publishPullRequestUpdate({
+      gh: harness.gh,
+      owner: "brentvatne",
+      repo: "euxy",
+      pullRequestNumber: 28,
+      message: "Address the feedback",
+      easCommand: ["eas"],
+      run: harness.run,
+      publicFetch: harness.publicFetch,
+      wait: async () => {},
+      warn: (message) => warnings.push(message),
+    });
+
+    expect(result.published).toBe(true);
+    expect(
+      harness.commands.filter((command) => command.includes("update")),
+    ).toHaveLength(1);
+    expect(warnings).toContainEqual(
+      expect.stringContaining(
+        "publication result is unchanged",
+      ),
+    );
+  });
+
+  test("fails the workflow when EAS Update publication fails", async () => {
+    const harness = previewHarness();
+    harness.run = async (command: string[]) => {
+      harness.commands.push(command);
+      if (command.includes("channel:list")) {
+        return {
+          code: 0,
+          out: JSON.stringify([{ name: "production" }, { name: "preview" }]),
+          err: "",
+        };
+      }
+      return {
+        code: 1,
+        out: "",
+        err: "private EAS failure details",
+      };
+    };
+
+    const publication = publishPullRequestUpdate({
+      gh: harness.gh,
+      owner: "brentvatne",
+      repo: "euxy",
+      pullRequestNumber: 28,
+      message: "Address the feedback",
+      easCommand: ["eas"],
+      run: harness.run,
+      publicFetch: harness.publicFetch,
+    });
+
+    await expect(publication).rejects.toThrow(
+      "EAS Update publication to",
+    );
+    await expect(publication).rejects.not.toThrow(
+      "private EAS failure details",
+    );
+    expect(harness.getBody()).toContain("latest publication failed");
+  });
+
   test("reuses the channel marker for every later update on the PR", async () => {
     const channel = "calm-otter-p28";
     const harness = previewHarness(
