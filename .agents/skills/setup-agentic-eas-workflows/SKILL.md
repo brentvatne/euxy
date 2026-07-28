@@ -19,6 +19,10 @@ Build the automation as a small trusted control plane around an untrusted coding
 
 - Put EAS-native events such as App Store Connect feedback, pushes, pull requests, schedules, and manual dispatches directly in `.eas/workflows`.
 - For GitHub events EAS does not support, use a credential-minimal GitHub Actions dispatcher. Validate the event there, then dispatch trusted workflow code to EAS.
+- When a maintainer command dispatches a long-running EAS workflow, acknowledge
+  it immediately with the returned workflow URL. Keep the dispatch job at empty
+  GitHub permissions, pass only the URL to a separate acknowledgement job, and
+  grant that job only the built-in issue or pull-request comment permission.
 - Run a full agent on GitHub Actions only when the built-in `GITHUB_TOKEN` materially improves credential isolation and an EAS dispatch would add no security benefit.
 - Read [references/architecture.md](references/architecture.md) before selecting a split.
 

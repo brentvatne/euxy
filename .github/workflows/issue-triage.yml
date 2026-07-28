@@ -44,8 +44,11 @@ jobs:
         )
       )
     runs-on: ubuntu-latest
+    outputs:
+      run_url: ${{ steps.eas.outputs.run_url }}
     steps:
       - name: Dispatch trusted EAS workflow
+        id: eas
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           EAS_PROJECT_ID: 2ee288d6-807b-4316-8331-d0f5cd5eebe8
@@ -94,3 +97,35 @@ jobs:
             exit 1
           fi
           echo "Dispatched EAS workflow: $run_url"
+          echo "run_url=$run_url" >> "$GITHUB_OUTPUT"
+
+  acknowledge:
+    name: Link the dispatched workflow
+    needs: dispatch
+    if: github.event_name == 'issue_comment'
+    permissions:
+      issues: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reply with the EAS workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          RUN_URL: ${{ needs.dispatch.outputs.run_url }}
+        run: |
+          if [[ ! "$RUN_URL" =~ ^https://expo\.dev/accounts/brent-org/projects/euxy/workflows/[a-z0-9-]+$ ]]; then
+            echo "::error::EAS returned an unexpected workflow URL."
+            exit 1
+          fi
+          comment_url="$(
+            gh api \
+              --method POST \
+              "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/comments" \
+              --field body="🤖 Started the [EAS workflow]($RUN_URL) for this request." \
+              --jq '.html_url'
+          )"
+          if [[ -z "$comment_url" ]]; then
+            echo "::error::GitHub accepted no acknowledgement comment."
+            exit 1
+          fi
+          echo "Acknowledged dispatch: $comment_url"

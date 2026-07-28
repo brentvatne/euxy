@@ -24,6 +24,12 @@ describe("PR comment response workflow", () => {
     );
     expect(dispatcher).toContain("COMMENT_ID: ${{ github.event.comment.id }}");
     expect(dispatcher).toContain("comment_id: $comment_id");
+    expect(dispatcher).toContain("permissions:\n      pull-requests: write");
+    expect(dispatcher).toContain("GH_TOKEN: ${{ github.token }}");
+    expect(dispatcher).toContain(
+      "Started the [EAS workflow]($RUN_URL) for this request.",
+    );
+    expect(dispatcher).toContain("if: github.event_name == 'issue_comment'");
   });
 
   test("passes the immutable comment id into the EAS worker", () => {
