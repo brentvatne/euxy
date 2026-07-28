@@ -2,31 +2,28 @@
  * /p?d=<payload> — the LEGACY shape, kept for links already in the wild; new
  * links use /p/<payload> (see p/[d].tsx, which renders this same screen).
  * Arrives via universal link or the euxy:// scheme. Decodes the payload
- * (untrusted — decodePattern clamps and throws), previews it, and imports on
- * confirm. Malformed links get a friendly error, never a crash.
+ * (untrusted — decodePattern clamps and throws) and adds it to the library
+ * RIGHT AWAY. Malformed links get a friendly error, never a crash.
  *
  * The route lives inside the Patterns tab (not the root Stack) so an incoming
- * link lands the sheet on the library it is about to add to — see the tab's
- * _layout.tsx. Preview auditions the incoming pattern through the engine
- * WITHOUT importing it: library, transport, and saved tempo stay untouched
- * until Add to Library (see engine.startPreview).
+ * link lands the sheet on the library it was just added to — see the tab's
+ * _layout.tsx. Following a link IS the intent to keep the pattern, so there is
+ * no confirm step: the sheet is a receipt (what arrived, and that it is saved),
+ * not a gate. The import lands as a NEW pattern and becomes the active one, so
+ * nothing in the library is overwritten.
  */
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
 import { chipForPattern } from '@/components/patterns/chips';
 import { LedChip } from '@/components/patterns/led-chip';
 import { AppText, SheetHeader } from '@/components/ui';
-import { BeatTicker } from '@/components/ui/beat-ticker';
-import { engine } from '@/core/engine';
 import { decodePattern, type SharedPattern } from '@/core/share-codec';
 import { haptics, logObserveEvent } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
-import { makeLane } from '@/state/lane';
 import { useStore } from '@/state/store';
-import type { Pattern } from '@/state/types';
 import { color, font, space } from '@/theme/tokens';
 
 export default function ImportPatternSheet() {
@@ -41,60 +38,30 @@ export default function ImportPatternSheet() {
     }
   }, [d]);
 
-  // An engine-playable pattern that never enters the library: fresh lane ids
-  // plus the mix state the codec strips (muted/solo), nothing persisted.
-  const previewPattern = useMemo<Pattern | null>(
-    () =>
-      shared
-        ? {
-            id: 'preview',
-            name: shared.name,
-            bpm: shared.bpm,
-            baseResolutionTicks: shared.baseResolutionTicks,
-            lanes: shared.lanes.map((lane) => makeLane({ ...lane })),
-            updatedAt: 0,
-            icon: shared.icon,
-          }
-        : null,
-    [shared],
-  );
-  const [previewing, setPreviewing] = useState(false);
-
   // The receiving end of the share funnel: how many links arrive, how many
-  // are damaged, how many convert to an import.
+  // are damaged.
   useMarkInteractive();
   useEffect(() => {
     if (shared) logObserveEvent('share.link_received', { attributes: { lanes: shared.lanes.length } });
     else logObserveEvent('share.link_invalid', { severity: 'warn' });
   }, [shared]);
 
-  // An audition must never outlive the sheet — Cancel, swipe-down, and Add all
-  // unmount this screen, and the engine hands the output back to the transport.
-  useEffect(() => () => engine.stopPreview(), []);
-
-  const togglePreview = () => {
-    if (!previewPattern) return;
-    haptics.impact('medium');
-    if (previewing) {
-      engine.stopPreview();
-      setPreviewing(false);
-      return;
-    }
-    engine.startPreview(previewPattern);
-    setPreviewing(true);
-    logObserveEvent('share.preview_started', {
-      attributes: { lanes: previewPattern.lanes.length },
-    });
-  };
-
-  const add = () => {
-    if (!shared) return;
-    importPattern(shared);
+  // Add on arrival, exactly once per sheet: the ref outlives an effect that
+  // re-runs (Fast Refresh, StrictMode remount), so a link is never imported
+  // twice from one open.
+  const importedId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!shared || importedId.current) return;
+    importedId.current = importPattern(shared);
     haptics.success();
     logObserveEvent('share.pattern_imported', { attributes: { lanes: shared.lanes.length } });
-    // The imported pattern is now active — land on the sequencer. Two steps:
-    // this sheet lives in the Patterns stack, so dismissing it and switching
-    // tabs are actions on two different navigators.
+  }, [importPattern, shared]);
+
+  // The import is already the active pattern — this only closes the receipt and
+  // switches tabs. Two steps: this sheet lives in the Patterns stack, so
+  // dismissing it and changing tabs are actions on two different navigators.
+  const openInSequencer = () => {
+    haptics.impact('medium');
     router.back();
     router.navigate('/(tabs)/(sequencer)');
   };
@@ -120,7 +87,7 @@ export default function ImportPatternSheet() {
   return (
     <View style={styles.root}>
       <View style={styles.grabberSpace} />
-      <SheetHeader title="Shared Pattern" onCancel={() => router.back()} />
+      <SheetHeader title="Added to Library" onDone={() => router.back()} />
       <View style={styles.content}>
         <View style={styles.identity}>
           <LedChip shades={chipForPattern({ id: 'shared', icon: shared.icon })} size={44} />
@@ -135,29 +102,14 @@ export default function ImportPatternSheet() {
           {laneNames}
         </AppText>
         <Pressable
-          onPress={togglePreview}
-          accessibilityRole="button"
-          accessibilityState={{ selected: previewing }}
-          style={({ pressed }) => [styles.key, styles.keySecondary, pressed && styles.pressed]}
-        >
-          <View style={styles.previewLabel}>
-            <AppText style={styles.keyLabel}>{previewing ? 'Stop Preview' : 'Preview'}</AppText>
-            {/* Beats read off the shared playhead — the audition stays visible
-                on a device with no MIDI output attached. */}
-            {previewing ? <BeatTicker /> : null}
-          </View>
-        </Pressable>
-        <Pressable
-          onPress={add}
+          onPress={openInSequencer}
           accessibilityRole="button"
           style={({ pressed }) => [styles.key, styles.keyPrimary, pressed && styles.pressed]}
         >
-          <AppText style={[styles.keyLabel, styles.keyLabelDark]}>Add to Library</AppText>
+          <AppText style={[styles.keyLabel, styles.keyLabelDark]}>Open in Sequencer</AppText>
         </Pressable>
         <AppText style={styles.footnote}>
-          {previewing
-            ? 'previewing only — nothing is saved until you add it'
-            : 'added as a new pattern — nothing in your library is replaced'}
+          added as a new pattern — nothing in your library is replaced
         </AppText>
       </View>
     </View>
@@ -180,11 +132,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Audition first, commit second: Preview is the muted key, Add to Library
-  // keeps the bright one (same primary/secondary pair as the Share sheet).
-  keySecondary: { backgroundColor: color.surface2, marginBottom: -6 },
+  // The receipt has one key, so it takes the bright one (same primary as the
+  // Share sheet).
   keyPrimary: { backgroundColor: color.label },
-  previewLabel: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   pressed: { transform: [{ scale: 0.97 }] },
   keyLabel: { fontFamily: font.text, fontWeight: '600', fontSize: 17, lineHeight: 22, color: color.label },
   keyLabelDark: { color: '#101014' },
