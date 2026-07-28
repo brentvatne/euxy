@@ -37,41 +37,58 @@ jobs:
 
 Use environment variables and `jq`; never interpolate event text into shell source.
 
-## EAS agent job
+## EAS agent work job
 
 ```yaml
-name: Agent task
+name: Agent work session
 
 on:
   workflow_dispatch:
     inputs:
-      issue:
+      event_name:
         type: string
+      issue_number:
+        type: string
+      issue_id:
+        type: string
+      comment_id:
+        type: string
+        default: ''
 
 jobs:
-  triage:
+  agent_work:
     environment: preview
     runs_on: linux-medium
     env:
-      AGENT_PROMPT_FILE: prompts/automation/issue-triage.md
+      REPO_SLUG: <owner>/<repo>
+      EVENT_NAME: ${{ inputs.event_name }}
+      ISSUE_NUMBER: ${{ inputs.issue_number }}
+      ISSUE_ID: ${{ inputs.issue_id }}
+      COMMENT_ID: ${{ inputs.comment_id }}
+      WORKFLOW_URL: ${{ workflow.url }}
+      AGENT_PROMPT_FILE: prompts/automation/agent-work.md
       SIMULATOR_PROMPT_FILE: prompts/automation/simulator-verification.md
       SIMULATOR_VALIDATION: '1'
-      WORKFLOW_URL: ${{ workflow.url }}
-      ISSUE_NUMBER: ${{ inputs.issue }}
+      PUBLIC_SIMULATOR_EVIDENCE: '1'
+      SIMULATOR_ARTIFACT_DIR: .eas/agent-work/sim
     steps:
       - uses: eas/checkout
       - uses: eas/install_node_modules
       - name: Install pinned agent toolchain and Expo skills
         run: bash .github/scripts/setup-agent-toolchain.sh
       - name: Run trusted wrapper
-        run: bun .eas/issue-triage/triage.ts
+        run: bun .eas/agent-work/agent-work.ts
       - name: Upload private evidence
         if: ${{ always() }}
         uses: eas/upload_artifact
         with:
           type: other
-          name: agent-evidence
-          path: .eas/issue-triage/artifacts/**/*
+          name: agent-work-summary
+          path: |
+            .eas/agent-work/ANALYSIS.md
+            .eas/agent-work/issue.json
+            .eas/agent-work/PUBLIC_FINDINGS.json
+            .eas/agent-work/sim/**/*
 ```
 
 Fetch the live schema and validate the final YAML before running it.
@@ -91,6 +108,28 @@ const agentEnv = {
 ```
 
 Do not spread `process.env`. Add `EXPO_TOKEN` only after the event is trusted and simulator availability has been confirmed. Keep `GH_TOKEN` out of the agent environment.
+
+Build the Claude command in one shared helper and pin the model explicitly:
+
+```ts
+const CLAUDE_AGENT_MODEL = "claude-opus-5";
+
+const command = [
+  ...claudeCommand,
+  "-p",
+  prompt,
+  "--model",
+  CLAUDE_AGENT_MODEL,
+  "--permission-mode",
+  permissionMode,
+  "--output-format",
+  "stream-json",
+  "--verbose",
+];
+```
+
+Render only sanitized progress events and a heartbeat. Never stream raw model
+text, prompts, tool arguments/results, or stderr into public workflow logs.
 
 ## Durable issue and PR linkage
 
@@ -119,10 +158,38 @@ Use `Re: #123` only for analysis-only PRs that should not close the tracking iss
 
 Update only the managed workflow block when retrying. On a 422 from PR creation, query open PRs for the exact owner/head branch and reuse the matching PR.
 
+## Fresh agent work session
+
+Treat `@<bot> try this again from scratch` as a distinct follow-up command that
+still requires the earlier exact acceptance on the same issue. Use full comment
+history only inside the trusted authorization check. Give the agent the latest
+maintainer context and current report title/body, but omit earlier bot comments,
+findings, analyses, artifacts, branches, and PR conclusions.
+
+## Per-PR EAS Update publication
+
+Use a wrapper-owned PR-body marker to persist a readable per-PR channel ending
+in `-p<number>`. Reuse it for later publications. Exhaust the channel list up
+to a hard cap before allocating and fail closed on malformed or truncated
+inventory.
+
+The metadata sequence is:
+
+1. write `publishing` metadata best-effort;
+2. run `eas update --channel <channel> --environment preview --json
+   --non-interactive`;
+3. fail the workflow when the Update command fails; and
+4. write final `published` or `failed` metadata best-effort.
+
+Log bounded HTTP status/body diagnostics for metadata warnings. A successful
+Update remains successful if only final PR metadata is stale or unavailable.
+PR creation can precede Update completion, so inspect final job status and logs
+before diagnosing a missing publication.
+
 ## Human approval for external TestFlight feedback
 
 Create a useful intake issue for every report, but distinguish intake authority
-from remediation authority:
+from agent-work authority:
 
 ```text
 TestFlight event
@@ -175,7 +242,9 @@ The wrapper should:
 1. run `eas simulator:availability --json`;
 2. create a dedicated session file;
 3. provide the EAS Simulator skill and a strict duration cap to the agent;
-4. save screenshots/recordings to a private artifact directory;
+4. start with `--type agent-device`, drive the session through
+   `eas simulator:exec agent-device ...`, and save screenshots/recordings to a
+   private artifact directory;
 5. for animation, gesture, transition, or timing issues, extract and inspect the
    native ordered frames around the defect and record the relevant frame
    numbers or timestamps;
@@ -183,6 +252,8 @@ The wrapper should:
 7. redact `EXPO_TOKEN` from all captured output.
 
 Use a unique temporary directory under the runner-provided temp base. Do not assume a fixed shared `/tmp` path or place session credentials in a publishable directory.
+Install pinned `ffmpeg`/`ffprobe` on the workflow worker, not inside the remote
+simulator. Do not use Argent for these workflows.
 Keep extracted frame sequences private. A public evidence publisher may expose
 only explicitly selected files that pass the same validation and independent
 readback checks as other simulator evidence.

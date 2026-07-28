@@ -14,11 +14,14 @@
 - [ ] Exhaust paginated comment/review history up to a hard cap, then fail
       closed rather than authorizing or selecting context from a truncated list.
 - [ ] Cap autonomous retry and review-response loops.
-- [ ] For external feedback, create the issue but stop before remediation until
+- [ ] For external feedback, create the issue but stop before agent work until
       an allowlisted maintainer authors the exact bot-addressed approval command.
 - [ ] Validate the immutable comment-author login and exact command in both the
       GitHub trigger and the runner; do not authorize based on text that merely
       claims to come from a maintainer.
+- [ ] For a from-scratch retry, use prior comments only to prove authorization;
+      withhold earlier bot work, workflow analyses, artifacts, branches, and PR
+      conclusions from the new agent context.
 
 ## Credentials
 
@@ -41,6 +44,10 @@
 
 - [ ] Pin Actions by immutable commit SHA.
 - [ ] Pin CLIs, runtimes, and plugins by exact versions.
+- [ ] Pass an explicit pinned model to headless agent commands; do not inherit a
+      mutable CLI default.
+- [ ] Pin and verify `agent-device`, `ffmpeg`, and `ffprobe` for simulator video
+      evidence; do not install replacements during the agent run or use Argent.
 - [ ] Pin remote skill/plugin repositories by commit and verify the checked-out SHA.
 - [ ] Assert required skill files exist before starting the agent.
 - [ ] Protect `.github/workflows/`, agent scripts, `.eas/`, automation prompts, and review configuration from agent-authored diffs.
@@ -78,6 +85,10 @@
 - [ ] Create/find the tracking issue before the PR.
 - [ ] Link the issue to the active workflow and the PR back to the issue.
 - [ ] Handle GitHub 422 idempotently by finding an existing open PR for the same head.
+- [ ] Treat preview metadata writes/readback as warnings when publication can
+      proceed safely, but treat a failed `eas update` command as fatal.
+- [ ] Do not call an Update missing while its workflow is still running; inspect
+      final job status and the publication log line.
 - [ ] Treat a returned 201 as provisional.
 - [ ] Independently fetch the created resource before announcing success.
 - [ ] For public repos, verify without credentials; for private repos, verify with a distinct read-only identity.

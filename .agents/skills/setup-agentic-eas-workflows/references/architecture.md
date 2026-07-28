@@ -19,7 +19,7 @@ Deterministic wrapper ---- fetches/redacts context; owns secrets and writes
 Protected-path check ---- rejects automation/prompt/credential changes
         |
         v
-Issue -> workflow link -> branch -> PR (`Closes #N` for fixes) -> independent readback
+Agent work session -> workflow link -> branch -> PR -> Update/evidence -> independent readback
 ```
 
 The agent is a proposal engine, not the security boundary. The wrapper decides what context the agent sees, which edits may be published, and whether verification is sufficient.
@@ -31,7 +31,7 @@ The agent is a proposal engine, not the security boundary. The wrapper decides w
 | App Store Connect crash or screenshot feedback | EAS Workflow | Native event context and EAS environment secrets |
 | Push, PR, schedule, or manual run supported by EAS | EAS Workflow | Fewer cross-system credentials |
 | GitHub review `changes_requested` | Thin GitHub Action -> EAS dispatch | GitHub provides the event; agent and write credentials remain on EAS |
-| GitHub issue/comment with built-in token sufficient | GitHub Actions or thin dispatch | Built-in token can isolate writes to the repository |
+| GitHub issue/comment starting a code-writing agent | Thin GitHub Action -> EAS dispatch | GitHub supplies the event; EAS keeps agent, simulator, Update, and GitHub write credentials together |
 | Untrusted fork PR | Trusted base workflow only | Never execute or expose secrets to fork code |
 
 ## Thin GitHub dispatcher
@@ -44,12 +44,14 @@ A dispatcher should:
 - dispatch a trusted EAS `gitRef`, normally the base SHA;
 - hold only an Expo dispatch token;
 - never run the coding agent or receive the agent's GitHub write token.
+- use a second least-privilege job to acknowledge long-running commands with the
+  returned EAS workflow URL.
 
 ## Credential placement
 
 | Credential | Store | Expose to |
 | --- | --- | --- |
-| Claude/Codex subscription credential | EAS or GitHub secret for the chosen worker | Agent subprocess only |
+| Claude/Codex subscription credential | EAS secret for the chosen worker | Agent subprocess only, with an explicit pinned model |
 | Robot `EXPO_TOKEN` | EAS environment secret; GitHub secret only for GitHub-hosted workers | Simulator wrapper, then agent only after the trust gate |
 | GitHub write PAT | EAS environment secret | Deterministic GitHub wrapper, never the agent |
 | GitHub Actions `GITHUB_TOKEN` | Ephemeral built-in | Deterministic wrapper; scope with workflow `permissions` |
