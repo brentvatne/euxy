@@ -56,3 +56,37 @@ example
 # This file REPLACES .gitignore for EAS uploads (and is the only filter under
 # EAS_NO_VCS). Keep it a superset of .gitignore's sensitive entries.
 .git
+
+# Agent tooling and scratch dirs. In .gitignore but had drifted out of here,
+# so they were being uploaded — verified with `eas build:inspect --stage
+# archive`.
+.agents/
+.codex/
+.claude/
+.expo-code-review/
+prompts/
+SETUP-TRACING.md
+
+# Triage artifacts the automation generates at runtime. These can carry
+# customer crash and feedback content, so they must never reach a builder.
+.eas/crash-triage/crash.json
+.eas/crash-triage/ANALYSIS.md
+.eas/feedback-triage/feedback.json
+.eas/feedback-triage/ANALYSIS.md
+.eas/feedback-triage/PUBLIC_REPORT.json
+.eas/feedback-triage/PUBLIC_PR.json
+.eas/issue-triage/issue.json
+.eas/issue-triage/ANALYSIS.md
+.eas/issue-triage/PUBLIC_FINDINGS.json
+.eas/issue-triage/sim/
+.eas/pr-review/feedback.md
+.eas/pr-review/RESPONSE.md
+.eas/pr-review/ACTIONS.json
+.eas/public-evidence-site/dist/
+.github/pr-review/
+
+# Not needed to build the native app, and together ~80% of the archive.
+# docs/design alone is 6.1M of design exports; web/ is the standalone
+# euxy-web marketing package (no workspaces, unreferenced from src/).
+docs/
+web/
