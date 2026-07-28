@@ -5,7 +5,8 @@ accepted it for triage, so it's worth acting on.
 ## What you have
 - `.eas/issue-triage/issue.json` — the issue (title, body, url, author, how it
   was triggered, and the current maintainer instruction from an acceptance or
-  authorized follow-up comment).
+  authorized follow-up comment). Its `investigationMode` is either `default`
+  or `fresh`.
 - The full repo at the current working directory.
 - The Expo skills (expo-router, expo-module, etc.) — consult them when relevant.
 
@@ -13,6 +14,13 @@ accepted it for triage, so it's worth acting on.
 1. Read `.eas/issue-triage/issue.json`. Understand what's being asked — a bug,
    a feature, a change. If there's `acceptContext`, treat it as the maintainer's
    extra guidance and weight it heavily.
+   If `investigationMode` is `fresh`, investigate independently from the
+   current repository state and the issue title/body. The trusted wrapper has
+   intentionally withheld all earlier issue comments, bot findings, workflow
+   analyses, automation artifacts, triage branches, and pull-request
+   conclusions. Do not look them up or reuse their conclusions. Use only the
+   current maintainer guidance in `acceptContext`; reproduce or reason through
+   the problem again from first principles.
 2. Investigate the codebase for the relevant area(s).
 3. The wrapper starts a comment-triggered run only after a fresh
    `@notbrent accept` or a later `@notbrent …` follow-up on an issue the

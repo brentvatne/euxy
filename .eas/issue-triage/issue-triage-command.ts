@@ -3,6 +3,10 @@ export const ISSUE_TRIAGE_COMMAND = `@${ISSUE_TRIAGE_BOT_LOGIN} accept`;
 export const ISSUE_TRIAGE_APPROVER = "brentvatne";
 
 export type IssueTriageEventName = "issues" | "issue_comment";
+export type IssueTriageInvestigationMode = "default" | "fresh";
+
+const TRIAGE_WORKFLOW_BLOCK =
+  /<!-- euxy-triage-workflow:start -->[\s\S]*?<!-- euxy-triage-workflow:end -->/g;
 
 export function isIssueTriageActorAuthorized({
   eventName,
@@ -37,6 +41,29 @@ export function parseIssueTriageFollowUp(comment: string): string | null {
   if (!match) return null;
   const instruction = match[1].trim();
   return instruction || null;
+}
+
+export function parseFreshIssueTriageFollowUp(
+  comment: string
+): string | null {
+  const match = comment
+    .trim()
+    .match(
+      /^@notbrent(?:[ \t]*[,:-])?[ \t]+(?:try(?:[ \t]+this)?[ \t]+again[ \t]+from[ \t]+scratch|retry[ \t]+from[ \t]+scratch|start[ \t]+over)(?:[.:,-])?(?:\s+([\s\S]*))?$/i
+    );
+  if (!match) return null;
+  return (match[1] || "").trim();
+}
+
+export function issueBodyForInvestigation(
+  body: string,
+  mode: IssueTriageInvestigationMode
+): string {
+  if (mode !== "fresh") return body;
+  return body
+    .replace(TRIAGE_WORKFLOW_BLOCK, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 type GitHubIssue = {
@@ -81,6 +108,7 @@ export function validateIssueTriageDispatch({
 }): {
   acceptContext: string;
   actor: string;
+  investigationMode: IssueTriageInvestigationMode;
   triggeredBy: string;
 } {
   if (eventName !== "issues" && eventName !== "issue_comment") {
@@ -114,6 +142,7 @@ export function validateIssueTriageDispatch({
     return {
       acceptContext: "",
       actor: issueAuthor,
+      investigationMode: "default",
       triggeredBy: `opened by ${issueAuthor}`,
     };
   }
@@ -149,10 +178,12 @@ export function validateIssueTriageDispatch({
     return {
       acceptContext,
       actor: commentAuthor,
+      investigationMode: "default",
       triggeredBy: `@notbrent accept by ${commentAuthor}`,
     };
   }
 
+  const freshContext = parseFreshIssueTriageFollowUp(commandBody);
   const followUpContext = parseIssueTriageFollowUp(commandBody);
   if (followUpContext === null) {
     throw new Error("The fetched GitHub comment is not a valid @notbrent instruction.");
@@ -180,8 +211,12 @@ export function validateIssueTriageDispatch({
   }
 
   return {
-    acceptContext: followUpContext,
+    acceptContext: freshContext ?? followUpContext,
     actor: commentAuthor,
-    triggeredBy: `@notbrent follow-up by ${commentAuthor}`,
+    investigationMode: freshContext === null ? "default" : "fresh",
+    triggeredBy:
+      freshContext === null
+        ? `@notbrent follow-up by ${commentAuthor}`
+        : `@notbrent fresh investigation by ${commentAuthor}`,
   };
 }

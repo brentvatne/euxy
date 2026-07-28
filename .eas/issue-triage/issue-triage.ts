@@ -32,6 +32,7 @@ import { runClaudeAgent } from "../shared/claude-agent";
 import { publishPullRequestUpdate } from "../shared/pr-update-preview";
 import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
 import {
+  issueBodyForInvestigation,
   parseIssueTriageCommand,
   validateIssueTriageDispatch,
 } from "./issue-triage-command";
@@ -190,17 +191,26 @@ if (eventName === "issue_comment") {
 }
 
 // ---- assemble the issue context ----
+// Comment history is used only by the trusted wrapper to prove earlier
+// acceptance. Never serialize it into the agent context: a fresh investigation
+// must not inherit prior bot findings or maintainer discussion.
 const issue = {
   number: parsedIssueNumber,
   title: fetchedIssue.title || "",
-  body: fetchedIssue.body || "",
+  body: issueBodyForInvestigation(
+    fetchedIssue.body || "",
+    dispatch.investigationMode
+  ),
   url: fetchedIssue.html_url!,
   author: fetchedIssue.user?.login || "",
   triggeredBy: dispatch.triggeredBy,
   acceptContext: dispatch.acceptContext,
+  investigationMode: dispatch.investigationMode,
 };
 await Bun.write(ISSUE_JSON, JSON.stringify(issue, null, 2));
-console.log(`▸ Triaging issue #${issue.number} (${issue.triggeredBy}): ${issue.title}`);
+console.log(
+  `▸ Triaging issue #${issue.number} (${issue.triggeredBy}, ${issue.investigationMode} investigation): ${issue.title}`
+);
 
 // ---- run the agent ----
 const simValidation = await prepareAgentSimulator({ env });

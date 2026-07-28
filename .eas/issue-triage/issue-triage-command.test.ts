@@ -5,6 +5,8 @@ import {
   ISSUE_TRIAGE_BOT_LOGIN,
   ISSUE_TRIAGE_COMMAND,
   isIssueTriageActorAuthorized,
+  issueBodyForInvestigation,
+  parseFreshIssueTriageFollowUp,
   parseIssueTriageCommand,
   parseIssueTriageFollowUp,
   validateIssueTriageDispatch,
@@ -85,6 +87,61 @@ describe("issue triage approval comments", () => {
     expect(parseIssueTriageFollowUp("@euxy-bot do this")).toBeNull();
   });
 
+  test("parses an explicit fresh-investigation follow-up", () => {
+    expect(
+      parseFreshIssueTriageFollowUp(
+        "@notbrent try this again from scratch"
+      )
+    ).toBe("");
+    expect(
+      parseFreshIssueTriageFollowUp(
+        "@notbrent try again from scratch: focus on the sweep bounds"
+      )
+    ).toBe("focus on the sweep bounds");
+    expect(
+      parseFreshIssueTriageFollowUp(
+        "@notbrent retry from scratch, reproduce it before editing"
+      )
+    ).toBe("reproduce it before editing");
+    expect(
+      parseFreshIssueTriageFollowUp(
+        "@notbrent start over\nDo not change the interaction design."
+      )
+    ).toBe("Do not change the interaction design.");
+    expect(
+      parseFreshIssueTriageFollowUp("@notbrent try this again")
+    ).toBeNull();
+    expect(
+      parseFreshIssueTriageFollowUp(
+        "please @notbrent try this again from scratch"
+      )
+    ).toBeNull();
+  });
+
+  test("removes only wrapper-owned workflow history from a fresh issue body", () => {
+    const body = [
+      "The sweep is wider than the lane.",
+      "",
+      "<!-- euxy-triage-workflow:start -->",
+      "## Automation",
+      "",
+      "- EAS workflow: https://expo.dev/previous-run",
+      "- Status: triage complete",
+      "<!-- euxy-triage-workflow:end -->",
+      "",
+      "Keep this user-authored reproduction detail.",
+    ].join("\n");
+
+    expect(issueBodyForInvestigation(body, "default")).toBe(body);
+    expect(issueBodyForInvestigation(body, "fresh")).toBe(
+      [
+        "The sweep is wider than the lane.",
+        "",
+        "Keep this user-authored reproduction detail.",
+      ].join("\n")
+    );
+  });
+
   test("validates an immutable issue-open dispatch", () => {
     expect(
       validateIssueTriageDispatch({
@@ -106,6 +163,7 @@ describe("issue triage approval comments", () => {
     ).toEqual({
       acceptContext: "",
       actor: "brentvatne",
+      investigationMode: "default",
       triggeredBy: "opened by brentvatne",
     });
   });
@@ -138,6 +196,7 @@ describe("issue triage approval comments", () => {
     ).toEqual({
       acceptContext: "verify the existing Pressable usage",
       actor: "brentvatne",
+      investigationMode: "default",
       triggeredBy: "@notbrent accept by brentvatne",
     });
   });
@@ -208,7 +267,64 @@ describe("issue triage approval comments", () => {
     ).toEqual({
       acceptContext: "actually keep Pressable and add a regression test",
       actor: "brentvatne",
+      investigationMode: "default",
       triggeredBy: "@notbrent follow-up by brentvatne",
+    });
+  });
+
+  test("starts fresh without carrying prior investigation comments into context", () => {
+    expect(
+      validateIssueTriageDispatch({
+        eventName: "issue_comment",
+        owner: "brentvatne",
+        repo: "euxy",
+        expectedIssueId: "9001",
+        expectedIssueNumber: 34,
+        expectedCommentId: "7004",
+        issueAuthorAllowlist: [],
+        issue: {
+          id: 9001,
+          number: 34,
+          html_url: "https://github.com/brentvatne/euxy/issues/34",
+          user: { login: "notbrent" },
+        },
+        comment: {
+          id: 7004,
+          issue_url: "https://api.github.com/repos/brentvatne/euxy/issues/34",
+          user: { login: "brentvatne" },
+          body:
+            "@notbrent try this again from scratch: reproduce it before editing",
+        },
+        issueComments: [
+          {
+            id: 7001,
+            issue_url:
+              "https://api.github.com/repos/brentvatne/euxy/issues/34",
+            user: { login: "brentvatne" },
+            body: "@notbrent accept",
+          },
+          {
+            id: 7002,
+            issue_url:
+              "https://api.github.com/repos/brentvatne/euxy/issues/34",
+            user: { login: "notbrent" },
+            body:
+              "Prior bot investigation concluded that no code change was needed.",
+          },
+          {
+            id: 7003,
+            issue_url:
+              "https://api.github.com/repos/brentvatne/euxy/issues/34",
+            user: { login: "brentvatne" },
+            body: "@notbrent use the prior bot conclusion",
+          },
+        ],
+      })
+    ).toEqual({
+      acceptContext: "reproduce it before editing",
+      actor: "brentvatne",
+      investigationMode: "fresh",
+      triggeredBy: "@notbrent fresh investigation by brentvatne",
     });
   });
 
@@ -244,6 +360,15 @@ describe("issue triage approval comments", () => {
     expect(() => validateIssueTriageDispatch(base)).toThrow(
       "requires an earlier @notbrent accept from brentvatne on this issue"
     );
+    expect(() =>
+      validateIssueTriageDispatch({
+        ...base,
+        comment: {
+          ...base.comment,
+          body: "@notbrent try this again from scratch",
+        },
+      })
+    ).toThrow("requires an earlier @notbrent accept");
     expect(() =>
       validateIssueTriageDispatch({
         ...base,

@@ -50,6 +50,24 @@ may contain direct follow-up instructions without repeating `accept`:
 @notbrent: investigate this, but do not change code yet
 ```
 
+To discard earlier bot investigations and make a new independent attempt:
+
+```text
+@notbrent try this again from scratch
+```
+
+Optional guidance may follow the command:
+
+```text
+@notbrent try this again from scratch: reproduce the animation before editing
+```
+
+`retry from scratch` and `start over` are accepted aliases. The earlier
+`@notbrent accept` remains the issue-scoped authorization check, but prior bot
+comments, findings, workflow analyses, automation artifacts, triage branches,
+and pull-request conclusions are not included as agent context. The fresh run
+starts from the current trusted repository state and the issue title/body.
+
 The initial form must be `@notbrent accept …`; `@notbrent: accept` does not
 count as an acceptance. A follow-up still requires an earlier acceptance on the
 same issue, even when the issue previously ran automatically after being opened

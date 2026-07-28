@@ -75,6 +75,26 @@ describe("issue triage execution boundary", () => {
     expect(prompt).toContain(".eas/issue-triage/PUBLIC_FINDINGS.json");
   });
 
+  test("keeps fresh investigations independent from earlier bot work", () => {
+    const agentContextBlock = runner.slice(
+      runner.indexOf("const issue = {"),
+      runner.indexOf("await Bun.write(ISSUE_JSON")
+    );
+
+    expect(agentContextBlock).toContain(
+      "investigationMode: dispatch.investigationMode",
+    );
+    expect(agentContextBlock).toContain("issueBodyForInvestigation(");
+    expect(agentContextBlock).not.toContain("issueComments");
+    expect(prompt).toContain("If `investigationMode` is `fresh`");
+    expect(prompt).toContain(
+      "intentionally withheld all earlier issue comments, bot findings",
+    );
+    expect(prompt).toContain(
+      "the problem again from first principles",
+    );
+  });
+
   test("keeps generated PR approaches concise and expandable", () => {
     expect(prompt).toContain("clickable `<summary>` label itself");
     expect(prompt).toContain("<details>");
