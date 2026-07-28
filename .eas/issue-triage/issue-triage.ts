@@ -349,7 +349,7 @@ const linkLine = codeChanged ? `Closes #${issue.number}` : `Re: #${issue.number}
 const evidenceSection = publicEvidence
   ? `\n\n${renderPublicSimulatorEvidence(publicEvidence)}`
   : "";
-const body = `${linkLine} — 🔗 ${issue.url}\n_Triggered: ${issue.triggeredBy}._${issue.acceptContext ? `\n_Maintainer context: ${issue.acceptContext}_` : ""}\n\n${await Bun.file(ANALYSIS).text()}${evidenceSection}`;
+const body = `${linkLine}\n_Triggered: ${issue.triggeredBy}._${issue.acceptContext ? `\n_Maintainer context: ${issue.acceptContext}_` : ""}\n\n${await Bun.file(ANALYSIS).text()}${evidenceSection}`;
 
 const pullRequest = await createOrFindPullRequest({
   gh,

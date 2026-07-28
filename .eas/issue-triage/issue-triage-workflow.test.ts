@@ -97,5 +97,8 @@ describe("issue triage execution boundary", () => {
       "Do not duplicate technical"
     );
     expect(prompt).toContain("detail outside the expandable Approach blocks.");
+    expect(prompt).not.toContain("**Issue reference**");
+    expect(runner).toContain("const body = `${linkLine}\\n");
+    expect(runner).not.toContain("`${linkLine} — 🔗 ${issue.url}");
   });
 });

@@ -420,7 +420,7 @@ const evidenceSection = publicEvidence
   ? `\n\n${renderPublicSimulatorEvidence(publicEvidence)}`
   : "";
 const body =
-  `${linkLine} — ${triageIssue!.htmlUrl}\n\n` +
+  `${linkLine}\n\n` +
   `Automated triage of private TestFlight feedback.\n\n` +
   `## What changed\n\n${publicPr.whatChanged}\n\n` +
   `## Why\n\n${publicPr.why}\n\n` +

@@ -459,7 +459,7 @@ const evidenceSection = publicEvidence
   ? `\n\n${renderPublicSimulatorEvidence(publicEvidence)}`
   : "";
 const body =
-  `${linkLine} — ${triageIssue!.htmlUrl}\n\n` +
+  `${linkLine}\n\n` +
   `Automated triage of private TestFlight crash feedback \`${feedbackId || shortId}\`.\n\n` +
   `Tester identity, App Store Connect URLs, crash logs, device details, simulator session URLs, and the analysis are intentionally omitted from this public PR. Review the private \`crash-triage-summary\` workflow artifact for those details.` +
   evidenceSection +

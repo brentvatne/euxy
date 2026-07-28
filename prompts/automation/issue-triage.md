@@ -47,7 +47,6 @@ accepted it for triage, so it's worth acting on.
      change — needs a decision/discussion," then put the specific reason and
      open questions in its Details block.
    - **How to verify** — concrete steps to check the change.
-   - **Issue reference** — echo the issue number + url from issue.json.
 5. If you make no code change, also write
    `.eas/issue-triage/PUBLIC_FINDINGS.json`:
    ```json
