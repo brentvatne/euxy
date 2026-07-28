@@ -409,12 +409,20 @@ if ! (exec 3<>"/dev/tcp/${MCP_HOST}/${MCP_PORT}") 2>/dev/null; then
   exit 0
 fi
 
-curl -sS -m 30 -D "${OUT}/mcp-init.headers" -o "${OUT}/mcp-init.body" \
-  -X POST "${MCP_URL}" \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"eas-paper-probe","version":"0.1.0"}}}' \
-  2>"${OUT}/mcp-init.err"
+# Retried, mirroring start-paper.sh: the port binds before the document is
+# usable, so a single attempt can catch a transient 500 and make the probe report
+# a failure the production path would have waited out.
+for attempt in $(seq 1 10); do
+  curl -sS -m 30 -D "${OUT}/mcp-init.headers" -o "${OUT}/mcp-init.body" \
+    -X POST "${MCP_URL}" \
+    -H 'Content-Type: application/json' \
+    -H 'Accept: application/json, text/event-stream' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"eas-paper-probe","version":"0.1.0"}}}' \
+    2>"${OUT}/mcp-init.err"
+  grep -qi '^mcp-session-id:' "${OUT}/mcp-init.headers" 2>/dev/null && break
+  [ "${attempt}" -lt 10 ] && say "- attempt ${attempt}: no session yet, retrying in 6s"
+  sleep 6
+done
 
 say "- initialize HTTP status: \`$(awk 'tolower($1) ~ /^http/ {code=$2} END {print code}' "${OUT}/mcp-init.headers" 2>/dev/null || echo none)\`"
 

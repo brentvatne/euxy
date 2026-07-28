@@ -94,7 +94,7 @@ jobs:
     steps:
       - uses: eas/checkout
       - name: Start Paper
-        run: bash .claude/skills/paper-mcp-in-eas-workflows/scripts/start-paper.sh
+        run: bash .eas/paper/start-paper.sh   # NOT from .claude/ — see below
       - name: Run the agent
         run: |
           cat > /tmp/paper-mcp.json <<'JSON'
@@ -110,6 +110,21 @@ jobs:
 repo. `start-paper.sh` leaves Paper running in the background for later steps and
 **exits non-zero if the handshake fails**, so a broken server never reaches the
 agent.
+
+### The runner scripts cannot live in `.claude/`
+
+**Put `start-paper.sh`, `decode-session.sh`, and `cdp.mjs` somewhere the EAS
+project archive actually includes** — this repo uses `.eas/paper/`.
+
+`eas workflow:run` uploads a project archive that respects `.easignore`, and
+`.claude/` is commonly listed there (agent tooling is not build input). The
+failure is a bare `bash: .../start-paper.sh: No such file or directory` at step
+start, which reads like a path typo rather than an exclusion. Check `.easignore`
+before debugging the path. Files being committed does not help — the exclusion is
+by path, not by tracked status.
+
+Keep the skill's copies as the portable reference, and copy them to an included
+directory for CI use.
 
 ### Security constraints on that job
 

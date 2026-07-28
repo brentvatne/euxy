@@ -8,34 +8,47 @@ Refresh the Paper session secret that `.eas/workflows/*` uses to bring up Paper
 MCP on a Linux runner. Background and gotchas: the `paper-mcp-in-eas-workflows`
 skill.
 
-Target environments: `$ARGUMENTS` (default `preview` when empty).
+Requested environments: `$ARGUMENTS` (treat empty as `preview`).
 
 ## Do this
 
-1. Run the refresh:
+1. **Validate the arguments before building any command.** Accept only the exact
+   words `production`, `preview`, or `development`, separated by whitespace. Do
+   not pass `$ARGUMENTS` through to a shell — it is untrusted text, and shell
+   metacharacters in it would otherwise run as commands alongside a script that
+   handles a live credential. If anything else appears, stop and tell the user
+   which token you rejected.
+
+2. Run the refresh with the validated names as literal arguments — for example,
+   for `preview production`:
 
    ```bash
-   bash .claude/skills/paper-mcp-in-eas-workflows/scripts/refresh-token.sh $ARGUMENTS
+   bash .claude/skills/paper-mcp-in-eas-workflows/scripts/refresh-token.sh preview production
    ```
 
-2. **If it stops because Paper is running without a DevTools port**, do not
+   The script re-checks the names against the same allowlist and refuses
+   anything else, but that is a backstop, not a substitute for step 1.
+
+3. **If it stops because Paper is running without a DevTools port**, do not
    restart Paper yourself. Tell the user their Paper needs to restart — Electron's
    single-instance lock means the flag is dropped otherwise — and offer the
    opt-in:
 
    ```bash
-   PAPER_ALLOW_RESTART=1 bash .claude/skills/paper-mcp-in-eas-workflows/scripts/refresh-token.sh $ARGUMENTS
+   PAPER_ALLOW_RESTART=1 bash .claude/skills/paper-mcp-in-eas-workflows/scripts/refresh-token.sh preview
    ```
+
+   (substituting the validated environment names)
 
    Wait for them to choose. Restarting someone's editor is their call, and it
    reopens whatever file was last open.
 
-3. **If it stops because no document is open**, ask the user to open the file the
+4. **If it stops because no document is open**, ask the user to open the file the
    runner should see, then re-run. The capture records that file's URL, and the
    MCP server returns HTTP 500 `Could not find Paper. Is it running?` without a
    document.
 
-4. Report the new expiry date the script prints, and how many days that is.
+5. Report the new expiry date the script prints, and how many days that is.
 
 ## Then tell the user
 

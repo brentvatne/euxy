@@ -2,7 +2,7 @@
 #
 # Capture the local Paper session for the EAS probe, on your Mac:
 #
-#   bash .eas/paper-probe/capture-session.sh
+#   bash .claude/skills/paper-mcp-in-eas-workflows/scripts/capture-session.sh
 #
 # Rather than copying the Electron profile (~292 KB, and its cookie values are
 # encrypted with a macOS Keychain key that a Linux runner cannot derive), this

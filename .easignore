@@ -68,9 +68,21 @@ example
 .agents/
 .argent/
 .codex/
-.claude/
 .expo-code-review/
 SETUP-TRACING.md
+
+# `.claude/` is filtered selectively rather than wholesale: workflows execute
+# scripts from `.claude/skills/*/scripts/`, and a blanket exclusion made those
+# vanish from the archive with only a bare "No such file or directory" at step
+# start — which reads like a path typo, not an exclusion.
+#
+# Excluded because it is local-only or has no use on a builder:
+.claude/settings.local.json
+.claude/commands/
+
+# `prompts/` is NOT excluded. The automation reads its agent prompts from there
+# at runtime (see .eas/agent-work/agent-work.ts), so excluding it made every
+# prompt-driven workflow fail with ENOENT on the prompt file.
 
 # Triage artifacts the automation generates at runtime. These can carry
 # customer crash and feedback content, so they must never reach a builder.
@@ -99,7 +111,12 @@ SETUP-TRACING.md
 .github/pr-review/
 
 # Not needed to build the native app, and together ~80% of the archive.
-# docs/design alone is 6.1M of design exports; web/ is the standalone
-# euxy-web marketing package (no workspaces, unreferenced from src/).
-docs/
+# web/ is the standalone euxy-web marketing package (no workspaces,
+# unreferenced from src/).
 web/
+
+# Only the heavy part of docs/ is excluded. docs/design/screenshots is 6.0M of
+# the 6.2M; the markdown is 180K and the design agent reads it at runtime to
+# ground itself in the visual language, so excluding docs/ wholesale left it
+# designing from source files alone.
+docs/design/screenshots/

@@ -19,6 +19,19 @@ readonly HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENVIRONMENTS=("$@")
 [ "${#ENVIRONMENTS[@]}" -gt 0 ] || ENVIRONMENTS=(preview)
 
+# Strict allowlist. These names reach `eas env:set`, and this script handles a
+# live credential, so anything unexpected is refused rather than passed through.
+for env_name in "${ENVIRONMENTS[@]}"; do
+  case "${env_name}" in
+  production | preview | development) ;;
+  *)
+    echo "Refusing unknown environment '${env_name}'." >&2
+    echo 'Expected one of: production, preview, development.' >&2
+    exit 1
+    ;;
+  esac
+done
+
 readonly DIR="$(mktemp -d "${TMPDIR:-/tmp}/paper-refresh.XXXXXX")"
 # The captured session is a live credential. Remove it on every exit path.
 cleanup() { rm -rf "${DIR}"; }

@@ -9,7 +9,7 @@
 #   eas workflow:run .eas/workflows/paper-mcp-probe.yml -F skip_credentials=1
 #
 # Optional secrets in the `preview` environment, created by
-# .eas/paper-probe/capture-session.sh — the probe runs without them and simply
+# .claude/skills/paper-mcp-in-eas-workflows/scripts/capture-session.sh — the probe runs without them and simply
 # reports on the signed-out case:
 #
 #   PAPER_SESSION_FILE  a file-type secret holding the captured session JSON
@@ -48,7 +48,13 @@ jobs:
       - name: Probe
         run: |
           if [ "${SKIP_CREDENTIALS}" != '0' ]; then
-            unset PAPER_SESSION_FILE PAPER_SESSION_B64
+            # Every supported shape, including the chunked names an older
+            # capture may have left behind — a single leftover chunk would let
+            # checked-out code reconstruct the session.
+            unset PAPER_SESSION_FILE PAPER_SESSION_B64 \
+              PAPER_SESSION_B64_1 PAPER_SESSION_B64_2 PAPER_SESSION_B64_3 \
+              PAPER_SESSION_B64_4 PAPER_SESSION_B64_5 PAPER_SESSION_B64_6 \
+              PAPER_SESSION_B64_7 PAPER_SESSION_B64_8 PAPER_SESSION_B64_9
           fi
           bash .eas/paper-probe/probe.sh
       - name: Upload probe report
@@ -77,7 +83,13 @@ jobs:
       - name: Probe
         run: |
           if [ "${SKIP_CREDENTIALS}" != '0' ]; then
-            unset PAPER_SESSION_FILE PAPER_SESSION_B64
+            # Every supported shape, including the chunked names an older
+            # capture may have left behind — a single leftover chunk would let
+            # checked-out code reconstruct the session.
+            unset PAPER_SESSION_FILE PAPER_SESSION_B64 \
+              PAPER_SESSION_B64_1 PAPER_SESSION_B64_2 PAPER_SESSION_B64_3 \
+              PAPER_SESSION_B64_4 PAPER_SESSION_B64_5 PAPER_SESSION_B64_6 \
+              PAPER_SESSION_B64_7 PAPER_SESSION_B64_8 PAPER_SESSION_B64_9
           fi
           bash .eas/paper-probe/probe.sh
       - name: Upload probe report
