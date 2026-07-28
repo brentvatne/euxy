@@ -93,7 +93,7 @@ function bootTypeOnOrder(shades: string): (number | null)[] {
 export function BootSplash() {
   const [done, setDone] = useState(false);
   const reduceMotion = useReducedMotion();
-  const glyph = useMemo(bootGlyph, []);
+  const glyph = useMemo(() => bootGlyph(), []);
   const order = useMemo(() => bootTypeOnOrder(glyph), [glyph]);
   const progress = useSharedValue(0);
   const opacity = useSharedValue(1);

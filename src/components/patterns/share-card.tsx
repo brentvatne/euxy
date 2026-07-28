@@ -153,11 +153,19 @@ export function ShareCard({
   const qrChipXY = (QR_PANEL - qrChipSize) / 2;
 
   // --- lane grid ----------------------------------------------------------
-  let laneY = gridY;
-  const laneRows = pattern.lanes.map((lane, li) => {
-    const rowY = laneY;
+  // Each lane's Y is the running sum of the heights above it. Precomputed into
+  // a flat array rather than accumulated from inside the map below: mutating an
+  // outer binding during render is impure, and blocks the compiler from
+  // memoizing this list.
+  const laneOffsets: number[] = [];
+  pattern.lanes.reduce((y, lane) => {
+    laneOffsets.push(y);
     const wrapRows = laneRowCount(lane.length);
-    laneY += wrapRows * CELL + (wrapRows - 1) * CELL_GAP + ROW_GAP;
+    return y + wrapRows * CELL + (wrapRows - 1) * CELL_GAP + ROW_GAP;
+  }, gridY);
+
+  const laneRows = pattern.lanes.map((lane, li) => {
+    const rowY = laneOffsets[li];
     const played = patternForLane(lane);
     const cells = [];
     const leds = [];

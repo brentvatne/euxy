@@ -9,7 +9,7 @@
  * back. useIdleTwinkle pauses it while the transport is playing, while the
  * screen is blurred, and under Reduced Motion.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { color } from '@/theme/tokens';
@@ -25,7 +25,9 @@ const TWINKLE_FALL = 400 / (TWINKLE_LOOP_MS / 5);
 
 export function PatternGlyph({ size = 22, twinkle = false }: { size?: number; twinkle?: boolean }) {
   const u = size / 22;
-  const seed = useMemo(() => Math.floor(Math.random() * 0x7fffffff), []);
+  // Lazy useState, not useMemo: useMemo is a hint React may discard and
+  // recompute, which would reshuffle the twinkle order mid-animation.
+  const [seed] = useState(() => Math.floor(Math.random() * 0x7fffffff));
   const order = useMemo(() => twinkleOrder(SHADES, seed), [seed]);
   const progress = useIdleTwinkle(TWINKLE_LOOP_MS, twinkle);
   return (

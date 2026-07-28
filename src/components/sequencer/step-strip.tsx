@@ -19,6 +19,7 @@
  * Blocks render once; NOTHING re-renders on the tick.
  */
 import { useEffect, useRef, useState } from 'react';
+import { useIsFirstRender } from '@/lib/use-is-first-render';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useDerivedValue, useReducedMotion } from 'react-native-reanimated';
 
@@ -109,10 +110,7 @@ export function StepStrip({ lane, washDelay = 0, active = true }: StepStripProps
   const triggerRef = useRef(0);
   // LEDs mounted in this strip's FIRST render must not run the ignition
   // bloom — only lights added by later edits ignite (see ui/led.tsx).
-  const initialRender = useRef(true);
-  useEffect(() => {
-    initialRender.current = false;
-  }, []);
+  const isFirstRender = useIsFirstRender();
   useEffect(() => {
     const prev = prevRef.current;
     prevRef.current = { version: mutateVersion, pattern, fxNonce: gridFx?.nonce ?? 0 };
@@ -209,7 +207,7 @@ export function StepStrip({ lane, washDelay = 0, active = true }: StepStripProps
                   ]}
                 >
                   {/* Skia path draws the steady LEDs itself (with real bloom). */}
-                  {pattern[i] && !SKIA_STRIP_GLOW ? <Led ignite={!initialRender.current} /> : null}
+                  {pattern[i] && !SKIA_STRIP_GLOW ? <Led ignite={!isFirstRender} /> : null}
                 </View>
               ))}
             </View>

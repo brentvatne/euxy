@@ -58,7 +58,7 @@ export default function Screen() {
   const [note, setNote] = useState(36); // C1
   const [channel, setChannel] = useState(0); // 0-based; track = channel + 1
   const [steps, setSteps] = useState(16);
-  const [hits, setHits] = useState(4);
+  const [hitsRaw, setHits] = useState(4);
   const [rotation, setRotation] = useState(0);
   const [resolution, setResolution] = useState<Resolution>('1/16');
   const [velocity, setVelocity] = useState(104);
@@ -75,12 +75,17 @@ export default function Screen() {
   const [clockActive, setClockActive] = useState(false);
   const clockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const pattern = useMemo(() => generator(hits, steps, rotation), [hits, steps, rotation]);
+  // Keep hits within the current step count when steps shrinks. Clamped on
+  // read rather than synced back into state from an effect: the effect version
+  // cost an extra render and briefly rendered an out-of-range value.
+  //
+  // `hitsRaw` is the user's INTENT, which survives a temporary shrink — drop
+  // Steps to 4 and back to 16 and Hits returns to what it was. Everything that
+  // reads or writes hits must go through the clamped value below, never
+  // `hitsRaw` directly (see the Hits stepper).
+  const hits = Math.min(hitsRaw, steps);
 
-  // Keep hits within the current step count when steps shrinks.
-  useEffect(() => {
-    setHits((h) => Math.min(h, steps));
-  }, [steps]);
+  const pattern = useMemo(() => generator(hits, steps, rotation), [hits, steps, rotation]);
 
   // Raw byte stream (both directions). Skip the high-rate system messages that
   // would flood the log — clock (0xF8) and active sensing (0xFE).
@@ -319,7 +324,10 @@ export default function Screen() {
         {/* Params */}
         <View style={styles.params}>
           <Stepper label="Steps" value={steps} onDec={() => setSteps((v) => clamp(v - 1, 1, 64))} onInc={() => setSteps((v) => clamp(v + 1, 1, 64))} />
-          <Stepper label="Hits" value={hits} onDec={() => setHits((v) => clamp(v - 1, 0, steps))} onInc={() => setHits((v) => clamp(v + 1, 0, steps))} />
+          {/* Step from the DISPLAYED value, not the raw state: after Steps
+              shrinks those differ, and stepping from the raw value would clamp
+              straight back to the same number — swallowing the first tap. */}
+          <Stepper label="Hits" value={hits} onDec={() => setHits(clamp(hits - 1, 0, steps))} onInc={() => setHits(clamp(hits + 1, 0, steps))} />
           <Stepper label="Rotation" value={rotation} onDec={() => setRotation((v) => v - 1)} onInc={() => setRotation((v) => v + 1)} />
           <Stepper label="Velocity" value={velocity} onDec={() => setVelocity((v) => clamp(v - 4, 1, 127))} onInc={() => setVelocity((v) => clamp(v + 4, 1, 127))} />
           <Stepper label="Gate" value={`${gate} ms`} onDec={() => setGate((v) => clamp(v - 5, 5, 500))} onInc={() => setGate((v) => clamp(v + 5, 5, 500))} />

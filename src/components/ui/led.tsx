@@ -22,7 +22,7 @@
  * noise, and initial-mount entering animations have raced cold boot before
  * (the wave-2 invisible-lane-list bug).
  */
-import { useRef } from 'react';
+import { useState } from 'react';
 import { StyleSheet } from 'react-native';
 import Animated, { Easing, ReduceMotion, makeMutable, withTiming } from 'react-native-reanimated';
 import type { StyleProp, ViewStyle } from 'react-native';
@@ -77,10 +77,11 @@ const haloFlash = () => {
 };
 
 export function Led({ style, ignite = false }: { style?: StyleProp<ViewStyle>; ignite?: boolean }) {
-  // Ignite is a MOUNT-TIME fact: call sites flip their first-render ref
+  // Ignite is a MOUNT-TIME fact: call sites flip their first-render flag
   // right after mounting, and a later re-render must not retroactively
   // mount the halo — its entering would flash every already-lit LED.
-  const igniteAtMount = useRef(ignite).current;
+  // `useState` with no setter captures the initial prop and never updates.
+  const [igniteAtMount] = useState(ignite);
   return (
     <Animated.View pointerEvents="none" exiting={lightDecay} style={style}>
       {igniteAtMount ? (
