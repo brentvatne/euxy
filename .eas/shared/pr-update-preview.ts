@@ -11,6 +11,7 @@ const CHANNEL_MARKER = "euxy-eas-update-channel";
 // eas-cli caps channel:list pages at 25 even when a larger limit is requested.
 const CHANNEL_PAGE_SIZE = 25;
 const MAX_CHANNELS = 1_000;
+const PREVIEW_READBACK_DELAYS_MS = [500, 1_000, 2_000, 4_000] as const;
 
 const ADJECTIVES = [
   "amber",
@@ -89,6 +90,8 @@ type CommandResult = {
 };
 
 type CommandRunner = (command: string[]) => Promise<CommandResult>;
+type Wait = (milliseconds: number) => Promise<void>;
+type Warn = (message: string) => void;
 
 type GitHubPullRequest = {
   body?: string | null;
@@ -117,6 +120,10 @@ function previewPattern(): RegExp {
     `${PREVIEW_START}[\\s\\S]*?${PREVIEW_END}`,
     "m"
   );
+}
+
+function shortDigest(value: string): string {
+  return createHash("sha256").update(value).digest("hex").slice(0, 12);
 }
 
 export function readableChannelCandidates({
@@ -289,6 +296,8 @@ async function fetchPullRequest({
 async function updatePullRequestPreview({
   gh,
   publicFetch,
+  wait,
+  warn,
   owner,
   repo,
   pullRequestNumber,
@@ -296,6 +305,8 @@ async function updatePullRequestPreview({
 }: {
   gh: GitHubRepoRequest;
   publicFetch: PublicFetch;
+  wait: Wait;
+  warn: Warn;
   owner: string;
   repo: string;
   pullRequestNumber: number;
@@ -313,21 +324,75 @@ async function updatePullRequestPreview({
     );
   }
 
-  const observed = await publicFetch(
-    `https://api.github.com/repos/${owner}/${repo}/pulls/${pullRequestNumber}`,
-    { headers: { Accept: "application/vnd.github+json" } }
+  const updatedPullRequest = (await response.json()) as GitHubPullRequest;
+  if (!(updatedPullRequest.body || "").includes(block)) {
+    throw new Error(
+      `GitHub accepted the preview metadata PATCH for pull request #${pullRequestNumber}, ` +
+        "but its authenticated response did not contain the expected block."
+    );
+  }
+
+  const expectedDigest = shortDigest(block);
+  let lastStatus = 0;
+  for (
+    let attempt = 0;
+    attempt <= PREVIEW_READBACK_DELAYS_MS.length;
+    attempt += 1
+  ) {
+    const observed = await publicFetch(
+      `https://api.github.com/repos/${owner}/${repo}/pulls/${pullRequestNumber}` +
+        `?euxy_preview_readback=${expectedDigest}-${attempt + 1}`,
+      {
+        headers: {
+          Accept: "application/vnd.github+json",
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+      }
+    );
+    lastStatus = observed.status;
+    if (!observed.ok) {
+      if (attempt === PREVIEW_READBACK_DELAYS_MS.length) {
+        throw new Error(
+          `Pull request #${pullRequestNumber} preview metadata is not publicly visible ` +
+            `(last HTTP ${observed.status} after ${attempt + 1} attempts).`
+        );
+      }
+      warn(
+        `Warning: pull request #${pullRequestNumber} preview readback returned ` +
+          `HTTP ${observed.status} on attempt ${attempt + 1}/${PREVIEW_READBACK_DELAYS_MS.length + 1}; ` +
+          `request-id=${observed.headers.get("x-github-request-id") || "missing"}. Retrying.`
+      );
+      await wait(PREVIEW_READBACK_DELAYS_MS[attempt]!);
+      continue;
+    }
+
+    const observedPullRequest = (await observed.json()) as GitHubPullRequest;
+    const observedBody = observedPullRequest.body || "";
+    if (observedBody.includes(block)) {
+      return;
+    }
+
+    warn(
+      `Warning: pull request #${pullRequestNumber} returned stale preview metadata ` +
+        `on attempt ${attempt + 1}/${PREVIEW_READBACK_DELAYS_MS.length + 1}; ` +
+        `HTTP=${observed.status}, expected-sha=${expectedDigest}, ` +
+        `observed-body-sha=${shortDigest(observedBody)}, body-length=${observedBody.length}, ` +
+        `etag=${observed.headers.get("etag") || "missing"}, ` +
+        `age=${observed.headers.get("age") || "missing"}, ` +
+        `request-id=${observed.headers.get("x-github-request-id") || "missing"}.` +
+        (attempt < PREVIEW_READBACK_DELAYS_MS.length ? " Retrying." : "")
+    );
+    if (attempt < PREVIEW_READBACK_DELAYS_MS.length) {
+      await wait(PREVIEW_READBACK_DELAYS_MS[attempt]!);
+    }
+  }
+
+  warn(
+    `Warning: pull request #${pullRequestNumber} public preview metadata remained stale ` +
+      `after ${PREVIEW_READBACK_DELAYS_MS.length + 1} attempts (last HTTP ${lastStatus}); ` +
+      "continuing because the authenticated PATCH response contained the expected block."
   );
-  if (!observed.ok) {
-    throw new Error(
-      `Pull request #${pullRequestNumber} preview metadata is not publicly visible (HTTP ${observed.status}).`
-    );
-  }
-  const observedPullRequest = (await observed.json()) as GitHubPullRequest;
-  if (!(observedPullRequest.body || "").includes(block)) {
-    throw new Error(
-      `Pull request #${pullRequestNumber} did not expose the expected preview metadata.`
-    );
-  }
 }
 
 function validateMarkedChannel(
@@ -354,6 +419,9 @@ export async function publishPullRequestUpdate({
   easCommand,
   run,
   publicFetch = fetch,
+  wait = (milliseconds) =>
+    new Promise((resolve) => setTimeout(resolve, milliseconds)),
+  warn = console.warn,
 }: {
   gh: GitHubRepoRequest;
   owner: string;
@@ -363,6 +431,8 @@ export async function publishPullRequestUpdate({
   easCommand: string[];
   run: CommandRunner;
   publicFetch?: PublicFetch;
+  wait?: Wait;
+  warn?: Warn;
 }): Promise<PullRequestUpdatePreview> {
   if (!Number.isSafeInteger(pullRequestNumber) || pullRequestNumber < 1) {
     throw new Error(`Invalid pull request number: ${pullRequestNumber}.`);
@@ -391,6 +461,8 @@ export async function publishPullRequestUpdate({
   await updatePullRequestPreview({
     gh,
     publicFetch,
+    wait,
+    warn,
     owner,
     repo,
     pullRequestNumber,
@@ -426,6 +498,8 @@ export async function publishPullRequestUpdate({
   await updatePullRequestPreview({
     gh,
     publicFetch,
+    wait,
+    warn,
     owner,
     repo,
     pullRequestNumber,

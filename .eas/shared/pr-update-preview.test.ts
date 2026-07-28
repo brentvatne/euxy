@@ -111,6 +111,119 @@ describe("per-PR EAS Update previews", () => {
     expect(updateCommand).toContain(result.channel);
   });
 
+  test("retries stale public readback with cache busting before continuing", async () => {
+    const harness = previewHarness();
+    const observedUrls: string[] = [];
+    const observedHeaders: Headers[] = [];
+    const waits: number[] = [];
+    const warnings: string[] = [];
+    let staleResponsesRemaining = 2;
+    const publicFetch = async (url: string, init?: RequestInit) => {
+      observedUrls.push(url);
+      observedHeaders.push(new Headers(init?.headers));
+      if (staleResponsesRemaining > 0) {
+        staleResponsesRemaining -= 1;
+        return jsonResponse(
+          { body: "Closes #17" },
+          200,
+        );
+      }
+      return jsonResponse({ body: harness.getBody() });
+    };
+
+    const result = await publishPullRequestUpdate({
+      gh: harness.gh,
+      owner: "brentvatne",
+      repo: "euxy",
+      pullRequestNumber: 28,
+      message: "Address the feedback",
+      easCommand: ["eas"],
+      run: harness.run,
+      publicFetch,
+      wait: async (milliseconds) => {
+        waits.push(milliseconds);
+      },
+      warn: (message) => warnings.push(message),
+    });
+
+    expect(result.published).toBe(true);
+    expect(waits).toEqual([500, 1_000]);
+    expect(warnings).toHaveLength(2);
+    expect(warnings[0]).toContain("expected-sha=");
+    expect(warnings[0]).toContain("observed-body-sha=");
+    expect(warnings[0]).not.toContain("Closes #17");
+    expect(observedUrls[0]).toContain("?euxy_preview_readback=");
+    expect(new Set(observedUrls).size).toBe(observedUrls.length);
+    expect(
+      observedHeaders.every(
+        (headers) =>
+          headers.get("Cache-Control") === "no-cache" &&
+          headers.get("Pragma") === "no-cache",
+      ),
+    ).toBe(true);
+    expect(harness.getBody()).toContain("Open the latest EAS Update");
+  });
+
+  test("warns and continues when only the public body remains stale", async () => {
+    const harness = previewHarness();
+    const waits: number[] = [];
+    const warnings: string[] = [];
+
+    const result = await publishPullRequestUpdate({
+      gh: harness.gh,
+      owner: "brentvatne",
+      repo: "euxy",
+      pullRequestNumber: 28,
+      message: "Address the feedback",
+      easCommand: ["eas"],
+      run: harness.run,
+      publicFetch: async () => jsonResponse({ body: "stale public body" }),
+      wait: async (milliseconds) => {
+        waits.push(milliseconds);
+      },
+      warn: (message) => warnings.push(message),
+    });
+
+    expect(result.published).toBe(true);
+    expect(
+      harness.commands.some((command) => command.includes("update")),
+    ).toBe(true);
+    expect(waits).toEqual([500, 1_000, 2_000, 4_000, 500, 1_000, 2_000, 4_000]);
+    expect(
+      warnings.filter((message) =>
+        message.includes("continuing because the authenticated PATCH"),
+      ),
+    ).toHaveLength(2);
+    expect(harness.getBody()).toContain("Open the latest EAS Update");
+  });
+
+  test("still fails when the pull request itself is not publicly visible", async () => {
+    const harness = previewHarness();
+    const warnings: string[] = [];
+
+    await expect(
+      publishPullRequestUpdate({
+        gh: harness.gh,
+        owner: "brentvatne",
+        repo: "euxy",
+        pullRequestNumber: 28,
+        message: "Address the feedback",
+        easCommand: ["eas"],
+        run: harness.run,
+        publicFetch: async () => jsonResponse({ message: "Not Found" }, 404),
+        wait: async () => {},
+        warn: (message) => warnings.push(message),
+      }),
+    ).rejects.toThrow(
+      "preview metadata is not publicly visible (last HTTP 404 after 5 attempts)",
+    );
+
+    expect(
+      harness.commands.some((command) => command.includes("update")),
+    ).toBe(false);
+    expect(warnings).toHaveLength(4);
+  });
+
   test("reuses the channel marker for every later update on the PR", async () => {
     const channel = "calm-otter-p28";
     const harness = previewHarness(
