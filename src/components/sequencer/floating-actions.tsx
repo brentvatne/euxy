@@ -104,6 +104,25 @@ const SNAP = { damping: 34, stiffness: 340, reduceMotion: ReduceMotion.System };
 // landing corner — a real throw goes where it was headed.
 const THROW_PROJECTION_S = 0.18;
 
+// Capsule entrance (Brent 2026-07-28: "takes too long to settle"). The capsule
+// appears in the SAME commit that mounts the whole lane list — rows, their own
+// entering/layout animations, and one Skia surface per strip — so these are the
+// most frame-starved frames in the app. The old entrance was FadeInDown's
+// default 25px drop over 200ms with ease-in-out: on the ONE frame painted
+// mid-mount the capsule was still 12px low at ~half opacity, and the next
+// painted frame was already settled ~700ms later — one lurch, not an entrance.
+// Opacity-led and short instead: a 6px rise over 140ms on ease-OUT, so most of
+// the travel is spent in the first frames (the ones that do get painted) and
+// there is no displacement left to settle when the list lands. The exit keeps
+// its own 150ms drop — nothing competes for frames on the way out.
+const ENTER_MS = 140;
+const ENTER_RISE = 6;
+const capsuleEnter = () =>
+  FadeInDown.duration(ENTER_MS)
+    .easing(Easing.out(Easing.quad))
+    .withInitialValues({ transform: [{ translateY: ENTER_RISE }] })
+    .reduceMotion(ReduceMotion.System);
+
 /** One scatter press: 3–4 frames of random pip cells (5 distinct per frame). */
 function rollScatterFrames(): number[][][] {
   const frames = 3 + (Math.random() < 0.5 ? 1 : 0);
@@ -397,13 +416,14 @@ export function FloatingActions({
           // Mounted only while lanes exist — ease in/out of the empty
           // state, but NEVER on the screen's initial render (cold-boot
           // stuck-invisible race; see animateMount).
-          entering={
-            animateMount ? FadeInDown.duration(200).reduceMotion(ReduceMotion.System) : undefined
-          }
+          entering={animateMount ? capsuleEnter() : undefined}
           exiting={FadeOutDown.duration(150).reduceMotion(ReduceMotion.System)}
-          layout={LinearTransition.springify().damping(18).stiffness(220).reduceMotion(
-            ReduceMotion.System,
-          )}
+          // The capsule is docked absolute at a fixed corner with a fixed size,
+          // so a layout transition has nearly nothing to travel — but the old
+          // springify().damping(18).stiffness(220) was ζ≈0.61, which rings for
+          // ~600ms whenever it does fire (and it fires right as the entrance
+          // ends). A bounded 180ms curve: no overshoot, no tail.
+          layout={LinearTransition.duration(180).reduceMotion(ReduceMotion.System)}
           style={styles.barAnchor}
           onLayout={(e) => setBarW(e.nativeEvent.layout.width)}
         >
