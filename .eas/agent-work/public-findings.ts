@@ -65,7 +65,7 @@ export function renderPublicIssueFindings({
     throw new Error("Cannot render findings without a valid EAS workflow URL.");
   }
   return [
-    "🤖 **Triage complete — no code change**",
+    "🤖 **Agent work complete — no code change**",
     "",
     findings.summary,
     "",

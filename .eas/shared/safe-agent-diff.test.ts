@@ -36,13 +36,13 @@ describe("safe agent diff", () => {
     expect(() =>
       assertSafeAgentDiff([
         "src/example.ts",
-        "prompts/automation/issue-triage.md",
+        "prompts/automation/agent-work.md",
         ".github/workflows/review.yml",
       ])
     ).toThrow(
       "Refusing to publish agent-authored changes to protected automation paths:\n" +
         "  - .github/workflows/review.yml\n" +
-        "  - prompts/automation/issue-triage.md"
+        "  - prompts/automation/agent-work.md"
     );
   });
 });

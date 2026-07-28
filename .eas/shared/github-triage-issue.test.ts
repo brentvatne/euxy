@@ -292,7 +292,7 @@ describe("GitHub triage issues", () => {
       "## Automation\n\n" +
       "- EAS workflow: [View the run](https://expo.dev/run)\n" +
       "- Status: awaiting maintainer approval\n" +
-      "- Start remediation: comment `@notbrent accept` with optional instructions. " +
+      "- Start an agent work session: comment `@notbrent accept` with optional instructions. " +
       "Only comments from `brentvatne` are authorized.\n" +
       "<!-- euxy-triage-workflow:end -->";
     const gh = async (path: string, init?: RequestInit) => {
@@ -306,7 +306,7 @@ describe("GitHub triage issues", () => {
         gh,
         issueNumber: 26,
         status: "triage in progress",
-        workflowUrl: "https://expo.dev/new-remediation-run",
+        workflowUrl: "https://expo.dev/new-agent-work-run",
       })
     ).resolves.toBe(true);
 
@@ -316,14 +316,14 @@ describe("GitHub triage issues", () => {
     ]);
     const updatedBody = JSON.parse(String(calls[1].init?.body)).body;
     expect(updatedBody).toContain("- Status: triage in progress");
-    expect(updatedBody).not.toContain("Start remediation");
-    expect(updatedBody).toContain("https://expo.dev/new-remediation-run");
+    expect(updatedBody).not.toContain("Start an agent work session");
+    expect(updatedBody).toContain("https://expo.dev/new-agent-work-run");
     expect(updatedBody).not.toContain("https://expo.dev/run");
     expect(updatedBody).not.toContain("euxy-triage-evidence");
     expect(updatedBody).not.toContain("https://euxy--legacy.expo.app/");
   });
 
-  test("rejects an invalid remediation workflow URL before reading the issue", async () => {
+  test("rejects an invalid agent work workflow URL before reading the issue", async () => {
     let called = false;
     const gh = async () => {
       called = true;

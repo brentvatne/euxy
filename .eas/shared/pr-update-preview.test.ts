@@ -530,7 +530,7 @@ describe("per-PR EAS Update previews", () => {
 
   test("is wired into every code-writing PR workflow", async () => {
     for (const path of [
-      ".eas/issue-triage/issue-triage.ts",
+      ".eas/agent-work/agent-work.ts",
       ".eas/crash-triage/triage.ts",
       ".eas/feedback-triage/feedback-triage.ts",
       ".eas/pr-review/pr-review-response.ts",
@@ -541,7 +541,7 @@ describe("per-PR EAS Update previews", () => {
     }
 
     const issueWorkflow = await Bun.file(
-      ".eas/workflows/issue-triage.yml"
+      ".eas/workflows/agent-work.yml"
     ).text();
     const feedbackWorkflow = await Bun.file(
       ".eas/workflows/feedback-triage.yml"

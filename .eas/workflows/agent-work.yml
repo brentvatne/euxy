@@ -1,4 +1,4 @@
-# Issue triage (agent side, runs on EAS). GitHub Actions dispatches only the
+# Agent work session (runs on EAS). GitHub Actions dispatches only the
 # immutable issue/comment IDs after its event-envelope gate. This workflow
 # re-fetches those records with the machine-user token, repeats authorization,
 # runs Claude and simulator verification, then pushes a branch and opens a PR.
@@ -7,7 +7,7 @@
 # Requires EAS preview secrets: CLAUDE_CODE_OAUTH_TOKEN, GH_TOKEN, EXPO_TOKEN.
 # No autonomous agent or GitHub write credential runs on GitHub Actions.
 
-name: Issue triage
+name: Agent work session
 
 on:
   workflow_dispatch:
@@ -27,8 +27,8 @@ on:
         default: ''
 
 jobs:
-  triage:
-    name: Investigate issue with Claude
+  agent_work:
+    name: Run agent work session
     environment: preview
     runs_on: linux-medium
     env:
@@ -38,28 +38,28 @@ jobs:
       ISSUE_ID: ${{ inputs.issue_id }}
       COMMENT_ID: ${{ inputs.comment_id }}
       WORKFLOW_URL: ${{ workflow.url }}
-      TRIAGE_ALLOWLIST: '["brentvatne"]'
-      AGENT_PROMPT_FILE: prompts/automation/issue-triage.md
+      AGENT_WORK_ALLOWLIST: '["brentvatne"]'
+      AGENT_PROMPT_FILE: prompts/automation/agent-work.md
       SIMULATOR_PROMPT_FILE: prompts/automation/simulator-verification.md
       SIMULATOR_VALIDATION: '1'
       PUBLIC_SIMULATOR_EVIDENCE: '1'
-      SIMULATOR_ARTIFACT_DIR: .eas/issue-triage/sim
+      SIMULATOR_ARTIFACT_DIR: .eas/agent-work/sim
       DISABLE_AUTOUPDATER: '1'
     steps:
       - uses: eas/checkout
       - uses: eas/install_node_modules
       - name: Install pinned agent toolchain
         run: bash .github/scripts/setup-agent-toolchain.sh
-      - name: Triage the issue
-        run: bun .eas/issue-triage/issue-triage.ts
-      - name: Upload triage summary
+      - name: Run agent work session
+        run: bun .eas/agent-work/agent-work.ts
+      - name: Upload agent work summary
         if: ${{ always() }}
         uses: eas/upload_artifact
         with:
           type: other
-          name: issue-triage-summary
+          name: agent-work-summary
           path: |
-            .eas/issue-triage/ANALYSIS.md
-            .eas/issue-triage/issue.json
-            .eas/issue-triage/PUBLIC_FINDINGS.json
-            .eas/issue-triage/sim/**/*
+            .eas/agent-work/ANALYSIS.md
+            .eas/agent-work/issue.json
+            .eas/agent-work/PUBLIC_FINDINGS.json
+            .eas/agent-work/sim/**/*

@@ -11,6 +11,8 @@ export type TriageIssueStatus =
   | "triage in progress"
   | "awaiting maintainer approval"
   | "triage complete"
+  | "agent work in progress"
+  | "agent work complete"
   | "pull request opened";
 
 type EnsureTriageIssueOptions = {
@@ -144,7 +146,7 @@ function withWorkflowLink(
 ): string {
   const approvalLine =
     status === "awaiting maintainer approval" && approval
-      ? `\n- Start remediation: comment \`${approval.command}\` with optional instructions. ` +
+      ? `\n- Start an agent work session: comment \`${approval.command}\` with optional instructions. ` +
         `Only comments from \`${approval.actor}\` are authorized.`
       : "";
   return managedBlock(
@@ -297,7 +299,7 @@ export async function updateTriageIssueStatus({
         : "$&"
     )
     .replace(/^- Status: .+$/m, `- Status: ${status}`)
-    .replace(/^- Start remediation: .+\n?/m, "");
+    .replace(/^- Start (?:remediation|an agent work session): .+\n?/m, "");
   if (nextBlock === match[0] && bodyWithoutEvidence === body) return false;
 
   const updated = await gh(`/issues/${issueNumber}`, {

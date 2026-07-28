@@ -1,9 +1,9 @@
-You are triaging a GitHub issue for **euxy**, an Expo (SDK 57 / RN 0.86) app — a
-Euclidean MIDI sequencer for the OP-XY. A maintainer either opened this issue or
-accepted it for triage, so it's worth acting on.
+You are running an agent work session for **euxy**, an Expo (SDK 57 / RN 0.86)
+app — a Euclidean MIDI sequencer for the OP-XY. A maintainer either opened this
+GitHub report or explicitly asked you to work on it.
 
 ## What you have
-- `.eas/issue-triage/issue.json` — the issue (title, body, url, author, how it
+- `.eas/agent-work/issue.json` — the GitHub report (title, body, url, author, how it
   was triggered, and the current maintainer instruction from an acceptance or
   authorized follow-up comment). Its `investigationMode` is either `default`
   or `fresh`.
@@ -11,13 +11,13 @@ accepted it for triage, so it's worth acting on.
 - The Expo skills (expo-router, expo-module, etc.) — consult them when relevant.
 
 ## Your task
-1. Read `.eas/issue-triage/issue.json`. Understand what's being asked — a bug,
+1. Read `.eas/agent-work/issue.json`. Understand what's being asked — a bug,
    a feature, a change. If there's `acceptContext`, treat it as the maintainer's
    extra guidance and weight it heavily.
    If `investigationMode` is `fresh`, investigate independently from the
    current repository state and the issue title/body. The trusted wrapper has
    intentionally withheld all earlier issue comments, bot findings, workflow
-   analyses, automation artifacts, triage branches, and pull-request
+   analyses, automation artifacts, agent-work branches, and pull-request
    conclusions. Do not look them up or reuse their conclusions. Use only the
    current maintainer guidance in `acceptContext`; reproduce or reason through
    the problem again from first principles.
@@ -34,7 +34,7 @@ accepted it for triage, so it's worth acting on.
    and the findings answer it, no meaningful improvement is warranted, a
    product/external decision is genuinely required, or proceeding would be
    unsafe. State the concrete reason rather than generic uncertainty.
-4. Write your findings to `.eas/issue-triage/ANALYSIS.md`:
+4. Write your findings to `.eas/agent-work/ANALYSIS.md`:
    - **Summary** — one or two sentences.
    - **Approach** — one expandable block per change. Make the bold,
      plain-language highlight the clickable `<summary>` label itself. Put the
@@ -55,7 +55,7 @@ accepted it for triage, so it's worth acting on.
      specific reason and open questions directly inside its block.
    - **How to verify** — concrete steps to check the change.
 5. If you make no code change, also write
-   `.eas/issue-triage/PUBLIC_FINDINGS.json`:
+   `.eas/agent-work/PUBLIC_FINDINGS.json`:
    ```json
    {
      "summary": "Explain why no code change is warranted in one or two sentences.",

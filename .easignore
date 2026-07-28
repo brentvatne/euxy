@@ -49,7 +49,6 @@ example
 .eas/crash-triage/sim-sessions.txt
 .eas/crash-triage/sim/
 .eas/feedback-triage/sim/
-.github/issue-triage/sim/
 .eas/pr-review/sim/
 
 # --- .easignore addendum ---
@@ -75,10 +74,10 @@ SETUP-TRACING.md
 .eas/feedback-triage/ANALYSIS.md
 .eas/feedback-triage/PUBLIC_REPORT.json
 .eas/feedback-triage/PUBLIC_PR.json
-.eas/issue-triage/issue.json
-.eas/issue-triage/ANALYSIS.md
-.eas/issue-triage/PUBLIC_FINDINGS.json
-.eas/issue-triage/sim/
+.eas/agent-work/issue.json
+.eas/agent-work/ANALYSIS.md
+.eas/agent-work/PUBLIC_FINDINGS.json
+.eas/agent-work/sim/
 .eas/pr-review/feedback.md
 .eas/pr-review/RESPONSE.md
 .eas/pr-review/ACTIONS.json

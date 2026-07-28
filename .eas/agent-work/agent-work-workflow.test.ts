@@ -1,22 +1,22 @@
 import { describe, expect, test } from "bun:test";
 
-const dispatcher = await Bun.file(".github/workflows/issue-triage.yml").text();
-const worker = await Bun.file(".eas/workflows/issue-triage.yml").text();
-const runner = await Bun.file(".eas/issue-triage/issue-triage.ts").text();
-const prompt = await Bun.file("prompts/automation/issue-triage.md").text();
+const dispatcher = await Bun.file(".github/workflows/agent-work.yml").text();
+const worker = await Bun.file(".eas/workflows/agent-work.yml").text();
+const runner = await Bun.file(".eas/agent-work/agent-work.ts").text();
+const prompt = await Bun.file("prompts/automation/agent-work.md").text();
 const gitignore = await Bun.file(".gitignore").text();
 
-describe("issue triage execution boundary", () => {
+describe("agent work execution boundary", () => {
   test("keeps the EAS dispatcher empty-permissioned and scopes acknowledgements", () => {
     expect(dispatcher).toContain("permissions: {}");
     expect(dispatcher).toContain("https://api.expo.dev/v2/workflows/dispatch");
-    expect(dispatcher).toContain('fileName: "issue-triage.yml"');
+    expect(dispatcher).toContain('fileName: "agent-work.yml"');
     expect(dispatcher).toContain("ISSUE_ID: ${{ github.event.issue.id }}");
     expect(dispatcher).toContain("COMMENT_ID: ${{ github.event.comment.id }}");
     expect(dispatcher).not.toContain("CLAUDE_CODE_OAUTH_TOKEN");
     expect(dispatcher).not.toContain("secrets.GH_TOKEN");
     expect(dispatcher).not.toContain("setup-agent-toolchain.sh");
-    expect(dispatcher).not.toContain("issue-triage.ts");
+    expect(dispatcher).not.toContain("agent-work.ts");
     expect(dispatcher).not.toContain("actions/checkout");
     expect(dispatcher).toContain(
       "startsWith(github.event.comment.body, '@notbrent ')",
@@ -44,24 +44,24 @@ describe("issue triage execution boundary", () => {
     expect(worker).toContain(
       "run: bash .github/scripts/setup-agent-toolchain.sh",
     );
-    expect(worker).toContain("run: bun .eas/issue-triage/issue-triage.ts");
+    expect(worker).toContain("run: bun .eas/agent-work/agent-work.ts");
     expect(worker).toContain("SIMULATOR_VALIDATION: '1'");
-    expect(runner).toContain('status: "triage complete"');
+    expect(runner).toContain('status: "agent work complete"');
     expect(runner).toContain('status: "pull request opened"');
     expect(runner).toContain("createVerifiedIssueComment");
     expect(runner).toContain("/comments?per_page=100&page=${page}");
     expect(runner.indexOf("createVerifiedIssueComment")).toBeLessThan(
-      runner.lastIndexOf('status: "triage complete"'),
+      runner.lastIndexOf('status: "agent work complete"'),
     );
-    expect(worker).toContain(".eas/issue-triage/PUBLIC_FINDINGS.json");
+    expect(worker).toContain(".eas/agent-work/PUBLIC_FINDINGS.json");
   });
 
   test("keeps EAS runtime evidence out of the agent-authored git diff", () => {
-    expect(gitignore).toContain(".eas/issue-triage/issue.json");
-    expect(gitignore).toContain(".eas/issue-triage/ANALYSIS.md");
-    expect(gitignore).toContain(".eas/issue-triage/PUBLIC_FINDINGS.json");
-    expect(gitignore).toContain(".eas/issue-triage/sim/");
-    expect(gitignore).not.toContain(".github/issue-triage/");
+    expect(gitignore).toContain(".eas/agent-work/issue.json");
+    expect(gitignore).toContain(".eas/agent-work/ANALYSIS.md");
+    expect(gitignore).toContain(".eas/agent-work/PUBLIC_FINDINGS.json");
+    expect(gitignore).toContain(".eas/agent-work/sim/");
+    expect(gitignore).not.toContain(".github/agent-work/");
   });
 
   test("treats accepted and inherited follow-up commands as authorization", () => {
@@ -72,7 +72,7 @@ describe("issue triage execution boundary", () => {
     expect(prompt).toContain(
       "alone is not a reason to stop after authorization.",
     );
-    expect(prompt).toContain(".eas/issue-triage/PUBLIC_FINDINGS.json");
+    expect(prompt).toContain(".eas/agent-work/PUBLIC_FINDINGS.json");
   });
 
   test("keeps fresh investigations independent from earlier bot work", () => {
@@ -84,7 +84,7 @@ describe("issue triage execution boundary", () => {
     expect(agentContextBlock).toContain(
       "investigationMode: dispatch.investigationMode",
     );
-    expect(agentContextBlock).toContain("issueBodyForInvestigation(");
+    expect(agentContextBlock).toContain("bodyForInvestigation(");
     expect(agentContextBlock).not.toContain("issueComments");
     expect(prompt).toContain("If `investigationMode` is `fresh`");
     expect(prompt).toContain(

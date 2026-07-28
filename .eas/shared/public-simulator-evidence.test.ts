@@ -152,7 +152,7 @@ describe("public simulator evidence", () => {
       ".eas/pr-review/pr-review-response.ts"
     ).text();
     const issueRunner = await Bun.file(
-      ".eas/issue-triage/issue-triage.ts"
+      ".eas/agent-work/agent-work.ts"
     ).text();
     const feedbackRunner = await Bun.file(
       ".eas/feedback-triage/feedback-triage.ts"
@@ -173,7 +173,7 @@ describe("public simulator evidence", () => {
     );
     expect(issueRunner).toContain("${evidenceSection}");
     expect(issueRunner).toContain(
-      'body: `🤖 Opened a triage PR: ${prUrl}${preview ? `\\n\\n${preview.summary}` : ""}`,'
+      'body: `🤖 Opened a PR for this agent work session: ${prUrl}${preview ? `\\n\\n${preview.summary}` : ""}`,'
     );
     expect(feedbackRunner).toContain(
       "renderPublicSimulatorEvidence(publicEvidence)"

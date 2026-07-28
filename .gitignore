@@ -79,10 +79,10 @@ SETUP-TRACING.md
 .eas/feedback-triage/PUBLIC_PR.json
 .eas/feedback-triage/sim/
 .eas/public-evidence-site/dist/
-.eas/issue-triage/issue.json
-.eas/issue-triage/ANALYSIS.md
-.eas/issue-triage/PUBLIC_FINDINGS.json
-.eas/issue-triage/sim/
+.eas/agent-work/issue.json
+.eas/agent-work/ANALYSIS.md
+.eas/agent-work/PUBLIC_FINDINGS.json
+.eas/agent-work/sim/
 .eas/pr-review/feedback.md
 .eas/pr-review/RESPONSE.md
 .eas/pr-review/ACTIONS.json

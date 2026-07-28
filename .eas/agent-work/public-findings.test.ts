@@ -15,7 +15,7 @@ const valid = {
   ],
 };
 
-describe("public issue-triage findings", () => {
+describe("public agent-work findings", () => {
   test("parses bounded plain-text findings and renders a deterministic comment", () => {
     expect(parsePublicIssueFindings(JSON.stringify(valid))).toEqual(valid);
     expect(
@@ -24,7 +24,7 @@ describe("public issue-triage findings", () => {
         workflowUrl: "https://expo.dev/accounts/brent-org/workflows/run-1",
       })
     ).toBe(
-      "🤖 **Triage complete — no code change**\n\n" +
+      "🤖 **Agent work complete — no code change**\n\n" +
         `${valid.summary}\n\n` +
         `- ${valid.findings[0]}\n` +
         `- ${valid.findings[1]}\n` +

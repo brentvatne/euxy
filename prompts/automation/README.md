@@ -1,6 +1,6 @@
 # Automation prompts
 
-These Markdown files are the editable prompts used by the EAS and GitHub triage
+These Markdown files are the editable prompts used by the EAS and GitHub agent
 workflows. Each workflow declares its task prompt with `AGENT_PROMPT_FILE`.
 Simulator-capable workflows additionally append `SIMULATOR_PROMPT_FILE`.
 TestFlight feedback intake uses `INTAKE_PROMPT_FILE` and a fresh
@@ -23,11 +23,11 @@ Commands must be written by `@brentvatne` and begin the comment with the
 lowercase bot mention. A comment-triggered run immediately replies with a link
 to its EAS workflow.
 
-### Issues
+### Agent work sessions
 
-Issues opened by `@brentvatne` start triage automatically. An issue opened by
-anyone else, including an external TestFlight feedback issue, must first be
-authorized:
+GitHub issues opened by `@brentvatne` start an agent work session automatically.
+One opened by anyone else, including an external TestFlight feedback report,
+must first be authorized:
 
 ```text
 @notbrent accept
@@ -64,7 +64,7 @@ Optional guidance may follow the command:
 
 `retry from scratch` and `start over` are accepted aliases. The earlier
 `@notbrent accept` remains the issue-scoped authorization check, but prior bot
-comments, findings, workflow analyses, automation artifacts, triage branches,
+comments, findings, workflow analyses, automation artifacts, agent-work branches,
 and pull-request conclusions are not included as agent context. The fresh run
 starts from the current trusted repository state and the issue title/body.
 
@@ -73,9 +73,9 @@ count as an acceptance. A follow-up still requires an earlier acceptance on the
 same issue, even when the issue previously ran automatically after being opened
 by an allowlisted author.
 
-The agent investigates the issue and follows the latest maintainer instruction.
+The agent investigates the report and follows the latest maintainer instruction.
 When it makes a code change, the wrapper creates or refreshes
-`issue-triage/<number>`, opens a PR with `Closes #<number>`, publishes an EAS
+`agent-work/<number>`, opens a PR with `Closes #<number>`, publishes an EAS
 Update preview, and links the PR and any simulator evidence from the issue.
 When no change is warranted, it posts sanitized findings instead.
 
@@ -112,7 +112,7 @@ Composite requests use the full agent:
 
 Submitting a GitHub review with **Request changes** also starts the full agent
 without a mention. The review body and inline comments become its instructions.
-An Expo AI review comment does not start remediation by itself; a maintainer
+An Expo AI review comment does not start agent work by itself; a maintainer
 must address the bot or request changes.
 
 For a successful code change, the wrapper verifies the diff, commits and pushes

@@ -8,7 +8,7 @@ import {
 } from "./claude-agent";
 
 const agentRunners = [
-  ".eas/issue-triage/issue-triage.ts",
+  ".eas/agent-work/agent-work.ts",
   ".eas/crash-triage/triage.ts",
   ".eas/feedback-triage/feedback-triage.ts",
   ".eas/pr-review/pr-review-response.ts",

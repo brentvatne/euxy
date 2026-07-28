@@ -1,14 +1,14 @@
-export const ISSUE_TRIAGE_BOT_LOGIN = "notbrent";
-export const ISSUE_TRIAGE_COMMAND = `@${ISSUE_TRIAGE_BOT_LOGIN} accept`;
-export const ISSUE_TRIAGE_APPROVER = "brentvatne";
+export const AGENT_WORK_BOT_LOGIN = "notbrent";
+export const AGENT_WORK_COMMAND = `@${AGENT_WORK_BOT_LOGIN} accept`;
+export const AGENT_WORK_APPROVER = "brentvatne";
 
-export type IssueTriageEventName = "issues" | "issue_comment";
-export type IssueTriageInvestigationMode = "default" | "fresh";
+export type AgentWorkEventName = "issues" | "issue_comment";
+export type AgentWorkInvestigationMode = "default" | "fresh";
 
-const TRIAGE_WORKFLOW_BLOCK =
+const MANAGED_WORKFLOW_BLOCK =
   /<!-- euxy-triage-workflow:start -->[\s\S]*?<!-- euxy-triage-workflow:end -->/g;
 
-export function isIssueTriageActorAuthorized({
+export function isAgentWorkActorAuthorized({
   eventName,
   actor,
   issueAuthorAllowlist,
@@ -18,15 +18,15 @@ export function isIssueTriageActorAuthorized({
   issueAuthorAllowlist: string[];
 }): boolean {
   if (eventName === "issue_comment") {
-    return actor === ISSUE_TRIAGE_APPROVER;
+    return actor === AGENT_WORK_APPROVER;
   }
   return (
-    actor !== ISSUE_TRIAGE_BOT_LOGIN &&
+    actor !== AGENT_WORK_BOT_LOGIN &&
     issueAuthorAllowlist.includes(actor)
   );
 }
 
-export function parseIssueTriageCommand(comment: string): string | null {
+export function parseAgentWorkCommand(comment: string): string | null {
   const match = comment
     .trim()
     .match(/^@notbrent[ \t]+accept(?:[.:,-])?(?:\s+([\s\S]*))?$/i);
@@ -34,7 +34,7 @@ export function parseIssueTriageCommand(comment: string): string | null {
   return (match[1] || "").trim();
 }
 
-export function parseIssueTriageFollowUp(comment: string): string | null {
+export function parseAgentWorkFollowUp(comment: string): string | null {
   const match = comment
     .trim()
     .match(/^@notbrent(?:[ \t]*[,:-])?[ \t]+([\s\S]+)$/i);
@@ -43,7 +43,7 @@ export function parseIssueTriageFollowUp(comment: string): string | null {
   return instruction || null;
 }
 
-export function parseFreshIssueTriageFollowUp(
+export function parseFreshAgentWorkFollowUp(
   comment: string
 ): string | null {
   const match = comment
@@ -55,13 +55,13 @@ export function parseFreshIssueTriageFollowUp(
   return (match[1] || "").trim();
 }
 
-export function issueBodyForInvestigation(
+export function bodyForInvestigation(
   body: string,
-  mode: IssueTriageInvestigationMode
+  mode: AgentWorkInvestigationMode
 ): string {
   if (mode !== "fresh") return body;
   return body
-    .replace(TRIAGE_WORKFLOW_BLOCK, "")
+    .replace(MANAGED_WORKFLOW_BLOCK, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
@@ -83,7 +83,7 @@ type GitHubIssueComment = {
   user?: { login?: string };
 };
 
-export function validateIssueTriageDispatch({
+export function validateAgentWorkDispatch({
   eventName,
   owner,
   repo,
@@ -108,11 +108,11 @@ export function validateIssueTriageDispatch({
 }): {
   acceptContext: string;
   actor: string;
-  investigationMode: IssueTriageInvestigationMode;
+  investigationMode: AgentWorkInvestigationMode;
   triggeredBy: string;
 } {
   if (eventName !== "issues" && eventName !== "issue_comment") {
-    throw new Error(`Unsupported issue triage event: ${eventName || "(blank)"}.`);
+    throw new Error(`Unsupported agent work event: ${eventName || "(blank)"}.`);
   }
   if (
     String(issue.id) !== expectedIssueId ||
@@ -129,14 +129,14 @@ export function validateIssueTriageDispatch({
   );
   if (eventName === "issues") {
     if (
-      !isIssueTriageActorAuthorized({
+      !isAgentWorkActorAuthorized({
         eventName,
         actor: issueAuthor,
         issueAuthorAllowlist: normalizedAllowlist,
       })
     ) {
       throw new Error(
-        `Issue author ${issueAuthor || "(unknown)"} is not eligible for automatic issue triage.`
+        `Report author ${issueAuthor || "(unknown)"} is not eligible for automatic agent work.`
       );
     }
     return {
@@ -160,20 +160,20 @@ export function validateIssueTriageDispatch({
 
   const commentAuthor = String(comment.user?.login || "").toLowerCase();
   if (
-    !isIssueTriageActorAuthorized({
+    !isAgentWorkActorAuthorized({
       eventName,
       actor: commentAuthor,
       issueAuthorAllowlist: normalizedAllowlist,
     })
   ) {
     throw new Error(
-      `Only ${ISSUE_TRIAGE_APPROVER} may approve issue remediation; received ${
+      `Only ${AGENT_WORK_APPROVER} may authorize an agent work session; received ${
         commentAuthor || "(unknown)"
       }.`
     );
   }
   const commandBody = comment.body || "";
-  const acceptContext = parseIssueTriageCommand(commandBody);
+  const acceptContext = parseAgentWorkCommand(commandBody);
   if (acceptContext !== null) {
     return {
       acceptContext,
@@ -183,8 +183,8 @@ export function validateIssueTriageDispatch({
     };
   }
 
-  const freshContext = parseFreshIssueTriageFollowUp(commandBody);
-  const followUpContext = parseIssueTriageFollowUp(commandBody);
+  const freshContext = parseFreshAgentWorkFollowUp(commandBody);
+  const followUpContext = parseAgentWorkFollowUp(commandBody);
   if (followUpContext === null) {
     throw new Error("The fetched GitHub comment is not a valid @notbrent instruction.");
   }
@@ -200,13 +200,13 @@ export function validateIssueTriageDispatch({
         Number.isSafeInteger(candidateId) &&
         candidateId < currentCommentId &&
         candidate.issue_url === issueApiUrl &&
-        candidateAuthor === ISSUE_TRIAGE_APPROVER &&
-        parseIssueTriageCommand(candidate.body || "") !== null
+        candidateAuthor === AGENT_WORK_APPROVER &&
+        parseAgentWorkCommand(candidate.body || "") !== null
       );
     });
   if (!hasPriorAcceptance) {
     throw new Error(
-      `A follow-up @notbrent instruction requires an earlier @notbrent accept from ${ISSUE_TRIAGE_APPROVER} on this issue.`
+      `A follow-up @notbrent instruction requires an earlier @notbrent accept from ${AGENT_WORK_APPROVER} on this issue.`
     );
   }
 

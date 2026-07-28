@@ -1,40 +1,40 @@
 import { describe, expect, test } from "bun:test";
 
 import {
-  ISSUE_TRIAGE_APPROVER,
-  ISSUE_TRIAGE_BOT_LOGIN,
-  ISSUE_TRIAGE_COMMAND,
-  isIssueTriageActorAuthorized,
-  issueBodyForInvestigation,
-  parseFreshIssueTriageFollowUp,
-  parseIssueTriageCommand,
-  parseIssueTriageFollowUp,
-  validateIssueTriageDispatch,
-} from "./issue-triage-command";
+  AGENT_WORK_APPROVER,
+  AGENT_WORK_BOT_LOGIN,
+  AGENT_WORK_COMMAND,
+  bodyForInvestigation,
+  isAgentWorkActorAuthorized,
+  parseAgentWorkCommand,
+  parseAgentWorkFollowUp,
+  parseFreshAgentWorkFollowUp,
+  validateAgentWorkDispatch,
+} from "./agent-work-command";
 
-describe("issue triage approval comments", () => {
+describe("agent work session approval comments", () => {
   test("pins the sole approval actor", () => {
-    expect(ISSUE_TRIAGE_APPROVER).toBe("brentvatne");
-    expect(ISSUE_TRIAGE_BOT_LOGIN).toBe("notbrent");
+    expect(AGENT_WORK_APPROVER).toBe("brentvatne");
+    expect(AGENT_WORK_BOT_LOGIN).toBe("notbrent");
   });
 
   test("authorizes only Brent for comments and never auto-runs bot-created issues", () => {
     expect(
-      isIssueTriageActorAuthorized({
+      isAgentWorkActorAuthorized({
         eventName: "issue_comment",
         actor: "brentvatne",
         issueAuthorAllowlist: ["brentvatne", "another-maintainer"],
       })
     ).toBe(true);
     expect(
-      isIssueTriageActorAuthorized({
+      isAgentWorkActorAuthorized({
         eventName: "issue_comment",
         actor: "another-maintainer",
         issueAuthorAllowlist: ["brentvatne", "another-maintainer"],
       })
     ).toBe(false);
     expect(
-      isIssueTriageActorAuthorized({
+      isAgentWorkActorAuthorized({
         eventName: "issues",
         actor: "notbrent",
         issueAuthorAllowlist: ["brentvatne", "notbrent"],
@@ -44,7 +44,7 @@ describe("issue triage approval comments", () => {
 
   test("allows Brent to approve work on any issue regardless of its author", () => {
     expect(
-      isIssueTriageActorAuthorized({
+      isAgentWorkActorAuthorized({
         eventName: "issue_comment",
         actor: "brentvatne",
         issueAuthorAllowlist: [],
@@ -53,66 +53,66 @@ describe("issue triage approval comments", () => {
   });
 
   test("accepts the bot mention with optional maintainer direction", () => {
-    expect(parseIssueTriageCommand(ISSUE_TRIAGE_COMMAND)).toBe("");
+    expect(parseAgentWorkCommand(AGENT_WORK_COMMAND)).toBe("");
     expect(
-      parseIssueTriageCommand(
+      parseAgentWorkCommand(
         "@notbrent accept and preserve the existing lane ordering"
       )
     ).toBe("and preserve the existing lane ordering");
     expect(
-      parseIssueTriageCommand(
+      parseAgentWorkCommand(
         "@notbrent accept\nPreserve the lane ordering.\nAdd a regression test."
       )
     ).toBe("Preserve the lane ordering.\nAdd a regression test.");
   });
 
   test("rejects legacy, embedded, and lookalike commands", () => {
-    expect(parseIssueTriageCommand("/accept")).toBeNull();
-    expect(parseIssueTriageCommand("please @notbrent accept")).toBeNull();
-    expect(parseIssueTriageCommand("@notbrent accepted")).toBeNull();
-    expect(parseIssueTriageCommand("@euxy-bot accept")).toBeNull();
+    expect(parseAgentWorkCommand("/accept")).toBeNull();
+    expect(parseAgentWorkCommand("please @notbrent accept")).toBeNull();
+    expect(parseAgentWorkCommand("@notbrent accepted")).toBeNull();
+    expect(parseAgentWorkCommand("@euxy-bot accept")).toBeNull();
   });
 
   test("parses a direct follow-up instruction to the bot", () => {
     expect(
-      parseIssueTriageFollowUp(
+      parseAgentWorkFollowUp(
         "@notbrent actually preserve the lane order and add a test"
       )
     ).toBe("actually preserve the lane order and add a test");
-    expect(parseIssueTriageFollowUp("@notbrent: use the shared helper")).toBe(
+    expect(parseAgentWorkFollowUp("@notbrent: use the shared helper")).toBe(
       "use the shared helper"
     );
-    expect(parseIssueTriageFollowUp("@notbrent")).toBeNull();
-    expect(parseIssueTriageFollowUp("please @notbrent do this")).toBeNull();
-    expect(parseIssueTriageFollowUp("@euxy-bot do this")).toBeNull();
+    expect(parseAgentWorkFollowUp("@notbrent")).toBeNull();
+    expect(parseAgentWorkFollowUp("please @notbrent do this")).toBeNull();
+    expect(parseAgentWorkFollowUp("@euxy-bot do this")).toBeNull();
   });
 
   test("parses an explicit fresh-investigation follow-up", () => {
     expect(
-      parseFreshIssueTriageFollowUp(
+      parseFreshAgentWorkFollowUp(
         "@notbrent try this again from scratch"
       )
     ).toBe("");
     expect(
-      parseFreshIssueTriageFollowUp(
+      parseFreshAgentWorkFollowUp(
         "@notbrent try again from scratch: focus on the sweep bounds"
       )
     ).toBe("focus on the sweep bounds");
     expect(
-      parseFreshIssueTriageFollowUp(
+      parseFreshAgentWorkFollowUp(
         "@notbrent retry from scratch, reproduce it before editing"
       )
     ).toBe("reproduce it before editing");
     expect(
-      parseFreshIssueTriageFollowUp(
+      parseFreshAgentWorkFollowUp(
         "@notbrent start over\nDo not change the interaction design."
       )
     ).toBe("Do not change the interaction design.");
     expect(
-      parseFreshIssueTriageFollowUp("@notbrent try this again")
+      parseFreshAgentWorkFollowUp("@notbrent try this again")
     ).toBeNull();
     expect(
-      parseFreshIssueTriageFollowUp(
+      parseFreshAgentWorkFollowUp(
         "please @notbrent try this again from scratch"
       )
     ).toBeNull();
@@ -126,14 +126,14 @@ describe("issue triage approval comments", () => {
       "## Automation",
       "",
       "- EAS workflow: https://expo.dev/previous-run",
-      "- Status: triage complete",
+      "- Status: agent work complete",
       "<!-- euxy-triage-workflow:end -->",
       "",
       "Keep this user-authored reproduction detail.",
     ].join("\n");
 
-    expect(issueBodyForInvestigation(body, "default")).toBe(body);
-    expect(issueBodyForInvestigation(body, "fresh")).toBe(
+    expect(bodyForInvestigation(body, "default")).toBe(body);
+    expect(bodyForInvestigation(body, "fresh")).toBe(
       [
         "The sweep is wider than the lane.",
         "",
@@ -144,7 +144,7 @@ describe("issue triage approval comments", () => {
 
   test("validates an immutable issue-open dispatch", () => {
     expect(
-      validateIssueTriageDispatch({
+      validateAgentWorkDispatch({
         eventName: "issues",
         owner: "brentvatne",
         repo: "euxy",
@@ -170,7 +170,7 @@ describe("issue triage approval comments", () => {
 
   test("allows Brent to approve any matching issue through a matching comment", () => {
     expect(
-      validateIssueTriageDispatch({
+      validateAgentWorkDispatch({
         eventName: "issue_comment",
         owner: "brentvatne",
         repo: "euxy",
@@ -203,7 +203,7 @@ describe("issue triage approval comments", () => {
 
   test("rejects a comment copied from another issue", () => {
     expect(() =>
-      validateIssueTriageDispatch({
+      validateAgentWorkDispatch({
         eventName: "issue_comment",
         owner: "brentvatne",
         repo: "euxy",
@@ -229,7 +229,7 @@ describe("issue triage approval comments", () => {
 
   test("inherits authorization for Brent's later instruction on the same issue", () => {
     expect(
-      validateIssueTriageDispatch({
+      validateAgentWorkDispatch({
         eventName: "issue_comment",
         owner: "brentvatne",
         repo: "euxy",
@@ -274,7 +274,7 @@ describe("issue triage approval comments", () => {
 
   test("starts fresh without carrying prior investigation comments into context", () => {
     expect(
-      validateIssueTriageDispatch({
+      validateAgentWorkDispatch({
         eventName: "issue_comment",
         owner: "brentvatne",
         repo: "euxy",
@@ -357,11 +357,11 @@ describe("issue triage approval comments", () => {
       body: "@notbrent accept",
     };
 
-    expect(() => validateIssueTriageDispatch(base)).toThrow(
+    expect(() => validateAgentWorkDispatch(base)).toThrow(
       "requires an earlier @notbrent accept from brentvatne on this issue"
     );
     expect(() =>
-      validateIssueTriageDispatch({
+      validateAgentWorkDispatch({
         ...base,
         comment: {
           ...base.comment,
@@ -370,7 +370,7 @@ describe("issue triage approval comments", () => {
       })
     ).toThrow("requires an earlier @notbrent accept");
     expect(() =>
-      validateIssueTriageDispatch({
+      validateAgentWorkDispatch({
         ...base,
         issueComments: [
           { ...acceptance, user: { login: "another-maintainer" } },
@@ -378,7 +378,7 @@ describe("issue triage approval comments", () => {
       })
     ).toThrow("requires an earlier @notbrent accept");
     expect(() =>
-      validateIssueTriageDispatch({
+      validateAgentWorkDispatch({
         ...base,
         issueComments: [
           {
@@ -390,7 +390,7 @@ describe("issue triage approval comments", () => {
       })
     ).toThrow("requires an earlier @notbrent accept");
     expect(() =>
-      validateIssueTriageDispatch({
+      validateAgentWorkDispatch({
         ...base,
         issueComments: [{ ...acceptance, id: 7003 }],
       })
@@ -414,7 +414,7 @@ describe("issue triage approval comments", () => {
       },
     };
     expect(() =>
-      validateIssueTriageDispatch({
+      validateAgentWorkDispatch({
         ...base,
         comment: {
           id: 7001,
@@ -423,9 +423,9 @@ describe("issue triage approval comments", () => {
           body: "@notbrent accept",
         },
       })
-    ).toThrow("Only brentvatne may approve");
+    ).toThrow("Only brentvatne may authorize an agent work session");
     expect(() =>
-      validateIssueTriageDispatch({
+      validateAgentWorkDispatch({
         ...base,
         comment: {
           id: 7001,

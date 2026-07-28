@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
- * Issue triage runner (bun, EAS Workflows). Re-fetches and validates the
- * dispatched GitHub issue/comment, builds an issue context, runs the
+ * Agent work runner (bun, EAS Workflows). Re-fetches and validates the
+ * dispatched GitHub issue/comment, builds the task context, runs the
  * Claude agent to investigate + (maybe) fix, opens a PR, and comments the PR link
  * back on the issue. Never auto-merges. Mirrors the crash-triage security posture.
  *
@@ -13,7 +13,7 @@
  *   ISSUE_NUMBER / ISSUE_ID  (req) — immutable issue identity from the dispatcher
  *   COMMENT_ID                     — immutable command-comment identity
  *   WORKFLOW_URL             (req) — current EAS workflow run URL
- *   TRIAGE_ALLOWLIST               — JSON array of issue authors eligible for automatic triage
+ *   AGENT_WORK_ALLOWLIST           — JSON array of authors eligible for automatic work
  *   AGENT_PROMPT_FILE              — Markdown prompt path
  *   SIMULATOR_VALIDATION           — '1' to enable remote iOS verification
  *   PUBLIC_SIMULATOR_EVIDENCE       — '1' to publish and link selected evidence
@@ -32,10 +32,10 @@ import { runClaudeAgent } from "../shared/claude-agent";
 import { publishPullRequestUpdate } from "../shared/pr-update-preview";
 import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
 import {
-  issueBodyForInvestigation,
-  parseIssueTriageCommand,
-  validateIssueTriageDispatch,
-} from "./issue-triage-command";
+  bodyForInvestigation,
+  parseAgentWorkCommand,
+  validateAgentWorkDispatch,
+} from "./agent-work-command";
 import {
   parsePublicIssueFindings,
   renderPublicIssueFindings,
@@ -45,7 +45,7 @@ const env = process.env;
 const GIT = env.GIT_BIN || "git";
 const EAS = [env.EAS_CLI_BIN || "eas"];
 const CLAUDE = ["claude", ...(env.CLAUDE_PLUGIN_DIR ? ["--plugin-dir", env.CLAUDE_PLUGIN_DIR] : [])];
-const DIR = ".eas/issue-triage";
+const DIR = ".eas/agent-work";
 const ANALYSIS = `${DIR}/ANALYSIS.md`;
 const ISSUE_JSON = `${DIR}/issue.json`;
 const PUBLIC_FINDINGS = `${DIR}/PUBLIC_FINDINGS.json`;
@@ -80,10 +80,10 @@ const issueId = req("ISSUE_ID");
 const eventName = req("EVENT_NAME");
 const workflowUrl = req("WORKFLOW_URL");
 if (owner !== "brentvatne" || repo !== "euxy") {
-  throw new Error("Issue triage is pinned to the brentvatne/euxy repository.");
+  throw new Error("Agent work is pinned to the brentvatne/euxy repository.");
 }
 if (!/^https:\/\/expo\.dev\//.test(workflowUrl)) {
-  throw new Error("Issue triage requires a valid EAS workflow URL.");
+  throw new Error("Agent work requires a valid EAS workflow URL.");
 }
 const parsedIssueNumber = Number(issueNumber);
 if (!Number.isSafeInteger(parsedIssueNumber) || parsedIssueNumber < 1) {
@@ -112,7 +112,7 @@ async function ghJson<T>(path: string, description: string): Promise<T> {
 // before untrusted issue text can reach the coding agent.
 const allowlist: string[] = (() => {
   try {
-    const value = JSON.parse(env.TRIAGE_ALLOWLIST || '["brentvatne"]');
+    const value = JSON.parse(env.AGENT_WORK_ALLOWLIST || '["brentvatne"]');
     return Array.isArray(value) ? value : ["brentvatne"];
   } catch {
     return ["brentvatne"];
@@ -161,10 +161,10 @@ async function fetchIssueComments(): Promise<FetchedIssueComment[]> {
 }
 const issueComments =
   eventName === "issue_comment" &&
-  parseIssueTriageCommand(fetchedComment?.body || "") === null
+  parseAgentWorkCommand(fetchedComment?.body || "") === null
     ? await fetchIssueComments()
     : [];
-const dispatch = validateIssueTriageDispatch({
+const dispatch = validateAgentWorkDispatch({
   eventName,
   owner,
   repo,
@@ -182,11 +182,11 @@ if (eventName === "issue_comment") {
   const updated = await updateTriageIssueStatus({
     gh,
     issueNumber: parsedIssueNumber,
-    status: "triage in progress",
+    status: "agent work in progress",
     workflowUrl,
   });
   if (updated) {
-    console.log(`▸ Linked the current EAS run and marked issue #${issueNumber} triage as in progress.`);
+    console.log(`▸ Linked the current EAS run and marked agent work on #${issueNumber} as in progress.`);
   }
 }
 
@@ -197,7 +197,7 @@ if (eventName === "issue_comment") {
 const issue = {
   number: parsedIssueNumber,
   title: fetchedIssue.title || "",
-  body: issueBodyForInvestigation(
+  body: bodyForInvestigation(
     fetchedIssue.body || "",
     dispatch.investigationMode
   ),
@@ -209,7 +209,7 @@ const issue = {
 };
 await Bun.write(ISSUE_JSON, JSON.stringify(issue, null, 2));
 console.log(
-  `▸ Triaging issue #${issue.number} (${issue.triggeredBy}, ${issue.investigationMode} investigation): ${issue.title}`
+  `▸ Starting agent work on #${issue.number} (${issue.triggeredBy}, ${issue.investigationMode} investigation): ${issue.title}`
 );
 
 // ---- run the agent ----
@@ -217,7 +217,7 @@ const simValidation = await prepareAgentSimulator({ env });
 if (simValidation) {
   await sh(["mkdir", "-p", env.SIMULATOR_ARTIFACT_DIR || `${DIR}/sim`]);
 }
-const promptFile = env.AGENT_PROMPT_FILE || "prompts/automation/issue-triage.md";
+const promptFile = env.AGENT_PROMPT_FILE || "prompts/automation/agent-work.md";
 const taskPrompt = await Bun.file(promptFile).text();
 const simulatorPrompt = simValidation
   ? await Bun.file(env.SIMULATOR_PROMPT_FILE || "prompts/automation/simulator-verification.md").text()
@@ -261,7 +261,7 @@ try {
 console.log(`▸ Agent finished (rc=${agentRc}).`);
 
 if (!(await Bun.file(ANALYSIS).exists())) {
-  await Bun.write(ANALYSIS, `# Issue triage — #${issue.number}\n\nThe agent did not produce an analysis (rc=${agentRc}); manual triage needed.\n\nIssue: ${issue.url}\n`);
+  await Bun.write(ANALYSIS, `# Agent work session — #${issue.number}\n\nThe agent did not produce an analysis (rc=${agentRc}); manual review is needed.\n\nGitHub report: ${issue.url}\n`);
 }
 if (agentRc !== 0) {
   console.error(`✗ Agent failed (rc=${agentRc}) — refusing to publish partial or unverified changes.`);
@@ -274,9 +274,9 @@ if (env.DRY_RUN === "1") {
 }
 
 // ---- branch / commit / push ----
-const branch = `issue-triage/${issue.number}`;
-await sh([GIT, "config", "user.name", "euxy issue-triage bot"]);
-await sh([GIT, "config", "user.email", "issue-triage@users.noreply.github.com"]);
+const branch = `agent-work/${issue.number}`;
+await sh([GIT, "config", "user.name", "euxy agent-work bot"]);
+await sh([GIT, "config", "user.email", "agent-work@users.noreply.github.com"]);
 await sh([GIT, "checkout", "-B", branch]);
 await sh([GIT, "add", "-A"]);
 const staged = await sh([GIT, "diff", "--cached", "--name-only"]);
@@ -314,7 +314,7 @@ if ((await sh([GIT, "diff", "--cached", "--quiet"], { allowFail: true })).code =
       `▸ Public findings did not pass validation; using a safe fallback: ${(error as Error).message}`
     );
     findingsComment = [
-      "🤖 **Triage complete — no code change**",
+      "🤖 **Agent work complete — no code change**",
       "",
       "The investigation completed without a code change, but its detailed findings could not be published safely. Review the private workflow artifact for the analysis.",
       "",
@@ -334,10 +334,10 @@ if ((await sh([GIT, "diff", "--cached", "--quiet"], { allowFail: true })).code =
   await updateTriageIssueStatus({
     gh,
     issueNumber: issue.number,
-    status: "triage complete",
+    status: "agent work complete",
     workflowUrl,
   });
-  console.log(`▸ Marked issue #${issue.number} triage as complete.`);
+  console.log(`▸ Marked agent work on #${issue.number} as complete.`);
   if (publicEvidence) {
     await gh(`/issues/${issue.number}/comments`, {
       method: "POST",
@@ -349,12 +349,12 @@ if ((await sh([GIT, "diff", "--cached", "--quiet"], { allowFail: true })).code =
   }
   process.exit(0);
 }
-await sh([GIT, "commit", "-m", `issue-triage: #${issue.number} — ${issue.title}`.slice(0, 72), "-m", `Automated triage of #${issue.number} (${issue.triggeredBy}). Analysis in ${ANALYSIS}.\n\n${issue.url}`]);
+await sh([GIT, "commit", "-m", `agent-work: #${issue.number} — ${issue.title}`.slice(0, 72), "-m", `Automated agent work on #${issue.number} (${issue.triggeredBy}). Analysis in ${ANALYSIS}.\n\n${issue.url}`]);
 await sh([GIT, "push", "-f", `https://x-access-token:${GH_TOKEN}@github.com/${owner}/${repo}.git`, branch]);
 console.log(`▸ Pushed ${branch}.`);
 
 // ---- open PR + comment on the issue ----
-const title = codeChanged ? `Address #${issue.number}: ${issue.title}` : `Triage #${issue.number}: ${issue.title}`;
+const title = codeChanged ? `Address #${issue.number}: ${issue.title}` : `Investigate #${issue.number}: ${issue.title}`;
 const linkLine = codeChanged ? `Closes #${issue.number}` : `Re: #${issue.number}`;
 const evidenceSection = publicEvidence
   ? `\n\n${renderPublicSimulatorEvidence(publicEvidence)}`
@@ -401,6 +401,6 @@ const prComment = await createVerifiedIssueComment({
   owner,
   repo,
   issueNumber: issue.number,
-  body: `🤖 Opened a triage PR: ${prUrl}${preview ? `\n\n${preview.summary}` : ""}`,
+  body: `🤖 Opened a PR for this agent work session: ${prUrl}${preview ? `\n\n${preview.summary}` : ""}`,
 });
 console.log(`▸ Commented and publicly verified the PR link: ${prComment.htmlUrl}`);

@@ -2,7 +2,7 @@
 # workflow verifies the event envelope and dispatches immutable IDs to trusted
 # workflow code on EAS. The autonomous agent and GitHub write token remain on EAS.
 
-name: Dispatch issue triage
+name: Dispatch agent work session
 
 on:
   issues:
@@ -13,12 +13,13 @@ on:
 permissions: {}
 
 concurrency:
-  group: issue-triage-dispatch-${{ github.event.issue.number }}
+  group: agent-work-dispatch-${{ github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
   dispatch:
-    # Automatically triage allowlisted issue authors. On every other real issue,
+    # Automatically start work for allowlisted report authors. On every other
+    # real GitHub issue,
     # only brentvatne may authorize work. The first command must be an exact
     # `@notbrent accept …`; later `@notbrent …` instructions inherit that
     # issue-scoped authorization. EAS re-fetches the issue and its comment
@@ -29,7 +30,7 @@ jobs:
         (github.event_name == 'issues'
           && github.event.issue.user.login != 'notbrent'
           && contains(
-            fromJSON(vars.TRIAGE_ALLOWLIST || '["brentvatne"]'),
+            fromJSON(vars.AGENT_WORK_ALLOWLIST || '["brentvatne"]'),
             github.event.issue.user.login
           ))
         || (
@@ -74,7 +75,7 @@ jobs:
               '{
                 appId: $app_id,
                 gitRef: $git_ref,
-                fileName: "issue-triage.yml",
+                fileName: "agent-work.yml",
                 inputs: {
                   event_name: $event_name,
                   issue_number: $issue_number,
