@@ -21,6 +21,7 @@ export async function assertPubliclyVisible({
   wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
 }: AssertPubliclyVisibleOptions): Promise<void> {
   let lastStatus = 0;
+  let lastContentMismatch: string[] = [];
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const response = await publicFetch(apiUrl, {
       headers: { Accept: "application/vnd.github+json" },
@@ -32,8 +33,21 @@ export async function assertPubliclyVisible({
       const body = typeof resource.body === "string" ? resource.body : "";
       const bodyMatches = expectedBodyIncludes.every((value) => body.includes(value));
       if (resource.html_url === expectedHtmlUrl && titleMatches && bodyMatches) return;
+      lastContentMismatch = [
+        ...(resource.html_url === expectedHtmlUrl ? [] : ["URL"]),
+        ...(titleMatches ? [] : ["title"]),
+        ...(bodyMatches ? [] : ["body"]),
+      ];
+    } else {
+      lastContentMismatch = [];
     }
     if (attempt < 2) await wait(500 * (attempt + 1));
+  }
+  if (lastContentMismatch.length > 0) {
+    throw new Error(
+      `GitHub returned ${description} publicly (HTTP ${lastStatus}), but its ` +
+        `${lastContentMismatch.join("/")} did not match the expected write.`
+    );
   }
   throw new Error(
     `GitHub accepted ${description}, but it is not publicly visible (last HTTP ${lastStatus}). ` +

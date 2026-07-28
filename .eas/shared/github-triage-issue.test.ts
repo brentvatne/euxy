@@ -193,6 +193,7 @@ describe("GitHub triage issues", () => {
   test("adds public simulator evidence without exposing private workflow artifacts", async () => {
     const sourceMarker = `<!-- euxy-triage:feedback:${createHash("sha256").update("source").digest("hex").slice(0, 20)} -->`;
     const calls: { path: string; init?: RequestInit }[] = [];
+    let publiclyVisibleBody = "";
     const gh = async (path: string, init?: RequestInit) => {
       calls.push({ path, init });
       if (path.startsWith("/issues?")) {
@@ -203,6 +204,9 @@ describe("GitHub triage issues", () => {
             body: `${sourceMarker}\nPrivate inputs are omitted.`,
           },
         ]);
+      }
+      if (path === "/issues/11" && init?.method === "PATCH") {
+        publiclyVisibleBody = JSON.parse(String(init.body)).body;
       }
       return jsonResponse({});
     };
@@ -226,16 +230,7 @@ describe("GitHub triage issues", () => {
         jsonResponse({
           number: 11,
           html_url: "https://github.com/brentvatne/euxy/issues/11",
-          body: [
-            "<!-- euxy-triage-evidence:start -->",
-            evidence.pageUrl,
-            evidence.beforeScreenshotUrl,
-            evidence.beforeVideoUrl,
-            evidence.screenshotUrl,
-            evidence.videoUrl,
-            "https://expo.dev/new-run",
-            "triage in progress",
-          ].join("\n"),
+          body: publiclyVisibleBody,
         }),
     });
 
@@ -247,6 +242,8 @@ describe("GitHub triage issues", () => {
     expect(updatedBody).toContain(
       `[Full recording](${evidence.pageUrl}#after)`
     );
+    expect(updatedBody).not.toContain(evidence.beforeVideoUrl);
+    expect(updatedBody).not.toContain(evidence.videoUrl);
     expect(updatedBody).not.toContain("feedback-triage-summary");
   });
 
@@ -288,7 +285,9 @@ describe("GitHub triage issues", () => {
           }),
         wait: async () => {},
       })
-    ).rejects.toThrow("not publicly visible");
+    ).rejects.toThrow(
+      "GitHub returned issue #8 publicly (HTTP 200), but its title/body did not match the expected write."
+    );
   });
 
   test("marks an intake issue in progress and removes the approval instruction", async () => {

@@ -256,11 +256,7 @@ export async function ensureTriageIssue({
       ...(evidence
         ? [
             EVIDENCE_BLOCK_START,
-            evidence.pageUrl,
-            ...(evidence.beforeScreenshotUrl ? [evidence.beforeScreenshotUrl] : []),
-            ...(evidence.beforeVideoUrl ? [evidence.beforeVideoUrl] : []),
-            evidence.screenshotUrl,
-            ...(evidence.videoUrl ? [evidence.videoUrl] : []),
+            renderPublicSimulatorEvidence(evidence),
           ]
         : []),
       workflowUrl,
