@@ -157,11 +157,21 @@ export function CombinedCard({
 }
 
 /**
- * The reroll wash: a soft light curtain sweeps the card over ~350ms while
- * the cells flicker-bloom under it column by column and settle into the NEW
- * pattern already painted beneath (slot-machine reveal); the curtain fades
+ * The reroll wash: a soft light curtain sweeps the lane's steps over ~350ms
+ * while the cells flicker-bloom under it column by column and settle into the
+ * NEW pattern already painted beneath (slot-machine reveal); the curtain fades
  * out past the last column. Grey palette only — the light layer is #F6F4F4
  * at low opacity, and only opacity/transform animate.
+ *
+ * The whole layer is CLIPPED to the lane's occupied steps (`contentW`), and
+ * the curtain travels that span — not the card's full 16-column width. Two
+ * things went wrong without it (TestFlight, lane editor): the curtain is
+ * fully lit the instant it's parked at the entry edge, so it painted a hard
+ * light band OUTSIDE the card — over the sheet background and across the
+ * card's rounded corner — at both ends of every sweep; and a lane shorter
+ * than 16 steps had the light carry on across empty card past its last step.
+ * Clipping to the steps makes the light enter and leave at the lane's own
+ * bounds.
  */
 function RerollWash({
   trigger,
@@ -177,17 +187,23 @@ function RerollWash({
   cellW: number;
   width: number;
 }) {
-  const curtainW = cellW * 2.5;
+  // The lane's own width: a row is only as wide as the steps it holds, so a
+  // 12- or 8-step lane stops well short of the card's right edge.
+  const cols = Math.min(PER_ROW, Math.max(1, steps));
+  const contentW = cols >= PER_ROW ? width : cols * cellW + (cols - 1) * GAP;
+  // 2.5 cells of light, but never wider than the lane itself — on a 1–2 step
+  // lane an oversized band would fill the whole row and never read as moving.
+  const curtainW = Math.min(cellW * 2.5, contentW);
   const rtl = direction === 'rtl';
 
   // Curtain: constant-speed sweep (mechanical, LED-like), fading past the
   // last column.
-  const x = useSharedValue(rtl ? width : -curtainW);
+  const x = useSharedValue(rtl ? contentW : -curtainW);
   const o = useSharedValue(0);
   useEffect(() => {
-    const startX = rtl ? width : -curtainW;
-    const endX = rtl ? -curtainW : width;
-    const span = width + curtainW;
+    const startX = rtl ? contentW : -curtainW;
+    const endX = rtl ? -curtainW : contentW;
+    const span = contentW + curtainW;
     // Parked and invisible → enter fresh from the start edge (nothing on
     // screen to cut). Still mid-sweep → leave the curtain where it is and
     // carry it to the end at the SAME speed: a re-press re-flickers the cells
@@ -216,10 +232,12 @@ function RerollWash({
     const t = Math.sin((i + 1) * 127.1 + trigger * 311.7) * 43758.5453;
     return t - Math.floor(t);
   };
-  const colMs = SWEEP_MS / PER_ROW;
+  // Staggered over the lane's OWN columns, so a short lane's cells stay under
+  // the curtain instead of finishing while it still has card left to cross.
+  const colMs = SWEEP_MS / cols;
   const cells = Array.from({ length: steps }, (_, i) => {
     const col = i % PER_ROW;
-    const sweepCol = rtl ? PER_ROW - 1 - col : col;
+    const sweepCol = rtl ? cols - 1 - col : col;
     return {
       i,
       delay: sweepCol * colMs + rand(i) * colMs * 0.8,
@@ -230,7 +248,9 @@ function RerollWash({
   });
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    // Clipped to the lane's steps: the curtain enters and leaves at the lane's
+    // own edges and nothing paints over the card's padding or the sheet.
+    <View style={[styles.washClip, { width: contentW }]} pointerEvents="none">
       {/* Films stay mounted under a stable key and retrigger — a mid-fade cell
           redirects from its current opacity instead of cutting to zero. */}
       {cells.map((c) => (
@@ -275,6 +295,15 @@ const styles = StyleSheet.create({
   attrDot: { width: 3, height: 3, borderRadius: 999 },
   attrG1: { backgroundColor: G1_DOT },
   attrG2: { backgroundColor: G2_DOT },
+  // Concept J: the wash layer is clipped to the lane's steps (see RerollWash),
+  // so the curtain never paints outside the lane it belongs to.
+  washClip: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    overflow: 'hidden',
+  },
   // Concept J: light film over a cell while the wash passes (opacity-only).
   washCell: {
     position: 'absolute',
@@ -282,11 +311,13 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: '#F6F4F4',
   },
-  // The curtain: a soft light band with a brighter leading edge + glow.
+  // The curtain: a soft light band with a brighter leading edge + glow. Full
+  // height of the clip (which is the grid's box) — the old -4 overhang bled
+  // into the card's padding.
   curtain: {
     position: 'absolute',
-    top: -4,
-    bottom: -4,
+    top: 0,
+    bottom: 0,
     left: 0,
     backgroundColor: 'rgba(246,244,244,0.10)',
     borderRadius: 4,
