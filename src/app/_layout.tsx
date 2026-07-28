@@ -14,7 +14,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BootSplash } from '@/components/boot-splash';
 import { enableMidi } from '@/components/midi/runtime';
 import { KeyboardProvider } from '@/components/ui/keyboard';
-import { configureObserve, useObserve, wrapWithObserveRoot } from '@/lib/shims';
+import { configureObserve, wrapWithObserveRoot } from '@/lib/shims';
+import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { useShotRig } from '@/lib/shot-rig';
 import { navTheme } from '@/theme/navigation';
 import { color, radius } from '@/theme/tokens';
@@ -46,12 +47,11 @@ function RootLayout() {
     if (Platform.OS !== 'web') void enableMidi();
   }, []);
 
-  // App-level TTI: no splash-blocking work exists (store hydration is a sync
-  // SQLite read), so the app is interactive as soon as the root mounts.
-  const { markInteractive } = useObserve();
-  useEffect(() => {
-    markInteractive();
-  }, [markInteractive]);
+  // App-level TTI. Note this reports the FULL boot sequence, not the moment the
+  // tree mounts: BootSplash's overlay is pointerEvents:'auto' for its whole
+  // ~900ms, so the app genuinely is not interactive until the fade ends. Real
+  // readiness underneath is the `boot.ready` event instead.
+  useMarkInteractive();
 
   return (
     // Every touch target now goes through gesture-handler's Pressable, whose

@@ -18,7 +18,8 @@ import { useStore } from '@/state/store';
 import type { Lane } from '@/state/types';
 import { reportFirstScreenLayout } from '@/components/boot-signal';
 import { useMidiRuntime } from '@/components/midi/runtime';
-import { logObserveEvent, useObserve } from '@/lib/shims';
+import { logObserveEvent } from '@/lib/shims';
+import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { color } from '@/theme/tokens';
 import { LaneRow, TransportBar } from '@/components/ui';
 import { useScreenFocused } from '@/components/ui/use-screen-focused';
@@ -80,10 +81,7 @@ export default function SequencerScreen() {
   const screenFocused = useScreenFocused();
 
   // Per-route TTI for EAS Observe.
-  const { markInteractive } = useObserve();
-  useEffect(() => {
-    markInteractive();
-  }, [markInteractive]);
+  useMarkInteractive();
 
   const outputDevice = midi.outputs.find((d) => d.id === settings.outputId);
   const connected = midi.enabled && outputDevice != null;

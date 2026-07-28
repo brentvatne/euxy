@@ -4,11 +4,12 @@
  * sequencer and switches to the Sequencer tab. A + in the header opens the New
  * Pattern sheet. Empty state (node 2NR-0) shows when there are no patterns.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ActionSheetIOS, Alert, Platform, StyleSheet, View } from 'react-native';
 import { Stack, router } from 'expo-router';
 
-import { haptics, useObserve } from '@/lib/shims';
+import { haptics } from '@/lib/shims';
+import { useMarkInteractive } from '@/lib/use-mark-interactive';
 // Gesture-handler's ScrollView, so the row swipe pan and the list scroll
 // negotiate inside one gesture system — with RN's ScrollView the swipe
 // could lose the horizontal drag on device (ROADMAP §11).
@@ -135,10 +136,7 @@ export default function PatternsScreen() {
   };
 
   // Per-route TTI for EAS Observe.
-  const { markInteractive } = useObserve();
-  useEffect(() => {
-    markInteractive();
-  }, [markInteractive]);
+  useMarkInteractive();
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

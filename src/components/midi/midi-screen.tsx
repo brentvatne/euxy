@@ -14,7 +14,8 @@ import { Pressable } from 'react-native-gesture-handler';
 import { AppText, Segmented } from '@/components/ui';
 import { IconPanic } from '@/components/ui/icons';
 import { reportFirstScreenLayout } from '@/components/boot-signal';
-import { haptics, useObserve } from '@/lib/shims';
+import { haptics } from '@/lib/shims';
+import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { useActivePattern, useSettings, useTransport } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import { color, space } from '@/theme/tokens';
@@ -41,10 +42,7 @@ export default function MidiScreen() {
   );
 
   // Per-route TTI for EAS Observe.
-  const { markInteractive } = useObserve();
-  useEffect(() => {
-    markInteractive();
-  }, [markInteractive]);
+  useMarkInteractive();
   const settings = useSettings();
   const transport = useTransport();
   const setClockMode = useStore((s) => s.setClockMode);
