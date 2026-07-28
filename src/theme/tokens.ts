@@ -102,8 +102,12 @@ export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24 } as const;
 export const radius = {
   step: 4, // step block
   control: 10, // M/S buttons, small controls
-  cell: 12, // grouped list cell, sheet corners
+  cell: 12, // grouped list cell
   chip: 999, // pills, status dots
+  // iOS form-sheet corner. Pinned (via sheetCornerRadius) at the iOS 26
+  // system default we measured, rather than left implicit, so content at the
+  // top of a sheet can match the sheet's own curve.
+  sheet: 40,
 } as const;
 
 /** iOS HIG minimum interactive target. Every tappable control ≥ this. */
