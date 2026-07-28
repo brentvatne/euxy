@@ -27,8 +27,7 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-g
 import Animated, {
   Easing,
   FadeInDown,
-  FadeOutDown,
-  LinearTransition,
+  FadeOut,
   ReduceMotion,
   runOnJS,
   useAnimatedProps,
@@ -104,6 +103,20 @@ const SNAP = { damping: 34, stiffness: 340, reduceMotion: ReduceMotion.System };
 // landing corner — a real throw goes where it was headed.
 const THROW_PROJECTION_S = 0.18;
 
+// An occasional entrance can afford to be legible, but it should arrive
+// immediately under the finger: strong ease-out, opacity-led, and only 8pt of
+// travel. The old 140ms curve produced too few painted frames on a cold boot;
+// 200ms stays inside the small-popover budget while preserving the first-frame
+// response. Exit is deliberately faster and drops movement entirely.
+const CAPSULE_EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
+const CAPSULE_ENTER = FadeInDown.duration(200)
+  .easing(CAPSULE_EASE_OUT)
+  .withInitialValues({ opacity: 0, transform: [{ translateY: 8 }] })
+  .reduceMotion(ReduceMotion.System);
+const CAPSULE_EXIT = FadeOut.duration(120)
+  .easing(CAPSULE_EASE_OUT)
+  .reduceMotion(ReduceMotion.System);
+
 /** One scatter press: 3–4 frames of random pip cells (5 distinct per frame). */
 function rollScatterFrames(): number[][][] {
   const frames = 3 + (Math.random() < 0.5 ? 1 : 0);
@@ -118,7 +131,6 @@ function rollScatterFrames(): number[][][] {
 }
 
 export function FloatingActions({
-  animateMount,
   canMutate,
   snapshotActive,
   onAddLane,
@@ -127,10 +139,6 @@ export function FloatingActions({
   onRevert,
   onKeep,
 }: {
-  /** False while the host screen is on its INITIAL render: a mount `entering`
-   * there can stick the capsule invisible on cold boot (the wave-2 lane-list
-   * race) — only later appearances (empty→lanes) animate in. */
-  animateMount: boolean;
   canMutate: boolean;
   /** Temp mode armed — the resident temp key renders lit. */
   snapshotActive: boolean;
@@ -390,20 +398,14 @@ export function FloatingActions({
     // stays plain (only Patterns wraps a whole screen today).
     <GestureHandlerRootView pointerEvents="box-none" style={StyleSheet.absoluteFill}>
       <GestureDetector gesture={pan}>
-        {/* Outer view owns mount/layout animations; the inner one owns the
-            drag transform + breathing opacity (a layout animation would
-            overwrite them on a shared view). */}
+        {/* Outer view owns mount animation; the inner one owns the drag
+            transform + breathing opacity. The anchor is absolute and fixed,
+            so a layout transition only adds a competing tail. */}
         <Animated.View
-          // Mounted only while lanes exist — ease in/out of the empty
-          // state, but NEVER on the screen's initial render (cold-boot
-          // stuck-invisible race; see animateMount).
-          entering={
-            animateMount ? FadeInDown.duration(200).reduceMotion(ReduceMotion.System) : undefined
-          }
-          exiting={FadeOutDown.duration(150).reduceMotion(ReduceMotion.System)}
-          layout={LinearTransition.springify().damping(18).stiffness(220).reduceMotion(
-            ReduceMotion.System,
-          )}
+          // Mounted only while lanes exist (and never during boot) — so this
+          // entrance covers both app open and easing out of the empty state.
+          entering={CAPSULE_ENTER}
+          exiting={CAPSULE_EXIT}
           style={styles.barAnchor}
           onLayout={(e) => setBarW(e.nativeEvent.layout.width)}
         >

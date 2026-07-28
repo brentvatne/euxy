@@ -34,7 +34,12 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { bootChipProgress, bootElapsedMs, onFirstScreenLayout } from '@/components/boot-signal';
+import {
+  bootChipProgress,
+  bootElapsedMs,
+  onFirstScreenLayout,
+  reportBootOverlayGone,
+} from '@/components/boot-signal';
 import { CHIPS, chipForPattern } from '@/components/patterns/chips';
 import { LedGrid, litCount } from '@/components/ui/led-grid';
 import { logObserveEvent } from '@/lib/shims';
@@ -166,6 +171,18 @@ export function BootSplash() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Announce the end of the boot the moment this overlay is really gone, so
+  // entrances that are only worth playing in front of a user (the sequencer
+  // capsule) can start on a frame they can see — Brent 2026-07-28: the
+  // capsule's entrance "isn't visible at all". Keyed on `done`, NOT on
+  // TYPE_MS + HOLD_MS + FADE_MS: a cold boot runs the whole sequence late
+  // (measured ~2× on a dev build), and a predicted time fires while the
+  // overlay is still opaque — the exact bug being fixed. Subscribers carry
+  // their own failsafe, so a fade that never finishes can't strand them.
+  useEffect(() => {
+    if (done) reportBootOverlayGone();
+  }, [done]);
 
   if (done) return null;
 
