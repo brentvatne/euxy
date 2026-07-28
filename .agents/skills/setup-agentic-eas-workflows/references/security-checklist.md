@@ -72,6 +72,9 @@
 
 - [ ] Require successful focused tests and static checks.
 - [ ] Require simulator verification when the change is UI/interaction-sensitive and the service is available.
+- [ ] For animation, gesture, transition, or timing issues, require bounded
+      before/after recordings plus inspection of the relevant adjacent frames;
+      keep full extracted frame sequences private.
 - [ ] Create/find the tracking issue before the PR.
 - [ ] Link the issue to the active workflow and the PR back to the issue.
 - [ ] Handle GitHub 422 idempotently by finding an existing open PR for the same head.

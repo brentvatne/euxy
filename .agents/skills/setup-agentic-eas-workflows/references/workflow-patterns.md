@@ -176,10 +176,16 @@ The wrapper should:
 2. create a dedicated session file;
 3. provide the EAS Simulator skill and a strict duration cap to the agent;
 4. save screenshots/recordings to a private artifact directory;
-5. run `eas simulator:stop` in `finally`;
-6. redact `EXPO_TOKEN` from all captured output.
+5. for animation, gesture, transition, or timing issues, extract and inspect the
+   native ordered frames around the defect and record the relevant frame
+   numbers or timestamps;
+6. run `eas simulator:stop` in `finally`;
+7. redact `EXPO_TOKEN` from all captured output.
 
 Use a unique temporary directory under the runner-provided temp base. Do not assume a fixed shared `/tmp` path or place session credentials in a publishable directory.
+Keep extracted frame sequences private. A public evidence publisher may expose
+only explicitly selected files that pass the same validation and independent
+readback checks as other simulator evidence.
 
 ## Public simulator evidence
 
@@ -214,3 +220,10 @@ PR comment with that run's table and evidence-page link.
 Record bounded before/after passes immediately around the reproduction and
 expected result. Exclude idle build/debugging time so the complete recordings
 remain useful to reviewers.
+
+For motion-related issues, analyze each bounded recording at native frame order
+instead of judging only its poster or settled screenshots. Inspect adjacent
+frames around the trigger, onset, maximum displacement, reversal/overshoot, and
+settling milestones; report the exact frame numbers or timestamps that support
+the diagnosis. Repeat against the matching after-change recording before
+claiming verification.

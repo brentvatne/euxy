@@ -179,20 +179,29 @@ Read [references/workflow-patterns.md](references/workflow-patterns.md) for impl
 1. Check simulator availability before exposing the robot `EXPO_TOKEN` to the agent.
 2. Create the simulator session file outside the repository or protect it from publication.
 3. Tell the agent which simulator skill to read and cap the session duration.
-4. Compare before/after behavior and save screenshots or recordings as private
-   artifacts. Keep the preset, viewport, navigation state, and relevant app
-   data identical unless their change is under test. Wait for navigation,
-   layout, and animations to settle before still captures unless the transient
-   frame itself is what the test is exercising.
-5. Add a short, public-safe plain-text caption for each still that tells the
+4. Compare before/after behavior and save screenshots and bounded recordings as
+   private artifacts. For animation, gesture, transition, or timing issues, a
+   complete interaction recording is required; a still screenshot is not
+   sufficient evidence. Keep the preset, viewport, navigation state, and
+   relevant app data identical unless their change is under test. Wait for
+   navigation, layout, and animations to settle before stable-state stills.
+5. For every motion-related reproduction, inspect the video at its native frame
+   cadence. Extract the adjacent frames around the interaction trigger, motion
+   onset, largest displacement, reversal/overshoot, and first settled frame.
+   Record the relevant frame numbers or timestamps and identify visible jumps,
+   duplicates, or dropped-state transitions before diagnosing or claiming a
+   fix. Repeat the same analysis on the after-change recording. Keep derived
+   frame sets private unless the trusted wrapper explicitly validates and
+   selects files for publication.
+6. Add a short, public-safe plain-text caption for each still that tells the
    reviewer exactly what visual signal to inspect. Do not quote private reports,
    identities, URLs, device details, or workflow metadata.
-6. Present exactly one before screenshot and one after screenshot in matched
+7. Present exactly one before screenshot and one after screenshot in matched
    cards. Put recordings in a separate, clearly labeled section or link list;
    do not reuse a screenshot as a video poster where it reads as a duplicate
    before/after capture.
-7. Stop the session in a `finally`/always-run cleanup path. Redact the Expo token from subprocess output.
-8. Fall back to static verification only when the workflow's policy explicitly permits it.
+8. Stop the session in a `finally`/always-run cleanup path. Redact the Expo token from subprocess output.
+9. Fall back to static verification only when the workflow's policy explicitly permits it.
 
 ## Validate end to end
 

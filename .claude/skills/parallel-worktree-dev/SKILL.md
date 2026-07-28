@@ -5,8 +5,9 @@ description: >-
   screen), each with its own Metro dev server on its own port + tunnel, and drive
   each on EAS Simulator. Use when parallelizing work on euxy, when "different dev
   servers on different ports" / "port 8081 already in use" comes up, or when
-  verifying a build on a cloud iOS simulator. Reminds you to have an EAS dev
-  build ready first.
+  verifying a build or reproducing an animation, gesture, transition, or timing
+  issue on a cloud iOS simulator. Reminds you to have an EAS dev build ready
+  first and to inspect recorded frames for motion defects.
 ---
 
 # Parallel worktree dev + EAS Simulator (euxy)
@@ -110,23 +111,83 @@ opening its own tunnel URL:
 ```bash
 # from the worktree, with a clean dotenv
 printf '# managed by eas-cli\n' > .env.eas-simulator
-npx --yes eas-cli@latest simulator:start --platform ios --type agent-device --non-interactive
+npx --yes eas-cli@latest simulator:start --platform ios --type argent --non-interactive
 npx --yes eas-cli@latest simulator:get --json   # confirm status IN_PROGRESS
 
-# install the dev build once per session (from build:list URL), then open the tunnel URL
-npx --yes eas-cli@latest simulator:exec npx agent-device@latest install-from-source <dev-build-url> --platform ios
-npx --yes eas-cli@latest simulator:exec npx agent-device@latest open exp+euxy://expo-development-client/?url=https://euxy-engine.brent-org.8081.exp.direct --platform ios
+# Download/extract the dev build locally, then discover the remote simulator UDID.
+npx --yes eas-cli@latest build:download --build-id <build-id> --json
+npx --yes eas-cli@latest simulator:exec argent run list-devices --json
+export ARGENT_UDID=<sole-booted-ios-udid>
 
-# drive it
-npx --yes eas-cli@latest simulator:exec npx agent-device@latest snapshot -i     # UI tree → @e1 refs
-npx --yes eas-cli@latest simulator:exec npx agent-device@latest press @e2       # tap (verb is 'press', not 'tap')
-npx --yes eas-cli@latest simulator:exec npx agent-device@latest screenshot ./shot.png
+# Install the local .app once, then connect the dev client to this worktree's tunnel.
+npx --yes eas-cli@latest simulator:exec argent run reinstall-app \
+  --udid "$ARGENT_UDID" --bundleId dev.brent.euxy --appPath <path-to-Euxy.app>
+npx --yes eas-cli@latest simulator:exec argent run open-url \
+  --udid "$ARGENT_UDID" \
+  --url 'exp+euxy://expo-development-client/?url=https://euxy-engine.brent-org.8081.exp.direct'
+
+# Describe the current UI before every tap; derive normalized x/y from the target frame.
+npx --yes eas-cli@latest simulator:exec argent run describe --udid "$ARGENT_UDID" --json
+npx --yes eas-cli@latest simulator:exec argent run gesture-tap \
+  --udid "$ARGENT_UDID" --x <normalized-x> --y <normalized-y>
+npx --yes eas-cli@latest simulator:exec argent run screenshot \
+  --udid "$ARGENT_UDID" --scale 1 --includeImageInContext false --out ./shot.png
 ```
 
 Running 4 sessions at once = 4× concurrent billing while they run. `.env.eas-simulator`
 carries a token → it's gitignored; keep it that way.
 
-## 4. Merge and clean up
+Argent must be installed locally. For workflow jobs, use the repository's pinned
+toolchain. For ad-hoc local use, install the same pinned release:
+`npm install --global @swmansion/argent@0.17.0`.
+
+## 4. Reproduce motion with video and inspect the frames
+
+A still screenshot cannot prove animation timing, continuity, interruptibility,
+or dropped frames. For any animation, gesture, transition, or timing issue:
+
+1. Put the app in a deterministic starting state. Keep the preset, viewport,
+   navigation state, and app data fixed between runs.
+2. Start recording immediately before one clean reproduction. Disable static
+   trimming so the recording preserves the interaction's real timing:
+
+   ```bash
+   npx --yes eas-cli@latest simulator:exec argent run screen-recording-start \
+     --udid "$ARGENT_UDID" --timeLimitSeconds 30 --trimStatic false --showTouches true
+   # Re-run describe before each gesture, then perform only the interaction under test.
+   npx --yes eas-cli@latest simulator:exec argent run screen-recording-stop \
+     --udid "$ARGENT_UDID" --json
+   ```
+
+   The stop result's `video` field is a local materialized MP4. Copy it unchanged
+   to `before.mp4`.
+3. Analyze the recording before diagnosing from code. Keep the original video
+   unchanged, probe its native frame timing, and extract decoded frames:
+
+   ```bash
+   ffprobe -v error -select_streams v:0 \
+     -show_entries stream=avg_frame_rate,nb_frames,duration \
+     -of default=noprint_wrappers=1 before.mp4
+   mkdir -p before-frames
+   ffmpeg -i before.mp4 -fps_mode passthrough before-frames/frame-%05d.png
+   ```
+
+4. Inspect the exact adjacent frames around the defect with the available image
+   viewer. Record frame numbers or timestamps for the interaction trigger,
+   animation onset, largest displacement, reversal/overshoot, first settled
+   frame, and every visible jump, duplicate, or dropped-state transition. Do not
+   infer timing from the first and last frames alone.
+5. After a fix, record `verification.mp4` from the identical starting state and
+   repeat the same frame analysis. Compare the same milestones before and after.
+
+Keep recordings bounded to the interaction; omit idle build and debugging time.
+If `ffmpeg`/`ffprobe` is unavailable, use an already-installed platform decoder
+that preserves native frame order. Do not install an unpinned tool or claim an
+animation issue reproduced or fixed until the relevant frames have actually
+been inspected. Keep extracted frame directories private unless a trusted
+evidence publisher explicitly validates and selects individual files.
+
+## 5. Merge and clean up
 
 ```bash
 # stop each sim session (ends billing) and reset its dotenv
