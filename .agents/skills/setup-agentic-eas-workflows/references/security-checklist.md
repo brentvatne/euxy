@@ -2,10 +2,17 @@
 
 ## Event and source trust
 
-- [ ] Gate actor, event type/state, repository, head repository, branch prefix, and base revision.
+- [ ] Gate actor, event type/state, repository, head repository, and base
+      revision. Require a branch prefix for automation-created branches; for
+      trusted commands on ordinary PRs, revalidate the immutable comment and
+      require an allowlisted PR author.
+- [ ] Do not treat a repository-wide identity such as `github-actions[bot]` as
+      an ordinary trusted PR author; prefix-gate any intentional exception.
 - [ ] Check out a trusted base SHA before running repository scripts.
 - [ ] Pass untrusted text through environment variables or files, never shell interpolation.
 - [ ] Deduplicate events with a stable source key and serialize work per issue/PR.
+- [ ] Exhaust paginated comment/review history up to a hard cap, then fail
+      closed rather than authorizing or selecting context from a truncated list.
 - [ ] Cap autonomous retry and review-response loops.
 - [ ] For external feedback, create the issue but stop before remediation until
       an allowlisted maintainer authors the exact bot-addressed approval command.

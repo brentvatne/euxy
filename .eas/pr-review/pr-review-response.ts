@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * PR review-response runner (bun, EAS Workflow). Given a triage PR number, finds
+ * PR review-response runner (bun, EAS Workflow). Given a PR number, finds
  * the latest actionable review feedback from a TRUSTED author (the AI reviewer or
  * an allowlisted human — verified via the GitHub API, NOT comment text), clones
  * the PR branch, runs the Claude agent to address the feedback (with a shell, to
@@ -12,7 +12,7 @@
  * Env: CLAUDE_CODE_OAUTH_TOKEN, GH_TOKEN, REPO_SLUG (req); INPUT_PR (req),
  *      INPUT_REVIEW_ID / INPUT_COMMENT_ID (optional immutable feedback ids),
  *      TRIAGE_PR_AUTHOR_ALLOWLIST
- *        (default ["brentvatne","notbrent","github-actions[bot]"]),
+ *        (default ["brentvatne","notbrent"]),
  *      TRIAGE_REVIEWER_ALLOWLIST (default ["brentvatne"]),
  *      AGENT_PROMPT_FILE (Markdown prompt path),
  *      SIMULATOR_VALIDATION ('1' enables remote iOS verification),
@@ -27,6 +27,7 @@ import {
   stopAgentSimulator,
 } from "../shared/agent-simulator";
 import { runClaudeAgent } from "../shared/claude-agent";
+import { fetchAllGitHubPages } from "../shared/github-pagination";
 import { publishPullRequestUpdate } from "../shared/pr-update-preview";
 import {
   publishPublicSimulatorEvidence,
@@ -34,7 +35,12 @@ import {
 } from "../shared/public-simulator-evidence";
 import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
 import { parsePullRequestAgentActions } from "./pr-review-actions";
-import { validatePullRequestCommentDispatch } from "./pr-review-command";
+import {
+  findLatestAiReviewFeedback,
+  isPublishOnlyPullRequestCommand,
+  requestsExistingReviewFeedback,
+  validatePullRequestCommentDispatch,
+} from "./pr-review-command";
 
 const env = process.env;
 const GIT = env.GIT_BIN || "git";
@@ -47,7 +53,6 @@ const MAX_ITERS = Number(env.MAX_ITERS ?? "3");
 const BOT_NAME = "notbrent";
 const BOT_EMAIL = "16714793+notbrent@users.noreply.github.com";
 const MARKER = "🤖 Auto-review-response";
-const TRIAGE_PREFIXES = ["crash-triage/", "issue-triage/", "feedback-triage/"];
 const WORK = "/tmp/euxy-pr-review";
 
 function req(n: string): string {
@@ -88,7 +93,6 @@ async function sh(
 }
 
 const GH_TOKEN = req("GH_TOKEN");
-req("CLAUDE_CODE_OAUTH_TOKEN");
 const [owner, repo] = req("REPO_SLUG").split("/");
 const prNumber = req("INPUT_PR").replace(/[^0-9]/g, "");
 const reviewId = (env.INPUT_REVIEW_ID || "").replace(/[^0-9]/g, "");
@@ -112,7 +116,6 @@ function loginAllowlist(name: string, fallback: string[]): string[] {
 const prAuthorAllowlist = loginAllowlist("TRIAGE_PR_AUTHOR_ALLOWLIST", [
   "brentvatne",
   "notbrent",
-  "github-actions[bot]",
 ]);
 const reviewerAllowlist = loginAllowlist("TRIAGE_REVIEWER_ALLOWLIST", [
   "brentvatne",
@@ -137,8 +140,11 @@ const pr: any = await (await gh(`/pulls/${prNumber}`)).json();
 const headRef: string = pr?.head?.ref || "";
 if (!headRef) skip("could not resolve PR head branch");
 if (pr.state !== "open") skip(`PR #${prNumber} is ${pr.state}`);
-if (!TRIAGE_PREFIXES.some((p) => headRef.startsWith(p)))
-  skip(`#${prNumber} (${headRef}) is not a triage PR`);
+const headRepo = pr?.head?.repo?.full_name || "";
+if (headRepo !== `${owner}/${repo}`)
+  skip(
+    `PR #${prNumber} comes from '${headRepo || "?"}', not the trusted repository`,
+  );
 // The agent clones this PR's branch and runs a shell there with CLAUDE_CODE_OAUTH_TOKEN,
 // so only ever run on PRs created by an allowlisted author — verified via the
 // GitHub API (pr.user.login is set by GitHub, not spoofable). This keeps the
@@ -193,22 +199,26 @@ if (commentId) {
   ];
 } else {
   const [issueComments, reviews] = await Promise.all([
-    (await gh(`/issues/${prNumber}/comments?per_page=100`)).json() as Promise<
-      any[]
-    >,
-    (await gh(`/pulls/${prNumber}/reviews?per_page=100`)).json() as Promise<
-      any[]
-    >,
+    fetchAllGitHubPages<any>({
+      gh,
+      path: `/issues/${prNumber}/comments`,
+      label: `PR #${prNumber} comments`,
+    }),
+    fetchAllGitHubPages<any>({
+      gh,
+      path: `/pulls/${prNumber}/reviews`,
+      label: `PR #${prNumber} reviews`,
+    }),
   ]);
   cands = [
-    ...(Array.isArray(issueComments) ? issueComments : []).map((c: any) => ({
+    ...issueComments.map((c: any) => ({
       author: c.user?.login,
       body: c.body || "",
       at: c.created_at,
       kind: "comment",
       id: c.id,
     })),
-    ...(Array.isArray(reviews) ? reviews : [])
+    ...reviews
       .filter(
         (r: any) => (r.body || "").trim() || r.state === "CHANGES_REQUESTED",
       )
@@ -228,6 +238,10 @@ const trusted = cands
 const fb = trusted[0];
 if (!fb)
   skip("no actionable feedback from a trusted reviewer (AI bot or allowlist)");
+const publishOnly =
+  Boolean(commentId) &&
+  fb.kind === "comment" &&
+  isPublishOnlyPullRequestCommand(fb.body);
 const fromAI = (fb.author || "").toLowerCase() === "github-actions[bot]";
 console.log(
   `▸ Handling #${prNumber} (${headRef}); feedback from ${fromAI ? "AI reviewer" : fb.author} @ ${fb.at}.`,
@@ -235,11 +249,28 @@ console.log(
 
 // assemble feedback (+ inline comments for a formal review)
 let feedbackMd = `# Review feedback on PR #${prNumber}\n\nFrom: ${fromAI ? "expo-ai-code-reviewer" : fb.author}\n\n${fb.body}\n`;
+if (commentId && requestsExistingReviewFeedback(fb.body)) {
+  const comments = await fetchAllGitHubPages<any>({
+    gh,
+    path: `/issues/${prNumber}/comments`,
+    label: `existing review comments for PR #${prNumber}`,
+  });
+  const visibleReview = findLatestAiReviewFeedback({
+    comments,
+    before: fb.at,
+    excludeId: fb.id,
+  });
+  if (visibleReview) {
+    feedbackMd += `\n## Existing code-review feedback\n\n${visibleReview}\n`;
+  }
+}
 if (fb.kind === "review" && fb.id) {
-  const inline: any = await (
-    await gh(`/pulls/${prNumber}/reviews/${fb.id}/comments`)
-  ).json();
-  if (Array.isArray(inline) && inline.length)
+  const inline = await fetchAllGitHubPages<any>({
+    gh,
+    path: `/pulls/${prNumber}/reviews/${fb.id}/comments`,
+    label: `inline comments for review ${fb.id} on PR #${prNumber}`,
+  });
+  if (inline.length)
     feedbackMd +=
       `\n## Inline comments\n` +
       inline
@@ -261,6 +292,68 @@ const pushUrl = `https://x-access-token:${GH_TOKEN}@github.com/${owner}/${repo}.
 await sh(["rm", "-rf", WORK]);
 await sh([GIT, "clone", "--depth", "50", "--branch", headRef, readUrl, WORK]);
 
+async function installCloneDependencies(allowFail: boolean): Promise<void> {
+  // Install with NO lifecycle scripts and a secret-free env, so package scripts
+  // on the branch cannot run with the workflow's tokens.
+  console.log(
+    "▸ Installing deps in the clone (--ignore-scripts, sanitized env)…",
+  );
+  const cleanEnv: Record<string, string | undefined> = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (
+      /TOKEN|SECRET|KEY|PASSWORD|CREDENTIAL/i.test(key) ||
+      /^(ASC_|EXPO_)/i.test(key)
+    )
+      continue;
+    cleanEnv[key] = value;
+  }
+  await sh(["bun", "install", "--ignore-scripts"], {
+    cwd: WORK,
+    allowFail,
+    env: cleanEnv,
+  });
+}
+
+if (publishOnly) {
+  console.log(
+    "▸ Exact publish-only command verified; skipping Claude and simulator verification.",
+  );
+  if (env.DRY_RUN === "1") {
+    console.log("▸ DRY_RUN=1 → not publishing.");
+    process.exit(0);
+  }
+  await installCloneDependencies(false);
+  const preview = await publishPullRequestUpdate({
+    gh,
+    owner,
+    repo,
+    pullRequestNumber: Number(prNumber),
+    message: `Maintainer-requested update for PR #${prNumber}`,
+    easCommand: EAS,
+    run: (command) => sh(command, { allowFail: true, cwd: WORK }),
+  });
+  await sh(["mkdir", "-p", ".eas/pr-review"]);
+  await Bun.write(
+    ".eas/pr-review/RESPONSE.md",
+    `# Publish-only response\n\n${preview.summary}\n`,
+  );
+  await Bun.write(
+    ".eas/pr-review/ACTIONS.json",
+    `${JSON.stringify({ publishUpdate: true })}\n`,
+  );
+  await gh(`/issues/${prNumber}/comments`, {
+    method: "POST",
+    body: JSON.stringify({
+      body: `${MARKER}: ${preview.summary}`,
+    }),
+  });
+  if (!preview.published) {
+    throw new Error(preview.summary);
+  }
+  console.log(`▸ ${preview.summary}`);
+  process.exit(0);
+}
+
 // ---- loop cap ----
 const prior = await sh(
   [GIT, "-C", WORK, "log", `--author=${BOT_NAME}`, "--oneline"],
@@ -275,27 +368,10 @@ console.log(`▸ Auto-response ${iters + 1}/${MAX_ITERS}.`);
 
 await sh(["mkdir", "-p", `${WORK}/.eas/pr-review`]);
 await Bun.write(`${WORK}/.eas/pr-review/feedback.md`, feedbackMd);
-// Install with NO lifecycle scripts and a secret-free env, so package scripts on
-// the branch can't run with the workflow's tokens.
-console.log(
-  "▸ Installing deps in the clone (--ignore-scripts, sanitized env)…",
-);
-const cleanEnv: Record<string, string | undefined> = {};
-for (const [k, v] of Object.entries(env)) {
-  if (
-    /TOKEN|SECRET|KEY|PASSWORD|CREDENTIAL/i.test(k) ||
-    /^(ASC_|EXPO_)/i.test(k)
-  )
-    continue;
-  cleanEnv[k] = v;
-}
-await sh(["bun", "install", "--ignore-scripts"], {
-  cwd: WORK,
-  allowFail: true,
-  env: cleanEnv,
-});
+await installCloneDependencies(true);
 
 // ---- run the agent in the clone (shell to verify; secrets stripped) ----
+req("CLAUDE_CODE_OAUTH_TOKEN");
 const simValidation = await prepareAgentSimulator({ cwd: WORK, env });
 if (simValidation) {
   await sh(

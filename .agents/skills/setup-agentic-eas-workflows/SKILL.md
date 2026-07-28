@@ -29,11 +29,21 @@ Build the automation as a small trusted control plane around an untrusted coding
 ## Establish trust before exposing credentials
 
 1. Treat issue bodies, comments, review text, crash reports, screenshots, branch contents, and model output as untrusted.
-2. Gate on immutable event fields: actor login, event type/state, repository identity, base SHA, head repository, and an allowlisted branch prefix.
-3. Check out trusted workflow code first. Do not execute automation from an untrusted PR head.
-4. Give the agent only task data and the minimum credential it actually needs. Prefer giving it no GitHub write token.
-5. Keep branch creation, commits, issue creation, PR creation, EAS Update publication, and cleanup in a deterministic wrapper.
-6. Reject agent-authored changes to workflow definitions, agent runners, prompt files, credential helpers, and other protected automation paths.
+2. Gate on immutable event fields: actor login, event type/state, repository
+   identity, base SHA, and head repository. Require an allowlisted branch prefix
+   for automation-created branches; for maintainer commands on ordinary PRs,
+   revalidate the exact immutable comment and require an allowlisted PR author
+   instead of relying on the branch name.
+   Do not grant ordinary PR-author trust to a shared repository-wide identity
+   such as `github-actions[bot]`; if it must create agent-addressable PRs,
+   constrain that identity to explicit automation branch prefixes.
+3. When authorization or agent context depends on GitHub history, exhaust
+   paginated comments and reviews up to a hard cap; fail closed instead of
+   trusting a truncated history.
+4. Check out trusted workflow code first. Do not execute automation from an untrusted PR head.
+5. Give the agent only task data and the minimum credential it actually needs. Prefer giving it no GitHub write token.
+6. Keep branch creation, commits, issue creation, PR creation, EAS Update publication, and cleanup in a deterministic wrapper.
+7. Reject agent-authored changes to workflow definitions, agent runners, prompt files, credential helpers, and other protected automation paths.
 
 Use [references/security-checklist.md](references/security-checklist.md) for the full threat-model and credential checklist.
 
@@ -81,6 +91,14 @@ agent emit a narrow validated action manifest; do not create a deterministic
 command-only workflow. Keep channel allocation, channel reuse, publication, and
 PR-body updates in the wrapper.
 
+Use a hybrid fast path for a small, explicit, bounded command such as
+publish-only. Revalidate the immutable comment, actor, PR, branch, and command in
+the trusted runner, then let the existing wrapper perform only that action.
+Composite or ambiguous instructions must continue through the full agent. Do
+not fetch a mutable CLI through an unversioned `npx` command to implement the
+fast path; use the reviewed pinned CLI and cover its real JSON output shape with
+a fixture test.
+
 Keep the issue title as the reported problem. Use the eventual PR title for the
 solution or user-visible outcome, and preserve any additional maintainer
 instructions after the approval command as agent context.
@@ -123,10 +141,11 @@ Use this lifecycle for crash, feedback, and issue automation:
 4. Validate the diff, protected paths, type checks, tests, and simulator evidence.
 5. Push a namespaced branch.
 6. Open or find the PR and include `Closes #<issue>` when it contains a fix, or `Re: #<issue>` when it contains analysis only.
-7. Keep the visible PR body scannable. In an `Approach` section, use one-sentence
-   bold highlights and put file references, rationale, caveats, and supporting
-   evidence in a `<details><summary>Details</summary>…</details>` block under
-   each highlight.
+7. Keep the visible PR body scannable. In an `Approach` section, use one
+   `<details>` block per change and make its one-sentence bold highlight the
+   clickable `<summary>` label. Put file references, rationale, caveats, and
+   supporting evidence directly inside that block; do not add a separate
+   generic “Details” label.
 8. For a code-changing PR, allocate an unused readable EAS Update channel and
    persist it in a wrapper-owned PR-body marker before publishing. Reuse that
    marker for every later review-response publication on the same PR. List

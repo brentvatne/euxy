@@ -39,7 +39,7 @@ jobs:
       SIMULATOR_VALIDATION: "1"
       PUBLIC_SIMULATOR_EVIDENCE: "1"
       SIMULATOR_ARTIFACT_DIR: .eas/pr-review/sim
-      TRIAGE_PR_AUTHOR_ALLOWLIST: '["brentvatne","notbrent","github-actions[bot]"]'
+      TRIAGE_PR_AUTHOR_ALLOWLIST: '["brentvatne","notbrent"]'
       TRIAGE_REVIEWER_ALLOWLIST: '["brentvatne"]'
       DISABLE_AUTOUPDATER: "1"
       MAX_ITERS: "3"

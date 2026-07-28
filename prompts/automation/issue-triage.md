@@ -28,24 +28,23 @@ accepted it for triage, so it's worth acting on.
    unsafe. State the concrete reason rather than generic uncertainty.
 4. Write your findings to `.eas/issue-triage/ANALYSIS.md`:
    - **Summary** — one or two sentences.
-   - **Approach** — a short bullet list of what changed. Keep each visible bullet
-     to one sentence, beginning with a bold, plain-language highlight. Put file
-     references, implementation details, rationale, caveats, and supporting
-     evidence inside an expandable block directly beneath that bullet:
+   - **Approach** — one expandable block per change. Make the bold,
+     plain-language highlight the clickable `<summary>` label itself. Put the
+     explanation, file references, implementation details, rationale, caveats,
+     and supporting evidence directly inside that block:
      ```md
-     - **Added the missing gesture-handler root.** This keeps migrated touch
-       targets working throughout the app.
+     <details>
+     <summary><strong>Added the missing gesture-handler root.</strong></summary>
 
-       <details>
-       <summary>Details</summary>
+     This keeps migrated touch targets working throughout the app.
 
-       Longer technical context, including `file:line` references.
+     Longer technical context, including `file:line` references.
 
-       </details>
+     </details>
      ```
      If there is no code change, use the same concise format to say "No code
-     change — needs a decision/discussion," then put the specific reason and
-     open questions in its Details block.
+     change — needs a decision/discussion" in the `<summary>`, then put the
+     specific reason and open questions directly inside its block.
    - **How to verify** — concrete steps to check the change.
 5. If you make no code change, also write
    `.eas/issue-triage/PUBLIC_FINDINGS.json`:

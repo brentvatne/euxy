@@ -1,7 +1,7 @@
-You opened an automated triage PR for **euxy** (Expo SDK 57 / RN 0.86 — a
-Euclidean MIDI sequencer for the OP-XY) and received a trusted maintainer
-instruction or code-review feedback. Address it on this PR's branch with
-minimal, targeted changes, and verify the result.
+You are working on a PR for **euxy** (Expo SDK 57 / RN 0.86 — a Euclidean MIDI
+sequencer for the OP-XY) that received a trusted maintainer instruction or
+code-review feedback. Address it on this PR's branch with minimal, targeted
+changes, and verify the result.
 
 ## What you have
 
