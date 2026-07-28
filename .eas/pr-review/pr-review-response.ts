@@ -37,7 +37,13 @@ import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
 import {
   normalizePullRequestAgentResponse,
   parsePullRequestAgentActions,
+  renderPullRequestResponseIterationMarker,
 } from "./pr-review-actions";
+import {
+  buildPullRequestCommandIntentCommand,
+  buildPullRequestCommandIntentPrompt,
+  parsePullRequestCommandIntent,
+} from "./pr-review-command-intent";
 import {
   findLatestAiReviewFeedback,
   isPublishOnlyPullRequestCommand,
@@ -241,10 +247,69 @@ const trusted = cands
 const fb = trusted[0];
 if (!fb)
   skip("no actionable feedback from a trusted reviewer (AI bot or allowlist)");
-const publishOnly =
-  Boolean(commentId) &&
-  fb.kind === "comment" &&
-  isPublishOnlyPullRequestCommand(fb.body);
+
+async function classifyPublishOnlyCommand(
+  instruction: string,
+): Promise<boolean> {
+  const prompt = buildPullRequestCommandIntentPrompt(instruction);
+  if (!prompt) {
+    console.log(
+      "▸ PR command is too large for semantic fast-path classification; using the full agent.",
+    );
+    return false;
+  }
+
+  const classifierEnv: Record<string, string> = {
+    CLAUDE_CODE_OAUTH_TOKEN: req("CLAUDE_CODE_OAUTH_TOKEN"),
+    DISABLE_AUTOUPDATER: "1",
+  };
+  for (const name of ["PATH", "HOME", "LANG", "TMPDIR"]) {
+    if (env[name]) classifierEnv[name] = env[name]!;
+  }
+
+  const classifier = Bun.spawn(buildPullRequestCommandIntentCommand(), {
+    stdin: new Blob([prompt]),
+    stdout: "pipe",
+    stderr: "pipe",
+    env: classifierEnv,
+  });
+  const [stdout] = await Promise.all([
+    new Response(classifier.stdout).text(),
+    new Response(classifier.stderr).text(),
+  ]);
+  const code = await classifier.exited;
+  if (code !== 0) {
+    console.log(
+      `▸ Claude command preflight exited with code ${code}; using the full agent.`,
+    );
+    return false;
+  }
+
+  try {
+    const intent = parsePullRequestCommandIntent(stdout);
+    if (intent === "agent") {
+      console.log("▸ Claude command preflight selected the full agent path.");
+    }
+    return intent === "publish_only";
+  } catch {
+    console.log(
+      "▸ Claude command preflight returned invalid output; using the full agent.",
+    );
+    return false;
+  }
+}
+
+let publishOnly = false;
+let publishOnlySource: "exact" | "claude" | null = null;
+if (commentId && fb.kind === "comment") {
+  if (isPublishOnlyPullRequestCommand(fb.body)) {
+    publishOnly = true;
+    publishOnlySource = "exact";
+  } else if (await classifyPublishOnlyCommand(fb.body)) {
+    publishOnly = true;
+    publishOnlySource = "claude";
+  }
+}
 const fromAI = (fb.author || "").toLowerCase() === "github-actions[bot]";
 console.log(
   `▸ Handling #${prNumber} (${headRef}); feedback from ${fromAI ? "AI reviewer" : fb.author} @ ${fb.at}.`,
@@ -319,7 +384,9 @@ async function installCloneDependencies(allowFail: boolean): Promise<void> {
 
 if (publishOnly) {
   console.log(
-    "▸ Exact publish-only command verified; skipping Claude and simulator verification.",
+    publishOnlySource === "exact"
+      ? "▸ Exact publish-only command verified; skipping the full agent and simulator verification."
+      : "▸ Claude command preflight selected publish-only; skipping the full agent and simulator verification.",
   );
   if (env.DRY_RUN === "1") {
     console.log("▸ DRY_RUN=1 → not publishing.");
@@ -368,6 +435,10 @@ if (iters >= MAX_ITERS)
     `hit the auto-response cap (${iters}/${MAX_ITERS}) on ${headRef} — needs a human`,
   );
 console.log(`▸ Auto-response ${iters + 1}/${MAX_ITERS}.`);
+const responseIterationMarker = renderPullRequestResponseIterationMarker(
+  iters + 1,
+  MAX_ITERS,
+);
 
 await sh(["mkdir", "-p", `${WORK}/.eas/pr-review`]);
 await Bun.write(`${WORK}/.eas/pr-review/feedback.md`, feedbackMd);
@@ -449,7 +520,7 @@ if (agentRc !== 0) {
   await gh(`/issues/${prNumber}/comments`, {
     method: "POST",
     body: JSON.stringify({
-      body: `${MARKER} (${iters + 1}/${MAX_ITERS}): the agent exited non-zero (rc=${agentRc}) — nothing pushed, needs a human.`,
+      body: `${MARKER}: the agent exited non-zero (rc=${agentRc}) — nothing pushed, needs a human.\n\n${responseIterationMarker}`,
     }),
   });
   console.error(`✗ Agent failed (rc=${agentRc}) — not committing.`);
@@ -519,7 +590,7 @@ if (
   await gh(`/issues/${prNumber}/comments`, {
     method: "POST",
     body: JSON.stringify({
-      body: `${MARKER} (${iters + 1}/${MAX_ITERS}): no code change.\n\n${summary.slice(0, 3000)}${evidenceSection}${previewSection}`,
+      body: `${MARKER}: no code change.\n\n${summary.slice(0, 3000)}${evidenceSection}${previewSection}\n\n${responseIterationMarker}`,
     }),
   });
   process.exit(0);
@@ -549,7 +620,7 @@ console.log(`▸ ${preview.summary}`);
 await gh(`/issues/${prNumber}/comments`, {
   method: "POST",
   body: JSON.stringify({
-    body: `${MARKER} (${iters + 1}/${MAX_ITERS}) — pushed a fix.\n\n${summary.slice(0, 3000)}${evidenceSection}\n\n${preview.summary}`,
+    body: `${MARKER} — pushed a fix.\n\n${summary.slice(0, 3000)}${evidenceSection}\n\n${preview.summary}\n\n${responseIterationMarker}`,
   }),
 });
 console.log("▸ Commented the response summary on the PR.");

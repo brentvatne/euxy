@@ -68,14 +68,14 @@ describe("per-PR EAS Update previews", () => {
       pullRequestNumber: 28,
     });
 
-    expect(candidates).toHaveLength(1_024);
+    expect(candidates).toHaveLength(32);
     expect(new Set(candidates).size).toBe(candidates.length);
     expect(
       readableChannelCandidates({
         owner: "brentvatne",
         repo: "euxy",
         pullRequestNumber: 28,
-      })
+      }),
     ).toEqual(candidates);
   });
 
@@ -92,19 +92,19 @@ describe("per-PR EAS Update previews", () => {
       publicFetch: harness.publicFetch,
     });
 
-    expect(result.channel).toMatch(/^[a-z]+-[a-z]+-p28$/);
+    expect(result.channel).toMatch(/^[a-z]+-28$/);
     expect(result.published).toBe(true);
     expect(result.updateUrl).toBe(
-      "https://expo.dev/accounts/brent-org/projects/euxy/updates/abc"
+      "https://expo.dev/accounts/brent-org/projects/euxy/updates/abc",
     );
     expect(harness.getBody()).toContain(
-      `<!-- euxy-eas-update-channel: ${result.channel} -->`
+      `<!-- euxy-eas-update-channel: ${result.channel} -->`,
     );
     expect(harness.getBody()).toContain(`Channel: \`${result.channel}\``);
     expect(harness.getBody()).toContain("Enter `");
 
     const updateCommand = harness.commands.find((command) =>
-      command.includes("update")
+      command.includes("update"),
     );
     expect(updateCommand).toContain("--environment");
     expect(updateCommand).toContain("preview");
@@ -123,10 +123,7 @@ describe("per-PR EAS Update previews", () => {
       observedHeaders.push(new Headers(init?.headers));
       if (staleResponsesRemaining > 0) {
         staleResponsesRemaining -= 1;
-        return jsonResponse(
-          { body: "Closes #17" },
-          200,
-        );
+        return jsonResponse({ body: "Closes #17" }, 200);
       }
       return jsonResponse({ body: harness.getBody() });
     };
@@ -185,9 +182,9 @@ describe("per-PR EAS Update previews", () => {
     });
 
     expect(result.published).toBe(true);
-    expect(
-      harness.commands.some((command) => command.includes("update")),
-    ).toBe(true);
+    expect(harness.commands.some((command) => command.includes("update"))).toBe(
+      true,
+    );
     expect(waits).toEqual([500, 1_000, 2_000, 4_000, 500, 1_000, 2_000, 4_000]);
     expect(
       warnings.filter((message) =>
@@ -218,9 +215,9 @@ describe("per-PR EAS Update previews", () => {
     });
 
     expect(result.published).toBe(true);
-    expect(
-      harness.commands.some((command) => command.includes("update")),
-    ).toBe(true);
+    expect(harness.commands.some((command) => command.includes("update"))).toBe(
+      true,
+    );
     expect(waits).toEqual([500, 1_000, 2_000, 4_000, 500, 1_000, 2_000, 4_000]);
     expect(warnings).toHaveLength(12);
     expect(warnings[0]).toContain("HTTP 404");
@@ -260,13 +257,11 @@ describe("per-PR EAS Update previews", () => {
     });
 
     expect(result.published).toBe(true);
-    expect(
-      harness.commands.some((command) => command.includes("update")),
-    ).toBe(true);
+    expect(harness.commands.some((command) => command.includes("update"))).toBe(
+      true,
+    );
     expect(warnings).toContainEqual(
-      expect.stringContaining(
-        "continuing with EAS Update publication",
-      ),
+      expect.stringContaining("continuing with EAS Update publication"),
     );
     expect(harness.getBody()).toContain("Open the latest EAS Update");
   });
@@ -304,9 +299,7 @@ describe("per-PR EAS Update previews", () => {
       harness.commands.filter((command) => command.includes("update")),
     ).toHaveLength(1);
     expect(warnings).toContainEqual(
-      expect.stringContaining(
-        "publication result is unchanged",
-      ),
+      expect.stringContaining("publication result is unchanged"),
     );
   });
 
@@ -339,9 +332,7 @@ describe("per-PR EAS Update previews", () => {
       publicFetch: harness.publicFetch,
     });
 
-    await expect(publication).rejects.toThrow(
-      "EAS Update publication to",
-    );
+    await expect(publication).rejects.toThrow("EAS Update publication to");
     await expect(publication).rejects.not.toThrow(
       "private EAS failure details",
     );
@@ -349,9 +340,9 @@ describe("per-PR EAS Update previews", () => {
   });
 
   test("reuses the channel marker for every later update on the PR", async () => {
-    const channel = "calm-otter-p28";
+    const channel = "calm-28";
     const harness = previewHarness(
-      `Closes #17\n\n<!-- euxy-eas-update-channel: ${channel} -->`
+      `Closes #17\n\n<!-- euxy-eas-update-channel: ${channel} -->`,
     );
     const result = await publishPullRequestUpdate({
       gh: harness.gh,
@@ -366,11 +357,31 @@ describe("per-PR EAS Update previews", () => {
 
     expect(result.channel).toBe(channel);
     expect(
-      harness.commands.some((command) => command.includes("channel:list"))
+      harness.commands.some((command) => command.includes("channel:list")),
     ).toBe(false);
-    expect(harness.commands.find((command) => command.includes("update"))).toContain(
-      channel
+    expect(
+      harness.commands.find((command) => command.includes("update")),
+    ).toContain(channel);
+  });
+
+  test("continues to accept legacy two-word channel markers", async () => {
+    const channel = "calm-otter-p28";
+    const harness = previewHarness(
+      `Closes #17\n\n<!-- euxy-eas-update-channel: ${channel} -->`,
     );
+
+    const result = await publishPullRequestUpdate({
+      gh: harness.gh,
+      owner: "brentvatne",
+      repo: "euxy",
+      pullRequestNumber: 28,
+      message: "Address follow-up feedback",
+      easCommand: ["eas"],
+      run: harness.run,
+      publicFetch: harness.publicFetch,
+    });
+
+    expect(result.channel).toBe(channel);
   });
 
   test("skips an already-used candidate when allocating a new channel", async () => {
@@ -465,7 +476,7 @@ describe("per-PR EAS Update previews", () => {
               ? Array.from({ length: 25 }, (_, index) => ({
                   name: `existing-${index}`,
                 }))
-              : [{ name: candidates[0] }]
+              : [{ name: candidates[0] }],
           ),
           err: "",
         };
@@ -486,7 +497,7 @@ describe("per-PR EAS Update previews", () => {
 
     expect(result.channel).not.toBe(candidates[0]);
     expect(
-      harness.commands.filter((command) => command.includes("channel:list"))
+      harness.commands.filter((command) => command.includes("channel:list")),
     ).toHaveLength(2);
   });
 
@@ -504,14 +515,14 @@ describe("per-PR EAS Update previews", () => {
         easCommand: ["eas"],
         run: harness.run,
         publicFetch: harness.publicFetch,
-      })
+      }),
     ).rejects.toThrow("Could not list EAS Update channels");
     expect(harness.getBody()).not.toContain("private failure");
   });
 
   test("rejects a marker that does not belong to the PR", async () => {
     const harness = previewHarness(
-      "Closes #17\n\n<!-- euxy-eas-update-channel: calm-otter-p27 -->"
+      "Closes #17\n\n<!-- euxy-eas-update-channel: calm-27 -->",
     );
 
     await expect(
@@ -524,7 +535,7 @@ describe("per-PR EAS Update previews", () => {
         easCommand: ["eas"],
         run: harness.run,
         publicFetch: harness.publicFetch,
-      })
+      }),
     ).rejects.toThrow("invalid EAS Update channel marker");
   });
 
@@ -541,10 +552,10 @@ describe("per-PR EAS Update previews", () => {
     }
 
     const issueWorkflow = await Bun.file(
-      ".eas/workflows/agent-work.yml"
+      ".eas/workflows/agent-work.yml",
     ).text();
     const feedbackWorkflow = await Bun.file(
-      ".eas/workflows/feedback-triage.yml"
+      ".eas/workflows/feedback-triage.yml",
     ).text();
     expect(issueWorkflow).not.toContain("UPDATE_CHANNEL");
     expect(feedbackWorkflow).not.toContain("UPDATE_CHANNEL");

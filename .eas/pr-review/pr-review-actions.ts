@@ -2,6 +2,21 @@ export type PullRequestAgentActions = {
   publishUpdate: boolean;
 };
 
+export function renderPullRequestResponseIterationMarker(
+  iteration: number,
+  maximum: number,
+): string {
+  if (
+    !Number.isSafeInteger(iteration) ||
+    iteration < 1 ||
+    !Number.isSafeInteger(maximum) ||
+    maximum < iteration
+  ) {
+    throw new Error("Invalid PR response iteration metadata.");
+  }
+  return `<!-- euxy-auto-response: iteration=${iteration}; max=${maximum} -->`;
+}
+
 const LEADING_REVIEW_RESPONSE_HEADING =
   /^\s*#\s+Review response(?:\s+[—–-]\s+PR\s+#\d+)?\s*\n+/i;
 

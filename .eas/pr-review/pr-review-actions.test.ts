@@ -3,9 +3,18 @@ import { describe, expect, test } from "bun:test";
 import {
   normalizePullRequestAgentResponse,
   parsePullRequestAgentActions,
+  renderPullRequestResponseIterationMarker,
 } from "./pr-review-actions";
 
 describe("PR response comment formatting", () => {
+  test("keeps response iteration metadata machine-readable but invisible", () => {
+    expect(renderPullRequestResponseIterationMarker(1, 3)).toBe(
+      "<!-- euxy-auto-response: iteration=1; max=3 -->",
+    );
+    expect(() => renderPullRequestResponseIterationMarker(0, 3)).toThrow();
+    expect(() => renderPullRequestResponseIterationMarker(4, 3)).toThrow();
+  });
+
   test("removes the redundant generated PR heading", () => {
     expect(
       normalizePullRequestAgentResponse(`# Review response — PR #38
