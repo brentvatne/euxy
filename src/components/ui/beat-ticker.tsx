@@ -77,6 +77,10 @@ export function BeatTicker({ countInBeat = 0, recording = false }: BeatTickerPro
 
   useAnimatedReaction(
     () => beat.value,
+    // Writes below are Reanimated SharedValue assignments running on the UI
+    // thread inside a worklet, never during render. The React Compiler rules
+    // model a SharedValue as frozen and flag the whole callback; false positive.
+    // eslint-disable-next-line react-hooks/immutability
     (cur, prev) => {
       if (cur === prev) return;
       if (cur === -1) {

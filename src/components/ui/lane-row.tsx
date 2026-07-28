@@ -7,7 +7,7 @@
  * step strip (children) below. Presentational only — step sizing/playhead
  * live in the Sequencer.
  */
-import { useEffect, useRef } from 'react';
+import { useIsFirstRender } from '@/lib/use-is-first-render';
 import { StyleSheet, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
@@ -43,10 +43,7 @@ export function LaneRow({
 }: LaneRowProps) {
   // An accent lit in the row's FIRST render (an already-audible lane on boot)
   // must not bloom — only live changes ignite (see ui/led.tsx).
-  const initialRender = useRef(true);
-  useEffect(() => {
-    initialRender.current = false;
-  }, []);
+  const isFirstRender = useIsFirstRender();
   return (
     <View style={styles.row}>
       <View style={styles.header}>
@@ -64,7 +61,7 @@ export function LaneRow({
               at once, and that used to be a silent full-list colour teleport. */}
           <View style={styles.accent}>
             {audible ? (
-              <Led ignite={!initialRender.current} style={[StyleSheet.absoluteFill, styles.accentLit]} />
+              <Led ignite={!isFirstRender} style={[StyleSheet.absoluteFill, styles.accentLit]} />
             ) : null}
           </View>
           <View style={styles.textBlock}>
@@ -96,10 +93,7 @@ export function LaneRow({
 function MSButton({ label, active, onPress }: { label: string; active: boolean; onPress?: () => void }) {
   // A bar lit in the row's FIRST render (e.g. a muted lane on boot) must not
   // bloom — only live toggles ignite (see ui/led.tsx).
-  const initialRender = useRef(true);
-  useEffect(() => {
-    initialRender.current = false;
-  }, []);
+  const isFirstRender = useIsFirstRender();
   return (
     <Key
       onPress={onPress}
@@ -115,7 +109,7 @@ function MSButton({ label, active, onPress }: { label: string; active: boolean; 
           exiting animation runs). */}
       <View style={styles.msBar}>
         {active ? (
-          <Led ignite={!initialRender.current} style={[StyleSheet.absoluteFill, styles.msBarActive]} />
+          <Led ignite={!isFirstRender} style={[StyleSheet.absoluteFill, styles.msBarActive]} />
         ) : null}
       </View>
     </Key>

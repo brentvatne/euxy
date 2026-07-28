@@ -5,7 +5,8 @@
  * playheads (all steps always visible, wrapped at 16 per row), and the pinned
  * transport above the tab bar.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useIsFirstRender } from '@/lib/use-is-first-render';
 import { router } from 'expo-router';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, FadeOut, LinearTransition, ReduceMotion } from 'react-native-reanimated';
@@ -74,10 +75,7 @@ export default function SequencerScreen() {
   // animations: initial-mount entering left the whole list stuck invisible on
   // cold boot (found by the wave-2 ambient agent, reproduced on the merged
   // build), and design-wise lanes should only power on when ADDED anyway.
-  const initialRender = useRef(true);
-  useEffect(() => {
-    initialRender.current = false;
-  }, []);
+  const isFirstRender = useIsFirstRender();
 
   // The capsule is the ONE thing that animates in on app open, and the whole
   // app renders behind the opaque boot overlay for ~900ms (components/
@@ -217,7 +215,7 @@ export default function SequencerScreen() {
               <Animated.View
                 key={lane.id}
                 entering={
-                  initialRender.current
+                  isFirstRender
                     ? undefined
                     : FadeInDown.duration(220).reduceMotion(ReduceMotion.System)
                 }

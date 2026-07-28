@@ -10,7 +10,7 @@
  * Views at the exact Paper geometry (5×3, 10pt cells, x-step 14 / y-step 19
  * inside the original 80×52 box) with an LedGrid pulse overlay on top.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 import Svg, { Path } from 'react-native-svg';
@@ -36,7 +36,9 @@ const TWINKLE_LOOP_MS = 24000;
 const TWINKLE_FALL = 400 / (TWINKLE_LOOP_MS / 6);
 
 export function EmptyState({ onAddLane }: { onAddLane: () => void }) {
-  const seed = useMemo(() => Math.floor(Math.random() * 0x7fffffff), []);
+  // Lazy useState, not useMemo: useMemo is a hint React may discard and
+  // recompute, which would reshuffle the twinkle order mid-animation.
+  const [seed] = useState(() => Math.floor(Math.random() * 0x7fffffff));
   const order = useMemo(() => twinkle(SHADES, seed), [seed]);
   const progress = useIdleTwinkle(TWINKLE_LOOP_MS);
   return (

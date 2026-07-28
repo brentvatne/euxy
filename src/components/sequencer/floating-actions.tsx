@@ -1,3 +1,11 @@
+/* eslint-disable react-hooks/immutability -- Every write this rule flags here
+ * is `sharedValue.value = …` on a Reanimated SharedValue, from a gesture
+ * handler, a press callback or an effect — never during render. The React
+ * Compiler rules model a SharedValue as a frozen object and have no concept of
+ * Reanimated's mutable box, so they are false positives to a one. Re-check
+ * when Reanimated ships shared-value support for the compiler; until then keep
+ * the disable file-scoped rather than adding nine inline comments. */
+
 /**
  * FloatingActions — the Sequencer's floating capsule, rebuilt per the decided
  * E spec (Paper "Floating bar — concepts" → "E · CHOSEN" + gesture/animation

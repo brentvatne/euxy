@@ -58,7 +58,7 @@ export default function Screen() {
   const [note, setNote] = useState(36); // C1
   const [channel, setChannel] = useState(0); // 0-based; track = channel + 1
   const [steps, setSteps] = useState(16);
-  const [hits, setHits] = useState(4);
+  const [hitsRaw, setHits] = useState(4);
   const [rotation, setRotation] = useState(0);
   const [resolution, setResolution] = useState<Resolution>('1/16');
   const [velocity, setVelocity] = useState(104);
@@ -75,12 +75,12 @@ export default function Screen() {
   const [clockActive, setClockActive] = useState(false);
   const clockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const pattern = useMemo(() => generator(hits, steps, rotation), [hits, steps, rotation]);
+  // Keep hits within the current step count when steps shrinks. Clamped on
+  // read rather than synced back into state from an effect: the effect version
+  // cost an extra render and briefly rendered an out-of-range value.
+  const hits = Math.min(hitsRaw, steps);
 
-  // Keep hits within the current step count when steps shrinks.
-  useEffect(() => {
-    setHits((h) => Math.min(h, steps));
-  }, [steps]);
+  const pattern = useMemo(() => generator(hits, steps, rotation), [hits, steps, rotation]);
 
   // Raw byte stream (both directions). Skip the high-rate system messages that
   // would flood the log — clock (0xF8) and active sensing (0xFE).

@@ -8,7 +8,8 @@
  * dot (with XOR you can see a both-dot step stay lightless). Steps wrap at 16
  * per row and never shrink; the editor never shows a playhead here.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useIsFirstRender } from '@/lib/use-is-first-render';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
@@ -78,10 +79,7 @@ export function CombinedCard({
 
   // LEDs in the card's FIRST render must not run the ignition bloom — only
   // lights added by live edits (slider drags) ignite (see ui/led.tsx).
-  const initialRender = useRef(true);
-  useEffect(() => {
-    initialRender.current = false;
-  }, []);
+  const isFirstRender = useIsFirstRender();
 
   // Reroll wash (concept J): every animation in it is precomputed per trigger
   // (withDelay/withSequence), so nothing runs per frame in JS. Reduced Motion
@@ -97,6 +95,9 @@ export function CombinedCard({
   const [washActive, setWashActive] = useState(false);
   useEffect(() => {
     if (washNonce === 0 || reducedMotion) return;
+    // Intentional: mounting the wash layer IS this effect's job — it is a
+    // timed animation window driven by a press, not derived state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setWashActive(true);
     const t = setTimeout(() => setWashActive(false), SWEEP_MS + 450);
     return () => clearTimeout(t);
@@ -126,7 +127,7 @@ export function CombinedCard({
                       ]}
                     >
                       {combined[i] ? (
-                        <Led ignite={!initialRender.current} style={styles.light} />
+                        <Led ignite={!isFirstRender} style={styles.light} />
                       ) : null}
                     </View>
                   ))}

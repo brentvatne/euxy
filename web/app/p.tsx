@@ -21,6 +21,9 @@ export default function SharedPatternPage() {
   // error state before hydration bakes a "didn't decode" flash into p.html.
   // Stay neutral until mounted on the client, where params are real.
   const [ready, setReady] = useState(false);
+  // Intentional: "am I hydrated yet" cannot be derived during render — the
+  // extra render after mount is the mechanism, not an accident.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setReady(true), []);
   const pattern = useMemo<SharedPattern | null>(() => {
     if (typeof d !== 'string' || !d) return null;
