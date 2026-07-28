@@ -21,6 +21,7 @@ import { chipForPattern } from '@/components/patterns/chips';
 import { LedChip } from '@/components/patterns/led-chip';
 import { AppText, SheetHeader } from '@/components/ui';
 import { decodePattern, type SharedPattern } from '@/core/share-codec';
+import { claimSharedPatternPayload } from '@/core/shared-pattern-import';
 import { haptics, logObserveEvent } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { useStore } from '@/state/store';
@@ -46,16 +47,18 @@ export default function ImportPatternSheet() {
     else logObserveEvent('share.link_invalid', { severity: 'warn' });
   }, [shared]);
 
-  // Add on arrival, exactly once per sheet: the ref outlives an effect that
-  // re-runs (Fast Refresh, StrictMode remount), so a link is never imported
-  // twice from one open.
-  const importedId = useRef<string | null>(null);
+  // Expo Router can reuse this mounted sheet when another link changes `d`.
+  // Claim each payload independently so an effect re-run cannot duplicate an
+  // import, while a genuinely new link is never displayed as imported unless
+  // it was added to the library.
+  const importedPayloads = useRef(new Set<string>());
   useEffect(() => {
-    if (!shared || importedId.current) return;
-    importedId.current = importPattern(shared);
+    if (!shared || !claimSharedPatternPayload(importedPayloads.current, d)) return;
+    // expo-code-review-ignore: opening a shared link intentionally imports it; this sheet is its receipt.
+    importPattern(shared);
     haptics.success();
     logObserveEvent('share.pattern_imported', { attributes: { lanes: shared.lanes.length } });
-  }, [importPattern, shared]);
+  }, [d, importPattern, shared]);
 
   // The import is already the active pattern — this only closes the receipt and
   // switches tabs. Two steps: this sheet lives in the Patterns stack, so
