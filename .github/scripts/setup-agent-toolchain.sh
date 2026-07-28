@@ -6,7 +6,9 @@ set -euo pipefail
 readonly CLAUDE_CODE_VERSION="2.1.220"
 readonly BUN_VERSION="1.3.14"
 readonly EAS_CLI_VERSION="21.3.0"
-readonly ARGENT_VERSION="0.17.0"
+readonly AGENT_DEVICE_VERSION="0.20.1"
+readonly FFMPEG_STATIC_VERSION="5.3.0"
+readonly FFPROBE_STATIC_VERSION="3.1.0"
 readonly EXPO_SKILLS_VERSION="1.8.5"
 readonly EXPO_SKILLS_SHA="09eb052410e7f609624cb161ea4cd9576c69cd5d"
 readonly TOOLCHAIN_TEMP_BASE="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
@@ -18,7 +20,17 @@ npm install --global --no-audit --no-fund \
   "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
   "bun@${BUN_VERSION}" \
   "eas-cli@${EAS_CLI_VERSION}" \
-  "@swmansion/argent@${ARGENT_VERSION}"
+  "agent-device@${AGENT_DEVICE_VERSION}" \
+  "ffmpeg-static@${FFMPEG_STATIC_VERSION}" \
+  "ffprobe-static@${FFPROBE_STATIC_VERSION}"
+
+global_node_modules="$(npm root --global)"
+ffmpeg_bin="$(node -e 'process.stdout.write(require(process.argv[1]))' "${global_node_modules}/ffmpeg-static")"
+ffprobe_bin="$(node -e 'process.stdout.write(require(process.argv[1]).path)' "${global_node_modules}/ffprobe-static")"
+if [[ ! -x "${ffmpeg_bin}" || ! -x "${ffprobe_bin}" ]]; then
+  echo "Pinned ffmpeg/ffprobe binaries are missing or not executable" >&2
+  exit 1
+fi
 
 git init --quiet "${EXPO_SKILLS_ROOT}"
 git -C "${EXPO_SKILLS_ROOT}" remote add origin https://github.com/expo/skills.git
@@ -46,17 +58,20 @@ fi
 if command -v set-env >/dev/null 2>&1; then
   set-env CLAUDE_PLUGIN_DIR "${EXPO_PLUGIN_DIR}"
   set-env EAS_CLI_BIN "eas"
-  set-env ARGENT_BIN "argent"
+  set-env AGENT_DEVICE_BIN "agent-device"
+  set-env FFMPEG_BIN "${ffmpeg_bin}"
+  set-env FFPROBE_BIN "${ffprobe_bin}"
 fi
 if [[ -n "${GITHUB_ENV:-}" ]]; then
   printf 'CLAUDE_PLUGIN_DIR=%s\n' "${EXPO_PLUGIN_DIR}" >> "${GITHUB_ENV}"
-  printf 'EAS_CLI_BIN=eas\nARGENT_BIN=argent\n' >> "${GITHUB_ENV}"
+  printf 'EAS_CLI_BIN=eas\nAGENT_DEVICE_BIN=agent-device\n' >> "${GITHUB_ENV}"
+  printf 'FFMPEG_BIN=%s\nFFPROBE_BIN=%s\n' "${ffmpeg_bin}" "${ffprobe_bin}" >> "${GITHUB_ENV}"
 fi
 
 claude_version="$(claude --version)"
 bun_version="$(bun --version)"
 eas_version="$(eas --version)"
-argent_version="$(argent --version)"
+agent_device_version="$(agent-device --version)"
 if [[ "${claude_version}" != "${CLAUDE_CODE_VERSION}"* ]]; then
   echo "Claude Code version mismatch: expected ${CLAUDE_CODE_VERSION}, got ${claude_version}" >&2
   exit 1
@@ -69,10 +84,10 @@ if [[ "${eas_version}" != "eas-cli/${EAS_CLI_VERSION}"* ]]; then
   echo "EAS CLI version mismatch: expected ${EAS_CLI_VERSION}, got ${eas_version}" >&2
   exit 1
 fi
-if [[ "${argent_version}" != "${ARGENT_VERSION}" ]]; then
-  echo "Argent version mismatch: expected ${ARGENT_VERSION}, got ${argent_version}" >&2
+if [[ "${agent_device_version}" != "${AGENT_DEVICE_VERSION}" ]]; then
+  echo "agent-device version mismatch: expected ${AGENT_DEVICE_VERSION}, got ${agent_device_version}" >&2
   exit 1
 fi
-printf 'Claude Code %s\nBun %s\nEAS CLI %s\nArgent %s\nExpo skills %s (%s; eas-simulator present)\n' \
-  "${claude_version}" "${bun_version}" "${eas_version}" "${argent_version}" \
+printf 'Claude Code %s\nBun %s\nEAS CLI %s\nagent-device %s\nPinned ffmpeg/ffprobe ready\nExpo skills %s (%s; eas-simulator present)\n' \
+  "${claude_version}" "${bun_version}" "${eas_version}" "${agent_device_version}" \
   "${EXPO_SKILLS_VERSION}" "${EXPO_SKILLS_SHA}"

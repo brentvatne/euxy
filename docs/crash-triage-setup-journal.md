@@ -25,7 +25,7 @@ got past it.*
    feedback **id + url**, not the stack trace → fetching the real crash log needs
    an App Store Connect API key (JWT signed with a `.p8`).
 4. **Design doc.** Custom Linux job runs a Claude agent → opens a PR; fingerprint
-   decides EAS Update vs. rebuild; argent + EAS Simulator for validation.
+   decides EAS Update vs. rebuild; agent-device + EAS Simulator for validation.
 
 ### Secrets & auth (the long pole)
 5. **Claude token for CI.** The Tuft session's Claude auth is a short-lived
@@ -72,7 +72,7 @@ got past it.*
     links; and fix the repo's `SessionEnd` hook to no-op when `trace_upload.py`
     is absent (it was erroring on every CI run).
 15. **Test run #3: SUCCESS.** ✅
-16. **Sim validation (in progress, stacked PR).** argent + EAS Simulator with a
+16. **Sim validation (in progress, stacked PR).** agent-device + EAS Simulator with a
     before/after repro (reproduce the bug on the current build, then verify the
     fix). ⚠️ `simulator:availability` returns **false for brent-org** (the project
     owner) even with the user's personal token — access appears to sit on a
@@ -225,5 +225,5 @@ got past it.*
   it straight to `eas env:set` (secret visibility) without it ever appearing in
   the transcript — closing the plaintext-in-chat gap for the whole EAS secret set.
 - **Shared verification loop.** Tuft drives EAS Simulator locally today; the same
-  argent flow runs inside the workflow. A shared session/skill layer would let the
+  agent-device flow runs inside the workflow. A shared session/skill layer would let the
   agent validate identically in both places instead of re-implementing per side.

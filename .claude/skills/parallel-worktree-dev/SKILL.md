@@ -111,35 +111,27 @@ opening its own tunnel URL:
 ```bash
 # from the worktree, with a clean dotenv
 printf '# managed by eas-cli\n' > .env.eas-simulator
-npx --yes eas-cli@latest simulator:start --platform ios --type argent --non-interactive
+npx --yes eas-cli@latest simulator:start --platform ios --type agent-device --non-interactive
 npx --yes eas-cli@latest simulator:get --json   # confirm status IN_PROGRESS
 
-# Download/extract the dev build locally, then discover the remote simulator UDID.
-npx --yes eas-cli@latest build:download --build-id <build-id> --json
-npx --yes eas-cli@latest simulator:exec argent run list-devices --json
-export ARGENT_UDID=<sole-booted-ios-udid>
+# Install the dev build once per session (from build:list URL), then open the tunnel URL.
+npx --yes eas-cli@latest simulator:exec npx agent-device@0.20.1 \
+  install-from-source <dev-build-url> --platform ios
+npx --yes eas-cli@latest simulator:exec npx agent-device@0.20.1 \
+  open 'exp+euxy://expo-development-client/?url=https://euxy-engine.brent-org.8081.exp.direct' \
+  --platform ios
 
-# Install the local .app once, then connect the dev client to this worktree's tunnel.
-npx --yes eas-cli@latest simulator:exec argent run reinstall-app \
-  --udid "$ARGENT_UDID" --bundleId dev.brent.euxy --appPath <path-to-Euxy.app>
-npx --yes eas-cli@latest simulator:exec argent run open-url \
-  --udid "$ARGENT_UDID" \
-  --url 'exp+euxy://expo-development-client/?url=https://euxy-engine.brent-org.8081.exp.direct'
-
-# Describe the current UI before every tap; derive normalized x/y from the target frame.
-npx --yes eas-cli@latest simulator:exec argent run describe --udid "$ARGENT_UDID" --json
-npx --yes eas-cli@latest simulator:exec argent run gesture-tap \
-  --udid "$ARGENT_UDID" --x <normalized-x> --y <normalized-y>
-npx --yes eas-cli@latest simulator:exec argent run screenshot \
-  --udid "$ARGENT_UDID" --scale 1 --includeImageInContext false --out ./shot.png
+# Snapshot before every interaction; refs are invalid after navigation/layout changes.
+npx --yes eas-cli@latest simulator:exec npx agent-device@0.20.1 snapshot -i
+npx --yes eas-cli@latest simulator:exec npx agent-device@0.20.1 press @e2
+npx --yes eas-cli@latest simulator:exec npx agent-device@0.20.1 screenshot ./shot.png
 ```
 
 Running 4 sessions at once = 4× concurrent billing while they run. `.env.eas-simulator`
 carries a token → it's gitignored; keep it that way.
 
-Argent must be installed locally. For workflow jobs, use the repository's pinned
-toolchain. For ad-hoc local use, install the same pinned release:
-`npm install --global @swmansion/argent@0.17.0`.
+For workflow jobs, use the repository's pinned toolchain. For ad-hoc local use,
+keep the controller version explicit as shown above.
 
 ## 4. Reproduce motion with video and inspect the frames
 
@@ -148,19 +140,16 @@ or dropped frames. For any animation, gesture, transition, or timing issue:
 
 1. Put the app in a deterministic starting state. Keep the preset, viewport,
    navigation state, and app data fixed between runs.
-2. Start recording immediately before one clean reproduction. Disable static
-   trimming so the recording preserves the interaction's real timing:
+2. Start recording immediately before one clean reproduction:
 
    ```bash
-   npx --yes eas-cli@latest simulator:exec argent run screen-recording-start \
-     --udid "$ARGENT_UDID" --timeLimitSeconds 30 --trimStatic false --showTouches true
-   # Re-run describe before each gesture, then perform only the interaction under test.
-   npx --yes eas-cli@latest simulator:exec argent run screen-recording-stop \
-     --udid "$ARGENT_UDID" --json
+   npx --yes eas-cli@latest simulator:exec npx agent-device@0.20.1 \
+     record start ./before.mp4 --max-size 1024
+   # Re-run snapshot before each interaction, then perform only the interaction under test.
+   npx --yes eas-cli@latest simulator:exec npx agent-device@0.20.1 record stop
    ```
 
-   The stop result's `video` field is a local materialized MP4. Copy it unchanged
-   to `before.mp4`.
+   Keep `before.mp4` unchanged.
 3. Analyze the recording before diagnosing from code. Keep the original video
    unchanged, probe its native frame timing, and extract decoded frames:
 

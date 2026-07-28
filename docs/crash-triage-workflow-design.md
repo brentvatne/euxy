@@ -5,7 +5,7 @@
 Goal: when a TestFlight tester reports a crash, automatically spin up an EAS
 Workflow that (1) pulls the crash detail, (2) runs a Claude Code agent — with the
 Expo skills — to investigate and attempt a fix, (3) validates the fix on an EAS
-cloud simulator driven by **Argent** on a Linux runner, and (4) opens a PR with a
+cloud simulator driven by **agent-device** on a Linux runner, and (4) opens a PR with a
 link to a **preview build** (native change) or an **EAS Update URL** (JS-only,
 fingerprint matches) so it can be tested. The agent uses **our Claude OAuth token
 from this Tuft session**, stored as an EAS environment variable.
@@ -62,7 +62,7 @@ So after the agent produces a fix on a branch:
 `eas.json` already has the right profiles: `sim` (static iOS simulator build),
 `development-simulator` (dev client, internal), `production`.
 
-## 3. Simulator validation — Argent on a Linux runner
+## 3. Simulator validation — agent-device on a Linux runner
 
 Per your ask, the validation job is a `custom` job on `runs_on: linux-medium`
 that drives an **EAS cloud simulator** (EAS Simulator is itself the remote iOS
@@ -70,33 +70,30 @@ device — the Linux runner is just the controller host):
 
 ```bash
 eas simulator:availability --json
-eas simulator:start --platform ios --type argent --max-duration-minutes 30 --non-interactive
-eas simulator:exec argent run list-devices --json
-eas simulator:exec argent run reinstall-app --udid <udid> \
-  --bundleId dev.brent.euxy --appPath <local-Euxy.app>
-eas simulator:exec argent run describe --udid <udid> --json
-eas simulator:exec argent run gesture-tap --udid <udid> --x <x> --y <y>
-eas simulator:exec argent run screenshot --udid <udid> --out <evidence.png>
+eas simulator:start --platform ios --type agent-device --max-duration-minutes 30 --non-interactive
+eas simulator:exec agent-device install-from-source <build-url> --platform ios
+eas simulator:exec agent-device snapshot -i
+eas simulator:exec agent-device press @e2
+eas simulator:exec agent-device screenshot <evidence.png>
 eas simulator:stop
 ```
 
-- Download and extract the fix build (native path) or existing dev build (JS
-  path) on the worker, then upload the local `.app` with Argent's
-  `reinstall-app`. Apply the update after install on the JS path.
+- Install the fix build (native path) or existing dev build (JS path) directly
+  from its artifact URL. Apply the update after install on the JS path.
 - The agent uses the crash's repro (from the tester feedback, if any) to confirm
   the app no longer crashes on that path, and captures a screenshot as evidence.
-- For animation, gesture, transition, or timing defects, Argent records the
-  reproduction and verification with `trimStatic=false`; the worker extracts
-  native-order frames with `ffmpeg` and inspects adjacent frames around each
+- For animation, gesture, transition, or timing defects, agent-device records
+  the complete reproduction and verification; the worker extracts native-order
+  frames with its pinned `ffmpeg` and inspects adjacent frames around each
   visible defect before claiming a diagnosis or fix.
 - EAS Simulator availability is checked before the agent receives simulator
   access; unavailable accounts fall back to static verification.
 - ⚠️ Driving a nested `eas simulator` session from inside a workflow job needs an
   **`EXPO_TOKEN`** (robot access token) in the job env — built-in workflow auth
   doesn't automatically cover simulator CLI calls.
-- The worker installs pinned EAS CLI and Argent versions and verifies that
-  the pinned Expo plugin contains the `eas-simulator` skill. Sessions are capped
-  and the wrapper stops any session left behind.
+- The worker installs pinned EAS CLI, agent-device, ffmpeg, and ffprobe versions
+  and verifies that the pinned Expo plugin contains the `eas-simulator` skill.
+  Sessions are capped and the wrapper stops any session left behind.
 
 ## 4. The agent job (the core)
 
@@ -229,6 +226,6 @@ on: app_store_connect.beta_feedback[crash]
   └─ get-build (get-build)        # fingerprint match?
   └─ build_fix (build)  ── if no match ──┐
   └─ update_fix (update) ── if match ────┤
-  └─ validate (custom, linux)     # argent on EAS Simulator, needs the above
+  └─ validate (custom, linux)     # agent-device on EAS Simulator, needs the above
   └─ open_pr / github-comment     # PR + preview-build / update-URL links
 ```

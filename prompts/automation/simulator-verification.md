@@ -1,7 +1,8 @@
 # EAS Simulator verification
 
 EAS Simulator is available for this run. The worker has the pinned
-`eas-simulator` Expo skill, `eas` CLI, and Argent CLI installed.
+`eas-simulator` Expo skill, `eas` CLI, `agent-device` CLI, and frame-analysis
+decoders installed.
 
 Use the simulator when you make an app behavior or UI change that can be
 meaningfully exercised on iOS. Skip it for analysis-only outcomes, documentation,
@@ -13,48 +14,41 @@ Record why you skipped it in the workflow's analysis/response file.
 - Read and follow the `eas-simulator` skill before running simulator commands.
 - `EXPO_TOKEN` is a credential. Never print, inspect, persist, transmit, or quote
   it. Use it only through the installed `eas` CLI.
-- Use the preinstalled `eas` and `argent` commands. Do not install or run
+- Use the preinstalled `eas` and `agent-device` commands. Do not install or run
   replacements with `npx`.
 - Run simulator lifecycle commands from the repository root so the wrapper can
   find `.env.eas-simulator` and enforce cleanup.
 - Build or locate the correct `development-simulator` dev-client artifact before
-  starting a session. A static/release build cannot show live edits. Download it
-  locally with the pinned EAS CLI (for example,
-  `eas build:download --build-id <build-id> --json`) and extract the `.app`.
+  starting a session. A static/release build cannot show live edits.
 - Start at most one session, only when ready to install and drive the app:
 
-  `eas simulator:start --platform ios --type argent --max-duration-minutes 30 --non-interactive`
+  `eas simulator:start --platform ios --type agent-device --max-duration-minutes 30 --non-interactive`
 
 - Use Mode C from the skill: install the dev client, start Metro with tunnel v2,
-  connect the client, then exercise the changed behavior with Argent.
-- Drive the remote device through `eas simulator:exec argent ...` so the
-  `ARGENT_TOOLS_URL` and `ARGENT_AUTH_TOKEN` session connection from
-  `.env.eas-simulator` is loaded for each command.
+  connect the client, then exercise the changed behavior with `agent-device`.
+- Drive the remote device through `eas simulator:exec agent-device ...` so the
+  session connection from `.env.eas-simulator` is loaded for each command.
 - Stop the session on every exit path with `eas simulator:stop`. The wrapper also
   stops it as a billing safety net.
 
-## Argent setup and interaction
+## agent-device setup and interaction
 
-1. Get the sole booted iOS device from
-   `eas simulator:exec argent run list-devices --json` and retain its `udid` as
-   `ARGENT_UDID`. Pass `--udid "$ARGENT_UDID"` to every device command.
-2. Install the extracted local app:
+1. Install the simulator build directly from its EAS artifact URL:
 
-   `eas simulator:exec argent run reinstall-app --udid "$ARGENT_UDID" --bundleId dev.brent.euxy --appPath <path-to-Euxy.app>`
+   `eas simulator:exec agent-device install-from-source '<eas-build-artifact-url>' --platform ios`
 
-3. Connect the dev client to the tunnel:
+2. Open the dev client and connect it to the tunnel using Mode C from the skill.
 
-   `eas simulator:exec argent run open-url --udid "$ARGENT_UDID" --url '<exp+euxy-development-client-url>'`
+3. Before every interaction, run:
 
-4. Before every tap, run
-   `eas simulator:exec argent run describe --udid "$ARGENT_UDID" --json`.
-   Locate the target in the current accessibility tree, calculate the center of
-   its normalized frame, and only then tap it with:
+   `eas simulator:exec agent-device snapshot -i`
 
-   `eas simulator:exec argent run gesture-tap --udid "$ARGENT_UDID" --x <normalized-x> --y <normalized-y>`
+   Use only the element refs from that current snapshot, then interact with:
 
-Never reuse coordinates after navigation or layout changes without describing
-the current screen again.
+   `eas simulator:exec agent-device press @<element-ref>`
+
+Never reuse element refs after navigation or layout changes without taking a
+new interactive snapshot.
 
 ## Evidence
 
@@ -66,7 +60,7 @@ the current screen again.
 - Before editing, reproduce the existing behavior when possible and capture its
   state at `$SIMULATOR_ARTIFACT_DIR/before.png`:
 
-  `eas simulator:exec argent run screenshot --udid "$ARGENT_UDID" --scale 1 --includeImageInContext false --out "$SIMULATOR_ARTIFACT_DIR/before.png"`
+  `eas simulator:exec agent-device screenshot "$SIMULATOR_ARTIFACT_DIR/before.png"`
 
 - When `before.png` exists, write one public-safe plain-text sentence of at most
   280 characters to `$SIMULATOR_ARTIFACT_DIR/before.txt`. Describe the exact
@@ -77,20 +71,18 @@ the current screen again.
   gesture, or navigation, record the complete reproduction as
   `$SIMULATOR_ARTIFACT_DIR/before.mp4`. Start immediately before the interaction:
 
-  `eas simulator:exec argent run screen-recording-start --udid "$ARGENT_UDID" --timeLimitSeconds 30 --trimStatic false --showTouches true`
+  `eas simulator:exec agent-device record start "$SIMULATOR_ARTIFACT_DIR/before.mp4" --max-size 1024`
 
   Stop immediately after the UI settles:
 
-  `eas simulator:exec argent run screen-recording-stop --udid "$ARGENT_UDID" --json`
+  `eas simulator:exec agent-device record stop`
 
-  The stop result's `video` field is the local materialized MP4 path. Copy that
-  file unchanged to `$SIMULATOR_ARTIFACT_DIR/before.mp4`. Never enable static
-  trimming for timing or animation evidence because removing static frames
-  changes the observed timing.
+  Do not edit, trim, or transcode timing or animation evidence because that
+  changes the observed frame order and timing.
 - After editing or completing the investigation, capture the final state at
   `$SIMULATOR_ARTIFACT_DIR/final.png`:
 
-  `eas simulator:exec argent run screenshot --udid "$ARGENT_UDID" --scale 1 --includeImageInContext false --out "$SIMULATOR_ARTIFACT_DIR/final.png"`
+  `eas simulator:exec agent-device screenshot "$SIMULATOR_ARTIFACT_DIR/final.png"`
 
 - Write one public-safe plain-text sentence of at most 280 characters to
   `$SIMULATOR_ARTIFACT_DIR/final.txt`. Describe the expected corrected behavior
@@ -106,8 +98,8 @@ the current screen again.
 - For behavior involving interaction, timing, animation, gesture, or navigation,
   record the complete after-change verification pass unchanged as
   `$SIMULATOR_ARTIFACT_DIR/verification.mp4`, using the same start/stop commands
-  and copying the stop result's `video` path. Start immediately before the
-  verification steps and stop immediately after the expected result.
+  with the verification path. Start immediately before the verification steps
+  and stop immediately after the expected result.
 - Record only the reproduction/verification interactions; stop while reading
   code, building, or waiting so the evidence remains easy to review.
 
@@ -118,11 +110,11 @@ or dropped-frame issue, analyze both `before.mp4` and `verification.mp4` before
 making a diagnosis or claiming a fix:
 
 ```bash
-ffprobe -v error -select_streams v:0 \
+"$FFPROBE_BIN" -v error -select_streams v:0 \
   -show_entries stream=avg_frame_rate,nb_frames,duration \
   -of default=noprint_wrappers=1 "$SIMULATOR_ARTIFACT_DIR/before.mp4"
 mkdir -p "$SIMULATOR_ARTIFACT_DIR/before-frames"
-ffmpeg -i "$SIMULATOR_ARTIFACT_DIR/before.mp4" -fps_mode passthrough \
+"$FFMPEG_BIN" -i "$SIMULATOR_ARTIFACT_DIR/before.mp4" -fps_mode passthrough \
   "$SIMULATOR_ARTIFACT_DIR/before-frames/frame-%05d.png"
 ```
 
@@ -133,11 +125,11 @@ dropped-state transition. Record the relevant frame numbers or timestamps and
 compare the same milestones before and after. Do not infer motion from only the
 first and last frames.
 
-If `ffmpeg` or `ffprobe` is unavailable, use an already-installed decoder that
-preserves native frame order. Do not install an unpinned tool and do not claim
-the animation issue was reproduced or fixed until the relevant frames were
-actually inspected. Keep extracted frame directories private unless a trusted
-evidence publisher explicitly validates and selects individual files.
+`FFMPEG_BIN` and `FFPROBE_BIN` point to the pinned decoders installed by the
+workflow toolchain. If either is unavailable, do not install an unpinned tool
+and do not claim the animation issue was reproduced or fixed until the relevant
+frames were actually inspected. Keep extracted frame directories private unless
+a trusted evidence publisher explicitly validates and selects individual files.
 
 ## Reporting
 
