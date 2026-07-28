@@ -1,51 +1,73 @@
 #!/usr/bin/env bash
 #
-# Reassemble the captured Paper session from the environment and write the JSON
-# to stdout. Kept separate from start-paper.sh so the credential passes through
-# exactly one place and never lands in a log.
+# Resolve the captured Paper session and write the JSON to stdout. Kept separate
+# from start-paper.sh so the credential passes through exactly one place.
 #
-# EAS caps secret variable values at 32 KiB, so a large session can be split
-# across PAPER_SESSION_B64_1..9. A typical capture is ~3 KB (~4.2 KB base64) and
-# fits in one.
+# Two supported shapes, in precedence order:
+#
+#   PAPER_SESSION_FILE  a file-type EAS variable; the env var holds a PATH on the
+#                       runner and the secret never passes through argv. Preferred.
+#   PAPER_SESSION_B64   base64 of the JSON in a string secret. Fallback for setups
+#                       that cannot use file-type variables.
+#
+# Having both set is an error rather than a silent precedence choice: a leftover
+# from switching shapes would otherwise win over the value you just uploaded and
+# quietly authenticate CI with an expired session.
 
 set -euo pipefail
 
-joined="$(mktemp)"
-trap 'rm -f "${joined}"' EXIT
+have_file=0
+have_b64=0
+[ -n "${PAPER_SESSION_FILE:-}" ] && have_file=1
+[ -n "${PAPER_SESSION_B64:-}" ] && have_b64=1
 
-chunks=0
-if [ -n "${PAPER_SESSION_B64:-}" ]; then
-  printf '%s' "${PAPER_SESSION_B64}" >>"${joined}"
-  chunks=1
-else
-  for i in 1 2 3 4 5 6 7 8 9; do
-    var="PAPER_SESSION_B64_${i}"
-    [ -n "${!var:-}" ] || continue
-    printf '%s' "${!var}" >>"${joined}"
-    chunks=$((chunks + 1))
-  done
+if [ "${have_file}" -eq 1 ] && [ "${have_b64}" -eq 1 ]; then
+  cat >&2 <<'EOF'
+Both PAPER_SESSION_FILE and PAPER_SESSION_B64 are set, so which one is current is
+ambiguous. Delete the one you are not using:
+
+  eas env:delete <environment> --variable-name PAPER_SESSION_B64 --non-interactive
+EOF
+  exit 1
 fi
 
-if [ "${chunks}" -eq 0 ]; then
-  echo 'No PAPER_SESSION_B64[_n] in the environment.' >&2
-  echo 'Create it with scripts/capture-session.sh, and check the job requests the' >&2
-  echo 'right EAS environment (secrets are per-environment).' >&2
+if [ "${have_file}" -eq 0 ] && [ "${have_b64}" -eq 0 ]; then
+  cat >&2 <<'EOF'
+No Paper session in the environment (PAPER_SESSION_FILE and PAPER_SESSION_B64 are
+both unset). Create one with:
+
+  bash .claude/skills/paper-mcp-in-eas-workflows/scripts/capture-session.sh
+
+Also confirm the job requests the EAS environment the secret lives in — secrets
+are per-environment.
+EOF
   exit 1
 fi
 
 decoded="$(mktemp)"
-trap 'rm -f "${joined}" "${decoded}"' EXIT
+trap 'rm -f "${decoded}"' EXIT
 
-tr -d '\n\r ' <"${joined}" | base64 -d >"${decoded}" 2>/dev/null || {
-  echo 'Session secret did not base64-decode.' >&2
-  exit 1
-}
+if [ "${have_file}" -eq 1 ]; then
+  [ -f "${PAPER_SESSION_FILE}" ] || {
+    echo "PAPER_SESSION_FILE is set but ${PAPER_SESSION_FILE} does not exist." >&2
+    echo 'File-type EAS variables are materialized as a path on the runner.' >&2
+    exit 1
+  }
+  cat "${PAPER_SESSION_FILE}" >"${decoded}"
+else
+  printf '%s' "${PAPER_SESSION_B64}" | tr -d '\n\r ' | base64 -d >"${decoded}" 2>/dev/null || {
+    echo 'PAPER_SESSION_B64 did not base64-decode.' >&2
+    exit 1
+  }
+fi
 
-# A truncated or mis-ordered chunk set decodes without error but yields invalid
-# JSON, so validate before handing it downstream.
-node -e 'JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))' "${decoded}" 2>/dev/null || {
-  echo "Session secret decoded to invalid JSON (${chunks} chunk(s) joined)." >&2
-  echo 'Chunks are concatenated in numeric order — check none are missing.' >&2
+# A truncated value can decode without error but still be unusable, so validate
+# before handing it downstream.
+node -e 'const s=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
+  if (!Array.isArray(s.cookies) || !s.cookies.length) throw new Error("no cookies in session");
+  if (typeof s.origin !== "string") throw new Error("no origin in session");' "${decoded}" 2>/dev/null || {
+  echo 'The Paper session did not parse as valid session JSON (needs origin and cookies).' >&2
+  echo 'Re-capture it with capture-session.sh.' >&2
   exit 1
 }
 

@@ -12,11 +12,15 @@
 # .eas/paper-probe/capture-session.sh — the probe runs without them and simply
 # reports on the signed-out case:
 #
-#   PAPER_SESSION_B64[_1..9]  base64 of the captured session JSON, chunked
-#                             because EAS caps secret values at 32 KiB
+#   PAPER_SESSION_FILE  a file-type secret holding the captured session JSON
 #
-# That blob is a live Paper session. Delete it with `eas env:delete` as soon as
-# the probe has answered the question.
+# That file is a live Paper session credential. Delete it with `eas env:delete`
+# as soon as the probe has answered the question.
+#
+# SECURITY: `skip_credentials` defaults to '1' deliberately. This job runs shell
+# scripts from the checked-out ref, so running it against an untrusted branch with
+# the session bound would let that branch's code read the credential. Pass
+# `-F skip_credentials=0` only on a ref you have read.
 
 name: Paper MCP probe
 
@@ -24,9 +28,9 @@ on:
   workflow_dispatch:
     inputs:
       skip_credentials:
-        description: Ignore any stored Paper profile and probe only the signed-out case ('1' to skip)
+        description: Ignore any stored Paper session and probe only the signed-out case ('1' to skip)
         type: string
-        default: '0'
+        default: '1'
 
 jobs:
   probe:
@@ -43,11 +47,8 @@ jobs:
       # mistaken for a Paper failure.
       - name: Probe
         run: |
-          if [ "${SKIP_CREDENTIALS}" = '1' ]; then
-            unset PAPER_SESSION_B64 \
-              PAPER_SESSION_B64_1 PAPER_SESSION_B64_2 PAPER_SESSION_B64_3 \
-              PAPER_SESSION_B64_4 PAPER_SESSION_B64_5 PAPER_SESSION_B64_6 \
-              PAPER_SESSION_B64_7 PAPER_SESSION_B64_8 PAPER_SESSION_B64_9
+          if [ "${SKIP_CREDENTIALS}" != '0' ]; then
+            unset PAPER_SESSION_FILE PAPER_SESSION_B64
           fi
           bash .eas/paper-probe/probe.sh
       - name: Upload probe report
@@ -75,11 +76,8 @@ jobs:
       - uses: eas/checkout
       - name: Probe
         run: |
-          if [ "${SKIP_CREDENTIALS}" = '1' ]; then
-            unset PAPER_SESSION_B64 \
-              PAPER_SESSION_B64_1 PAPER_SESSION_B64_2 PAPER_SESSION_B64_3 \
-              PAPER_SESSION_B64_4 PAPER_SESSION_B64_5 PAPER_SESSION_B64_6 \
-              PAPER_SESSION_B64_7 PAPER_SESSION_B64_8 PAPER_SESSION_B64_9
+          if [ "${SKIP_CREDENTIALS}" != '0' ]; then
+            unset PAPER_SESSION_FILE PAPER_SESSION_B64
           fi
           bash .eas/paper-probe/probe.sh
       - name: Upload probe report

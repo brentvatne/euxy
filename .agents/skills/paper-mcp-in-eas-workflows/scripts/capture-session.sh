@@ -18,8 +18,7 @@ set -euo pipefail
 readonly APP='/Applications/Paper.app'
 readonly CDP_PORT=9222
 readonly MAX_SECRET_BYTES=32768
-# Headroom under the 32 KiB cap for the variable name and transport.
-readonly CHUNK_CHARS=31000
+
 readonly HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 [ -d "${APP}" ] || {
@@ -73,53 +72,42 @@ readonly BYTES="$(wc -c <"${SESSION}" | tr -d ' ')"
 echo
 echo "Session JSON: ${BYTES} bytes"
 
-readonly B64="${DIR}/session.b64"
-base64 <"${SESSION}" | tr -d '\n' >"${B64}"
-readonly B64_BYTES="$(wc -c <"${B64}" | tr -d ' ')"
-echo "Base64:       ${B64_BYTES} bytes (EAS secret cap: ${MAX_SECRET_BYTES})"
+readonly SESSION_BYTES="$(wc -c <"${SESSION}" | tr -d ' ')"
+echo "Session:      ${SESSION_BYTES} bytes (EAS secret cap: ${MAX_SECRET_BYTES})"
+if [ "${SESSION_BYTES}" -gt "${MAX_SECRET_BYTES}" ]; then
+  echo "Session exceeds the ${MAX_SECRET_BYTES}-byte EAS secret cap." >&2
+  exit 1
+fi
 
 readonly UPLOAD="${DIR}/upload.sh"
 readonly CLEANUP="${DIR}/cleanup.sh"
-{
-  echo '#!/usr/bin/env bash'
-  echo '# Review, then run. Creates the probe credential in the preview environment.'
-  echo 'set -euo pipefail'
-} >"${UPLOAD}"
-{
-  echo '#!/usr/bin/env bash'
-  echo '# Run this as soon as the probe has told you what you need to know.'
-  echo 'set -uo pipefail'
-} >"${CLEANUP}"
 
-emit_var() {
-  local name="$1" file="$2"
-  cat >>"${UPLOAD}" <<EOF
+# Uploaded as a file-type variable, by PATH. A string secret would need
+# --value "$(cat ...)", which puts the live credential into an argv that `ps` or a
+# shell trace can read. On the runner the env var holds the materialized path.
+cat >"${UPLOAD}" <<EOF
+#!/usr/bin/env bash
+# Review, then run. Creates the Paper session credential in the preview environment.
+set -euo pipefail
+
 eas env:set preview \\
-  --name ${name} \\
-  --value "\$(cat '${file}')" \\
+  --name PAPER_SESSION_FILE \\
+  --type file \\
+  --value '${SESSION}' \\
   --visibility secret \\
   --scope project \\
   --non-interactive
-EOF
-  echo "eas env:delete preview --variable-name ${name} --non-interactive" >>"${CLEANUP}"
-}
 
-if [ "${B64_BYTES}" -le "${MAX_SECRET_BYTES}" ]; then
-  emit_var 'PAPER_SESSION_B64' "${B64}"
-  echo 'Fits in one secret.'
-else
-  split -b "${CHUNK_CHARS}" "${B64}" "${DIR}/chunk."
-  n=0
-  for chunk in "${DIR}"/chunk.*; do
-    n=$((n + 1))
-    if [ "${n}" -gt 9 ]; then
-      echo "Session is too large to chunk into 9 secrets (${B64_BYTES} base64 bytes)." >&2
-      exit 1
-    fi
-    emit_var "PAPER_SESSION_B64_${n}" "${chunk}"
-  done
-  echo "Split into ${n} secrets."
-fi
+# Clear any leftover string-secret shape so the runner cannot resolve ambiguously.
+eas env:delete preview --variable-name PAPER_SESSION_B64 --non-interactive 2>/dev/null || true
+EOF
+
+cat >"${CLEANUP}" <<'EOF'
+#!/usr/bin/env bash
+# Run this as soon as the probe has told you what you need to know.
+set -uo pipefail
+eas env:delete preview --variable-name PAPER_SESSION_FILE --non-interactive
+EOF
 
 chmod +x "${UPLOAD}" "${CLEANUP}"
 

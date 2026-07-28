@@ -51,7 +51,7 @@ Quit Paper first — Electron's single-instance lock means a running copy would
 just focus its window and drop the `--remote-debugging-port` flag.
 
 ```bash
-bash scripts/capture-session.sh
+bash .claude/skills/paper-mcp-in-eas-workflows/scripts/capture-session.sh
 ```
 
 It relaunches Paper with the DevTools port, waits for you to open the document
@@ -62,14 +62,27 @@ attributed to your analytics identity.
 
 ### 2. Store it
 
+The generated `upload.sh` does this, as a **file-type** variable:
+
 ```bash
-eas env:set preview --name PAPER_SESSION_B64 \
-  --value "$(cat session.b64)" \
+eas env:set preview --name PAPER_SESSION_FILE \
+  --type file --value /path/to/session.json \
   --visibility secret --scope project --non-interactive
 ```
 
-`secret` is required, not just preferred: the 32 KiB cap applies only to secret
-visibility; everything else caps at 4 KiB, which a capture can exceed.
+Two things about that shape matter:
+
+- **File-type uploads by path, so the credential never enters an argv.** A string
+  secret needs `--value "$(cat ...)"`, which puts a live Paper session where `ps`
+  or a shell trace can read it. On the runner the env var holds the materialized
+  file path.
+- `secret` is required, not just preferred: the 32 KiB cap applies only to secret
+  visibility; everything else caps at 4 KiB, which a capture can exceed.
+
+`decode-session.sh` also accepts a `PAPER_SESSION_B64` string secret as a
+fallback, and **fails if both shapes are set** rather than silently preferring
+one — a leftover from switching shapes would otherwise win over the value you
+just uploaded and authenticate CI with an expired session.
 
 ### 3. Add the steps to your workflow
 
@@ -97,6 +110,22 @@ jobs:
 repo. `start-paper.sh` leaves Paper running in the background for later steps and
 **exits non-zero if the handshake fails**, so a broken server never reaches the
 agent.
+
+### Security constraints on that job
+
+The session is a live credential for your Paper account, and the job runs shell
+from the checked-out ref, so:
+
+- **Never bind the session environment to a job triggered by an untrusted ref.**
+  A PR-controlled script would run with the credential in its environment and
+  could exfiltrate it. The bundled probe defaults `skip_credentials` to `1` for
+  this reason.
+- `start-paper.sh` runs the download and `apt-get` steps through `env -u
+  PAPER_SESSION_FILE -u PAPER_SESSION_B64`, because those steps fetch and execute
+  a **mutable remote `.deb`** that should never observe the credential.
+- The decoded session is written with `umask 077` and deleted immediately after
+  injection, with an `EXIT` trap removing the temp directory on every path, so it
+  does not outlive the step that needed it.
 
 ## What it costs
 
@@ -128,7 +157,7 @@ after capture no matter how much you use Paper on your own machine.
 Check the current window any time (values are never printed):
 
 ```bash
-node scripts/cdp.mjs expiry
+node .claude/skills/paper-mcp-in-eas-workflows/scripts/cdp.mjs expiry
 ```
 
 ```
@@ -169,7 +198,7 @@ success*, so budget diagnosis time there before assuming Paper is at fault.
 
 ## Debugging
 
-`scripts/cdp.mjs` logs every page target and whether it was used:
+`.claude/skills/paper-mcp-in-eas-workflows/scripts/cdp.mjs` logs every page target and whether it was used:
 
 ```
   target SKIP https://app.paper.design/static/desktop/preloader

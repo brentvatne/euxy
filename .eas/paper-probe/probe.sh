@@ -40,6 +40,10 @@ VERDICT_A='not reached'
 VERDICT_B='not reached'
 VERDICT_C='not reached'
 
+# The download/install phase fetches and executes a mutable remote .deb, so it
+# runs without the session variables in its environment.
+sanitized() { env -u PAPER_SESSION_FILE -u PAPER_SESSION_B64 "$@"; }
+
 PAPER_PID=''
 XVFB_PID=''
 DBUS_PID=''
@@ -109,7 +113,7 @@ fi
 
 stage 'Stage 1 — download Paper Desktop (.deb)'
 
-if ! curl -fsSL --retry 3 --retry-delay 2 --max-time 600 -o "${WORK}/paper.deb" "${DEB_URL}"; then
+if ! sanitized curl -fsSL --retry 3 --retry-delay 2 --max-time 600 -o "${WORK}/paper.deb" "${DEB_URL}"; then
   die "could not download ${DEB_URL}"
 fi
 
@@ -128,10 +132,10 @@ stage 'Stage 2 — install Paper and a headless X stack'
 
 # dbus-x11 and the X utilities are the usual headless-Electron gotchas: without
 # a session bus Electron logs bus errors and can hang before opening a window.
-$SUDO apt-get update -qq >"${OUT}/apt-update.log" 2>&1
+sanitized $SUDO apt-get update -qq >"${OUT}/apt-update.log" 2>&1
 # x11-apps for xwd (x11-utils only supplies xdpyinfo — verified: without
 # x11-apps every screenshot failed with "xwd: command not found").
-if ! $SUDO apt-get install -y --no-install-recommends \
+if ! sanitized $SUDO apt-get install -y --no-install-recommends \
   xvfb x11-apps x11-utils netpbm dbus-x11 "${WORK}/paper.deb" >"${OUT}/apt-install.log" 2>&1; then
   say '- apt-get install FAILED — tail of apt-install.log:'
   say ''
@@ -298,27 +302,17 @@ say '```'
 
 stage 'Stage 4 — inject the captured session over CDP (question B)'
 
-# Base64 of the JSON written by capture-session.sh, in one secret or split
-# across numbered ones because EAS caps secret values at 32 KiB.
+# Delegates to the skill's decode-session.sh so the probe and the production
+# start-paper.sh share exactly one credential-resolution contract.
 resolve_session_json() {
-  local joined="${WORK}/session.b64" chunks=0 i var
-  : >"${joined}"
-  if [ -n "${PAPER_SESSION_B64:-}" ]; then
-    printf '%s' "${PAPER_SESSION_B64}" >>"${joined}"
-    chunks=1
-  else
-    for i in 1 2 3 4 5 6 7 8 9; do
-      var="PAPER_SESSION_B64_${i}"
-      [ -n "${!var:-}" ] || continue
-      printf '%s' "${!var}" >>"${joined}"
-      chunks=$((chunks + 1))
-    done
+  if [ -z "${PAPER_SESSION_FILE:-}" ] && [ -z "${PAPER_SESSION_B64:-}" ]; then
+    return 1
   fi
-  [ "${chunks}" -gt 0 ] || return 1
-
-  tr -d '\n\r ' <"${joined}" | base64 -d >"${WORK}/session.json" 2>/dev/null || return 2
-  # A truncated chunk set decodes without error but yields invalid JSON.
-  node -e 'JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))' "${WORK}/session.json" 2>/dev/null || return 2
+  (
+    umask 077
+    bash .claude/skills/paper-mcp-in-eas-workflows/scripts/decode-session.sh \
+      >"${WORK}/session.json" 2>"${OUT}/decode.log"
+  ) || return 2
   printf '%s' "${WORK}/session.json"
 }
 
@@ -356,7 +350,11 @@ if ! kill -0 "${PAPER_PID}" 2>/dev/null; then
   exit 1
 fi
 
-if node "${HERE}/cdp.mjs" inject "${SESSION_JSON}" >"${OUT}/cdp-inject.log" 2>&1; then
+inject_status=0
+node "${HERE}/cdp.mjs" inject "${SESSION_JSON}" >"${OUT}/cdp-inject.log" 2>&1 || inject_status=$?
+# The decoded credential must not outlive the injection that needed it.
+rm -f "${WORK}/session.json"
+if [ "${inject_status}" -eq 0 ]; then
   say '- injection reported success:'
   say ''
   say '```'

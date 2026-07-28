@@ -22,6 +22,16 @@ readonly DEB_URL=https://download.paper.design/linux/deb
 readonly HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly WORK="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/paper.XXXXXX")"
 
+# The decoded session is a live Paper credential. Remove it as soon as this
+# script exits, on every path, so later steps in the job cannot read it off disk.
+cleanup() { rm -rf "${WORK}"; }
+trap cleanup EXIT
+
+# Download and package installation run with the session variables stripped from
+# the environment. Those steps fetch and execute a mutable remote .deb, so they
+# should never be able to observe the credential even though this script can.
+sanitized() { env -u PAPER_SESSION_FILE -u PAPER_SESSION_B64 "$@"; }
+
 # The only Linux build Paper publishes is amd64.
 if [ "$(uname -m)" != 'x86_64' ]; then
   echo "Paper ships only an amd64 Linux build; this runner is $(uname -m)." >&2
@@ -38,11 +48,11 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 echo '--- installing Paper and a headless X stack'
-curl -fsSL --retry 3 --retry-delay 2 --max-time 600 -o "${WORK}/paper.deb" "${DEB_URL}"
-$SUDO apt-get update -qq
+sanitized curl -fsSL --retry 3 --retry-delay 2 --max-time 600 -o "${WORK}/paper.deb" "${DEB_URL}"
+sanitized $SUDO apt-get update -qq
 # x11-apps supplies xwd (x11-utils does NOT — it only has xdpyinfo). netpbm
 # converts the xwd dump to png. dbus-x11 supplies dbus-launch AND dbus-daemon.
-$SUDO apt-get install -y --no-install-recommends \
+sanitized $SUDO apt-get install -y --no-install-recommends \
   xvfb x11-apps x11-utils netpbm dbus-x11 "${WORK}/paper.deb" >/dev/null
 
 # The deb installs no /usr/bin entries at all; everything lives in /opt/Paper,
@@ -111,8 +121,14 @@ for _ in $(seq 1 75); do
 done
 
 echo '--- injecting the captured session'
-"${HERE}/decode-session.sh" >"${WORK}/session.json"
+# Written with a restrictive umask into a directory the EXIT trap removes, so the
+# credential is not readable by other users and does not outlive this script.
+(
+  umask 077
+  "${HERE}/decode-session.sh" >"${WORK}/session.json"
+)
 node "${HERE}/cdp.mjs" inject "${WORK}/session.json"
+rm -f "${WORK}/session.json"
 
 echo '--- verifying the MCP handshake'
 # Signed out or with no document, initialize returns HTTP 500 with
