@@ -36,12 +36,6 @@ function laneSubtitle(lane: Lane): string {
   return `${midiNoteName(lane.note)} · Track ${lane.channel + 1}`;
 }
 
-// One beat AFTER the boot overlay is gone. The commit that removes the overlay
-// also tears down its Image + LED grid, and an entrance starting in that same
-// frame gets nothing painted to show it: frame-by-frame on a cold dev-build
-// boot, the device paints ~10fps across that commit, so a 140ms entrance landed
-// there resolves to a single frame — indistinguishable from the pop Brent saw.
-const CAPSULE_SETTLE_MS = 120;
 // Backstop for the boot-overlay signal itself — comfortably past BootSplash's
 // own 2s failsafe plus its ~900ms power-on.
 const CAPSULE_FAILSAFE_MS = 4000;
@@ -94,17 +88,26 @@ export default function SequencerScreen() {
   // the initial commit with no entrance at all.
   const [capsuleReady, setCapsuleReady] = useState(false);
   useEffect(() => {
-    let settle: ReturnType<typeof setTimeout> | null = null;
+    let revealFrame: number | null = null;
+    let revealed = false;
+    const reveal = () => {
+      if (revealed) return;
+      revealed = true;
+      setCapsuleReady(true);
+    };
     const unsubscribe = onBootOverlayGone(() => {
-      settle = setTimeout(() => setCapsuleReady(true), CAPSULE_SETTLE_MS);
+      // Cross a paint boundary instead of guessing at a delay. The overlay's
+      // removal is committed before this signal; mounting on the next frame
+      // keeps its teardown and the capsule entrance out of the same frame.
+      revealFrame = requestAnimationFrame(reveal);
     });
     // Same never-deadlock rule as the boot gates themselves: if the signal is
     // ever missed, show the capsule anyway — no entrance beats no capsule.
-    const failsafe = setTimeout(() => setCapsuleReady(true), CAPSULE_FAILSAFE_MS);
+    const failsafe = setTimeout(reveal, CAPSULE_FAILSAFE_MS);
     return () => {
       unsubscribe();
       clearTimeout(failsafe);
-      if (settle != null) clearTimeout(settle);
+      if (revealFrame != null) cancelAnimationFrame(revealFrame);
     };
   }, []);
 

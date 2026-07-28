@@ -27,8 +27,7 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-g
 import Animated, {
   Easing,
   FadeInDown,
-  FadeOutDown,
-  LinearTransition,
+  FadeOut,
   ReduceMotion,
   runOnJS,
   useAnimatedProps,
@@ -104,22 +103,19 @@ const SNAP = { damping: 34, stiffness: 340, reduceMotion: ReduceMotion.System };
 // landing corner — a real throw goes where it was headed.
 const THROW_PROJECTION_S = 0.18;
 
-// Capsule entrance (Brent 2026-07-28: "takes too long to settle"). FadeInDown's
-// default is a 25px drop over 200ms on ease-in-out, which spends its first
-// frames barely moving and then still has ~12px to travel halfway through —
-// a lurch that reads as settling rather than arriving. Opacity-led and short
-// instead: a 6px rise over 140ms on ease-OUT, so the travel is front-loaded and
-// there is nothing left to settle. The host screen holds this mount until the
-// boot overlay is gone (see the sequencer screen) — before that the entrance
-// ran behind an opaque layer and was never seen at all. The exit keeps its own
-// 150ms drop.
-const ENTER_MS = 140;
-const ENTER_RISE = 6;
-const capsuleEnter = () =>
-  FadeInDown.duration(ENTER_MS)
-    .easing(Easing.out(Easing.quad))
-    .withInitialValues({ transform: [{ translateY: ENTER_RISE }] })
-    .reduceMotion(ReduceMotion.System);
+// An occasional entrance can afford to be legible, but it should arrive
+// immediately under the finger: strong ease-out, opacity-led, and only 8pt of
+// travel. The old 140ms curve produced too few painted frames on a cold boot;
+// 200ms stays inside the small-popover budget while preserving the first-frame
+// response. Exit is deliberately faster and drops movement entirely.
+const CAPSULE_EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
+const CAPSULE_ENTER = FadeInDown.duration(200)
+  .easing(CAPSULE_EASE_OUT)
+  .withInitialValues({ opacity: 0, transform: [{ translateY: 8 }] })
+  .reduceMotion(ReduceMotion.System);
+const CAPSULE_EXIT = FadeOut.duration(120)
+  .easing(CAPSULE_EASE_OUT)
+  .reduceMotion(ReduceMotion.System);
 
 /** One scatter press: 3–4 frames of random pip cells (5 distinct per frame). */
 function rollScatterFrames(): number[][][] {
@@ -402,20 +398,14 @@ export function FloatingActions({
     // stays plain (only Patterns wraps a whole screen today).
     <GestureHandlerRootView pointerEvents="box-none" style={StyleSheet.absoluteFill}>
       <GestureDetector gesture={pan}>
-        {/* Outer view owns mount/layout animations; the inner one owns the
-            drag transform + breathing opacity (a layout animation would
-            overwrite them on a shared view). */}
+        {/* Outer view owns mount animation; the inner one owns the drag
+            transform + breathing opacity. The anchor is absolute and fixed,
+            so a layout transition only adds a competing tail. */}
         <Animated.View
           // Mounted only while lanes exist (and never during boot) — so this
           // entrance covers both app open and easing out of the empty state.
-          entering={capsuleEnter()}
-          exiting={FadeOutDown.duration(150).reduceMotion(ReduceMotion.System)}
-          // The capsule is docked absolute at a fixed corner with a fixed size,
-          // so a layout transition has nearly nothing to travel — but the old
-          // springify().damping(18).stiffness(220) was ζ≈0.61, which rings for
-          // ~600ms whenever it does fire (and it fires right as the entrance
-          // ends). A bounded 180ms curve: no overshoot, no tail.
-          layout={LinearTransition.duration(180).reduceMotion(ReduceMotion.System)}
+          entering={CAPSULE_ENTER}
+          exiting={CAPSULE_EXIT}
           style={styles.barAnchor}
           onLayout={(e) => setBarW(e.nativeEvent.layout.width)}
         >
