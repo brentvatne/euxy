@@ -94,7 +94,7 @@ describe("PR comment response workflow", () => {
 
   test("publishes feedback-first expandable response blocks", () => {
     expect(prompt).toContain(
-      "Start directly with the first `<details>` block",
+      "Start with a one- or two-sentence top-level outcome paragraph",
     );
     expect(prompt).toContain(
       "<summary><strong>Feedback point (🟡 Warning, <code>id:616b5e25aad3</code>): “MIDI route marks interactive twice”</strong></summary>",
@@ -102,7 +102,10 @@ describe("PR comment response workflow", () => {
     expect(prompt).toContain("Normal Markdown is supported");
     expect(prompt).toContain("in the `<details>` body.");
     expect(prompt).toContain(
-      "do not add a document\n   title, PR heading, summary heading, or introductory text",
+      "The trusted wrapper appends validated before/after\n     screenshots, recording links, and publication status at the top level",
+    );
+    expect(prompt).not.toContain(
+      "Start directly with the first `<details>` block",
     );
     expect(runner).toContain("normalizePullRequestAgentResponse");
   });

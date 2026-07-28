@@ -24,9 +24,11 @@ changes, and verify the result.
    - If an appended simulator-verification section is present, use it for
      behavior/UI changes. Otherwise verify statically + with tests and call out
      anything needing on-device checking.
-4. Write `.eas/pr-review/RESPONSE.md` as one expandable block per feedback
-   point. Start directly with the first `<details>` block: do not add a document
-   title, PR heading, summary heading, or introductory text.
+4. Write `.eas/pr-review/RESPONSE.md` with a concise public outcome followed by
+   one expandable block per feedback point.
+   - Start with a one- or two-sentence top-level outcome paragraph describing
+     the user-visible result. Do not add a document title, PR heading, or
+     summary heading.
    - Make the feedback point itself the clickable `<summary>`. Preserve its
      severity, id, and short title when available. Use HTML such as `<strong>`
      and `<code>` inside `<summary>` so GitHub renders it reliably.
@@ -36,6 +38,9 @@ changes, and verify the result.
      in the `<details>` body.
    - Use this exact shape:
      ```md
+     The MIDI route now records exactly one interaction sample while preserving
+     its existing behavior.
+
      <details>
      <summary><strong>Feedback point (🟡 Warning, <code>id:616b5e25aad3</code>): “MIDI route marks interactive twice”</strong></summary>
 
@@ -46,8 +51,11 @@ changes, and verify the result.
      </details>
      ```
    - Do not duplicate the feedback point or technical details outside its
-     expandable block. If there is no code change, keep the same shape and
-     explain the concrete reason inside the block.
+     expandable block. The trusted wrapper appends validated before/after
+     screenshots, recording links, and publication status at the top level;
+     do not copy those into `RESPONSE.md` or put them inside a `<details>` block.
+     If there is no code change, keep the same shape and explain the concrete
+     reason inside the block.
 5. Write `.eas/pr-review/ACTIONS.json` with exactly:
    ```json
    { "publishUpdate": false }
