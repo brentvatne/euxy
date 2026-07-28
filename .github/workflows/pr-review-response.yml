@@ -1,33 +1,52 @@
-# A GitHub review event is not currently an EAS Workflow trigger, so this
-# credential-minimal workflow verifies the event and dispatches trusted workflow
-# code to EAS. The autonomous agent and GitHub write token remain on EAS.
+# GitHub review and PR-comment events are not currently EAS Workflow triggers,
+# so this credential-minimal workflow verifies the event envelope and dispatches
+# immutable IDs to trusted workflow code on EAS. The autonomous agent and GitHub
+# write token remain on EAS.
 
-name: Respond to requested PR changes
+name: Respond to PR feedback
 
 on:
   pull_request_review:
     types: [submitted]
+  issue_comment:
+    types: [created]
 
 permissions: {}
 
 concurrency:
-  group: pr-review-response-${{ github.event.pull_request.number }}
+  group: pr-review-response-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
   dispatch:
     if: >-
-      github.event.review.state == 'changes_requested'
-      && github.event.review.user.login == 'brentvatne'
-      && contains(
-        fromJSON('["notbrent","github-actions[bot]"]'),
-        github.event.pull_request.user.login
-      )
-      && github.event.pull_request.head.repo.full_name == github.repository
+      github.repository == 'brentvatne/euxy'
       && (
-        startsWith(github.event.pull_request.head.ref, 'crash-triage/')
-        || startsWith(github.event.pull_request.head.ref, 'issue-triage/')
-        || startsWith(github.event.pull_request.head.ref, 'feedback-triage/')
+        (
+          github.event_name == 'pull_request_review'
+          && github.event.review.state == 'changes_requested'
+          && github.event.review.user.login == 'brentvatne'
+          && contains(
+            fromJSON('["notbrent","github-actions[bot]"]'),
+            github.event.pull_request.user.login
+          )
+          && github.event.pull_request.head.repo.full_name == github.repository
+          && (
+            startsWith(github.event.pull_request.head.ref, 'crash-triage/')
+            || startsWith(github.event.pull_request.head.ref, 'issue-triage/')
+            || startsWith(github.event.pull_request.head.ref, 'feedback-triage/')
+          )
+        )
+        || (
+          github.event_name == 'issue_comment'
+          && github.event.issue.pull_request
+          && github.event.comment.user.login == 'brentvatne'
+          && (
+            startsWith(github.event.comment.body, '@notbrent ')
+            || startsWith(github.event.comment.body, '@notbrent:')
+            || startsWith(github.event.comment.body, '@notbrent,')
+          )
+        )
       )
     runs-on: ubuntu-latest
     steps:
@@ -35,9 +54,10 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           EAS_PROJECT_ID: 2ee288d6-807b-4316-8331-d0f5cd5eebe8
-          TRUSTED_GIT_REF: ${{ github.event.pull_request.base.sha }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          TRUSTED_GIT_REF: ${{ github.event.pull_request.base.sha || github.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
           REVIEW_ID: ${{ github.event.review.id }}
+          COMMENT_ID: ${{ github.event.comment.id }}
         run: |
           if [[ -z "$EXPO_TOKEN" ]]; then
             echo "::error::Missing the EXPO_TOKEN repository secret used to dispatch EAS Workflows."
@@ -50,11 +70,16 @@ jobs:
               --arg git_ref "$TRUSTED_GIT_REF" \
               --arg pr "$PR_NUMBER" \
               --arg review_id "$REVIEW_ID" \
+              --arg comment_id "$COMMENT_ID" \
               '{
                 appId: $app_id,
                 gitRef: $git_ref,
                 fileName: "pr-review-response.yml",
-                inputs: { pr: $pr, review_id: $review_id }
+                inputs: {
+                  pr: $pr,
+                  review_id: $review_id,
+                  comment_id: $comment_id
+                }
               }'
           )"
           response="$(

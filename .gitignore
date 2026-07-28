@@ -71,5 +71,6 @@ SETUP-TRACING.md
 .eas/issue-triage/sim/
 .eas/pr-review/feedback.md
 .eas/pr-review/RESPONSE.md
+.eas/pr-review/ACTIONS.json
 .eas/pr-review/sim/
 .github/pr-review/

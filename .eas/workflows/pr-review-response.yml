@@ -21,7 +21,11 @@ on:
       review_id:
         description: Specific review id (optional; blank = latest actionable feedback)
         type: string
-        default: ''
+        default: ""
+      comment_id:
+        description: Specific bot-addressed PR comment id (optional)
+        type: string
+        default: ""
 
 jobs:
   respond:
@@ -32,15 +36,16 @@ jobs:
       REPO_SLUG: brentvatne/euxy
       AGENT_PROMPT_FILE: prompts/automation/pr-review-response.md
       SIMULATOR_PROMPT_FILE: prompts/automation/simulator-verification.md
-      SIMULATOR_VALIDATION: '1'
-      PUBLIC_SIMULATOR_EVIDENCE: '1'
+      SIMULATOR_VALIDATION: "1"
+      PUBLIC_SIMULATOR_EVIDENCE: "1"
       SIMULATOR_ARTIFACT_DIR: .eas/pr-review/sim
       TRIAGE_PR_AUTHOR_ALLOWLIST: '["brentvatne","notbrent","github-actions[bot]"]'
       TRIAGE_REVIEWER_ALLOWLIST: '["brentvatne"]'
-      DISABLE_AUTOUPDATER: '1'
-      MAX_ITERS: '3'
+      DISABLE_AUTOUPDATER: "1"
+      MAX_ITERS: "3"
       INPUT_PR: ${{ inputs.pr }}
       INPUT_REVIEW_ID: ${{ inputs.review_id }}
+      INPUT_COMMENT_ID: ${{ inputs.comment_id }}
     steps:
       - uses: eas/checkout
       - uses: eas/install_node_modules
@@ -56,4 +61,5 @@ jobs:
           name: pr-review-response
           path: |
             .eas/pr-review/RESPONSE.md
+            .eas/pr-review/ACTIONS.json
             .eas/pr-review/sim/**/*

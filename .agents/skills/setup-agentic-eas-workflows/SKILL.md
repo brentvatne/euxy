@@ -68,6 +68,15 @@ allowlist:
 7. Ensure an issue created by the publishing bot cannot trigger remediation
    through the ordinary `issues.opened` path.
 
+For pull-request follow-up commands, use the same trust boundary: dispatch only
+an exact leading bot mention from the allowlisted maintainer, pass the immutable
+comment ID to EAS, and re-fetch that exact comment in the trusted runner. The
+normal agentic response workflow should interpret the whole instruction. If it
+needs a credentialed wrapper action such as publishing an EAS Update, have the
+agent emit a narrow validated action manifest; do not create a deterministic
+command-only workflow. Keep channel allocation, channel reuse, publication, and
+PR-body updates in the wrapper.
+
 Keep the issue title as the reported problem. Use the eventual PR title for the
 solution or user-visible outcome, and preserve any additional maintainer
 instructions after the approval command as agent context.

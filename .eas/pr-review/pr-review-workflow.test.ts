@@ -1,0 +1,50 @@
+import { describe, expect, test } from "bun:test";
+
+const dispatcher = await Bun.file(
+  ".github/workflows/pr-review-response.yml",
+).text();
+const workflow = await Bun.file(".eas/workflows/pr-review-response.yml").text();
+const runner = await Bun.file(".eas/pr-review/pr-review-response.ts").text();
+const prompt = await Bun.file(
+  "prompts/automation/pr-review-response.md",
+).text();
+const gitignore = await Bun.file(".gitignore").text();
+
+describe("PR comment response workflow", () => {
+  test("GitHub only dispatches exact trusted PR-comment events", () => {
+    expect(dispatcher).toContain("permissions: {}");
+    expect(dispatcher).toContain("issue_comment:");
+    expect(dispatcher).toContain("types: [created]");
+    expect(dispatcher).toContain("github.event.issue.pull_request");
+    expect(dispatcher).toContain(
+      "github.event.comment.user.login == 'brentvatne'",
+    );
+    expect(dispatcher).toContain(
+      "startsWith(github.event.comment.body, '@notbrent ')",
+    );
+    expect(dispatcher).toContain("COMMENT_ID: ${{ github.event.comment.id }}");
+    expect(dispatcher).toContain("comment_id: $comment_id");
+  });
+
+  test("passes the immutable comment id into the EAS worker", () => {
+    expect(workflow).toContain("comment_id:");
+    expect(workflow).toContain("INPUT_COMMENT_ID: ${{ inputs.comment_id }}");
+  });
+
+  test("revalidates the comment and lets the full agent request publication", () => {
+    expect(runner).toContain("`/issues/comments/${commentId}`");
+    expect(runner).toContain("validatePullRequestCommentDispatch");
+    expect(runner).toContain("parsePullRequestAgentActions");
+    expect(runner).toContain("actions.publishUpdate");
+    expect(runner).toContain("publishPullRequestUpdate");
+    expect(prompt).toContain("If the maintainer asks you to publish");
+    expect(prompt).toContain("Do not invoke `eas update` directly");
+  });
+
+  test("keeps the action manifest out of agent-authored commits", () => {
+    expect(gitignore).toContain(".eas/pr-review/ACTIONS.json");
+    expect(runner).toContain(
+      '[GIT, "-C", WORK, "reset", "-q", "--", ".eas/pr-review"]',
+    );
+  });
+});
