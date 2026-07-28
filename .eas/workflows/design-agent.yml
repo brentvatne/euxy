@@ -6,6 +6,11 @@
 #
 #   bun run design-agent "Design an interaction where …"
 #
+# or from GitHub by applying the `design-agent` label to an issue, which
+# .github/workflows/design-agent.yml forwards here as issue_number only — the
+# brief is issue text, so this side fetches it and re-checks the actor rather
+# than trusting anything the dispatcher passed.
+#
 # or directly:
 #
 #   eas workflow:run .eas/workflows/design-agent.yml -F prompt="…"
@@ -23,8 +28,21 @@ on:
   workflow_dispatch:
     inputs:
       prompt:
-        description: What to design, in plain language
+        description: What to design, in plain language (local dispatch)
         type: string
+        default: ''
+      issue_number:
+        description: Issue to read the brief from (set by the GitHub dispatcher)
+        type: string
+        default: ''
+      issue_id:
+        description: Immutable GitHub issue database ID
+        type: string
+        default: ''
+      actor:
+        description: Login that applied the label, re-authorized on this side
+        type: string
+        default: ''
       continues_issue:
         description: Issue number of a prior proposal to revise (blank for a fresh one)
         type: string
@@ -39,6 +57,10 @@ jobs:
       REPO_SLUG: brentvatne/euxy
       DESIGN_PROMPT: ${{ inputs.prompt }}
       CONTINUES_ISSUE: ${{ inputs.continues_issue }}
+      ISSUE_NUMBER: ${{ inputs.issue_number }}
+      ISSUE_ID: ${{ inputs.issue_id }}
+      ACTOR: ${{ inputs.actor }}
+      DESIGN_AGENT_ALLOWLIST: '["brentvatne"]'
       WORKFLOW_URL: ${{ workflow.url }}
       DISABLE_AUTOUPDATER: '1'
     steps:

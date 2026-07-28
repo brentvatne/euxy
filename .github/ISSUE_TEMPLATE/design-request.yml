@@ -1,0 +1,38 @@
+name: Design request
+description: Ask the design agent to propose an interaction and draw mockups in Paper
+title: 'Design: '
+labels: ['design-agent']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Applying the **design-agent** label starts a run. The agent reads the
+        Paper canvas, draws artboards on it, and opens a separate issue with the
+        proposal and exported mockups.
+
+        It proposes only — no app code is changed.
+
+        Only allowlisted authors can start a run. If you are not on the
+        allowlist the issue is still filed; someone will apply the label.
+  - type: textarea
+    id: brief
+    attributes:
+      label: Brief
+      description: >-
+        What should it feel like, and where does it live in the app? Motion and
+        haptics are worth describing in feel terms — the agent turns those into
+        concrete values. Reference an existing interaction if one is close.
+      placeholder: >-
+        Long-pressing the dice in the floating bar should ramp randomness,
+        escalating until it feels fully charged, then pop on release with
+        haptics matching the visual.
+    validations:
+      required: true
+  - type: input
+    id: surface
+    attributes:
+      label: Surface
+      description: Optional. The screen or component, if the brief does not make it obvious.
+      placeholder: Sequencer — floating bar
+    validations:
+      required: false

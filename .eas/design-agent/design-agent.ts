@@ -42,11 +42,12 @@ function req(name: string): string {
   return value;
 }
 
-const DESIGN_PROMPT = req("DESIGN_PROMPT");
 const GH_TOKEN = req("GH_TOKEN");
 const REPO_SLUG = req("REPO_SLUG");
 const WORKFLOW_URL = process.env.WORKFLOW_URL || "";
-const CONTINUES_ISSUE = (process.env.CONTINUES_ISSUE || "").trim();
+let CONTINUES_ISSUE = (process.env.CONTINUES_ISSUE || "").trim();
+const ISSUE_NUMBER = (process.env.ISSUE_NUMBER || "").trim();
+const ACTOR = (process.env.ACTOR || "").trim();
 const [owner, repo] = REPO_SLUG.split("/");
 if (!owner || !repo) throw new Error("REPO_SLUG must look like owner/repo");
 
@@ -79,6 +80,90 @@ async function run(
     child.exited,
   ]);
   return { code, out: out.trim(), err: err.trim() };
+}
+
+/**
+ * Strip an issue-form rendering down to the brief.
+ *
+ * GitHub renders forms as `### Field` headings followed by the value, and an
+ * empty optional field as `_No response_`. Everything the agent needs is under
+ * "Brief"; a "Surface" note is appended when present.
+ */
+function briefFromIssueForm(body: string): string {
+  const sections = new Map<string, string>();
+  let heading = "";
+  const buffer: string[] = [];
+  const flush = () => {
+    if (heading) sections.set(heading.toLowerCase(), buffer.join("\n").trim());
+    buffer.length = 0;
+  };
+  for (const line of body.split("\n")) {
+    const match = line.match(/^###\s+(.*)$/);
+    if (match) {
+      flush();
+      heading = match[1].trim();
+      continue;
+    }
+    buffer.push(line);
+  }
+  flush();
+
+  const usable = (value?: string) => (value && value !== "_No response_" ? value : "");
+  const brief = usable(sections.get("brief"));
+  const surface = usable(sections.get("surface"));
+  // Not a form (a plain issue): treat the whole body as the brief.
+  const base = brief || body.trim();
+  return surface ? `${base}\n\nSurface: ${surface}` : base;
+}
+
+// The brief is issue text, so it is fetched here rather than accepted from the
+// dispatcher, and the actor is re-authorized on this side. Mirrors how
+// agent-work.ts re-checks everything after its GitHub-side envelope gate.
+let DESIGN_PROMPT = (process.env.DESIGN_PROMPT || "").trim();
+
+if (ISSUE_NUMBER) {
+  if (!/^[0-9]{1,9}$/.test(ISSUE_NUMBER)) {
+    throw new Error(`ISSUE_NUMBER must be an issue number, got "${ISSUE_NUMBER}"`);
+  }
+  let allowlist: string[] = [];
+  try {
+    allowlist = JSON.parse(process.env.DESIGN_AGENT_ALLOWLIST || "[]") as string[];
+  } catch {
+    throw new Error("DESIGN_AGENT_ALLOWLIST is not valid JSON.");
+  }
+  if (!ACTOR || !allowlist.includes(ACTOR)) {
+    throw new Error(`Actor "${ACTOR || "(none)"}" is not authorized to run the design agent.`);
+  }
+
+  const response = await gh(`/issues/${ISSUE_NUMBER}`);
+  if (!response.ok) {
+    throw new Error(`Could not read issue #${ISSUE_NUMBER} (HTTP ${response.status}).`);
+  }
+  const source = (await response.json()) as { body?: string; title?: string; pull_request?: unknown };
+  if (source.pull_request) {
+    throw new Error(`#${ISSUE_NUMBER} is a pull request, not an issue.`);
+  }
+  const body = (source.body ?? "").trim();
+
+  if (body.includes("<!-- euxy-design-proposal -->")) {
+    // Labeling an existing proposal means "revise this", so the thread becomes
+    // prior work and the feedback in it is the instruction.
+    CONTINUES_ISSUE = ISSUE_NUMBER;
+    DESIGN_PROMPT =
+      "Revise the prior proposal to address the feedback in its thread. Keep what " +
+      "the feedback did not challenge, and open with what changed and why.";
+    console.log(`▸ Revising proposal #${ISSUE_NUMBER} from its thread`);
+  } else {
+    DESIGN_PROMPT = briefFromIssueForm(body);
+    console.log(`▸ Brief read from issue #${ISSUE_NUMBER} (${DESIGN_PROMPT.length} chars)`);
+  }
+}
+
+if (DESIGN_PROMPT.length < 24) {
+  throw new Error(
+    `The brief is ${DESIGN_PROMPT.length} characters — too short to design from. ` +
+      "Pass a prompt, or label an issue whose body describes what to design.",
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -418,6 +503,15 @@ if (created.status !== 201) {
 const issue = (await created.json()) as { number?: number; html_url?: string };
 if (!issue.number || !issue.html_url) {
   throw new Error("GitHub created the issue but returned no number or URL.");
+}
+
+// When triggered from a request issue, point that thread at the proposal. Skipped
+// when they are the same issue — the revision path already cross-links.
+if (ISSUE_NUMBER && ISSUE_NUMBER !== CONTINUES_ISSUE) {
+  await gh(`/issues/${ISSUE_NUMBER}/comments`, {
+    method: "POST",
+    body: JSON.stringify({ body: `Proposal opened: ${issue.html_url}` }),
+  }).catch(() => console.log(`▸ Could not comment on #${ISSUE_NUMBER}`));
 }
 
 if (CONTINUES_ISSUE) {
