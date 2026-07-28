@@ -5,7 +5,7 @@
  * playheads (all steps always visible, wrapped at 16 per row), and the pinned
  * transport above the tab bar.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, FadeOut, LinearTransition, ReduceMotion } from 'react-native-reanimated';
@@ -16,7 +16,7 @@ import { midiNoteName } from '@/core/note';
 import { laneAudible, useActivePattern, useAnySolo, useSettings } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import type { Lane } from '@/state/types';
-import { reportFirstScreenLayout } from '@/components/boot-signal';
+import { onBootOverlayGone, reportFirstScreenLayout } from '@/components/boot-signal';
 import { useMidiRuntime } from '@/components/midi/runtime';
 import { logObserveEvent } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
@@ -35,6 +35,16 @@ import { StepStrip } from '@/components/sequencer/step-strip';
 function laneSubtitle(lane: Lane): string {
   return `${midiNoteName(lane.note)} · Track ${lane.channel + 1}`;
 }
+
+// One beat AFTER the boot overlay is gone. The commit that removes the overlay
+// also tears down its Image + LED grid, and an entrance starting in that same
+// frame gets nothing painted to show it: frame-by-frame on a cold dev-build
+// boot, the device paints ~10fps across that commit, so a 140ms entrance landed
+// there resolves to a single frame — indistinguishable from the pop Brent saw.
+const CAPSULE_SETTLE_MS = 120;
+// Backstop for the boot-overlay signal itself — comfortably past BootSplash's
+// own 2s failsafe plus its ~900ms power-on.
+const CAPSULE_FAILSAFE_MS = 4000;
 
 export default function SequencerScreen() {
   const insets = useSafeAreaInsets();
@@ -73,6 +83,29 @@ export default function SequencerScreen() {
   const initialRender = useRef(true);
   useEffect(() => {
     initialRender.current = false;
+  }, []);
+
+  // The capsule is the ONE thing that animates in on app open, and the whole
+  // app renders behind the opaque boot overlay for ~900ms (components/
+  // boot-splash.tsx) — so it holds its mount until that overlay is gone and
+  // then powers on where it can be seen. Gating on the screen's first render
+  // instead (the old `animateMount`) could never work: lanes exist in the very
+  // first render (hydration is synchronous), so the capsule always mounted in
+  // the initial commit with no entrance at all.
+  const [capsuleReady, setCapsuleReady] = useState(false);
+  useEffect(() => {
+    let settle: ReturnType<typeof setTimeout> | null = null;
+    const unsubscribe = onBootOverlayGone(() => {
+      settle = setTimeout(() => setCapsuleReady(true), CAPSULE_SETTLE_MS);
+    });
+    // Same never-deadlock rule as the boot gates themselves: if the signal is
+    // ever missed, show the capsule anyway — no entrance beats no capsule.
+    const failsafe = setTimeout(() => setCapsuleReady(true), CAPSULE_FAILSAFE_MS);
+    return () => {
+      unsubscribe();
+      clearTimeout(failsafe);
+      if (settle != null) clearTimeout(settle);
+    };
   }, []);
 
   // The playhead runs on under the Lane Editor / Tempo sheets (still this
@@ -211,12 +244,11 @@ export default function SequencerScreen() {
             ))}
           </ScrollView>
         )}
-        {/* Hidden in the empty state — its own Add-lane CTA owns that screen. */}
-        {lanes.length > 0 ? (
+        {/* Hidden in the empty state — its own Add-lane CTA owns that screen.
+            Held back until the boot overlay is gone so its entrance plays on a
+            visible frame (see capsuleReady above). */}
+        {lanes.length > 0 && capsuleReady ? (
           <FloatingActions
-            // Same cold-boot rule as the lanes above: no mount animation on
-            // the screen's first render (it can stick invisible).
-            animateMount={!initialRender.current}
             canMutate
             snapshotActive={snapshotActive}
             onAddLane={addAndEdit}

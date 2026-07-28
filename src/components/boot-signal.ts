@@ -17,6 +17,11 @@
  * One observed cold launch took 2.46s with a frozen frame for exactly that
  * reason. Whichever screen lays out first now satisfies the gate; every tab
  * root reports.
+ *
+ * And it carries the gate in the other direction: BootSplash reports when its
+ * overlay is finally GONE, so the one entrance meant to be seen on app open
+ * (the sequencer's floating capsule) can wait for a frame the user can
+ * actually see.
  */
 import { makeMutable } from 'react-native-reanimated';
 
@@ -64,5 +69,35 @@ export function onFirstScreenLayout(cb: () => void): () => void {
   pending = cb;
   return () => {
     if (pending === cb) pending = null;
+  };
+}
+
+let overlayGone = false;
+let overlayPending: (() => void) | null = null;
+
+/** BootSplash flips this once its overlay has fully faded out (exactly once). */
+export function reportBootOverlayGone(): void {
+  if (overlayGone) return;
+  overlayGone = true;
+  const cb = overlayPending;
+  overlayPending = null;
+  cb?.();
+}
+
+/**
+ * Run `cb` once the boot overlay is gone — immediately if it already is.
+ * Anything that wants to be SEEN animating in on app open waits on this: the
+ * whole app renders BEHIND an opaque overlay for the entire boot sequence, so
+ * an entrance that starts at mount is finished before the first visible frame.
+ * Single subscriber (the sequencer capsule). Returns an unsubscribe.
+ */
+export function onBootOverlayGone(cb: () => void): () => void {
+  if (overlayGone) {
+    cb();
+    return () => {};
+  }
+  overlayPending = cb;
+  return () => {
+    if (overlayPending === cb) overlayPending = null;
   };
 }

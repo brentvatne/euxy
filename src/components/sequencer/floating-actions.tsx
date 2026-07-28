@@ -104,17 +104,15 @@ const SNAP = { damping: 34, stiffness: 340, reduceMotion: ReduceMotion.System };
 // landing corner — a real throw goes where it was headed.
 const THROW_PROJECTION_S = 0.18;
 
-// Capsule entrance (Brent 2026-07-28: "takes too long to settle"). The capsule
-// appears in the SAME commit that mounts the whole lane list — rows, their own
-// entering/layout animations, and one Skia surface per strip — so these are the
-// most frame-starved frames in the app. The old entrance was FadeInDown's
-// default 25px drop over 200ms with ease-in-out: on the ONE frame painted
-// mid-mount the capsule was still 12px low at ~half opacity, and the next
-// painted frame was already settled ~700ms later — one lurch, not an entrance.
-// Opacity-led and short instead: a 6px rise over 140ms on ease-OUT, so most of
-// the travel is spent in the first frames (the ones that do get painted) and
-// there is no displacement left to settle when the list lands. The exit keeps
-// its own 150ms drop — nothing competes for frames on the way out.
+// Capsule entrance (Brent 2026-07-28: "takes too long to settle"). FadeInDown's
+// default is a 25px drop over 200ms on ease-in-out, which spends its first
+// frames barely moving and then still has ~12px to travel halfway through —
+// a lurch that reads as settling rather than arriving. Opacity-led and short
+// instead: a 6px rise over 140ms on ease-OUT, so the travel is front-loaded and
+// there is nothing left to settle. The host screen holds this mount until the
+// boot overlay is gone (see the sequencer screen) — before that the entrance
+// ran behind an opaque layer and was never seen at all. The exit keeps its own
+// 150ms drop.
 const ENTER_MS = 140;
 const ENTER_RISE = 6;
 const capsuleEnter = () =>
@@ -137,7 +135,6 @@ function rollScatterFrames(): number[][][] {
 }
 
 export function FloatingActions({
-  animateMount,
   canMutate,
   snapshotActive,
   onAddLane,
@@ -146,10 +143,6 @@ export function FloatingActions({
   onRevert,
   onKeep,
 }: {
-  /** False while the host screen is on its INITIAL render: a mount `entering`
-   * there can stick the capsule invisible on cold boot (the wave-2 lane-list
-   * race) — only later appearances (empty→lanes) animate in. */
-  animateMount: boolean;
   canMutate: boolean;
   /** Temp mode armed — the resident temp key renders lit. */
   snapshotActive: boolean;
@@ -413,10 +406,9 @@ export function FloatingActions({
             drag transform + breathing opacity (a layout animation would
             overwrite them on a shared view). */}
         <Animated.View
-          // Mounted only while lanes exist — ease in/out of the empty
-          // state, but NEVER on the screen's initial render (cold-boot
-          // stuck-invisible race; see animateMount).
-          entering={animateMount ? capsuleEnter() : undefined}
+          // Mounted only while lanes exist (and never during boot) — so this
+          // entrance covers both app open and easing out of the empty state.
+          entering={capsuleEnter()}
           exiting={FadeOutDown.duration(150).reduceMotion(ReduceMotion.System)}
           // The capsule is docked absolute at a fixed corner with a fixed size,
           // so a layout transition has nearly nothing to travel — but the old
