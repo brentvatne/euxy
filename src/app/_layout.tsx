@@ -6,21 +6,17 @@
 import { ThemeProvider } from 'expo-router/react-navigation';
 import { Stack } from 'expo-router/stack';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef } from 'react';
-import { Alert, Platform } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { BootSplash } from '@/components/boot-splash';
 import { enableMidi } from '@/components/midi/runtime';
 import { KeyboardProvider } from '@/components/ui/keyboard';
-import {
-  configureObserve,
-  reloadUpdateAsync,
-  useObserve,
-  useUpdates,
-  wrapWithObserveRoot,
-} from '@/lib/shims';
+import { UpdateToast } from '@/components/update-toast';
+import { configureObserve, useObserve, useUpdates, wrapWithObserveRoot } from '@/lib/shims';
+import { isFirstLaunch } from '@/lib/first-launch';
 import { useShotRig } from '@/lib/shot-rig';
 import { navTheme } from '@/theme/navigation';
 import { color, radius } from '@/theme/tokens';
@@ -33,21 +29,25 @@ configureObserve({
 
 /**
  * OTA updates: expo-updates checks + downloads on launch (default
- * checkAutomatically: ON_LOAD); once the download is ready we prompt to
- * reload so the user applies it on their own terms. "Later" leaves the
- * update staged for the next cold launch. No-ops in dev clients.
+ * checkAutomatically: ON_LOAD); once the download is ready we surface a
+ * non-blocking toast so the user applies it on their own terms. Dismissing
+ * leaves the update staged for the next cold launch. No-ops in dev clients.
+ *
+ * Never on the first launch after install: the embedded bundle is by
+ * definition the oldest one, so an update almost always lands right then —
+ * exactly when "Update ready" means nothing to someone opening euxy for the
+ * first time.
  */
-function useUpdatePrompt() {
+function useUpdateToast() {
   const { isUpdatePending } = useUpdates();
-  const prompted = useRef(false);
-  useEffect(() => {
-    if (__DEV__ || !isUpdatePending || prompted.current) return;
-    prompted.current = true;
-    Alert.alert('Update ready', 'A new version of euxy has been downloaded. Reload now to apply it?', [
-      { text: 'Later', style: 'cancel' },
-      { text: 'Reload', onPress: () => reloadUpdateAsync() },
-    ]);
-  }, [isUpdatePending]);
+  const [dismissed, setDismissed] = useState(false);
+  // Lazy initializer: resolved once per launch, and the first call is what
+  // records the "seen" flag for every launch after this one.
+  const [suppressed] = useState(() => __DEV__ || isFirstLaunch());
+  return {
+    visible: isUpdatePending && !suppressed && !dismissed,
+    dismiss: () => setDismissed(true),
+  };
 }
 
 const sheetOptions = {
@@ -59,7 +59,7 @@ const sheetOptions = {
 } as const;
 
 function RootLayout() {
-  useUpdatePrompt();
+  const updateToast = useUpdateToast();
   // Simulator screenshot staging (no-op unless the host set the flag).
   useShotRig();
 
@@ -131,6 +131,8 @@ function RootLayout() {
           <Stack.Screen name="p" options={{ ...sheetOptions, sheetAllowedDetents: [0.45] }} />
           <Stack.Screen name="p/[d]" options={{ ...sheetOptions, sheetAllowedDetents: [0.45] }} />
         </Stack>
+        {/* Floats over the tab content, under the boot layer. */}
+        {updateToast.visible ? <UpdateToast onDismiss={updateToast.dismiss} /> : null}
         {/* LED power-on: a pure LAYER over the live app — the Stack above
             always renders (never conditionally hidden behind the boot), so
             the fade reveals UI that was already there. BootSplash holds the
