@@ -94,7 +94,7 @@ jobs:
     steps:
       - uses: eas/checkout
       - name: Start Paper
-        run: bash .eas/paper/start-paper.sh   # NOT from .claude/ — see below
+        run: bash .claude/skills/paper-mcp-in-eas-workflows/scripts/start-paper.sh
       - name: Run the agent
         run: |
           cat > /tmp/paper-mcp.json <<'JSON'
@@ -111,20 +111,23 @@ repo. `start-paper.sh` leaves Paper running in the background for later steps an
 **exits non-zero if the handshake fails**, so a broken server never reaches the
 agent.
 
-### The runner scripts cannot live in `.claude/`
+### The runner scripts must be inside the EAS project archive
 
-**Put `start-paper.sh`, `decode-session.sh`, and `cdp.mjs` somewhere the EAS
-project archive actually includes** — this repo uses `.eas/paper/`.
+**Check `.easignore` before wiring the path.** `eas workflow:run` uploads a
+project archive that respects it, and `.claude/` is commonly excluded wholesale
+because agent tooling is not build input. When that happens the step fails with a
+bare `bash: .../start-paper.sh: No such file or directory`, which reads like a
+path typo rather than an exclusion. Being committed does not help — the exclusion
+is by path, not by tracked status.
 
-`eas workflow:run` uploads a project archive that respects `.easignore`, and
-`.claude/` is commonly listed there (agent tooling is not build input). The
-failure is a bare `bash: .../start-paper.sh: No such file or directory` at step
-start, which reads like a path typo rather than an exclusion. Check `.easignore`
-before debugging the path. Files being committed does not help — the exclusion is
-by path, not by tracked status.
+Two ways to resolve it, in order of preference:
 
-Keep the skill's copies as the portable reference, and copy them to an included
-directory for CI use.
+1. **Narrow the exclusion** so `.claude/skills/` is included and the workflow can
+   run the skill's own copies — one source of truth. This repo does that, and
+   excludes only `.claude/settings.local.json` and `.claude/commands/`.
+2. Copy the three runner scripts into a directory the archive already includes
+   (for example `.eas/paper/`) and point the workflow there. Costs you a second
+   copy to keep in sync.
 
 ### Security constraints on that job
 

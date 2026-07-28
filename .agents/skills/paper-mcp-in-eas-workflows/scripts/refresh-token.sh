@@ -125,14 +125,15 @@ done
 
 # A leftover PAPER_SESSION_B64 from the older string-secret scheme would make the
 # runner's resolution ambiguous, so clear it rather than leaving both shapes set.
+# Unconditional: gating the whole block on PAPER_SESSION_B64 being present meant
+# an environment left holding only PAPER_SESSION_B64_1..9 kept a previous live
+# session after a "refresh".
 for env_name in "${ENVIRONMENTS[@]}"; do
-  if eas env:list "${env_name}" 2>/dev/null | grep -q 'PAPER_SESSION_B64'; then
-    echo "Removing superseded PAPER_SESSION_B64 from ${env_name}…"
-    eas env:delete "${env_name}" --variable-name PAPER_SESSION_B64 --non-interactive >/dev/null 2>&1 || true
-    for i in 1 2 3 4 5 6 7 8 9; do
-      eas env:delete "${env_name}" --variable-name "PAPER_SESSION_B64_${i}" --non-interactive >/dev/null 2>&1 || true
-    done
-  fi
+  for name in PAPER_SESSION_B64 PAPER_SESSION_B64_{1..9}; do
+    if eas env:delete "${env_name}" --variable-name "${name}" --non-interactive >/dev/null 2>&1; then
+      echo "Removed superseded ${name} from ${env_name}."
+    fi
+  done
 done
 
 echo

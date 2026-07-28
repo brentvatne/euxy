@@ -40,9 +40,16 @@ VERDICT_A='not reached'
 VERDICT_B='not reached'
 VERDICT_C='not reached'
 
-# The download/install phase fetches and executes a mutable remote .deb, so it
-# runs without the session variables in its environment.
-sanitized() { env -u PAPER_SESSION_FILE -u PAPER_SESSION_B64 "$@"; }
+# Every credential shape, including the legacy chunk names. The workflow gate
+# only unsets them when credentials are skipped, so in credentialed mode they are
+# still in the environment when the mutable remote .deb is fetched and installed.
+SESSION_VARS=(PAPER_SESSION_FILE PAPER_SESSION_B64 PAPER_SESSION_B64_{1..9})
+sanitized() {
+  local stripped=()
+  local name
+  for name in "${SESSION_VARS[@]}"; do stripped+=(-u "${name}"); done
+  env "${stripped[@]}" "$@"
+}
 
 PAPER_PID=''
 XVFB_PID=''

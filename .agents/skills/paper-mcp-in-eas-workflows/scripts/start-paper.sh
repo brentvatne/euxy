@@ -27,10 +27,16 @@ readonly WORK="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/paper.XXXXXX")"
 cleanup() { rm -rf "${WORK}"; }
 trap cleanup EXIT
 
-# Download and package installation run with the session variables stripped from
-# the environment. Those steps fetch and execute a mutable remote .deb, so they
-# should never be able to observe the credential even though this script can.
-sanitized() { env -u PAPER_SESSION_FILE -u PAPER_SESSION_B64 "$@"; }
+# Every credential shape, including the legacy chunk names. The workflow gate
+# only unsets them when credentials are skipped, so in credentialed mode they are
+# still in the environment when the mutable remote .deb is fetched and installed.
+SESSION_VARS=(PAPER_SESSION_FILE PAPER_SESSION_B64 PAPER_SESSION_B64_{1..9})
+sanitized() {
+  local stripped=()
+  local name
+  for name in "${SESSION_VARS[@]}"; do stripped+=(-u "${name}"); done
+  env "${stripped[@]}" "$@"
+}
 
 # The only Linux build Paper publishes is amd64.
 if [ "$(uname -m)" != 'x86_64' ]; then
@@ -129,6 +135,42 @@ echo '--- injecting the captured session'
 )
 node "${HERE}/cdp.mjs" inject "${WORK}/session.json"
 rm -f "${WORK}/session.json"
+
+# The DevTools port is unauthenticated for the lifetime of the process, so
+# leaving it open would let ANY later step in the job call Network.getAllCookies
+# and walk away with a reusable Paper session. CDP is only needed for injection,
+# so relaunch without it: the session is now persisted in the Electron profile
+# and Paper reopens the last document on start, so MCP comes back without it.
+# PAPER_KEEP_CDP=1 keeps the port for interactive debugging.
+if [ "${PAPER_KEEP_CDP:-0}" != '1' ]; then
+  echo '--- relaunching without the DevTools port'
+  # SIGTERM, not SIGKILL: Chromium flushes cookies to the profile on a clean
+  # quit, and the relaunch depends on that flush having happened.
+  kill "${PAPER_PID}" 2>/dev/null || true
+  wait "${PAPER_PID}" 2>/dev/null || true
+  sleep 3
+
+  dbus-launch --exit-with-session "${BIN}" \
+    --no-sandbox \
+    --disable-dev-shm-usage \
+    --disable-gpu-sandbox \
+    --use-gl=egl-angle \
+    --use-angle=swiftshader \
+    --enable-unsafe-swiftshader \
+    --password-store=basic \
+    >>"${WORK}/paper.stdout.log" 2>>"${WORK}/paper.stderr.log" &
+  PAPER_PID=$!
+
+  for _ in $(seq 1 75); do
+    (exec 3<>"/dev/tcp/${MCP_HOST}/${MCP_PORT}") 2>/dev/null && break
+    kill -0 "${PAPER_PID}" 2>/dev/null || {
+      echo 'Paper exited before rebinding after the CDP-less relaunch. stderr tail:' >&2
+      tail -n 20 "${WORK}/paper.stderr.log" >&2
+      exit 1
+    }
+    sleep 2
+  done
+fi
 
 echo '--- verifying the MCP handshake'
 # Signed out or with no document, initialize returns HTTP 500 with
