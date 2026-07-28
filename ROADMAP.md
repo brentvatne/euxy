@@ -862,6 +862,14 @@ Web side (landing page, AASA hosting, in-browser playback of shared
 patterns) is part of the **unified web plan:
 `docs/design/web-plan.md`** — implement per its W0–W3 sequencing.
 
+**Deferred follow-up — imported-name collisions:** Shared-pattern imports
+currently preserve the incoming name even when another library pattern already
+uses it. The patterns remain distinct internally, but the list exposes the name
+as the only visible identifier, so duplicates are ambiguous. Leave import
+behavior unchanged for now; later choose and specify a collision treatment
+(such as a deterministic “Name 2” suffix or an immediate rename affordance)
+that also covers repeated imports of the same link.
+
 ### Latency calibration
 
 Today `latencyOffsetMs` is a manual slider. Candidate auto-calibration paths:

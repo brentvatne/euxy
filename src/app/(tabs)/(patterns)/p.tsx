@@ -2,11 +2,18 @@
  * /p?d=<payload> — the LEGACY shape, kept for links already in the wild; new
  * links use /p/<payload> (see p/[d].tsx, which renders this same screen).
  * Arrives via universal link or the euxy:// scheme. Decodes the payload
- * (untrusted — decodePattern clamps and throws), previews it, and imports on
- * confirm. Malformed links get a friendly error, never a crash.
+ * (untrusted — decodePattern clamps and throws) and adds it to the library
+ * RIGHT AWAY. Malformed links get a friendly error, never a crash.
+ *
+ * The route lives inside the Patterns tab (not the root Stack) so an incoming
+ * link lands the sheet on the library it was just added to — see the tab's
+ * _layout.tsx. Following a link IS the intent to keep the pattern, so there is
+ * no confirm step: the sheet is a receipt (what arrived, and that it is saved),
+ * not a gate. The import lands as a NEW pattern and becomes the active one, so
+ * nothing in the library is overwritten.
  */
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
@@ -14,6 +21,7 @@ import { chipForPattern } from '@/components/patterns/chips';
 import { LedChip } from '@/components/patterns/led-chip';
 import { AppText, SheetHeader } from '@/components/ui';
 import { decodePattern, type SharedPattern } from '@/core/share-codec';
+import { claimSharedPatternPayload } from '@/core/shared-pattern-import';
 import { haptics, logObserveEvent } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { useStore } from '@/state/store';
@@ -32,20 +40,33 @@ export default function ImportPatternSheet() {
   }, [d]);
 
   // The receiving end of the share funnel: how many links arrive, how many
-  // are damaged, how many convert to an import.
+  // are damaged.
   useMarkInteractive();
   useEffect(() => {
     if (shared) logObserveEvent('share.link_received', { attributes: { lanes: shared.lanes.length } });
     else logObserveEvent('share.link_invalid', { severity: 'warn' });
   }, [shared]);
 
-  const add = () => {
-    if (!shared) return;
+  // Expo Router can reuse this mounted sheet when another link changes `d`.
+  // Claim each payload independently so an effect re-run cannot duplicate an
+  // import, while a genuinely new link is never displayed as imported unless
+  // it was added to the library.
+  const importedPayloads = useRef(new Set<string>());
+  useEffect(() => {
+    if (!shared || !claimSharedPatternPayload(importedPayloads.current, d)) return;
+    // expo-code-review-ignore: opening a shared link intentionally imports it; this sheet is its receipt.
     importPattern(shared);
     haptics.success();
     logObserveEvent('share.pattern_imported', { attributes: { lanes: shared.lanes.length } });
-    // The imported pattern is now active — land on the sequencer.
-    router.dismissTo('/(tabs)/(sequencer)');
+  }, [d, importPattern, shared]);
+
+  // The import is already the active pattern — this only closes the receipt and
+  // switches tabs. Two steps: this sheet lives in the Patterns stack, so
+  // dismissing it and changing tabs are actions on two different navigators.
+  const openInSequencer = () => {
+    haptics.impact('medium');
+    router.back();
+    router.navigate('/(tabs)/(sequencer)');
   };
 
   if (!shared) {
@@ -69,7 +90,7 @@ export default function ImportPatternSheet() {
   return (
     <View style={styles.root}>
       <View style={styles.grabberSpace} />
-      <SheetHeader title="Shared Pattern" onCancel={() => router.back()} />
+      <SheetHeader title="Added to Library" onDone={() => router.back()} />
       <View style={styles.content}>
         <View style={styles.identity}>
           <LedChip shades={chipForPattern({ id: 'shared', icon: shared.icon })} size={44} />
@@ -84,11 +105,11 @@ export default function ImportPatternSheet() {
           {laneNames}
         </AppText>
         <Pressable
-          onPress={add}
+          onPress={openInSequencer}
           accessibilityRole="button"
-          style={({ pressed }) => [styles.key, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.key, styles.keyPrimary, pressed && styles.pressed]}
         >
-          <AppText style={styles.keyLabel}>Add to Library</AppText>
+          <AppText style={[styles.keyLabel, styles.keyLabelDark]}>Open in Sequencer</AppText>
         </Pressable>
         <AppText style={styles.footnote}>
           added as a new pattern — nothing in your library is replaced
@@ -111,12 +132,14 @@ const styles = StyleSheet.create({
   key: {
     height: 50,
     borderRadius: 12,
-    backgroundColor: color.label,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 4,
   },
+  // The receipt has one key, so it takes the bright one (same primary as the
+  // Share sheet).
+  keyPrimary: { backgroundColor: color.label },
   pressed: { transform: [{ scale: 0.97 }] },
-  keyLabel: { fontFamily: font.text, fontWeight: '600', fontSize: 17, lineHeight: 22, color: '#101014' },
+  keyLabel: { fontFamily: font.text, fontWeight: '600', fontSize: 17, lineHeight: 22, color: color.label },
+  keyLabelDark: { color: '#101014' },
   footnote: { fontFamily: font.text, fontSize: 12, lineHeight: 16, color: '#6E6E76', textAlign: 'center' },
 });
