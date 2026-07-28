@@ -101,7 +101,7 @@ export default function MidiScreen() {
           <ClockModeToggle value={transport.clockMode} onChange={setClockMode} />
         </Cell>
         <Cell pos="middle">
-          <AppText style={styles.rowLabel}>Count-in</AppText>
+          <AppText style={[styles.rowLabel, transport.clockMode === 'jam' && styles.rowLabelDisabled]}>Count-in</AppText>
           <Segmented<'0' | '4'>
             size="compact"
             options={[
@@ -110,6 +110,7 @@ export default function MidiScreen() {
             ]}
             value={settings.countInBeats > 0 ? '4' : '0'}
             onChange={(v) => setCountInBeats(v === '4' ? 4 : 0)}
+            disabled={transport.clockMode === 'jam'}
           />
         </Cell>
         <Cell pos="last" contentStyle={styles.latencyCell}>
@@ -186,6 +187,7 @@ const styles = StyleSheet.create({
   connName: { fontSize: 16, lineHeight: 20, fontWeight: '600', color: color.label },
 
   rowLabel: { fontSize: 16, lineHeight: 20, color: color.label },
+  rowLabelDisabled: { color: GRAY },
   rowValue: { fontSize: 16, lineHeight: 20, fontWeight: '500', color: GRAY },
 
   latencyCell: { flexDirection: 'column', alignItems: 'stretch', gap: 10, paddingVertical: 14 },
