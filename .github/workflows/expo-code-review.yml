@@ -74,3 +74,14 @@ jobs:
           ECR_EXPECTED_TOKEN_ENV: ${{ vars.ECR_EXPECTED_TOKEN_ENV || 'CODEX_OAUTH_ACCESS_TOKEN' }}
           # Optional: override the model for every agent (uses your OpenCode login).
           REVIEWER_MODEL: ${{ vars.REVIEWER_MODEL }}
+
+      # ECR 0.5.2 can place the next Markdown finding immediately after a raw
+      # </details> block. GitHub then displays that finding's Markdown literally.
+      # Normalize only that boundary and independently verify the updated body.
+      - name: Normalize review comment Markdown
+        if: ${{ always() }}
+        run: node --experimental-strip-types .github/scripts/normalize-code-review-comment.ts
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
