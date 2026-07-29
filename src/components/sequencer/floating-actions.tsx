@@ -63,7 +63,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { CHIPS } from "@/components/patterns/chips";
-import Svg, { Circle, Path, Rect } from "react-native-svg";
+import Svg, { Path, Rect } from "react-native-svg";
 
 import { playheadPlaying, playheadTick } from "@/core/playhead";
 import { useStore } from "@/state/store";
@@ -253,8 +253,6 @@ const LED_STEADY = 0.55;
 const LED_ATTACK_MS = 260;
 /** Hairline that leaves on release: 48 → 128px (spec's ring discharge). */
 const DISCHARGE_D = 128;
-/** Overcharge hairline, just outside the LEDs. */
-const OVERCHARGE_D = CHARGE_D - 4;
 /** How far the contracted encoder will lean after a wandering finger, and how
  * quickly it stops giving. Anchored, not draggable: it is saying "I am still
  * attached to your finger", not offering to be moved. Tuned on device —
@@ -961,8 +959,8 @@ function SideKey({
 }
 
 /**
- * The charge ring: 16 LEDs around the encoder, the overcharge hairline that
- * turns at peak, and the hairline that discharges outward on release.
+ * The charge ring: 16 LEDs around the encoder, plus the hairline that
+ * discharges outward on release.
  *
  * Everything here is centred on a 0×0 anchor at the capsule's centre, so it
  * tracks the dice key through the contract without measuring anything. Per the
@@ -976,37 +974,8 @@ function ChargeRing({
   charge: Charge;
   reducedMotion: boolean;
 }) {
-  const spin = useSharedValue(0);
-  // The overcharge ring only turns while the charge is closed; a repeat left
-  // running would keep a worklet awake for the life of the screen.
-  useAnimatedReaction(
-    () => charge.peak.value > 0.5,
-    (closed, prev) => {
-      if (closed === prev) return;
-      if (closed) {
-        spin.value = 0;
-        spin.value = withRepeat(
-          withTiming(360, {
-            duration: 4000,
-            easing: Easing.linear,
-            reduceMotion: ReduceMotion.System,
-          }),
-          -1,
-          false,
-        );
-      } else {
-        cancelAnimation(spin);
-        spin.value = 0;
-      }
-    },
-  );
-
   const glowStyle = useAnimatedStyle(() => ({
     opacity: 0.5 * charge.bloom.value,
-  }));
-  const overchargeStyle = useAnimatedStyle(() => ({
-    opacity: 0.9 * charge.peak.value,
-    transform: [{ rotate: `${spin.value}deg` }],
   }));
   const dischargeStyle = useAnimatedStyle(() => {
     const d = charge.discharge.value;
@@ -1030,25 +999,6 @@ function ChargeRing({
             reducedMotion={reducedMotion}
           />
         ))}
-        {/* Overcharge hairline (SVG, not a bordered View): it only reads as
-            turning because it is UNEVEN, and the obvious way to do that — a
-            fully-rounded View with a brighter `borderTopColor` — puts iOS on
-            its per-side border path, which is both slow and the thing that
-            crashed a full charge on the simulator. A dashed stroke gets the
-            same "something is spinning" read on the fast path. */}
-        <Animated.View style={[styles.overchargeRing, overchargeStyle]}>
-          <Svg width={OVERCHARGE_D} height={OVERCHARGE_D}>
-            <Circle
-              cx={OVERCHARGE_D / 2}
-              cy={OVERCHARGE_D / 2}
-              r={(OVERCHARGE_D - 1) / 2}
-              fill="none"
-              stroke="rgba(255,255,255,0.6)"
-              strokeWidth={1}
-              strokeDasharray="7 5"
-            />
-          </Svg>
-        </Animated.View>
         <Animated.View style={[styles.dischargeRing, dischargeStyle]} />
       </View>
     </View>
@@ -1160,8 +1110,8 @@ function AddKey({ onPress }: { onPress: () => void }) {
  * schedule (see chargeTicks) re-rolls the LIVE pattern at the current tier and
  * fires its haptic in the same call — the churn is heard, felt and seen as one
  * event. The ring closing at 16/16 is a hard stop: the key inverts, the
- * overcharge hairline turns, and nothing escalates further, so holding for ten
- * seconds feels the same as releasing at 2001ms.
+ * face swaps to the bolt, and nothing escalates further — a full ring then
+ * fires itself, so there is no such thing as holding it for ten seconds.
  *
  * Release pops: the pips collapse to the centre, the key springs proportionally
  * to what was charged, the ring discharges outward and the grid washes to
@@ -1499,10 +1449,13 @@ function ChargeDice({
       charge.pullY.value = withSpring(0, SNAP);
       scheduleOnRN(endTouch);
     })
-    // Backstop: if the handler is cancelled or fails outright, `onTouchesUp`
-    // never lands and a charge would be stranded mid-hold.
+    // Only a real touch END may resolve the hold. NOT `onFinalize`: a
+    // manual-activation Pan that never activates gets finalised as soon as it
+    // FAILS, which happens while the finger is still down and moving — using
+    // it as a backstop expanded the capsule mid-hold, which read as the
+    // encoder suddenly jumping back toward its rest position.
     // eslint-disable-next-line react-hooks/refs
-    .onFinalize(() => {
+    .onTouchesCancelled(() => {
       if (tracking.value !== 1) return;
       tracking.value = 0;
       charge.pullX.value = withSpring(0, SNAP);
@@ -2143,15 +2096,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.9,
     shadowRadius: 22,
     shadowOffset: { width: 0, height: 0 },
-  },
-  // Overcharge hairline: just outside the LEDs, and only visible BECAUSE it
-  // is uneven — the bright arc at its top is what reads as rotation.
-  overchargeRing: {
-    position: "absolute",
-    left: -OVERCHARGE_D / 2,
-    top: -OVERCHARGE_D / 2,
-    width: OVERCHARGE_D,
-    height: OVERCHARGE_D,
   },
   // The pop: the lit ring leaves as one hairline, 48 → 128px.
   dischargeRing: {

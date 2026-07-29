@@ -1192,24 +1192,55 @@ one-shots FASTER (quarter → 8th → 16th → 32nd) and stepping the style up a
 the end. Rate is not intensity: it reads as "more often", not "harder", and
 by the 32nds the taps start to blur together instead of building.
 
-What to investigate:
+**Leading candidate: Pulsar** (`react-native-pulsar`, Software Mansion, MIT —
+https://github.com/software-mansion/pulsar, docs.swmansion.com/pulsar).
+Brent surfaced it 2026-07-28 and it looks like a direct hit rather than a
+build-our-own:
 
-- **Core Haptics (`CHHapticEngine`)** is the real answer on iOS: continuous
-  events with `intensity` / `sharpness` parameter CURVES, so one haptic can
-  ramp across the whole hold and resolve into a transient at the close.
-  Needs a small Expo native module — we already own one for MIDI, so the
-  pattern is established; check for a community module first.
-- **Android** has no parameter-curve equivalent. `VibrationEffect`
-  composition (`startComposition` + `addPrimitive` with a scale float,
-  API 30+) is the closest: scaled primitives can approximate a ramp. Design
-  the API so the iOS curve degrades onto that rather than special-casing.
-- **Fallback** stays today's rate-based escalation for devices and builds
-  without either, and the whole thing must stay off the JS thread's critical
-  path — the charge clock already had to move to the UI thread because JS
-  timers starved it under roll load.
-- Does NOT violate the "never clock-synced" rule above: a charge ramp is a
-  GESTURE envelope, not a per-beat pulse. But note that the moment it is
-  expressed as repeated per-16th one-shots, it starts to.
+- `useRealtimeComposer()` gives `set(amplitude, frequency)` — live control of
+  an ONGOING haptic, which is precisely the primitive `expo-haptics` lacks.
+  Also `playDiscrete(amplitude, frequency)`, `stop()`, `isActive()`.
+  `usePatternComposer()` covers authored patterns with continuous
+  amplitude/frequency envelopes.
+- **Worklet-compatible** — their own example drives `set()` from inside a
+  `Gesture.Pan().onUpdate` worklet. This is the part that matters most here:
+  the charge clock already had to move to the UI thread because JS timers
+  starved under roll load and put the ring ~1.4s behind the finger, so the
+  haptic must not go back onto a JS schedule.
+- Requires RN 0.71+ and the New Architecture — we are on RN 0.86 with new
+  arch, so both hold. Installs via `npx expo install react-native-pulsar
+  react-native-worklets` (plain autolinking), but it is NATIVE, so it lands
+  in the next dev build and must go through the `src/lib/shims.ts`
+  try/require pattern like every other native dep.
+
+The prize is architectural, not just tactile: `chargeTicks` currently builds
+a ladder of `setTimeout`s that fakes intensity with RATE. With a realtime
+composer the haptic becomes a pure function of `charge.fill`, derived in a
+worklet exactly the way `RingLed` derives its opacity — one source of truth
+for the ring, the tremor and the feel — with `playDiscrete` left for the tier
+accents and the heavy hit at the close.
+
+Open questions before adopting:
+
+- Docs say "worklet-compatible" generally but do not explicitly cover
+  `useAnimatedReaction`; confirm the composer can be driven from the fill
+  ramp's reaction, not only from a gesture callback.
+- No documented minimum iOS/Android version or simulator behaviour. Android
+  goes through a fallback `RealtimeComposerStrategy`, so expect the ramp to
+  degrade there — check what it actually does before designing to it.
+- iOS/Android SDKs are 1.2.0 and the RN package ~1.6.x; the KMP/Flutter/Web
+  targets are far earlier (0.0.3 / 0.2.0) but are irrelevant to us.
+
+If Pulsar does not work out, the manual path is Core Haptics
+(`CHHapticEngine` intensity/sharpness parameter curves) behind a small Expo
+native module — we already own one for MIDI, so the pattern is established —
+with `VibrationEffect` composition (`startComposition` + `addPrimitive` with
+a scale float, API 30+) as the Android approximation. Either way today's
+rate-based escalation stays as the fallback for builds without the module.
+
+Note this does NOT violate the "never clock-synced" rule above: a charge ramp
+is a GESTURE envelope, not a per-beat pulse. But the moment it is expressed
+as repeated per-16th one-shots, it starts to.
 
 ### Onboarding flow
 
