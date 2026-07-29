@@ -3,7 +3,8 @@
  * Update channel at runtime. Opened by long-pressing the Diagnostics section
  * header on the MIDI tab. Device-screen panel shows the running update
  * (channel · runtime · id) plus a terminal-style input for the target
- * channel; quick-pick chips cover the eas.json channels. Fetch & reload runs
+ * channel; quick-pick chips offer the channels surfed to most recently on this
+ * install, backfilled with the defaults. Fetch & reload runs
  * set-override → check → fetch → reload; the no-update and error outcomes
  * land in the panel's status line. Real surfing needs a release build —
  * dev clients show UPDATES DISABLED and the button stays off.
@@ -17,7 +18,7 @@ import { AppText } from '@/components/ui';
 import { KeyboardAwareScrollView } from '@/components/ui/keyboard';
 import {
   getChannelOverrideRecord,
-  KNOWN_CHANNELS,
+  getQuickPickChannels,
   surfToChannelAsync,
   type SurfPhase,
 } from '@/lib/channel-surf';
@@ -54,6 +55,7 @@ const placeholder = {
 export default function ChannelSurfSheet() {
   useMarkInteractive();
   const [override, setOverride] = useState(getChannelOverrideRecord);
+  const [quickPicks, setQuickPicks] = useState(getQuickPickChannels);
   const [value, setValue] = useState(override ?? '');
   const [phase, setPhase] = useState<SurfPhase | 'idle'>('idle');
   const [notice, setNotice] = useState<string | null>(null);
@@ -81,6 +83,9 @@ export default function ChannelSurfSheet() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setPhase('idle');
+      // Only the non-reloading outcomes get here; pick up the channel this
+      // surf just pushed onto the recents.
+      setQuickPicks(getQuickPickChannels());
     }
   };
 
@@ -165,6 +170,7 @@ export default function ChannelSurfSheet() {
                 autoCorrect={false}
                 autoComplete="off"
                 spellCheck={false}
+                clearButtonMode="while-editing"
                 editable={!busy}
                 returnKeyType="go"
                 onSubmitEditing={() => target && void surf(target)}
@@ -172,9 +178,9 @@ export default function ChannelSurfSheet() {
             </View>
           </View>
 
-          {/* Quick picks: the channels eas.json builds against. */}
+          {/* Quick picks: recently surfed-to channels, then the defaults. */}
           <View style={styles.chips}>
-            {KNOWN_CHANNELS.map((name) => {
+            {quickPicks.map((name) => {
               const active = name === target;
               return (
                 <Pressable
@@ -277,7 +283,9 @@ const styles = StyleSheet.create({
   promptMark: { fontSize: 14, lineHeight: 20, color: color.label4 },
   promptInput: { flex: 1, color: color.label, fontSize: 14, fontFamily: 'Menlo', padding: 0 },
 
-  chips: { flexDirection: 'row', gap: space.sm, paddingTop: 14 },
+  // Wraps because a recent channel name can be arbitrarily long — the row is
+  // no longer three known-short names.
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, paddingTop: 14 },
   chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: radius.chip, backgroundColor: color.surface2 },
   chipActive: { backgroundColor: color.label },
   chipText: { fontSize: 12, lineHeight: 16, color: color.label2 },
