@@ -6,6 +6,21 @@
 
 ---
 
+## 🔝 TOP PRIORITY — do these two next (Brent, 2026-07-28)
+
+Both come out of the dice charge (#48) and both are about making the app feel
+like hardware rather than adding surface area. Ahead of everything under
+"NEXT STEPS" and the feature backlog below.
+
+1. **Ripple shader from the dice pop** — a shader-driven ripple that crosses
+   the whole app outward from the dice when a charge fires.
+   → [Ripple shader from the dice pop](#ripple-shader-from-the-dice-pop-2026-07-28)
+2. **Continuous haptics that ramp in strength** — replace the faked
+   fire-them-faster ladder with a real intensity envelope; Pulsar looks like
+   a direct hit. → [Haptic language](#haptic-language-2026-07-25)
+
+---
+
 ## Phases
 
 ### Phase 1 — PoC Validation (§9, Build Order)
@@ -1140,6 +1155,9 @@ zero-re-render like the rest of the playhead path.
 
 ### Haptic language (2026-07-25)
 
+**The ramping-haptics research below is TOP PRIORITY (see the top of this
+file); the rest of this section is the standing inventory work.**
+
 The tactile companion to the LED motion system: presses already LOOK like
 hardware keys — they should feel like them. **Why it matters (Brent): on
 the OP-XY everything has a very tactile feel — haptics make using the app
@@ -1181,6 +1199,112 @@ Then design the full inventory deliberately, mirroring the LED principles:
 
 iOS respects the system haptics toggle via UIFeedbackGenerator, so no
 in-app setting needed initially.
+
+**RESEARCH — continuous haptics that RAMP in strength (Brent, 2026-07-28).**
+The dice charge (#48) wants a hold that feels like it is winding up: the
+strength climbing smoothly the longer you hold, peaking as the ring closes.
+`expo-haptics` cannot express that. It exposes only discrete one-shots
+(`impactAsync(Light|Medium|Heavy|Soft|Rigid)`, `selectionAsync`,
+`notificationAsync`), so the charge currently fakes a ramp by firing
+one-shots FASTER (quarter → 8th → 16th → 32nd) and stepping the style up at
+the end. Rate is not intensity: it reads as "more often", not "harder", and
+by the 32nds the taps start to blur together instead of building.
+
+**Leading candidate: Pulsar** (`react-native-pulsar`, Software Mansion, MIT —
+https://github.com/software-mansion/pulsar, docs.swmansion.com/pulsar).
+Brent surfaced it 2026-07-28 and it looks like a direct hit rather than a
+build-our-own:
+
+- `useRealtimeComposer()` gives `set(amplitude, frequency)` — live control of
+  an ONGOING haptic, which is precisely the primitive `expo-haptics` lacks.
+  Also `playDiscrete(amplitude, frequency)`, `stop()`, `isActive()`.
+  `usePatternComposer()` covers authored patterns with continuous
+  amplitude/frequency envelopes.
+- **Worklet-compatible** — their own example drives `set()` from inside a
+  `Gesture.Pan().onUpdate` worklet. This is the part that matters most here:
+  the charge clock already had to move to the UI thread because JS timers
+  starved under roll load and put the ring ~1.4s behind the finger, so the
+  haptic must not go back onto a JS schedule.
+- Requires RN 0.71+ and the New Architecture — we are on RN 0.86 with new
+  arch, so both hold. Installs via `npx expo install react-native-pulsar
+  react-native-worklets` (plain autolinking), but it is NATIVE, so it lands
+  in the next dev build and must go through the `src/lib/shims.ts`
+  try/require pattern like every other native dep.
+
+The prize is architectural, not just tactile: `chargeTicks` currently builds
+a ladder of `setTimeout`s that fakes intensity with RATE. With a realtime
+composer the haptic becomes a pure function of `charge.fill`, derived in a
+worklet exactly the way `RingLed` derives its opacity — one source of truth
+for the ring, the tremor and the feel — with `playDiscrete` left for the tier
+accents and the heavy hit at the close.
+
+Open questions before adopting:
+
+- Docs say "worklet-compatible" generally but do not explicitly cover
+  `useAnimatedReaction`; confirm the composer can be driven from the fill
+  ramp's reaction, not only from a gesture callback.
+- No documented minimum iOS/Android version or simulator behaviour. Android
+  goes through a fallback `RealtimeComposerStrategy`, so expect the ramp to
+  degrade there — check what it actually does before designing to it.
+- iOS/Android SDKs are 1.2.0 and the RN package ~1.6.x; the KMP/Flutter/Web
+  targets are far earlier (0.0.3 / 0.2.0) but are irrelevant to us.
+
+If Pulsar does not work out, the manual path is Core Haptics
+(`CHHapticEngine` intensity/sharpness parameter curves) behind a small Expo
+native module — we already own one for MIDI, so the pattern is established —
+with `VibrationEffect` composition (`startComposition` + `addPrimitive` with
+a scale float, API 30+) as the Android approximation. Either way today's
+rate-based escalation stays as the fallback for builds without the module.
+
+Note this does NOT violate the "never clock-synced" rule above: a charge ramp
+is a GESTURE envelope, not a per-beat pulse. But the moment it is expressed
+as repeated per-16th one-shots, it starts to.
+
+### Ripple shader from the dice pop (2026-07-28)
+
+**TOP PRIORITY.** When a charge fires, a ripple should cross the WHOLE APP
+outward from the dice — not just the lane grid. Right now the pop raises
+`gridFx: 'reveal'`, which the step strips render as a per-cell wash staggered
+by distance from the capsule (`CELL_STAGGER_MS × dist(i)`). That is a decent
+fake of a wavefront made of ~130 discrete view animations per lane, it stops
+at the strips, and it cannot bend, refract or decay the way a real ripple
+does.
+
+Do it as a Skia runtime shader (SkSL) instead — we already ship
+`@shopify/react-native-skia` and already run a Skia layer in the step strips
+behind `SKIA_STRIP_GLOW`, so the dependency and the pattern are both paid
+for. See "Skia shaders" under the LED-motion tech notes above; this is the
+same idea escalated from one lane to the whole screen.
+
+What to look up and try:
+
+- **Prior art first.** Survey the good ones — Shadertoy ripple/water
+  distortion, Skia's `RuntimeEffect` samples, the classic
+  `sin(distance - time)` radial displacement, and the "shockwave"
+  post-process used in games (a thin annulus of displacement travelling
+  outward, not a filled disc). Also look at how iOS does its own
+  radial reveals, and at Rive/Lottie ripple takes for timing reference.
+- **Uniforms:** origin (the dice's centre in screen space), progress, ring
+  thickness, amplitude, decay. Bind them straight to Reanimated shared
+  values so `charge.discharge` — which already runs 0 → 1 on release — IS
+  the ripple clock and nothing re-renders. The origin must track the
+  contracted encoder, which is the capsule centre, so it is already known.
+- **Amplitude should scale with the tier**, exactly as the pop's spring and
+  discharge hairline already do: a NUDGE ripple should barely disturb the
+  grid, an UPEND one should visibly bend it.
+- **Where it draws.** The honest version distorts a snapshot of the whole
+  screen, which means an offscreen pass — check what that costs before
+  committing. A cheaper first cut: one full-screen Skia canvas over the app
+  drawing only the wavefront (a soft annulus with additive light), no
+  displacement of the content underneath. Ship the cheap one, measure, then
+  decide whether real refraction earns its cost.
+- **Constraints:** must not touch the JS thread (the charge clock already
+  had to leave it), must honour Reduced Motion (settle to a single soft
+  flash, as the pop already does), and must not fight the LED language —
+  the grid's own lights stay the subject, the ripple is the medium.
+- Watch the interaction with the existing `'reveal'` wash: the ripple likely
+  REPLACES it rather than layering on top, or the two will read as two
+  different events for one gesture.
 
 ### Onboarding flow
 

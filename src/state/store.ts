@@ -88,6 +88,87 @@ function nudgeLane(lane: Lane): Lane {
   return { ...lane, trackRot: wrap(lane.trackRot + dir, lane.length) };
 }
 
+const OPS = ['OR', 'AND', 'XOR', 'A>B'] as const;
+
+/**
+ * One lane rolled at a charge TIER (dice hold). The tiers escalate in SCOPE and
+ * in FORCE: each is the one below it plus a wider set of parameters, AND it
+ * moves each of them further per roll, so a long hold reads as the same gesture
+ * getting genuinely more violent rather than four different rolls.
+ *
+ *   1 NUDGE    — whole-track rotation only                    (±1)
+ *   2 SHIFT    — + genA rotation and pulses                   (±1)
+ *   3 SCRAMBLE — + genB pulses/rotation and the combine OP     (±2)
+ *   4 UPEND    — + velocity, gate and note                     (±3, wilder OP)
+ *
+ * Every parameter is still a bounded WALK from its current value rather than a
+ * fresh random draw — a redraw at this rate reads as noise, not as a pattern
+ * being pushed around. The stride is affordable because the roll rate halves
+ * from beat 3 (see chargeTicks): a full charge is ~7 rolls, not 11, so a bigger
+ * step per roll lands somewhere audible instead of pinning against a clamp.
+ */
+function rollLane(lane: Lane, tier: 1 | 2 | 3 | 4): Lane {
+  const dir = () => (Math.random() < 0.5 ? -1 : 1);
+  const maybe = (p: number) => Math.random() < p;
+  /** How far one parameter may travel in a single roll at this tier. */
+  const force = tier <= 2 ? 1 : tier === 3 ? 2 : 3;
+  /** ±1…±scale, never 0 — a roll that moves nothing is a wasted tick. */
+  const kick = (scale: number = force) => dir() * (1 + rint(scale));
+
+  let l: Lane = { ...lane, trackRot: wrap(lane.trackRot + kick(), lane.length) };
+  if (tier === 1) return l;
+
+  l = {
+    ...l,
+    genA: {
+      pulses: Math.min(l.length, Math.max(1, l.genA.pulses + (maybe(0.5) ? kick() : 0))),
+      rotation: wrap(l.genA.rotation + kick(), l.length),
+    },
+  };
+  if (tier === 2) return l;
+
+  // SCRAMBLE brings the second generator in — and can switch it on or off, so
+  // the combine OP starts to matter. UPEND churns the OP roughly twice as
+  // often: at the top tier the way the two generators COMBINE should be as
+  // unstable as what they generate.
+  const halfMax = Math.max(1, Math.floor(l.length / 2));
+  const genBOn = l.genB.pulses > 0 ? maybe(0.85) : maybe(0.45);
+  l = {
+    ...l,
+    genB: genBOn
+      ? {
+          pulses: Math.min(halfMax, Math.max(1, (l.genB.pulses || 1) + (maybe(0.5) ? kick() : 0))),
+          rotation: wrap(l.genB.rotation + kick(), l.length),
+        }
+      : { pulses: 0, rotation: 0 },
+    op: genBOn && maybe(tier === 4 ? 0.65 : 0.35) ? pickOne(OPS) : l.op,
+  };
+  if (tier === 3) return l;
+
+  // UPEND: the lane's VOICE joins the roll — velocity, gate and note, so the
+  // lane headers churn too.
+  //
+  // NOT resolution. The spec left "whether note and resolution belong in the
+  // roll at all" as a product call (issue #48, open question 5), and resolution
+  // is the one parameter here that RE-TIMES the lane rather than re-voicing it:
+  // rolling it at 8Hz re-drives every strip's playhead geometry for no musical
+  // gain the other three don't already give. Velocity, gate and note are plain
+  // numbers — they churn the lane headers without re-timing anything.
+  //
+  // (The tier-4 crash this branch carried was NOT here: it was
+  // `runOnJS(closeRing)` capturing `undefined` in floating-actions.tsx. This
+  // stands on its own merits.)
+  return {
+    ...l,
+    velocity: maybe(0.6) ? Math.max(40, Math.min(127, l.velocity + dir() * (8 + rint(20)))) : l.velocity,
+    gateMs: maybe(0.5) ? Math.max(10, Math.min(250, l.gateMs + dir() * (10 + rint(28)))) : l.gateMs,
+    // Up to ±2 semitones, and only sometimes: on a drum lane every step is a
+    // different voice, so this is the one UPEND parameter kept deliberately
+    // short of `force` — the kit still has to be recognizable on the other side.
+    note: maybe(0.4) ? Math.max(24, Math.min(96, l.note + kick(2))) : l.note,
+  };
+}
+
 export { makeLane } from './lane';
 
 /**
@@ -143,9 +224,10 @@ export interface AppState {
   /** True while a dice snapshot exists for the active pattern (temp mode). */
   snapshotActive: boolean;
 
-  /** Grid-wide one-shot FX signal (revert wash / keep stamp) the step strips
-   * subscribe to — state-driven, never the clock. Nonce dedupes triggers. */
-  gridFx: { nonce: number; kind: 'revert' | 'stamp' } | null;
+  /** Grid-wide one-shot FX signal (revert wash / keep stamp / charge reveal)
+   * the step strips subscribe to — state-driven, never the clock. Nonce
+   * dedupes triggers. */
+  gridFx: { nonce: number; kind: 'revert' | 'stamp' | 'reveal' } | null;
 
   /** Persisted marker: which PRESETS_VERSION has been seeded (see presets.ts). */
   presetSeedVersion: number;
@@ -168,6 +250,16 @@ export interface AppState {
   randomizeLane: (id: string) => void;
   /** Nudge the active pattern slightly (KeyStep-style mutate). */
   mutateActivePattern: () => void;
+  /**
+   * One preview roll of a dice CHARGE (the capsule's dice hold), at the tier
+   * the charge has reached. Rolls apply to the live pattern — the churn is
+   * heard as well as seen. A hold cannot be cancelled — it belongs to the
+   * touch and commits when the touch ends — so the way to keep an escape hatch
+   * is to arm the temp key BEFORE holding.
+   */
+  rollActivePattern: (tier: 1 | 2 | 3 | 4) => void;
+  /** Charge released: keep the last preview roll and wash the grid. */
+  commitChargeRoll: () => void;
   /** Temp key tap while disarmed: store away the current lanes. */
   armSnapshot: () => void;
   /** Temp key tap while armed: restore the stored lanes and disarm. */
@@ -399,6 +491,37 @@ export const useStore = create<AppState>((set, get) => {
       // Dice only rolls — arming temp is the temp key's job (corrected
       // semantics; the old auto-engage was the undo-era behavior).
       set((st) => ({ mutateVersion: st.mutateVersion + 1 }));
+    },
+    rollActivePattern: (tier) => {
+      const s = get();
+      const p = s.patterns.find((x) => x.id === s.activePatternId);
+      if (!p || p.lanes.length === 0) return;
+      const eligible = p.lanes.map((l, i) => (l.length > 1 ? i : -1)).filter((i) => i >= 0);
+      if (eligible.length === 0) return;
+      // Scope by tier: one lane, then two, then the whole pattern. Below tier 3
+      // the point is that you can still SEE which lane moved.
+      const want = tier === 1 ? 1 : tier === 2 ? 2 : eligible.length;
+      const picked = new Set<number>();
+      if (want >= eligible.length) {
+        eligible.forEach((i) => picked.add(i));
+      } else {
+        while (picked.size < want) picked.add(pickOne(eligible));
+      }
+      const lanes = p.lanes.map((l, i) => (picked.has(i) ? rollLane(l, tier) : l));
+      mutateActive((pp) => ({ ...pp, lanes }));
+      // Same signal a dice TAP raises: the strips diff the pattern and film
+      // the changed cells. At the top tier this fires every 32nd, which is
+      // exactly the "unstable rather than edited" read the charge wants.
+      set((st) => ({ mutateVersion: st.mutateVersion + 1 }));
+    },
+    commitChargeRoll: () => {
+      // Release does NOT roll again — the last preview roll is what committed.
+      // The wash is the reveal: the pattern behind the churn, swept from the
+      // capsule outward.
+      set((st) => ({
+        mutateVersion: st.mutateVersion + 1,
+        gridFx: { nonce: (st.gridFx?.nonce ?? 0) + 1, kind: 'reveal' },
+      }));
     },
     armSnapshot: () => {
       const s = get();
