@@ -29,20 +29,13 @@ acting on.
    - **Feedback reference** — echo the tester comment + build version.
      This file is a private workflow artifact; the wrapper must not copy it,
      tester identity, comments, device details, or screenshot URLs into the PR.
-4. Write `.eas/feedback-triage/PUBLIC_PR.json` for the public pull request:
-   ```json
-   {
-     "title": "Describe the user-visible outcome in 12–90 characters",
-     "whatChanged": "Explain the resulting behavior in one or two sentences.",
-     "why": "Explain the user benefit or product rationale in one or two sentences.",
-     "howToVerify": ["Concrete verification step.", "Another verification step."]
-   }
-   ```
-   Use plain text JSON strings. The title must be specific and outcome-oriented,
-   not "Address TestFlight feedback" and not an id. Describe the behavior, not
-   the private report that prompted it. Do not include or quote the tester,
-   tester comment, feedback/build id, device/OS, screenshot, URL, or any other
-   value from `feedback.json`. Do not refer readers to the private analysis.
+4. Write `.eas/feedback-triage/PUBLIC_PR.json` for the public pull request. Its
+   exact shape and every enforced limit are in the **`PUBLIC_PR.json` contract**
+   section appended at the end of this prompt — read it before you write the
+   file. In short: `title`, `whatChanged`, `why`, and `howToVerify` as plain-text
+   JSON strings, describing the behavior rather than the private report that
+   prompted it, with nothing copied from `feedback.json` and no pointer to the
+   private analysis.
 
 ## Rules
 - Do NOT run git, commit, push, open a PR, or run `eas` — the wrapper handles the

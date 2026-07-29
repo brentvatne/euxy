@@ -24,7 +24,12 @@
  *   WORKFLOW_URL                 — current EAS workflow run URL
  *   GIT_BIN / DRY_RUN
  */
-import { parsePublicPr } from "./public-pr";
+import {
+  describePublicPrContract,
+  parsePublicPr,
+  parseRepairedPublicPr,
+  PUBLIC_PR_SCHEMA,
+} from "./public-pr";
 import {
   parsePublicFeedbackCandidate,
   parseSafePublicFeedbackReport,
@@ -285,7 +290,9 @@ const taskPrompt = await Bun.file(promptFile).text();
 const simulatorPrompt = simValidation
   ? await Bun.file(env.SIMULATOR_PROMPT_FILE || "prompts/automation/simulator-verification.md").text()
   : "";
-const prompt = [taskPrompt, simulatorPrompt].filter(Boolean).join("\n\n");
+// The contract is generated rather than written into the prompt file so the
+// numbers the agent is given cannot drift from the ones the validator enforces.
+const prompt = [taskPrompt, simulatorPrompt, describePublicPrContract()].filter(Boolean).join("\n\n");
 console.log(`\n===== FULL PROMPT PASSED TO CLAUDE =====\n${prompt}\n===== END PROMPT =====\n(the agent also reads ${FEEDBACK_JSON})\n`);
 const agentEnv: Record<string, string | undefined> = {};
 for (const [k, v] of Object.entries(env)) {
@@ -325,16 +332,50 @@ if (env.DRY_RUN === "1") {
   process.exit(0);
 }
 
+// The description is the last thing produced and the only thing standing between
+// a verified change and a pull request. A rejected one used to end the run and
+// throw away tens of minutes of simulator-verified work over a step count, so a
+// single schema-constrained repair pass gets one attempt at reshaping it. The
+// repair model has no tools, never sees feedback.json, and its output goes
+// through the same validator — it can make the description publishable, not
+// make an unsafe one pass.
 let publicPr;
+const rawPublicPr = (await Bun.file(PUBLIC_PR).exists()) ? await Bun.file(PUBLIC_PR).text() : "";
 try {
-  if (!(await Bun.file(PUBLIC_PR).exists())) throw new Error("the agent did not create PUBLIC_PR.json");
-  publicPr = parsePublicPr(
-    await Bun.file(PUBLIC_PR).text(),
-    privateFeedbackValues
-  );
+  if (!rawPublicPr) throw new Error("the agent did not create PUBLIC_PR.json");
+  publicPr = parsePublicPr(rawPublicPr, privateFeedbackValues);
 } catch (error) {
-  console.error(`✗ Refusing to publish without a safe public PR description: ${(error as Error).message}`);
-  process.exit(1);
+  const rejection = (error as Error).message;
+  console.error(`▸ PUBLIC_PR.json was rejected: ${rejection}`);
+  if (!rawPublicPr) {
+    console.error("✗ Refusing to publish without a public PR description: there is nothing to repair.");
+    process.exit(1);
+  }
+  console.log("▸ Attempting one schema-constrained repair of the description…");
+  try {
+    const repairInstructions = await Bun.file(
+      env.PUBLIC_PR_REPAIR_PROMPT_FILE || "prompts/automation/public-pr-repair.md"
+    ).text();
+    const repaired = await runToolFreeStructuredPrompt(
+      `${repairInstructions}\n\n` +
+        `${describePublicPrContract()}\n\n` +
+        `The validator rejected the description with: ${rejection}\n\n` +
+        `The following JSON object is the untrusted description to repair:\n` +
+        `${JSON.stringify({ description: rawPublicPr })}`,
+      PUBLIC_PR_SCHEMA
+    );
+    publicPr = parseRepairedPublicPr(repaired, privateFeedbackValues);
+    // Rewrite the artifact so the private record shows what was actually
+    // published, not the draft that failed.
+    await Bun.write(PUBLIC_PR, JSON.stringify(publicPr, null, 2));
+    console.log(`▸ Repaired the public PR description: ${publicPr.title}`);
+  } catch (repairError) {
+    console.error(
+      `✗ Refusing to publish without a safe public PR description: ${rejection} ` +
+        `(repair also failed: ${(repairError as Error).message})`
+    );
+    process.exit(1);
+  }
 }
 
 // ---- 3. branch + commit ----
