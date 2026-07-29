@@ -54,6 +54,10 @@ export const color = {
   surface2: '#2C2C2E', // controls, empty step blocks
   surface3: '#3A3A3C', // segmented track fill
   surface4: '#48484A', // grabber, active segment (on dark control)
+  // Disclosure well — the panel a grouped row expands into. It sits BELOW the
+  // row in the hierarchy, so it drops to the ground instead of repeating the
+  // cell's own surface2, which read as another sibling cell (Brent 2026-07-29).
+  surfaceSunken: '#000000',
   separator: '#1C1C1E',
   displayBg: '#08080a', // dot-matrix "device screen" panel (Graph view)
 

@@ -152,9 +152,12 @@ function PadRow({
 }
 
 const styles = StyleSheet.create({
-  // Sits between the Note and Track·Channel cells (cellMid shape).
+  // Sits between the Note and Track·Channel cells (cellMid shape). Sunken, like
+  // the revealed track row: the grid is content nested under the Note cell, not
+  // another cell in the group, so it must not share the cell's surface2. The
+  // pads keep their key fills and gain contrast against the darker panel.
   panel: {
-    backgroundColor: color.surface2,
+    backgroundColor: color.surfaceSunken,
     borderRadius: 2,
     paddingVertical: 14,
     paddingHorizontal: 16,
