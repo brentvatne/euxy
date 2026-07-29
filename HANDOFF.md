@@ -173,9 +173,10 @@ views (Steps `12E-0` default, Graph `DR-0`) and the shared controls. Nothing in
 - **Track · Channel** is an inline 8-segment picker
   (`src/components/lane-editor/track-picker.tsx`) — one tap per track, in either
   direction. It replaced a tap-to-cycle handler that only advanced and wrapped,
-  so no dedicated track/channel picker route is needed. Channels 8–15 (reachable
-  only via inbound Listen capture) select no segment and stay visible in the
-  cell's readout.
+  so no dedicated track/channel picker route is needed. The segments are
+  disclosed by tapping the cell (`trackOpen`, same pattern as the Note cell's
+  pad grid) and collapsed by default. Channels 8–15 (reachable only via inbound
+  Listen capture) select no segment and stay visible in the cell's readout.
 
 - **Mono type.** The Graph readouts use `font.mono` (Menlo, per tokens). The
   Paper mockups use Space Mono; if Space Mono is added to the app fonts later,
