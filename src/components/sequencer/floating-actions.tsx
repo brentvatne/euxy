@@ -1306,6 +1306,11 @@ function ChargeDice({
     for (const tick of chargeTicks(startFill, sixteenth)) {
       timers.current.push(
         setTimeout(() => {
+          // Belt and braces with `clearTimers()` in releaseCharge: a tick must
+          // never roll the live pattern for a hold that is already over. The
+          // guard makes that invariant local, so it survives the next time the
+          // release path moves.
+          if (!charging.current) return;
           if (tick.haptic === "selection") haptics.selection();
           else haptics.impact(tick.haptic);
           // Reduced Motion does not roll live — the preview settles once per
@@ -1320,6 +1325,12 @@ function ChargeDice({
   /** Release — the pop. Weight, overshoot and discharge all scale with fill:
    * there is no wasted charge. */
   const releaseCharge = () => {
+    // `beginCharge` queues the WHOLE tick schedule up front, so a hold that
+    // ends early leaves ticks pending — without this they keep firing haptics
+    // and rolling the LIVE pattern after the commit and its reveal wash have
+    // already landed. `onPressOut` used to clear them on its way through;
+    // once the touch took over the release path that stopped happening.
+    clearTimers();
     charging.current = false;
     // The tier comes off the RING, not a JS-side mirror: what committed has to
     // be what the finger saw, even if a roll tick slipped.
@@ -1502,7 +1513,7 @@ function ChargeDice({
           style={styles.btn}
           accessibilityRole="button"
           accessibilityLabel="Mutate pattern"
-          accessibilityHint="Tap to mutate once. Hold to charge a bigger roll, and drag off the key to cancel it."
+          accessibilityHint="Tap to mutate the pattern once. Hold to charge a bigger roll — the longer you hold, the more of the pattern it re-rolls. It fires when you let go, or on its own once fully charged."
           accessibilityState={{ disabled }}
         >
           <Animated.View
