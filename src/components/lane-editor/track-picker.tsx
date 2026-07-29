@@ -68,11 +68,12 @@ export function TrackPicker({ channel, onChange }: TrackPickerProps) {
 }
 
 const styles = StyleSheet.create({
-  // surface3 (not PickerBar's surface2): this row lives INSIDE a grouped cell,
-  // which is already surface2 — the segmented track has to sit above it.
+  // surface4 (not PickerBar's surface2): this row lives INSIDE the disclosure
+  // panel a grouped cell expands into, which is already surface3 — the
+  // segmented track has to sit one step above its panel.
   track: {
     flexDirection: 'row',
-    backgroundColor: color.surface3,
+    backgroundColor: color.surface4,
     borderRadius: 9,
     padding: 2,
   },

@@ -400,9 +400,15 @@ export default function LaneEditorSheet() {
                     {listening ? 'Listening…' : 'Listen'}
                   </AppText>
                 </Pressable>
-                {padsOpen ? (
-                  <SFSymbol name="chevron.up" size={12} tint={color.label3} />
-                ) : null}
+                {/* Same disclosure chevron as the Track · Channel cell below,
+                    collapsed AND expanded (Brent 2026-07-29): with it hidden
+                    while collapsed, the row read as a plain readout and gave no
+                    hint it opened the pad grid. */}
+                <SFSymbol
+                  name={padsOpen ? 'chevron.up' : 'chevron.right'}
+                  size={padsOpen ? 12 : 16}
+                  tint={padsOpen ? color.label3 : color.labelDisabled}
+                />
               </View>
             </Pressable>
             {padsOpen ? (
@@ -638,7 +644,11 @@ const styles = StyleSheet.create({
   // Revealed 8-track row. Extra top padding (Brent 2026-07-29 — it sat too
   // close to the row that discloses it) so the segments read as their own
   // panel under the Track · Channel cell rather than crowding its underside.
-  trackPanel: { paddingTop: 16, paddingBottom: 14 },
+  // Its own background over cellBlock's surface2 (Brent 2026-07-29): matching
+  // the cell made the panel read as a third sibling row instead of as content
+  // nested under Track · Channel. One step LIGHTER than the cell, not black —
+  // the segmented track inside moves up to surface4 to stay above the panel.
+  trackPanel: { backgroundColor: color.surface3, paddingTop: 16, paddingBottom: 14 },
   // Paper 02c: the value reads primary while the pad grid is open.
   cellValueActive: { color: color.label },
   nameInput: {
