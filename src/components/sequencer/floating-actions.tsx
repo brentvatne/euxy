@@ -257,7 +257,9 @@ const DISCHARGE_D = 128;
 const OVERCHARGE_D = CHARGE_D - 4;
 /** How far the contracted encoder will lean after a wandering finger, and how
  * quickly it stops giving. Anchored, not draggable: it is saying "I am still
- * attached to your finger", not offering to be moved. */
+ * attached to your finger", not offering to be moved. Tuned on device —
+ * a wider band (36/50) read as the key being dragged around rather than
+ * straining against its mount. */
 const PULL_MAX = 14;
 const PULL_FALLOFF = 90;
 /** Asymptotic rubber band — |result| < PULL_MAX for any input. */
@@ -733,13 +735,17 @@ export function FloatingActions({
           anchorX.value +
           tx.value +
           sway.value -
-          ((BAR_W - CHARGE_D) / 2) * charge.contract.value,
+          ((BAR_W - CHARGE_D) / 2) * charge.contract.value +
+          // Lean after a wandering finger, multiplied by `contract` so the pull
+          // only exists while the capsule IS the encoder.
+          charge.pullX.value * charge.contract.value,
       },
       {
         translateY:
           ty.value +
           hop.value +
-          ((CHARGE_D - BAR_H) / 2) * charge.contract.value,
+          ((CHARGE_D - BAR_H) / 2) * charge.contract.value +
+          charge.pullY.value * charge.contract.value,
       },
       { rotate: `${-2.2 * roll.value}deg` },
       {
@@ -753,7 +759,7 @@ export function FloatingActions({
           // rides the ring LINEARLY rather than settling early, so it is still
           // visibly growing at the top of the charge instead of parking near
           // its maximum inside the first beat.
-          0.13 * charge.scale.value,
+          0.22 * charge.scale.value,
       },
     ],
   }));
@@ -1420,40 +1426,43 @@ function ChargeDice({
     );
   };
 
+  // NOTE: the Pressable fires this the moment the finger wanders outside the
+  // key — RNGH cancels the press on exit — which is NOT the end of the touch.
+  // Letting it resolve a hold cancelled every charge that drifted a few points.
+  // So a charge in flight ignores it entirely and the TOUCH ends the charge
+  // (see `endTouch`); this handler now only owns the tap.
   const onPressOut = () => {
     if (disabled) return;
-    if (popped.current) {
-      // The full ring already fired itself; the release has nothing left to
-      // resolve. It must also NOT clear timers, or a quick lift would eat the
-      // pop's own settle.
-      popped.current = false;
-      return;
-    }
+    if (charging.current || popped.current) return;
     clearTimers();
-    if (!charging.current) {
-      // Under the threshold — a plain TAP. Nothing was drawn and nothing was
-      // captured, so this is the shipped one-mutate press.
-      if (!reducedMotion) {
-        setScatter((s) => ({
-          nonce: (s?.nonce ?? 0) + 1,
-          frames: rollScatterFrames(),
-        }));
-      }
-      onMutate();
-      return;
+    // Under the threshold — a plain TAP. Nothing was drawn and nothing was
+    // captured, so this is the shipped one-mutate press.
+    if (!reducedMotion) {
+      setScatter((s) => ({
+        nonce: (s?.nonce ?? 0) + 1,
+        frames: rollScatterFrames(),
+      }));
     }
+    onMutate();
+  };
+
+  /** The real end of the gesture: the finger LIFTS, wherever it happens to be.
+   * Idempotent — `onTouchesUp` and the finalize backstop can both land. */
+  const endTouch = () => {
+    popped.current = false;
+    if (!charging.current) return;
     releaseCharge();
   };
 
-  // Finger tracking. The Pressable owns press/release; this handler only
-  // WATCHES the finger, so it is manual-activation (it never takes the gesture)
-  // and declared simultaneous with the key so the press is not cancelled.
+  // Finger tracking, and the authority on when the gesture ENDS. It is
+  // manual-activation so it never takes the gesture from the key, and declared
+  // simultaneous with it so the press is not cancelled — but once it is
+  // tracking a touch it keeps receiving that touch's events wherever the finger
+  // goes, which the Pressable does not.
   //
-  // Wandering off the key no longer cancels anything — the charge belongs to
-  // the TOUCH, and it ends when the touch does. Instead the encoder leans after
-  // your finger on a short rubber band: it is anchored, so it gives a little
-  // and then refuses, which says "still holding this" far better than a
-  // cancel-at-24pt tripwire that fired on ordinary finger drift.
+  // Wandering off the key cancels nothing: the charge belongs to the TOUCH and
+  // ends when the touch does. Meanwhile the encoder leans after your finger on
+  // a short rubber band — anchored, so it gives a little and then refuses.
   const originX = useSharedValue(0);
   const originY = useSharedValue(0);
   const tracking = useSharedValue(0);
@@ -1478,10 +1487,27 @@ function ChargeDice({
       charge.pullX.value = rubberBand(t.absoluteX - originX.value);
       charge.pullY.value = rubberBand(t.absoluteY - originY.value);
     })
+    // `endTouch` reads the press machine's refs (charging, popped), and the
+    // compiler rule can't see that `scheduleOnRN` defers the call to a JS tick
+    // long after this render — a worklet handed to a gesture builder never runs
+    // during render.
+    // eslint-disable-next-line react-hooks/refs
     .onTouchesUp(() => {
+      if (tracking.value !== 1) return;
       tracking.value = 0;
       charge.pullX.value = withSpring(0, SNAP);
       charge.pullY.value = withSpring(0, SNAP);
+      scheduleOnRN(endTouch);
+    })
+    // Backstop: if the handler is cancelled or fails outright, `onTouchesUp`
+    // never lands and a charge would be stranded mid-hold.
+    // eslint-disable-next-line react-hooks/refs
+    .onFinalize(() => {
+      if (tracking.value !== 1) return;
+      tracking.value = 0;
+      charge.pullX.value = withSpring(0, SNAP);
+      charge.pullY.value = withSpring(0, SNAP);
+      scheduleOnRN(endTouch);
     });
 
   const keyStyle = useAnimatedStyle(() => {

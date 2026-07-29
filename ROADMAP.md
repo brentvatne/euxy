@@ -1182,6 +1182,35 @@ Then design the full inventory deliberately, mirroring the LED principles:
 iOS respects the system haptics toggle via UIFeedbackGenerator, so no
 in-app setting needed initially.
 
+**RESEARCH — continuous haptics that RAMP in strength (Brent, 2026-07-28).**
+The dice charge (#48) wants a hold that feels like it is winding up: the
+strength climbing smoothly the longer you hold, peaking as the ring closes.
+`expo-haptics` cannot express that. It exposes only discrete one-shots
+(`impactAsync(Light|Medium|Heavy|Soft|Rigid)`, `selectionAsync`,
+`notificationAsync`), so the charge currently fakes a ramp by firing
+one-shots FASTER (quarter → 8th → 16th → 32nd) and stepping the style up at
+the end. Rate is not intensity: it reads as "more often", not "harder", and
+by the 32nds the taps start to blur together instead of building.
+
+What to investigate:
+
+- **Core Haptics (`CHHapticEngine`)** is the real answer on iOS: continuous
+  events with `intensity` / `sharpness` parameter CURVES, so one haptic can
+  ramp across the whole hold and resolve into a transient at the close.
+  Needs a small Expo native module — we already own one for MIDI, so the
+  pattern is established; check for a community module first.
+- **Android** has no parameter-curve equivalent. `VibrationEffect`
+  composition (`startComposition` + `addPrimitive` with a scale float,
+  API 30+) is the closest: scaled primitives can approximate a ramp. Design
+  the API so the iOS curve degrades onto that rather than special-casing.
+- **Fallback** stays today's rate-based escalation for devices and builds
+  without either, and the whole thing must stay off the JS thread's critical
+  path — the charge clock already had to move to the UI thread because JS
+  timers starved it under roll load.
+- Does NOT violate the "never clock-synced" rule above: a charge ramp is a
+  GESTURE envelope, not a per-beat pulse. But note that the moment it is
+  expressed as repeated per-16th one-shots, it starts to.
+
 ### Onboarding flow
 
 **RESEARCH DONE (2026-07-24): see `docs/design/onboarding-research.md`** —
