@@ -94,9 +94,9 @@ export function StepStrip({ lane, washDelay = 0, active = true }: StepStripProps
   // mutateVersion bump (mutate/revert both bump it; slider edits do not).
   // Grid-wide one-shots ride the store's gridFx nonce instead: 'revert' is
   // the reverse wash over every sequenced LED (same capsule-origin stagger),
-  // 'stamp' is ONE synchronized soft pulse on the sequenced LEDs. All of it
-  // is triggered off state changes, never the clock. Reduced Motion settles
-  // instantly.
+  // 'reveal' is that wash brighter (the dice charge's release pop), 'stamp' is
+  // ONE synchronized soft pulse on the sequenced LEDs. All of it is triggered
+  // off state changes, never the clock. Reduced Motion settles instantly.
   const mutateVersion = useStore((s) => s.mutateVersion);
   const gridFx = useStore((s) => s.gridFx);
   const reducedMotion = useReducedMotion();
@@ -125,16 +125,21 @@ export function StepStrip({ lane, washDelay = 0, active = true }: StepStripProps
     if (fxChanged) {
       const lit = pattern.map((v, i) => ({ v, i })).filter((c) => c.v === 1);
       next =
-        gridFx.kind === 'revert'
+        gridFx.kind === 'stamp'
           ? {
-              cells: lit.map((c) => ({ step: c.i, delay: washDelay + dist(c.i) * CELL_STAGGER_MS })),
-              peak: 0.45,
-              mode: 'fade',
-            }
-          : {
               cells: lit.map((c) => ({ step: c.i, delay: 0 })),
               peak: 0.45,
               mode: 'pulse',
+            }
+          : {
+              // 'revert' and the charge 'reveal' are the same sweep from the
+              // capsule — one uncovers the state you came back to, the other
+              // the pattern that was churning behind the hold. The reveal is
+              // brighter: it lands on a grid that has been smearing for a bar
+              // and has to read as the churn resolving.
+              cells: lit.map((c) => ({ step: c.i, delay: washDelay + dist(c.i) * CELL_STAGGER_MS })),
+              peak: gridFx.kind === 'reveal' ? 0.6 : 0.45,
+              mode: 'fade',
             };
     } else if (mutateVersion !== prev.version) {
       const changed: { step: number; delay: number }[] = [];
