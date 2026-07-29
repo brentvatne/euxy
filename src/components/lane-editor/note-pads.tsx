@@ -3,9 +3,10 @@
  * Editor — note entry (expanded)"). Two octave rows of 12 pads in the app's
  * step-grid language: naturals #232328, sharps darker #1A1A1F, the selected
  * pad lights white with a glow and a dark top dot (same convention as a lit
- * step). The C pad of each row carries its octave label; −/+ pages the
- * two-octave window. Tapping a pad sets the note AND previews it out the
- * lane's channel so you hear the target track.
+ * step). Both rows start on F, matching the OP-XY keyboard. The F and C pads
+ * of each row carry their names (row start, and where the octave number
+ * rolls over); −/+ pages the two-octave window. Tapping a pad sets the note
+ * AND previews it out the lane's channel so you hear the target track.
  */
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -14,12 +15,27 @@ import { Pressable } from 'react-native-gesture-handler';
 import { sendTestNote } from '@/components/midi/runtime';
 import { midiNoteName } from '@/core/note';
 import { haptics } from '@/lib/shims';
-import { DRUM_KIT_HI, DRUM_KIT_LO, drumSlotName } from '@/core/opxy';
+import { drumSlotName } from '@/core/opxy';
 import { color, font } from '@/theme/tokens';
 import { AppText } from '@/components/ui';
 
-/** Semitone offsets within an octave that are sharps (darker pads). */
+/**
+ * Pitch classes that are sharps (darker pads). Keyed by pitch class rather
+ * than row slot, because rows start on F — sharps land at slots 1, 3, 5, 8, 10.
+ */
 const SHARPS = new Set([1, 3, 6, 8, 10]);
+
+/**
+ * Rows start on F like the OP-XY's keyboard: its 24 keys run F2–E4 with kick
+ * on the lowest F (see core/opxy.ts). Anchoring every window on F — not only
+ * drum-range notes — gives one layout everywhere and lands the factory kit
+ * exactly on the two rows.
+ */
+const ANCHOR = 5; // F
+const MAX_BASE = 108 + ANCHOR; // highest F row (its top octave clips past 127)
+
+/** Nearest F at or below `note` — the bottom row of a window holding it. */
+const fRowFor = (note: number) => note - (((note % 12) - ANCHOR + 12) % 12);
 
 export interface NotePadsProps {
   note: number;
@@ -29,14 +45,12 @@ export interface NotePadsProps {
 }
 
 export function NotePads({ note, velocity, channel, onSelect }: NotePadsProps) {
-  // Window anchors on the octave containing the current note (bottom row).
-  // A note inside the OP-XY drum-kit range anchors on F instead of C, so the
-  // window lands exactly on the kit (F2–E4) and paging respects its edges.
-  const anchor = note >= DRUM_KIT_LO && note <= DRUM_KIT_HI ? 5 : 0;
-  const maxBase = 108 + anchor; // highest anchored bottom row (top may clip >127)
-  const [base, setBase] = useState(() =>
-    Math.max(anchor, Math.min(note - (((note % 12) - anchor + 12) % 12), maxBase)),
-  );
+  // Window opens on the F row holding the current note (bottom row). Pitches
+  // under F-2 (MIDI 0–4) live in the octave below the lowest F row, so let the
+  // floor drop there for them — the selected pad stays on screen, and the pads
+  // below 0 clip the same way the ones past 127 do.
+  const minBase = Math.min(ANCHOR, fRowFor(note));
+  const [base, setBase] = useState(() => Math.min(fRowFor(note), MAX_BASE));
   const topEnd = Math.min(base + 23, 127);
   // TE's conventional role for this slot ("usually kick") — teaches the
   // factory drum-kit mapping in place; hidden outside the kit range.
@@ -63,11 +77,11 @@ export function NotePads({ note, velocity, channel, onSelect }: NotePadsProps) {
       ) : null}
       <View style={styles.pager}>
         <Pressable
-          style={({ pressed }) => [styles.pagerBtn, base === anchor && styles.pagerBtnDisabled, pressed && styles.pressedDim]}
-          disabled={base === anchor}
+          style={({ pressed }) => [styles.pagerBtn, base === minBase && styles.pagerBtnDisabled, pressed && styles.pressedDim]}
+          disabled={base === minBase}
           onPress={() => {
             haptics.selection();
-            setBase((b) => Math.max(anchor, b - 12));
+            setBase((b) => Math.max(minBase, b - 12));
           }}
           accessibilityRole="button"
           accessibilityLabel="Octave down"
@@ -78,11 +92,11 @@ export function NotePads({ note, velocity, channel, onSelect }: NotePadsProps) {
           octaves · {midiNoteName(base)} – {midiNoteName(topEnd)}
         </AppText>
         <Pressable
-          style={({ pressed }) => [styles.pagerBtn, base === maxBase && styles.pagerBtnDisabled, pressed && styles.pressedDim]}
-          disabled={base === maxBase}
+          style={({ pressed }) => [styles.pagerBtn, base === MAX_BASE && styles.pagerBtnDisabled, pressed && styles.pressedDim]}
+          disabled={base === MAX_BASE}
           onPress={() => {
             haptics.selection();
-            setBase((b) => Math.min(maxBase, b + 12));
+            setBase((b) => Math.min(MAX_BASE, b + 12));
           }}
           accessibilityRole="button"
           accessibilityLabel="Octave up"
@@ -107,14 +121,15 @@ function PadRow({
     <View style={styles.row}>
       {Array.from({ length: 12 }, (_, i) => {
         const n = base + i;
-        if (n > 127) return <View key={n} style={styles.padGap} />;
+        if (n < 0 || n > 127) return <View key={n} style={styles.padGap} />;
+        const pitchClass = n % 12;
         const selected = n === note;
         return (
           <Pressable
             key={n}
             style={({ pressed }) => [
               styles.pad,
-              SHARPS.has(i) && styles.padSharp,
+              SHARPS.has(pitchClass) && styles.padSharp,
               selected && styles.padSelected,
               pressed && styles.pressedDim,
             ]}
@@ -125,7 +140,8 @@ function PadRow({
           >
             {selected ? (
               <View style={styles.padDot} />
-            ) : i === 0 ? (
+            ) : pitchClass === ANCHOR || pitchClass === 0 ? (
+              // Row start (F) and the C where the octave number rolls over.
               <AppText style={styles.octaveLabel}>{midiNoteName(n)}</AppText>
             ) : null}
           </Pressable>
