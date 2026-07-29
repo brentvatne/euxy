@@ -21,7 +21,7 @@ import {
 } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
-import { midi, midiOut } from '@/components/midi/runtime';
+import { midi, midiOut, sendTestNote } from '@/components/midi/runtime';
 import { midiNoteName } from '@/core/note';
 import { haptics, logObserveEvent } from '@/lib/shims';
 import { useLane } from '@/state/selectors';
@@ -35,6 +35,7 @@ import { CombinedCard, combinedCardHeight } from '@/components/lane-editor/combi
 import { NotePads } from '@/components/lane-editor/note-pads';
 import { PickerBar } from '@/components/lane-editor/picker-bar';
 import { SliderRow } from '@/components/lane-editor/slider-row';
+import { TrackPicker } from '@/components/lane-editor/track-picker';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
 /** Pinned wrapper vertical paddings — shared with the scroll-spacer math so
@@ -405,25 +406,28 @@ export default function LaneEditorSheet() {
                 onSelect={(note) => updateLane(id, { note })}
               />
             ) : null}
-            <Pressable
-              style={({ pressed }) => [styles.cell, styles.cellLast, pressed && styles.pressedDim]}
-              // Tap-cycling caps at 8 (the OP-XY has 8 audio tracks). A channel
-              // above 8 that arrived some other way (inbound capture) is kept
-              // and displayed; the next tap folds back into tracks 1–8.
-              onPress={() => {
-                haptics.selection();
-                updateLane(id, { channel: (lane.channel + 1) % 8 });
-              }}
-              accessibilityRole="button"
-            >
-              <AppText style={styles.cellTitle}>Track · Channel</AppText>
-              <View style={styles.cellRightTight}>
+            {/* Track: all 8 at once, not a tap-cycle. The old cell advanced one
+                track per tap and wrapped, so moving DOWN a track meant lapping
+                the whole device; the row below is one tap in either direction
+                and shows where the lane sits. Selecting a track auditions the
+                lane's note on it (same as tapping a pad above) so you hear the
+                track you landed on. */}
+            <View style={[styles.cellBlock, styles.cellLast]}>
+              <View style={styles.trackHead}>
+                <AppText style={styles.cellTitle}>Track · Channel</AppText>
                 <AppText style={styles.cellValue}>
                   Track {lane.channel + 1} · Ch {lane.channel + 1}
                 </AppText>
-                <SFSymbol name="chevron.right" size={16} tint={color.labelDisabled} />
               </View>
-            </Pressable>
+              <TrackPicker
+                channel={lane.channel}
+                onChange={(channel) => {
+                  haptics.selection();
+                  updateLane(id, { channel });
+                  sendTestNote(lane.note, lane.velocity, channel);
+                }}
+              />
+            </View>
           </View>
           <AppText style={styles.groupFootnote}>
             Listen — play a note from the OP‑XY’s aux track to set it. The channel you send on
@@ -596,6 +600,13 @@ const styles = StyleSheet.create({
   cellRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   cellRightTight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   cellValue: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: color.label25 },
+  // Title + readout above the 8-track row (same head shape as a SliderRow).
+  trackHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 10,
+  },
   // Paper 02c: the value reads primary while the pad grid is open.
   cellValueActive: { color: color.label },
   nameInput: {
