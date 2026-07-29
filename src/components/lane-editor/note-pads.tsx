@@ -152,12 +152,13 @@ function PadRow({
 }
 
 const styles = StyleSheet.create({
-  // Sits between the Note and Track·Channel cells (cellMid shape). Sunken, like
-  // the revealed track row: the grid is content nested under the Note cell, not
-  // another cell in the group, so it must not share the cell's surface2. The
-  // pads keep their key fills and gain contrast against the darker panel.
+  // Sits between the Note and Track·Channel cells (cellMid shape). Same
+  // surface3 as the revealed track row: the grid is content nested under the
+  // Note cell, not another cell in the group, so it must not share the cell's
+  // surface2. One step lighter than the cell (Brent 2026-07-29 — black was too
+  // hard a break); the dark key fills gain contrast against it either way.
   panel: {
-    backgroundColor: color.surfaceSunken,
+    backgroundColor: color.surface3,
     borderRadius: 2,
     paddingVertical: 14,
     paddingHorizontal: 16,
@@ -201,7 +202,8 @@ const styles = StyleSheet.create({
     width: 40,
     height: 30,
     borderRadius: 8,
-    backgroundColor: color.surface3,
+    // surface4: the panel behind it is surface3, so the button steps up again.
+    backgroundColor: color.surface4,
     alignItems: 'center',
     justifyContent: 'center',
   },

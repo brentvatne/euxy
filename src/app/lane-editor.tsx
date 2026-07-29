@@ -644,11 +644,11 @@ const styles = StyleSheet.create({
   // Revealed 8-track row. Extra top padding (Brent 2026-07-29 — it sat too
   // close to the row that discloses it) so the segments read as their own
   // panel under the Track · Channel cell rather than crowding its underside.
-  // Sunken background over cellBlock's surface2 (Brent 2026-07-29): matching
+  // Its own background over cellBlock's surface2 (Brent 2026-07-29): matching
   // the cell made the panel read as a third sibling row instead of as content
-  // nested under Track · Channel. The segmented track's surface3 fill still
-  // sits above it — with more separation than before, not less.
-  trackPanel: { backgroundColor: color.surfaceSunken, paddingTop: 16, paddingBottom: 14 },
+  // nested under Track · Channel. One step LIGHTER than the cell, not black —
+  // the segmented track inside moves up to surface4 to stay above the panel.
+  trackPanel: { backgroundColor: color.surface3, paddingTop: 16, paddingBottom: 14 },
   // Paper 02c: the value reads primary while the pad grid is open.
   cellValueActive: { color: color.label },
   nameInput: {

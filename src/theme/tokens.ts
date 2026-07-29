@@ -52,12 +52,12 @@ export const color = {
   ground: '#000000', // app background (also OLED-friendly)
   surface: '#1C1C1E', // grouped cell / bars
   surface2: '#2C2C2E', // controls, empty step blocks
-  surface3: '#3A3A3C', // segmented track fill
-  surface4: '#48484A', // grabber, active segment (on dark control)
-  // Disclosure well — the panel a grouped row expands into. It sits BELOW the
-  // row in the hierarchy, so it drops to the ground instead of repeating the
-  // cell's own surface2, which read as another sibling cell (Brent 2026-07-29).
-  surfaceSunken: '#000000',
+  // Also the panel a grouped row expands into: one step ABOVE the cell's
+  // surface2, never below it. Dropping that panel to the ground punched a black
+  // hole in the group (Brent 2026-07-29); a step up separates it from the cell
+  // and still reads as content the row revealed.
+  surface3: '#3A3A3C', // disclosure panel, segmented track fill
+  surface4: '#48484A', // grabber, active segment, controls inside a surface3 panel
   separator: '#1C1C1E',
   displayBg: '#08080a', // dot-matrix "device screen" panel (Graph view)
 
