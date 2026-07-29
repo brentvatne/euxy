@@ -21,7 +21,7 @@ import {
 } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
-import { midi, midiOut } from '@/components/midi/runtime';
+import { midi, midiOut, sendTestNote } from '@/components/midi/runtime';
 import { midiNoteName } from '@/core/note';
 import { haptics, logObserveEvent } from '@/lib/shims';
 import { useLane } from '@/state/selectors';
@@ -35,6 +35,7 @@ import { CombinedCard, combinedCardHeight } from '@/components/lane-editor/combi
 import { NotePads } from '@/components/lane-editor/note-pads';
 import { PickerBar } from '@/components/lane-editor/picker-bar';
 import { SliderRow } from '@/components/lane-editor/slider-row';
+import { TrackPicker } from '@/components/lane-editor/track-picker';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
 /** Pinned wrapper vertical paddings — shared with the scroll-spacer math so
@@ -122,6 +123,8 @@ export default function LaneEditorSheet() {
   const [washNonce, setWashNonce] = useState(0);
   // Note entry: tapping the Note cell expands the inline pad grid (Paper 02c).
   const [padsOpen, setPadsOpen] = useState(false);
+  // Track entry: same disclosure for the 8-track row — collapsed until tapped.
+  const [trackOpen, setTrackOpen] = useState(false);
   // The pinned card's drop shadow appears only once content scrolls under it.
   const [scrolled, setScrolled] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
@@ -207,16 +210,21 @@ export default function LaneEditorSheet() {
   const id = lane.id;
   const maxRot = Math.max(0, lane.length - 1);
 
-  const setLength = (length: number) => {
-    // Removed steps take their lights with them: a phosphor exit on a cell
-    // that no longer exists floats in space (Brent). Suppress LED exit
-    // decays around this commit; 80ms comfortably covers the removal and
-    // continuous drags re-arm it every step.
+  /** A light leaving with the cell it sits in has nothing to decay over: the
+   * phosphor tail floats in empty space (Brent). Arm this across a commit that
+   * unmounts lit cells; 80ms comfortably covers one, and repeat calls (a
+   * continuous drag) re-arm it every step. */
+  const suppressLedExit = () => {
     ledExitSuppressed.value = 1;
     if (ledExitTimer.current) clearTimeout(ledExitTimer.current);
     ledExitTimer.current = setTimeout(() => {
       ledExitSuppressed.value = 0;
     }, 80);
+  };
+
+  const setLength = (length: number) => {
+    // Removed steps take their lights with them.
+    suppressLedExit();
     // Losing a row with less scroll-back than the height delta strands the
     // offset in the bounce region (maintainVisibleContentPosition subtracts
     // the full delta) — an idle gap between card and form until the next
@@ -405,25 +413,56 @@ export default function LaneEditorSheet() {
                 onSelect={(note) => updateLane(id, { note })}
               />
             ) : null}
+            {/* Track: all 8 at once, not a tap-cycle. The old cell advanced one
+                track per tap and wrapped, so moving DOWN a track meant lapping
+                the whole device; the revealed row is one tap in either direction
+                and shows where the lane sits. Tapping the row toggles it (Brent
+                2026-07-29) — same disclosure as the Note cell above, so the
+                collapsed group stays a plain two-row list. Selecting a track
+                auditions the lane's note on it (same as tapping a pad above) so
+                you hear the track you landed on. */}
             <Pressable
-              style={({ pressed }) => [styles.cell, styles.cellLast, pressed && styles.pressedDim]}
-              // Tap-cycling caps at 8 (the OP-XY has 8 audio tracks). A channel
-              // above 8 that arrived some other way (inbound capture) is kept
-              // and displayed; the next tap folds back into tracks 1–8.
+              style={({ pressed }) => [
+                styles.cell,
+                !trackOpen && styles.cellLast,
+                pressed && styles.pressedDim,
+              ]}
               onPress={() => {
                 haptics.selection();
-                updateLane(id, { channel: (lane.channel + 1) % 8 });
+                // Collapsing unmounts the row, so the selected pill's phosphor
+                // tail would decay over whatever the group closed onto (it
+                // ghosted across the footnote) — same case as a shrinking grid.
+                if (trackOpen) suppressLedExit();
+                setTrackOpen((v) => !v);
               }}
               accessibilityRole="button"
+              accessibilityLabel="Track and channel"
+              accessibilityState={{ expanded: trackOpen }}
             >
               <AppText style={styles.cellTitle}>Track · Channel</AppText>
               <View style={styles.cellRightTight}>
-                <AppText style={styles.cellValue}>
+                <AppText style={[styles.cellValue, trackOpen && styles.cellValueActive]}>
                   Track {lane.channel + 1} · Ch {lane.channel + 1}
                 </AppText>
-                <SFSymbol name="chevron.right" size={16} tint={color.labelDisabled} />
+                <SFSymbol
+                  name={trackOpen ? 'chevron.up' : 'chevron.right'}
+                  size={trackOpen ? 12 : 16}
+                  tint={trackOpen ? color.label3 : color.labelDisabled}
+                />
               </View>
             </Pressable>
+            {trackOpen ? (
+              <View style={[styles.cellBlock, styles.trackPanel, styles.cellLast]}>
+                <TrackPicker
+                  channel={lane.channel}
+                  onChange={(channel) => {
+                    haptics.selection();
+                    updateLane(id, { channel });
+                    sendTestNote(lane.note, lane.velocity, channel);
+                  }}
+                />
+              </View>
+            ) : null}
           </View>
           <AppText style={styles.groupFootnote}>
             Listen — play a note from the OP‑XY’s aux track to set it. The channel you send on
@@ -596,6 +635,10 @@ const styles = StyleSheet.create({
   cellRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   cellRightTight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   cellValue: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: color.label25 },
+  // Revealed 8-track row. Extra top padding (Brent 2026-07-29 — it sat too
+  // close to the row that discloses it) so the segments read as their own
+  // panel under the Track · Channel cell rather than crowding its underside.
+  trackPanel: { paddingTop: 16, paddingBottom: 14 },
   // Paper 02c: the value reads primary while the pad grid is open.
   cellValueActive: { color: color.label },
   nameInput: {
