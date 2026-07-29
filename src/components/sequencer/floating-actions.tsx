@@ -35,17 +35,19 @@
  * native GlassView) + 0.5px rgba(255,255,255,.12) rim + solid #2C2C2E keys,
  * padding 8 · gap 10 · 48px keys · 14px margin. Fallback = solid #16161D.
  */
-import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useEffect, useRef, useState } from "react";
+import { StyleSheet, View, useWindowDimensions } from "react-native";
+import {
+  Gesture,
+  GestureDetector,
+  GestureHandlerRootView,
+} from "react-native-gesture-handler";
 import Animated, {
   Easing,
-  FadeInDown,
   FadeOut,
   ReduceMotion,
   cancelAnimation,
   interpolateColor,
-  runOnJS,
   useAnimatedProps,
   useAnimatedReaction,
   useAnimatedStyle,
@@ -58,20 +60,24 @@ import Animated, {
   withSpring,
   withTiming,
   type SharedValue,
-} from 'react-native-reanimated';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
+} from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
+import { CHIPS } from "@/components/patterns/chips";
+import Svg, { Circle, Path, Rect } from "react-native-svg";
 
-import { playheadPlaying, playheadTick } from '@/core/playhead';
-import { useStore } from '@/state/store';
-import { CAPSULE_DRAG } from '@/lib/flags';
-import { GlassView, haptics, liquidGlassAvailable } from '@/lib/shims';
-import { color, ramp, timing } from '@/theme/tokens';
-import { Key } from '@/components/ui/key';
+import { playheadPlaying, playheadTick } from "@/core/playhead";
+import { useStore } from "@/state/store";
+import { CAPSULE_DRAG } from "@/lib/flags";
+import { GlassView, haptics, liquidGlassAvailable } from "@/lib/shims";
+import { color, ramp, timing } from "@/theme/tokens";
+import { Key } from "@/components/ui/key";
 
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
 /** The capsule shell itself animates its size during a charge, so the glass
  * container has to be an animated component too. */
-const AnimatedGlassView = GlassView ? Animated.createAnimatedComponent(GlassView) : null;
+const AnimatedGlassView = GlassView
+  ? Animated.createAnimatedComponent(GlassView)
+  : null;
 
 // Paper 5SI-0 chrome: 48px keys on padding 8 / gap 10, 14px screen margin.
 const KEY_SIZE = 48;
@@ -94,13 +100,31 @@ const REST_CELLS = [
   [0, 2],
   [2, 2],
 ] as const;
-/** The four cells that are DARK at rest and light at full charge, taking the
- * face from 5 pips to all nine (the dice face maxed). */
-const PEAK_CELLS = [
-  [1, 0],
-  [0, 1],
-  [2, 1],
-  [1, 2],
+/**
+ * Full charge stops being a dice face at all: the key inverts and the 3×3 pips
+ * give way to the `bolt` glyph from the pattern chip set (patterns/chips.ts) —
+ * the same 5×5 LED language the rest of the app speaks, so the payoff is a
+ * reward rather than a new vocabulary. Lightning is what a full charge IS.
+ *
+ * Drawn dark-on-white here (the key is inverted at peak), which is why it can't
+ * reuse LedChip: that renders light-on-dark on its own chip background.
+ */
+const PEAK_GLYPH = CHIPS.bolt;
+/** 5×5 geometry inside the same 18pt glyph box the 3×3 pips use. */
+const PEAK_CELL = 2.6;
+const PEAK_STEP = 3.2;
+const PEAK_ORIGIN = (GLYPH - (PEAK_STEP * 4 + PEAK_CELL)) / 2;
+/**
+ * Inverted shades for the three chip levels (rest-dim, lit, light). NOT a
+ * straight inversion of CHIP_SHADE_COLORS: those are tuned for light-on-dark,
+ * where the dim cells read as unlit LEDs. Carried over at the same relative
+ * weight onto white they closed the gaps and the bolt read as a grey block, so
+ * the dim tier drops to a ghost and the lit tier goes nearly black.
+ */
+const PEAK_SHADES = [
+  "rgba(10,10,10,0.07)",
+  "rgba(10,10,10,0.78)",
+  "#0A0A0A",
 ] as const;
 /** Index of the centre pip within REST_CELLS — the one the pop collapses to. */
 const CENTER_PIP = 2;
@@ -108,9 +132,15 @@ const CENTER_PIP = 2;
  * lands last after a scatter, receives the keep-ring's drained light. */
 const LIGHT_PIP = 0;
 const ALL_CELLS: readonly (readonly [number, number])[] = [
-  [0, 0], [1, 0], [2, 0],
-  [0, 1], [1, 1], [2, 1],
-  [0, 2], [1, 2], [2, 2],
+  [0, 0],
+  [1, 0],
+  [2, 0],
+  [0, 1],
+  [1, 1],
+  [2, 1],
+  [0, 2],
+  [1, 2],
+  [2, 2],
 ];
 
 // Temp key hold: the trace waits RING_DELAY_MS before it starts filling —
@@ -131,13 +161,24 @@ const TRACE_R = (BAR_H - TRACE_INSET * 2) / 2;
 /** Stadium perimeter at the trace's inset — the dash both the arm draw-in and
  * the keep trace fill. */
 const TRACE_PERIM =
-  2 * (BAR_W - TRACE_INSET * 2 - (BAR_H - TRACE_INSET * 2)) + 2 * Math.PI * TRACE_R;
+  2 * (BAR_W - TRACE_INSET * 2 - (BAR_H - TRACE_INSET * 2)) +
+  2 * Math.PI * TRACE_R;
 
 /** The four inset props, as a spreadable object: this RN version's types do
  * not expose `StyleSheet.absoluteFillObject`. */
-const FILL = { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 } as const;
+const FILL = {
+  position: "absolute",
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+} as const;
 
-const SPRING = { damping: 18, stiffness: 260, reduceMotion: ReduceMotion.System };
+const SPRING = {
+  damping: 18,
+  stiffness: 260,
+  reduceMotion: ReduceMotion.System,
+};
 // Drag settle — near-critical (ζ≈0.9) so the capsule lands with one tight
 // settle instead of a wobble (Brent: drag felt too bouncy).
 const SNAP = { damping: 34, stiffness: 340, reduceMotion: ReduceMotion.System };
@@ -151,10 +192,42 @@ const THROW_PROJECTION_S = 0.18;
 // 200ms stays inside the small-popover budget while preserving the first-frame
 // response. Exit is deliberately faster and drops movement entirely.
 const CAPSULE_EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
-const CAPSULE_ENTER = FadeInDown.duration(200)
-  .easing(CAPSULE_EASE_OUT)
-  .withInitialValues({ opacity: 0, transform: [{ translateY: 8 }] })
-  .reduceMotion(ReduceMotion.System);
+/**
+ * The capsule ARRIVES; it does not blink on. The old entrance was a 200ms
+ * ease-out across 8pt — too little travel to register as movement and with no
+ * overshoot to sell any weight, so it read as a cut with a fade stapled to it.
+ *
+ * This is a real spring instead: it rises further, scales up from just under
+ * full size, and settles through one soft overshoot. The opacity still runs on
+ * a timing and finishes EARLY — a spring on alpha reads as a flicker when it
+ * overshoots, and the object should be solid well before it stops moving.
+ *
+ * A custom entering worklet rather than `FadeInDown.springify()` because the
+ * scale is what does most of the work here, and the builders only animate the
+ * properties they own (opacity + one translate).
+ */
+const CAPSULE_ENTER = () => {
+  'worklet';
+  const spring = (dampingRatio: number, duration: number) => ({
+    duration,
+    dampingRatio,
+    reduceMotion: ReduceMotion.System,
+  });
+  return {
+    initialValues: { opacity: 0, transform: [{ translateY: 18 }, { scale: 0.88 }] },
+    animations: {
+      opacity: withTiming(1, {
+        duration: 200,
+        easing: CAPSULE_EASE_OUT,
+        reduceMotion: ReduceMotion.System,
+      }),
+      transform: [
+        { translateY: withSpring(0, spring(0.62, 480)) },
+        { scale: withSpring(1, spring(0.58, 520)) },
+      ],
+    },
+  };
+};
 const CAPSULE_EXIT = FadeOut.duration(120)
   .easing(CAPSULE_EASE_OUT)
   .reduceMotion(ReduceMotion.System);
@@ -189,12 +262,34 @@ const ABORT_DIST = 24;
  * 20 BPM would make one 12s, 300 BPM a 0.8s flick. */
 const CHARGE_BPM_MIN = 90;
 const CHARGE_BPM_MAX = 180;
+/** How long the closed ring is held, inverted, before it fires ITSELF. A full
+ * ring is the commit — there is nothing left for the finger to decide — so the
+ * gesture resolves at its own peak instead of idling there. Long enough that
+ * the invert and the heavy impact register as "full", short enough that it
+ * still reads as one continuous press. */
+const PEAK_HOLD_MS = 500;
+/** Peak tremor: the key buzzes while the closed ring waits to fire. Small and
+ * fast — a machine straining, not a "no" shake. ~17Hz at just over a pixel. */
+const SHAKE_PX = 1.2;
+const SHAKE_MS = 60;
 
 // response/damping from the spec's motion table, expressed as Reanimated's
 // duration + dampingRatio pair.
-const CONTRACT_SPRING = { duration: 520, dampingRatio: 0.85, reduceMotion: ReduceMotion.System };
-const EXPAND_SPRING = { duration: 600, dampingRatio: 0.7, reduceMotion: ReduceMotion.System };
-const POP_SPRING = { duration: 420, dampingRatio: 0.55, reduceMotion: ReduceMotion.System };
+const CONTRACT_SPRING = {
+  duration: 520,
+  dampingRatio: 0.85,
+  reduceMotion: ReduceMotion.System,
+};
+const EXPAND_SPRING = {
+  duration: 600,
+  dampingRatio: 0.7,
+  reduceMotion: ReduceMotion.System,
+};
+const POP_SPRING = {
+  duration: 420,
+  dampingRatio: 0.55,
+  reduceMotion: ReduceMotion.System,
+};
 
 type ChargeTier = 1 | 2 | 3 | 4;
 
@@ -224,8 +319,6 @@ type Charge = {
   ringOut: SharedValue<number>;
   /** 1 while the ring is closed (full charge held). */
   peak: SharedValue<number>;
-  /** Quarter-note breathe while idling at peak. */
-  breathe: SharedValue<number>;
   /** 0 → 1 drives the expanding hairline on release. */
   discharge: SharedValue<number>;
 };
@@ -239,7 +332,6 @@ function useCharge(): Charge {
     sixteenthMs: useSharedValue(125),
     ringOut: useSharedValue(0),
     peak: useSharedValue(0),
-    breathe: useSharedValue(0),
     discharge: useSharedValue(0),
   };
 }
@@ -257,7 +349,7 @@ type ChargeTick = {
   /** ms after the charge threshold. */
   at: number;
   tier: ChargeTier;
-  haptic: 'selection' | 'light' | 'medium';
+  haptic: "selection" | "light" | "medium";
   /**
    * Whether this tick also re-rolls the pattern. Beat 4 TICKS at 32nds — the
    * haptic is what sells the grind — but only rolls on the 16th: a second
@@ -286,14 +378,36 @@ function chargeTicks(startFill: number, sixteenth: number): ChargeTick[] {
     // Ticks land at the START of their subdivision, so the first roll fires the
     // instant the charge engages rather than a beat later.
     const offsets =
-      beat === 0 ? (s % 4 === 0 ? [0] : []) : beat === 1 ? (s % 2 === 0 ? [0] : []) : beat === 2 ? [0] : [0, 0.5];
+      beat === 0
+        ? s % 4 === 0
+          ? [0]
+          : []
+        : beat === 1
+          ? s % 2 === 0
+            ? [0]
+            : []
+          : beat === 2
+            ? [0]
+            : [0, 0.5];
     for (const o of offsets) {
       out.push({
         at: (s - startFill + o) * sixteenth,
         tier: (beat + 1) as ChargeTier,
         // The last two 32nds lean on the door before it closes.
-        haptic: beat < 2 ? 'selection' : beat === 3 && s === RING_LEDS - 1 ? 'medium' : 'light',
-        roll: o === 0,
+        haptic:
+          beat < 2
+            ? "selection"
+            : beat === 3 && s === RING_LEDS - 1
+              ? "medium"
+              : "light",
+        // The HAPTIC rate is the escalation you feel; the ROLL rate is how fast
+        // the pattern is actually redrawn, and the two do not have to match.
+        // Rolling on every 16th through beats 3–4 meant re-rolling EVERY lane
+        // 8×/second — the grid stopped reading as a pattern churning and just
+        // looked like noise (Brent). From beat 3 the roll halves to the 8th
+        // while the ticks keep accelerating, so the gesture still escalates but
+        // each state is on screen long enough to register.
+        roll: o === 0 && (beat < 2 || s % 2 === 0),
         boundary: s % 4 === 0 && o === 0,
       });
     }
@@ -358,7 +472,8 @@ export function FloatingActions({
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
   const lift = useSharedValue(0);
-  const anchorFor = (c: 'left' | 'right') => (c === 'left' ? -(screenW - BAR_W - MARGIN * 2) : 0);
+  const anchorFor = (c: "left" | "right") =>
+    c === "left" ? -(screenW - BAR_W - MARGIN * 2) : 0;
   const anchorInit = useRef(false);
   useEffect(() => {
     // Drag disabled → ignore any persisted corner (it would be stranded)
@@ -375,7 +490,9 @@ export function FloatingActions({
   // Breathing (E spec): dim to 60% two beats after the last touch, playing
   // only. Quantize first — the derived beat re-runs styles per beat, never
   // per frame. touchBeat re-arms on any touch and on transport start.
-  const beat = useDerivedValue(() => Math.floor(playheadTick.value / timing.ppqn));
+  const beat = useDerivedValue(() =>
+    Math.floor(playheadTick.value / timing.ppqn),
+  );
   const touchBeat = useSharedValue(0);
   useAnimatedReaction(
     () => playheadPlaying.value,
@@ -447,23 +564,44 @@ export function FloatingActions({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshotActive]);
-  // The stadium rim belongs to a stadium: once the capsule starts contracting
-  // into a circle it has nothing to wrap, so it clears out well ahead of the
-  // shape change (gone by a third of the way in) and draws itself back on the
-  // expand.
-  const rimFade = () => {
-    'worklet';
-    return 1 - Math.min(1, charge.contract.value * 3);
-  };
-  const rimGlowStyle = useAnimatedStyle(() => ({ opacity: armGlow.value * rimFade() }));
+  // ARMED + CHARGING: temp mode has to stay legible while the capsule
+  // contracts, so the rim CHANGES SHAPE rather than leaving. Two layers split
+  // the job, because neither can do both:
+  //
+  //   • the SVG stadium (rimLine) owns the draw-on, since only a dash offset
+  //     can trace the outline clockwise — but its geometry is a fixed
+  //     180×64 stadium, which is nonsense around a 72px encoder, so it hands
+  //     off during the contract;
+  //   • rimCircle is a plain bordered view on absolute-fill, so it inherits
+  //     whatever shape the shell currently is and stays correct the whole way
+  //     down. It has no draw-on, which costs nothing here: a charge can only
+  //     start once the arm has already finished drawing.
+  //
+  // The halo (rimGlow) is also absolute-fill, so it just tracks the shell and
+  // needs no handoff at all.
+  //
+  // The `charge.contract.value` read is INLINED into each style below rather
+  // than shared through a `rimFade()` helper worklet. useAnimatedStyle derives
+  // its mapper inputs from the shared values in its OWN closure; behind a
+  // helper, `charge` lives in the helper's closure instead, so the style never
+  // subscribed to `contract` and simply never re-ran as the capsule
+  // contracted — the full-size stadium stayed lit around a 72px encoder.
+  const rimGlowStyle = useAnimatedStyle(() => ({ opacity: armGlow.value }));
+  // The circle takes over exactly as fast as the stadium leaves, so the two
+  // cross-fade into one continuous outline.
+  const rimCircleStyle = useAnimatedStyle(() => {
+    const took = Math.min(1, charge.contract.value * 3);
+    return { opacity: armProgress.value * took };
+  });
   // The line's visibility rides the draw itself — dash length carries both
   // the draw-in and the undraw; opacity only kills the dot that remains at 0.
   // While a keep hold fills, the armed rim DUCKS to 25% (by 15% of the fill)
   // so the bright trace draws on a near-dark track — line-over-line was too
   // subtle to see (Brent). Early release drains keepProgress → rim restores.
   const rimLineStyle = useAnimatedStyle(() => {
+    const fade = 1 - Math.min(1, charge.contract.value * 3);
     const duck = 1 - 0.75 * Math.min(1, keepProgress.value / 0.15);
-    return { opacity: armProgress.value > 0.001 ? duck * rimFade() : 0 };
+    return { opacity: armProgress.value > 0.001 ? duck * fade : 0 };
   });
   const rimLineProps = useAnimatedProps(() => ({
     strokeDashoffset: TRACE_PERIM * (1 - armProgress.value),
@@ -476,16 +614,19 @@ export function FloatingActions({
   const traceGlowProps = useAnimatedProps(() => ({
     strokeDashoffset: TRACE_PERIM * (1 - keepProgress.value),
   }));
-  const traceStyle = useAnimatedStyle(() => ({
+  const traceStyle = useAnimatedStyle(() => {
     // Hidden at rest; brightens on each quarter tick; hands its light to the
     // drain dot on keep (same formula the per-key ring used). Epsilon, not
     // `=== 0`: the trace now decays THROUGH zero on a re-press instead of
     // being hard-reset to it, so it must not flicker on the way past.
-    opacity:
-      keepProgress.value < 0.001
-        ? 0
-        : (0.85 + 0.15 * keepTick.value) * (1 - keepDrain.value) * rimFade(),
-  }));
+    const fade = 1 - Math.min(1, charge.contract.value * 3);
+    return {
+      opacity:
+        keepProgress.value < 0.001
+          ? 0
+          : (0.85 + 0.15 * keepTick.value) * (1 - keepDrain.value) * fade,
+    };
+  });
 
   const pan = Gesture.Pan()
     // Drag is temporarily disabled via the flag — gesture kept wired so
@@ -510,10 +651,13 @@ export function FloatingActions({
       const center = screenW - MARGIN - BAR_W / 2 + anchorX.value + tx.value;
       const projected = center + e.velocityX * THROW_PROJECTION_S;
       const left = projected < screenW / 2;
-      anchorX.value = withSpring(left ? -(screenW - BAR_W - MARGIN * 2) : 0, SNAP);
+      anchorX.value = withSpring(
+        left ? -(screenW - BAR_W - MARGIN * 2) : 0,
+        SNAP,
+      );
       tx.value = withSpring(0, { ...SNAP, velocity: e.velocityX });
       ty.value = withSpring(0, { ...SNAP, velocity: e.velocityY });
-      runOnJS(setFloatBarCorner)(left ? 'left' : 'right');
+      scheduleOnRN(setFloatBarCorner, left ? "left" : "right");
     });
 
   // Dice press gives the capsule a playful reaction (Brent — the first cut,
@@ -578,9 +722,17 @@ export function FloatingActions({
       // middle key, so the capsule's centre IS the key's centre.
       {
         translateX:
-          anchorX.value + tx.value + sway.value - ((BAR_W - CHARGE_D) / 2) * charge.contract.value,
+          anchorX.value +
+          tx.value +
+          sway.value -
+          ((BAR_W - CHARGE_D) / 2) * charge.contract.value,
       },
-      { translateY: ty.value + hop.value + ((CHARGE_D - BAR_H) / 2) * charge.contract.value },
+      {
+        translateY:
+          ty.value +
+          hop.value +
+          ((CHARGE_D - BAR_H) / 2) * charge.contract.value,
+      },
       { rotate: `${-2.2 * roll.value}deg` },
       {
         scale:
@@ -589,8 +741,11 @@ export function FloatingActions({
           0.03 * Math.abs(roll.value) +
           0.05 * pop.value +
           // The capsule swells as it charges (retargeted per LED, so it never
-          // restarts) — something straining to get away from you.
-          0.06 * charge.scale.value,
+          // restarts) — something straining to get away from you. The swell
+          // rides the ring LINEARLY rather than settling early, so it is still
+          // visibly growing at the top of the charge instead of parking near
+          // its maximum inside the first beat.
+          0.13 * charge.scale.value,
       },
     ],
   }));
@@ -641,7 +796,10 @@ export function FloatingActions({
   return (
     // The capsule owns its own gesture root — the sequencer screen itself
     // stays plain (only Patterns wraps a whole screen today).
-    <GestureHandlerRootView pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+    <GestureHandlerRootView
+      pointerEvents="box-none"
+      style={StyleSheet.absoluteFill}
+    >
       <GestureDetector gesture={pan}>
         {/* Outer view owns mount animation; the inner one owns the drag
             transform + breathing opacity. The anchor is absolute and fixed,
@@ -653,7 +811,10 @@ export function FloatingActions({
           exiting={CAPSULE_EXIT}
           style={styles.barAnchor}
         >
-          <Animated.View style={[dragStyle, breatheStyle]} onTouchStart={relight}>
+          <Animated.View
+            style={[dragStyle, breatheStyle]}
+            onTouchStart={relight}
+          >
             {liquidGlassAvailable && AnimatedGlassView ? (
               // Real material refracts the playhead LEDs sweeping beneath
               // it; the rim + tint match the Paper mock (rgba(28,28,34,.55)).
@@ -664,15 +825,33 @@ export function FloatingActions({
                 {keys}
               </AnimatedGlassView>
             ) : (
-              <Animated.View style={[styles.bar, styles.barSolid, shellStyle]}>{keys}</Animated.View>
+              <Animated.View style={[styles.bar, styles.barSolid, shellStyle]}>
+                {keys}
+              </Animated.View>
             )}
             {/* Armed rim (variant A) — glow halo blooms in while the LINE
                 draws itself around the outline; disarm undraws it. Both
                 start at the top-left arc (right above the temp key, the SVG
                 rect path origin) and run clockwise. */}
-            <Animated.View pointerEvents="none" style={[styles.rimGlow, rimGlowStyle]} />
-            <Animated.View pointerEvents="none" style={[styles.rimLayer, rimLineStyle]}>
-              <Svg width={BAR_W} height={BAR_H} viewBox={`0 0 ${BAR_W} ${BAR_H}`}>
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.rimGlow, rimGlowStyle]}
+            />
+            {/* The armed rim once the capsule is no longer a stadium — same
+                white hairline, inheriting the contracting shell's shape. */}
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.rimCircle, rimCircleStyle]}
+            />
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.rimLayer, rimLineStyle]}
+            >
+              <Svg
+                width={BAR_W}
+                height={BAR_H}
+                viewBox={`0 0 ${BAR_W} ${BAR_H}`}
+              >
                 <AnimatedRect
                   x={TRACE_INSET}
                   y={TRACE_INSET}
@@ -690,8 +869,15 @@ export function FloatingActions({
             </Animated.View>
             {/* Keep trace — a comet of light over the ducked rim: a wide
                 soft halo stroke under a crisp bright line. */}
-            <Animated.View pointerEvents="none" style={[styles.rimLayer, traceStyle]}>
-              <Svg width={BAR_W} height={BAR_H} viewBox={`0 0 ${BAR_W} ${BAR_H}`}>
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.rimLayer, traceStyle]}
+            >
+              <Svg
+                width={BAR_W}
+                height={BAR_H}
+                viewBox={`0 0 ${BAR_W} ${BAR_H}`}
+              >
                 <AnimatedRect
                   x={TRACE_INSET}
                   y={TRACE_INSET}
@@ -743,11 +929,18 @@ function SideKey({
   children,
 }: {
   charge: Charge;
-  side: 'left' | 'right';
+  side: "left" | "right";
   children: React.ReactNode;
 }) {
   const style = useAnimatedStyle(() => ({
-    transform: [{ translateX: (side === 'left' ? 1 : -1) * (KEY_SIZE + KEY_GAP) * charge.contract.value }],
+    transform: [
+      {
+        translateX:
+          (side === "left" ? 1 : -1) *
+          (KEY_SIZE + KEY_GAP) *
+          charge.contract.value,
+      },
+    ],
     // Out ahead of the travel: a key half-clipped by the shrinking shell reads
     // as a rendering bug, not as sliding under.
     opacity: Math.max(0, 1 - charge.contract.value * 1.8),
@@ -764,7 +957,13 @@ function SideKey({
  * LED perf rule (ui/led.tsx) the LEDs animate OPACITY ONLY — their positions
  * are static rotate+translate transforms rendered once.
  */
-function ChargeRing({ charge, reducedMotion }: { charge: Charge; reducedMotion: boolean }) {
+function ChargeRing({
+  charge,
+  reducedMotion,
+}: {
+  charge: Charge;
+  reducedMotion: boolean;
+}) {
   const spin = useSharedValue(0);
   // The overcharge ring only turns while the charge is closed; a repeat left
   // running would keep a worklet awake for the life of the screen.
@@ -775,7 +974,11 @@ function ChargeRing({ charge, reducedMotion }: { charge: Charge; reducedMotion: 
       if (closed) {
         spin.value = 0;
         spin.value = withRepeat(
-          withTiming(360, { duration: 4000, easing: Easing.linear, reduceMotion: ReduceMotion.System }),
+          withTiming(360, {
+            duration: 4000,
+            easing: Easing.linear,
+            reduceMotion: ReduceMotion.System,
+          }),
           -1,
           false,
         );
@@ -786,7 +989,9 @@ function ChargeRing({ charge, reducedMotion }: { charge: Charge; reducedMotion: 
     },
   );
 
-  const glowStyle = useAnimatedStyle(() => ({ opacity: 0.5 * charge.bloom.value }));
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: 0.5 * charge.bloom.value,
+  }));
   const overchargeStyle = useAnimatedStyle(() => ({
     opacity: 0.9 * charge.peak.value,
     transform: [{ rotate: `${spin.value}deg` }],
@@ -795,7 +1000,9 @@ function ChargeRing({ charge, reducedMotion }: { charge: Charge; reducedMotion: 
     const d = charge.discharge.value;
     return {
       opacity: d <= 0 || d >= 1 ? 0 : 0.5 * (1 - d),
-      transform: [{ scale: (KEY_SIZE + (DISCHARGE_D - KEY_SIZE) * d) / DISCHARGE_D }],
+      transform: [
+        { scale: (KEY_SIZE + (DISCHARGE_D - KEY_SIZE) * d) / DISCHARGE_D },
+      ],
     };
   });
 
@@ -804,7 +1011,12 @@ function ChargeRing({ charge, reducedMotion }: { charge: Charge; reducedMotion: 
       <View style={styles.chargeAnchor}>
         <Animated.View style={[styles.chargeGlow, glowStyle]} />
         {Array.from({ length: RING_LEDS }, (_, i) => (
-          <RingLed key={i} index={i} charge={charge} reducedMotion={reducedMotion} />
+          <RingLed
+            key={i}
+            index={i}
+            charge={charge}
+            reducedMotion={reducedMotion}
+          />
         ))}
         {/* Overcharge hairline (SVG, not a bordered View): it only reads as
             turning because it is UNEVEN, and the obvious way to do that — a
@@ -852,19 +1064,32 @@ function RingLed({
   const style = useAnimatedStyle(() => {
     // Reduced Motion: a four-segment stepper that snaps on tier boundaries
     // instead of sweeping one LED per 16th.
-    const fill = reducedMotion ? Math.floor(charge.fill.value / 4) * 4 : charge.fill.value;
+    const fill = reducedMotion
+      ? Math.floor(charge.fill.value / 4) * 4
+      : charge.fill.value;
     const local = fill - (index + 1);
     if (local < 0) return { opacity: 0 };
-    const decay = Math.max(0.001, LED_ATTACK_MS / Math.max(1, charge.sixteenthMs.value));
+    const decay = Math.max(
+      0.001,
+      LED_ATTACK_MS / Math.max(1, charge.sixteenthMs.value),
+    );
     const flash = Math.max(0, 1 - local / decay);
     const base = LED_STEADY + 0.45 * charge.peak.value;
-    return { opacity: charge.ringOut.value * Math.min(1, base + (1 - LED_STEADY) * flash) };
+    return {
+      opacity:
+        charge.ringOut.value * Math.min(1, base + (1 - LED_STEADY) * flash),
+    };
   });
   return (
     <Animated.View
       style={[
         styles.ringLed,
-        { transform: [{ rotate: `${index * (360 / RING_LEDS)}deg` }, { translateY: -RING_R }] },
+        {
+          transform: [
+            { rotate: `${index * (360 / RING_LEDS)}deg` },
+            { translateY: -RING_R },
+          ],
+        },
         style,
       ]}
     />
@@ -882,7 +1107,10 @@ function AddKey({ onPress }: { onPress: () => void }) {
     <Key
       onPress={onPress}
       onPressIn={() => {
-        down.value = withTiming(1, { duration: 140, reduceMotion: ReduceMotion.System });
+        down.value = withTiming(1, {
+          duration: 140,
+          reduceMotion: ReduceMotion.System,
+        });
       }}
       onPressOut={() => {
         down.value = withSpring(0, SPRING);
@@ -894,7 +1122,12 @@ function AddKey({ onPress }: { onPress: () => void }) {
       <Animated.View style={rotStyle}>
         {/* Paper 5SI-0: 18px plus, 2.4 stroke, round caps. */}
         <Svg width={GLYPH} height={GLYPH} viewBox="0 0 24 24">
-          <Path d="M12 5v14M5 12h14" stroke={color.label} strokeWidth={2.4} strokeLinecap="round" />
+          <Path
+            d="M12 5v14M5 12h14"
+            stroke={color.label}
+            strokeWidth={2.4}
+            strokeLinecap="round"
+          />
         </Svg>
       </Animated.View>
     </Key>
@@ -949,63 +1182,64 @@ function ChargeDice({
   onChargeCommit: (tier: ChargeTier) => void;
   onChargeAbort: () => void;
 }) {
-  const [scatter, setScatter] = useState<{ nonce: number; frames: number[][][] } | null>(null);
+  const [scatter, setScatter] = useState<{
+    nonce: number;
+    frames: number[][][];
+  } | null>(null);
   const glow = useSharedValue(0);
   // Pop: an impulse kick that springs back through 1.0 (the file's kick idiom).
   const keyPop = useSharedValue(0);
   const collapse = useSharedValue(0);
   const flash = useSharedValue(0);
+  /** -1…1 tremor while the ring sits closed — the key straining to go off. */
+  const keyShake = useSharedValue(0);
 
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const intervals = useRef<ReturnType<typeof setInterval>[]>([]);
-  const pressStart = useRef(0);
   const charging = useRef(false);
   const aborted = useRef(false);
   /** Consumed once per hold, so the ring's close fires exactly once even though
    * the fill ramp crosses the top on its way down again during a drain. */
   const closed = useRef(false);
+  /** The charge fired ITSELF at a full ring (see PEAK_HOLD_MS), so the finger
+   * lifting afterwards is a release with nothing left to release. */
+  const popped = useRef(false);
 
   const clearTimers = () => {
     timers.current.forEach(clearTimeout);
     timers.current = [];
-    intervals.current.forEach(clearInterval);
-    intervals.current = [];
   };
   useEffect(() => clearTimers, []);
 
   // Downbeat tick (quantize first: derived integer beat → opacity only).
   const beat = useDerivedValue(() =>
-    playheadPlaying.value === 1 ? Math.floor(playheadTick.value / timing.ppqn) : -1,
+    playheadPlaying.value === 1
+      ? Math.floor(playheadTick.value / timing.ppqn)
+      : -1,
   );
   useAnimatedReaction(
     () => beat.value,
     (b, prev) => {
       if (reducedMotion || b < 0 || b === prev || b % 4 !== 0) return;
       glow.value = 1; // instant attack
-      glow.value = withTiming(0, { duration: 300, easing: Easing.out(Easing.quad) });
+      glow.value = withTiming(0, {
+        duration: 300,
+        easing: Easing.out(Easing.quad),
+      });
     },
   );
   const glowStyle = useAnimatedStyle(() => ({ opacity: 0.9 * glow.value }));
 
-  // The ring closing is a UI-thread fact (the fill ramp landing), so the hard
-  // stop is detected there and only the resolution — the heavy haptic and the
-  // idle — crosses back to JS.
-  useAnimatedReaction(
-    () => charge.fill.value >= RING_LEDS - 0.0001,
-    (full, prev) => {
-      if (full && prev === false) runOnJS(closeRing)();
-    },
-  );
-
   /** Wind every charge value back down. Springs, so a release during the
    * contract retargets instead of snapping. */
   const settleCharge = (drainMs: number) => {
+    // The tremor belongs to the closed ring — it ends however the hold ends
+    // (pop, release or abort), settling rather than cutting.
+    cancelAnimation(keyShake);
+    keyShake.value = withTiming(0, { duration: 90 });
     charge.contract.value = withSpring(0, EXPAND_SPRING);
     charge.scale.value = withSpring(0, EXPAND_SPRING);
     charge.bloom.value = withTiming(0, { duration: drainMs });
     charge.peak.value = withTiming(0, { duration: 140 });
-    cancelAnimation(charge.breathe);
-    charge.breathe.value = withTiming(0, { duration: 140 });
     // The ring drains rather than blanking: a re-press mid-drain resumes from
     // wherever it has got to, which is the whole point of retargeting.
     charge.fill.value = withTiming(0, {
@@ -1022,34 +1256,45 @@ function ChargeDice({
   const closeRing = () => {
     if (!charging.current || closed.current) return;
     closed.current = true;
-    haptics.impact('heavy');
-    charge.peak.value = withTiming(1, { duration: 90, reduceMotion: ReduceMotion.Never });
-    const sixteenth = charge.sixteenthMs.value;
-    const quarter = sixteenth * 4;
-    if (!reducedMotion) {
-      // Breathing on the quarter so a held peak reads as idling, not as dead.
-      // This is the ONLY thing a held peak costs: the pattern stops rolling
-      // once the ring closes.
-      //
-      // The spec's own test for the peak is that "releasing after ten seconds
-      // of holding feels identical to releasing at 2001ms" — which can only be
-      // literally true if the preview stops changing when the ring closes.
-      // Churning on at 32nds for as long as a finger rests there also can't be
-      // squared with "holding indefinitely is safe and costs nothing": it
-      // re-renders every lane 16 times a second, without bound, for a finger
-      // that is doing nothing. So the close is a real hard stop — the last roll
-      // of beat 4 is what stands.
-      charge.breathe.value = withRepeat(
-        withSequence(
-          withTiming(1, { duration: quarter / 2, easing: Easing.inOut(Easing.quad) }),
-          withTiming(0, { duration: quarter / 2, easing: Easing.inOut(Easing.quad) }),
-        ),
-        -1,
-        false,
-      );
-    }
-    intervals.current.push(setInterval(() => haptics.selection(), quarter));
+    haptics.impact("heavy");
+    charge.peak.value = withTiming(1, {
+      duration: 90,
+      reduceMotion: ReduceMotion.Never,
+    });
+    // The tremor is already running from beginCharge and keyStyle doubles its
+    // amplitude off `peak` — the buzz escalates into the close rather than
+    // starting there, so nothing is restarted here (principle 7).
+    //
+    // A full ring IS the commit, so it fires itself rather than waiting for a
+    // finger that has nothing left to do (Brent: "pop it ~500ms after it gets
+    // full, like the thumbs up"). PEAK_HOLD_MS is the beat that lets the
+    // inverted key and the heavy impact register as FULL before the burst — the
+    // gesture resolves at its own peak instead of idling there indefinitely.
+    timers.current.push(
+      setTimeout(() => {
+        if (!charging.current) return;
+        popped.current = true;
+        releaseCharge();
+      }, PEAK_HOLD_MS),
+    );
   };
+
+  // The ring closing is a UI-thread fact (the fill ramp landing), so the hard
+  // stop is detected there and only the resolution — the heavy haptic and the
+  // idle — crosses back to JS.
+  //
+  // This reaction MUST stay below `closeRing`: the worklet captures the
+  // identifier's value when the worklet object is built (first render), so
+  // declaring it above the `const` captured `undefined` forever — and
+  // `scheduleOnRN(undefined)` is not a JS error, it is an unguarded
+  // `jsi::Value::getObject` in the worklets runtime, i.e. a native SIGABRT the
+  // instant the ring hit 16/16.
+  useAnimatedReaction(
+    () => charge.fill.value >= RING_LEDS - 0.0001,
+    (full, prev) => {
+      if (full && prev === false) scheduleOnRN(closeRing);
+    },
+  );
 
   const beginCharge = (startFill: number, sixteenth: number) => {
     charging.current = true;
@@ -1077,15 +1322,33 @@ function ChargeDice({
       easing: Easing.linear,
       reduceMotion: ReduceMotion.Never,
     });
-    charge.scale.value = withSpring(1, {
+    // Linear, not a critically-damped spring: a spring over the same window
+    // spends most of its travel in the first beat and then creeps, so the
+    // capsule stopped visibly growing exactly while the charge was getting
+    // serious. Matching the fill ramp keeps it swelling right into the close.
+    charge.scale.value = withTiming(1, {
       duration: rampMs,
-      dampingRatio: 1,
+      easing: Easing.linear,
       reduceMotion: ReduceMotion.System,
     });
+    if (!reducedMotion) {
+      // The tremor runs for the WHOLE hold, not just the peak — keyStyle scales
+      // its amplitude by the fill, so the key is barely trembling as the charge
+      // engages and rattling hard by the time the ring closes.
+      keyShake.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: SHAKE_MS / 4, easing: Easing.linear }),
+          withTiming(-1, { duration: SHAKE_MS / 2, easing: Easing.linear }),
+          withTiming(0, { duration: SHAKE_MS / 4, easing: Easing.linear }),
+        ),
+        -1,
+        false,
+      );
+    }
     for (const tick of chargeTicks(startFill, sixteenth)) {
       timers.current.push(
         setTimeout(() => {
-          if (tick.haptic === 'selection') haptics.selection();
+          if (tick.haptic === "selection") haptics.selection();
           else haptics.impact(tick.haptic);
           // Reduced Motion does not roll live — the preview settles once per
           // tier. The haptics are unchanged: Reduced Motion is not Reduced
@@ -1107,12 +1370,15 @@ function ChargeDice({
     const tier = tierForFill(fill);
     // Same frame as the burst.
     if (tier === 4) haptics.success();
-    else haptics.impact(tier === 3 ? 'heavy' : tier === 2 ? 'medium' : 'light');
+    else haptics.impact(tier === 3 ? "heavy" : tier === 2 ? "medium" : "light");
     onChargeCommit(tier);
     if (reducedMotion) {
       // A single opacity flash stands in for the whole burst.
       flash.value = 1;
-      flash.value = withTiming(0, { duration: 160, easing: Easing.out(Easing.quad) });
+      flash.value = withTiming(0, {
+        duration: 160,
+        easing: Easing.out(Easing.quad),
+      });
       charge.ringOut.value = withTiming(0, { duration: 120 });
       settleCharge(0);
       return;
@@ -1120,7 +1386,10 @@ function ChargeDice({
     // The lit LEDs leave as one expanding hairline.
     charge.ringOut.value = withTiming(0, { duration: 110 });
     charge.discharge.value = 0;
-    charge.discharge.value = withTiming(1, { duration: 220, easing: Easing.out(Easing.quad) });
+    charge.discharge.value = withTiming(1, {
+      duration: 220,
+      easing: Easing.out(Easing.quad),
+    });
     // The nine pips collapse to one centre pip and spring back open.
     collapse.value = withSequence(
       withTiming(1, { duration: 110, easing: Easing.out(Easing.quad) }),
@@ -1141,14 +1410,14 @@ function ChargeDice({
     charge.ringOut.value = withDelay(160, withTiming(0, { duration: 120 }));
     settleCharge(240);
     // One light impact at the moment the ring empties.
-    timers.current.push(setTimeout(() => haptics.impact('light'), 240));
+    timers.current.push(setTimeout(() => haptics.impact("light"), 240));
   };
 
   const onPressIn = () => {
     if (disabled) return;
     clearTimers();
     aborted.current = false;
-    pressStart.current = Date.now();
+    popped.current = false;
     const sixteenth = chargeSixteenthMs();
     // Re-engaging during a drain picks the ring up where it sits, quantised up
     // to the next 16th (principle 7 — retarget, never restart). Clamped short
@@ -1158,16 +1427,20 @@ function ChargeDice({
       0,
       Math.min(RING_LEDS - 1, Math.ceil(charge.fill.value - 0.001)),
     );
-    timers.current.push(setTimeout(() => beginCharge(startFill, sixteenth), CHARGE_ENTER_MS));
+    timers.current.push(
+      setTimeout(() => beginCharge(startFill, sixteenth), CHARGE_ENTER_MS),
+    );
   };
 
   const onPressOut = () => {
     if (disabled) return;
-    if (aborted.current) {
-      // The abort already resolved this hold; the release must do nothing —
-      // and must NOT clear timers, or a quick release after dragging off would
-      // eat the abort's own "ring empty" haptic.
+    if (aborted.current || popped.current) {
+      // The abort — or the full ring firing itself — already resolved this
+      // hold; the release must do nothing. It must also NOT clear timers, or a
+      // quick lift would eat the abort's own "ring empty" haptic and the pop's
+      // settle.
       aborted.current = false;
+      popped.current = false;
       return;
     }
     clearTimers();
@@ -1175,7 +1448,10 @@ function ChargeDice({
       // Under the threshold — a plain TAP. Nothing was drawn and nothing was
       // captured, so this is the shipped one-mutate press.
       if (!reducedMotion) {
-        setScatter((s) => ({ nonce: (s?.nonce ?? 0) + 1, frames: rollScatterFrames() }));
+        setScatter((s) => ({
+          nonce: (s?.nonce ?? 0) + 1,
+          frames: rollScatterFrames(),
+        }));
       }
       onMutate();
       return;
@@ -1199,7 +1475,7 @@ function ChargeDice({
       abortArmed.value = 1;
     })
     // `abortCharge` reads the press machine's refs (timers, charging), and the
-    // compiler rule can't see that `runOnJS` defers the call to a JS tick long
+    // compiler rule can't see that `scheduleOnRN` defers the call to a JS tick long
     // after this render — a worklet handed to a gesture builder never runs
     // during render.
     // eslint-disable-next-line react-hooks/refs
@@ -1211,21 +1487,38 @@ function ChargeDice({
       const dy = t.absoluteY - originY.value;
       if (dx * dx + dy * dy < ABORT_DIST * ABORT_DIST) return;
       abortArmed.value = 0;
-      runOnJS(abortCharge)();
+      scheduleOnRN(abortCharge);
     })
     .onTouchesUp(() => {
       abortArmed.value = 0;
     });
 
-  const keyStyle = useAnimatedStyle(() => ({
-    // 1.00 → 1.18 on a full-charge pop, proportional below it.
-    transform: [{ scale: 1 + 0.18 * keyPop.value + 0.03 * charge.breathe.value }],
-    opacity: 1 - 0.12 * charge.breathe.value,
-  }));
+  const keyStyle = useAnimatedStyle(() => {
+    // 0.25 as the hold engages → 1.0 at a closed ring → 2.0 while it strains at
+    // the peak. One repeating tremor, amplitude-modulated, so it never restarts.
+    const shake =
+      keyShake.value *
+      (0.25 + 0.75 * (charge.fill.value / RING_LEDS)) *
+      (1 + charge.peak.value);
+    return {
+      // 1.00 → 1.18 on a full-charge pop, proportional below it.
+      transform: [
+        // Tremor amplitude RAMPS with the charge and doubles at the peak: a hint
+        // of movement as the hold engages, a hard rattle once the ring closes.
+        { translateX: SHAKE_PX * shake },
+        // A touch of roll on the same value, so the buzz reads as the key
+        // rattling in its seat rather than sliding sideways.
+        { rotate: `${1.1 * shake}deg` },
+        { scale: 1 + 0.18 * keyPop.value },
+      ],
+    };
+  });
   // Peak inverts the key: white fill, dark pips, all nine lit.
   const invertStyle = useAnimatedStyle(() => ({ opacity: charge.peak.value }));
   // Beat 3 lifts the surface one shade on the way there.
-  const liftStyle = useAnimatedStyle(() => ({ opacity: 0.6 * charge.bloom.value }));
+  const liftStyle = useAnimatedStyle(() => ({
+    opacity: 0.6 * charge.bloom.value,
+  }));
   const flashStyle = useAnimatedStyle(() => ({ opacity: 0.85 * flash.value }));
 
   return (
@@ -1242,8 +1535,14 @@ function ChargeDice({
           accessibilityHint="Tap to mutate once. Hold to charge a bigger roll, and drag off the key to cancel it."
           accessibilityState={{ disabled }}
         >
-          <Animated.View pointerEvents="none" style={[styles.keyFilm, liftStyle]} />
-          <Animated.View pointerEvents="none" style={[styles.keyInvert, invertStyle]} />
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.keyFilm, liftStyle]}
+          />
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.keyInvert, invertStyle]}
+          />
           <View style={[styles.glyph, disabled ? styles.glyphDisabled : null]}>
             {REST_CELLS.map((cell, i) => (
               <Pip
@@ -1256,14 +1555,18 @@ function ChargeDice({
                 isCenter={i === CENTER_PIP}
               />
             ))}
-            {/* The four cells that only light at full charge. */}
-            {PEAK_CELLS.map((cell, i) => (
-              <PeakPip key={i} cell={cell} peak={charge.peak} collapse={collapse} />
-            ))}
+            {/* Full charge: the dice face gives way to the bolt. */}
+            <PeakGlyph peak={charge.peak} collapse={collapse} />
             {/* The light pixel's downbeat bloom — a lit film over the TL pip. */}
-            <Animated.View pointerEvents="none" style={[styles.pip, styles.pipGlow, glowStyle]} />
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.pip, styles.pipGlow, glowStyle]}
+            />
           </View>
-          <Animated.View pointerEvents="none" style={[styles.keyFlash, flashStyle]} />
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.keyFlash, flashStyle]}
+          />
         </Key>
       </Animated.View>
     </GestureDetector>
@@ -1298,7 +1601,9 @@ function Pip({
     const seq = (coord: 0 | 1, restV: number) =>
       withSequence(
         ...scatter.frames.map((f, fi) =>
-          fi === 0 ? hop(PIP_COORD[f[index][coord]]) : withDelay(FRAME_MS, hop(PIP_COORD[f[index][coord]])),
+          fi === 0
+            ? hop(PIP_COORD[f[index][coord]])
+            : withDelay(FRAME_MS, hop(PIP_COORD[f[index][coord]])),
         ),
         withDelay(settleDelay, hop(restV)),
       );
@@ -1315,39 +1620,59 @@ function Pip({
         { translateX: x.value + (mid - x.value) * c },
         { translateY: y.value + (mid - y.value) * c },
       ],
-      // Everything folds into the one centre pip.
-      opacity: isCenter ? 1 : 1 - c,
-      backgroundColor: interpolateColor(peak.value, [0, 1], [color.label, '#0A0A0A']),
+      // Everything folds into the one centre pip — and the whole face clears
+      // out as the bolt takes over at full charge (see PeakGlyph).
+      opacity: (isCenter ? 1 : 1 - c) * (1 - peak.value),
+      backgroundColor: interpolateColor(
+        peak.value,
+        [0, 1],
+        [color.label, "#0A0A0A"],
+      ),
     };
   });
   return <Animated.View style={[styles.pip, style]} />;
 }
 
-/** A pip that only exists at full charge — the face maxed from five to nine. */
-function PeakPip({
-  cell,
+/**
+ * The full-charge face: the `bolt` chip glyph, dark on the inverted key. It
+ * crossfades in as the ring closes and collapses to the centre with the pop,
+ * so the dice → lightning → dice round trip is one continuous move rather than
+ * a cut. Static cells, opacity-only animation (the LED perf rule).
+ */
+function PeakGlyph({
   peak,
   collapse,
 }: {
-  cell: readonly [number, number];
   peak: SharedValue<number>;
   collapse: SharedValue<number>;
 }) {
-  const style = useAnimatedStyle(() => {
-    const c = collapse.value;
-    const mid = PIP_COORD[1];
-    const px = PIP_COORD[cell[0]];
-    const py = PIP_COORD[cell[1]];
-    return {
-      opacity: peak.value * (1 - c),
-      transform: [
-        { translateX: px + (mid - px) * c },
-        { translateY: py + (mid - py) * c },
-      ],
-      backgroundColor: interpolateColor(peak.value, [0, 1], [color.label, '#0A0A0A']),
-    };
-  });
-  return <Animated.View pointerEvents="none" style={[styles.pip, style]} />;
+  const style = useAnimatedStyle(() => ({
+    opacity: peak.value * (1 - collapse.value),
+  }));
+  return (
+    <Animated.View pointerEvents="none" style={[FILL, style]}>
+      {Array.from({ length: 25 }, (_, i) => {
+        const shade = Number(PEAK_GLYPH[i]);
+        const cx = PEAK_ORIGIN + (i % 5) * PEAK_STEP;
+        const cy = PEAK_ORIGIN + Math.floor(i / 5) * PEAK_STEP;
+        return (
+          <View
+            key={i}
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              width: PEAK_CELL,
+              height: PEAK_CELL,
+              borderRadius: PEAK_CELL * 0.3,
+              backgroundColor: PEAK_SHADES[shade],
+              transform: [{ translateX: cx }, { translateY: cy }],
+            }}
+          />
+        );
+      })}
+    </Animated.View>
+  );
 }
 
 /**
@@ -1362,9 +1687,9 @@ function PeakPip({
  * release drains the trace back — nothing. The trace itself is drawn by the
  * bar (see FloatingActions); this key only drives the shared values.
  *
- * A dice CHARGE arms this key on the maintainer's behalf (see the store's
- * beginChargeRoll): a hold can upend the whole pattern, so it always leaves
- * one tap that puts it back.
+ * NOTHING but this key arms it — a dice hold used to arm it on the user's
+ * behalf as an undo hatch, which meant the capsule lit up in a mode nobody
+ * asked for. A hold's way out is the abort (drag off the dice) instead.
  */
 function TempKey({
   engaged,
@@ -1421,8 +1746,14 @@ function TempKey({
     // key's light pixel; the store keep lands as the drain finishes and the
     // dot relaxes back to its ghost outline.
     flash.value = 1;
-    flash.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.quad) });
-    keepDrain.value = withDelay(120, withTiming(1, { duration: 220, easing: Easing.in(Easing.quad) }));
+    flash.value = withTiming(0, {
+      duration: 180,
+      easing: Easing.out(Easing.quad),
+    });
+    keepDrain.value = withDelay(
+      120,
+      withTiming(1, { duration: 220, easing: Easing.in(Easing.quad) }),
+    );
     timers.current.push(setTimeout(onKeep, 340));
   };
 
@@ -1443,17 +1774,23 @@ function TempKey({
     keepProgress.value = reducedMotion
       ? 0
       : withSequence(
-          withTiming(0, { duration: RING_DELAY_MS, easing: Easing.out(Easing.quad) }),
+          withTiming(0, {
+            duration: RING_DELAY_MS,
+            easing: Easing.out(Easing.quad),
+          }),
           withTiming(1, { duration: HOLD_MS, easing: Easing.linear }),
         );
     // Faint tick at each trace quarter (selection haptic + a brightness blip).
     [0.25, 0.5, 0.75].forEach((q) => {
       timers.current.push(
-        setTimeout(() => {
-          haptics.selection();
-          keepTick.value = 1;
-          keepTick.value = withTiming(0, { duration: 150 });
-        }, RING_DELAY_MS + HOLD_MS * q),
+        setTimeout(
+          () => {
+            haptics.selection();
+            keepTick.value = 1;
+            keepTick.value = withTiming(0, { duration: 150 });
+          },
+          RING_DELAY_MS + HOLD_MS * q,
+        ),
       );
     });
     timers.current.push(setTimeout(fireKeep, RING_DELAY_MS + HOLD_MS));
@@ -1470,7 +1807,7 @@ function TempKey({
     if (!engaged) {
       // ARM: store the current state away. Any release arms — there is no
       // hold gesture while disarmed.
-      haptics.impact('light');
+      haptics.impact("light");
       onArm();
       return;
     }
@@ -1486,12 +1823,15 @@ function TempKey({
       return;
     }
     // Drain the trace back regardless — only a completed fill keeps.
-    keepProgress.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.quad) });
+    keepProgress.value = withTiming(0, {
+      duration: 180,
+      easing: Easing.out(Easing.quad),
+    });
     if (dt > TAP_MS) return; // abandoned hold: nothing happens
     // TAP = jump back (swap). A quick bright blip acknowledges the tap, then
     // the key reads OFF right away (Brent: the light lingering ~1s after a
     // disarm felt broken) — step-strip's reverse wash carries the moment.
-    haptics.impact('light');
+    haptics.impact("light");
     if (!reducedMotion) {
       dotPulse.value = withSequence(
         withTiming(1, { duration: 0 }),
@@ -1535,18 +1875,27 @@ function TempKey({
       accessibilityState={{ selected: engaged }}
       accessibilityHint={
         engaged
-          ? 'Tap to restore the held state and turn temp off. Hold to keep the current pattern.'
-          : 'Tap to hold the current state so you can experiment.'
+          ? "Tap to restore the held state and turn temp off. Hold to keep the current pattern."
+          : "Tap to hold the current state so you can experiment."
       }
     >
       {/* Ghost dot (Paper: 11px outline, 1.5px #8E8E93); lit solid while
           armed, with a brighter pulse on jump-back. */}
       <View style={styles.ghostDot}>
-        <Animated.View pointerEvents="none" style={[styles.ghostDotFill, fillStyle]} />
-        <Animated.View pointerEvents="none" style={[styles.ghostDotFill, styles.ghostDotPulse, pulseStyle]} />
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.ghostDotFill, fillStyle]}
+        />
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.ghostDotFill, styles.ghostDotPulse, pulseStyle]}
+        />
       </View>
       <Animated.View pointerEvents="none" style={[styles.flash, flashStyle]} />
-      <Animated.View pointerEvents="none" style={[styles.drainDot, drainStyle]} />
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.drainDot, drainStyle]}
+      />
     </Key>
   );
 }
@@ -1556,7 +1905,7 @@ function TempKey({
 // 0/10/24 shadow, solid #2C2C2E keys. Fallback = the old solid #16161D bar.
 const styles = StyleSheet.create({
   barAnchor: {
-    position: 'absolute',
+    position: "absolute",
     right: MARGIN,
     bottom: MARGIN,
   },
@@ -1565,24 +1914,24 @@ const styles = StyleSheet.create({
   bar: {
     width: BAR_W,
     height: BAR_H,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderRadius: 999,
-    overflow: 'hidden',
-    shadowColor: '#000000',
+    overflow: "hidden",
+    shadowColor: "#000000",
     shadowOpacity: 0.4,
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 10 },
   },
   row: {
     width: BAR_W,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: KEY_GAP,
     padding: PAD,
   },
   barGlass: {
     borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: "rgba(255,255,255,0.12)",
   },
   barSolid: {
     backgroundColor: ramp[7],
@@ -1592,8 +1941,8 @@ const styles = StyleSheet.create({
     height: KEY_SIZE,
     borderRadius: 999,
     backgroundColor: color.surface2,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   glyph: {
     width: GLYPH,
@@ -1603,7 +1952,7 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   pip: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     width: PIP,
@@ -1614,8 +1963,8 @@ const styles = StyleSheet.create({
   // Downbeat bloom over the light pixel's rest cell (TL).
   pipGlow: {
     transform: [{ translateX: PIP_COORD[0] }, { translateY: PIP_COORD[0] }],
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#FFFFFF",
     shadowOpacity: 0.8,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 0 },
@@ -1632,7 +1981,7 @@ const styles = StyleSheet.create({
   keyInvert: {
     ...FILL,
     borderRadius: 999,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   keyFlash: {
     ...FILL,
@@ -1644,12 +1993,12 @@ const styles = StyleSheet.create({
     height: 11,
     borderRadius: 999,
     borderWidth: 1.5,
-    borderColor: '#8E8E93',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: "#8E8E93",
+    alignItems: "center",
+    justifyContent: "center",
   },
   ghostDotFill: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
@@ -1659,8 +2008,8 @@ const styles = StyleSheet.create({
   },
   // Jump-back blip: a hot white glow over the lit dot.
   ghostDotPulse: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#FFFFFF",
     shadowOpacity: 1,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 0 },
@@ -1669,30 +2018,50 @@ const styles = StyleSheet.create({
   // Only its OPACITY animates (border + shadow render once — the LED perf
   // rule); the sharp line is the AnimatedRect above it.
   rimGlow: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
     borderRadius: 999,
     borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.25)',
-    shadowColor: '#FFFFFF',
+    borderColor: "rgba(255,255,255,0.25)",
+    shadowColor: "#FFFFFF",
     shadowOpacity: 0.4,
     shadowRadius: 16,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  // The armed rim's contracted form: absolute-fill, so it is whatever shape the
+  // shell currently is — a stadium at rest, a circle around the encoder at full
+  // contract. Same 1.5px white hairline as the SVG line it takes over from.
+  rimCircle: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: color.label,
+    // The armed rim is LIGHT, so it blooms like every other lit element here
+    // (same emissive treatment as ringLed / drainDot). Static shadow, opacity
+    // is the only animated channel — the LED perf rule.
+    shadowColor: "#FFFFFF",
+    shadowOpacity: 0.55,
+    shadowRadius: 6,
     shadowOffset: { width: 0, height: 0 },
   },
   // The stadium rim SVGs keep their own fixed geometry, pinned to the capsule's
   // fixed corner, rather than stretching with the contracting shell.
   rimLayer: {
-    position: 'absolute',
+    position: "absolute",
     right: 0,
     bottom: 0,
     width: BAR_W,
     height: BAR_H,
   },
   flash: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
@@ -1704,14 +2073,14 @@ const styles = StyleSheet.create({
   // dot didn't land): the green is the trace's alone, and the light
   // arrives at the dice already wearing the LED white it will live as.
   drainDot: {
-    position: 'absolute',
+    position: "absolute",
     top: KEY_SIZE / 2 - 2.5,
     left: KEY_SIZE / 2 - 2.5,
     width: 5,
     height: 5,
     borderRadius: 999,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#FFFFFF",
     shadowOpacity: 0.8,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 0 },
@@ -1721,24 +2090,24 @@ const styles = StyleSheet.create({
   // contracted alike — via a 0×0 anchor, so nothing here needs measuring.
   chargeOverlay: {
     ...FILL,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   chargeAnchor: {
     width: 0,
     height: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   ringLed: {
-    position: 'absolute',
+    position: "absolute",
     left: -RING_LED / 2,
     top: -RING_LED / 2,
     width: RING_LED,
     height: RING_LED,
     borderRadius: 999,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#FFFFFF",
     shadowOpacity: 0.9,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 0 },
@@ -1746,14 +2115,14 @@ const styles = StyleSheet.create({
   // Outer bloom over the charge — a static shadow whose alpha is the only
   // animated property.
   chargeGlow: {
-    position: 'absolute',
+    position: "absolute",
     left: -CHARGE_D / 2,
     top: -CHARGE_D / 2,
     width: CHARGE_D,
     height: CHARGE_D,
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    shadowColor: '#FFFFFF',
+    backgroundColor: "rgba(255,255,255,0.05)",
+    shadowColor: "#FFFFFF",
     shadowOpacity: 0.9,
     shadowRadius: 22,
     shadowOffset: { width: 0, height: 0 },
@@ -1761,7 +2130,7 @@ const styles = StyleSheet.create({
   // Overcharge hairline: just outside the LEDs, and only visible BECAUSE it
   // is uneven — the bright arc at its top is what reads as rotation.
   overchargeRing: {
-    position: 'absolute',
+    position: "absolute",
     left: -OVERCHARGE_D / 2,
     top: -OVERCHARGE_D / 2,
     width: OVERCHARGE_D,
@@ -1769,13 +2138,13 @@ const styles = StyleSheet.create({
   },
   // The pop: the lit ring leaves as one hairline, 48 → 128px.
   dischargeRing: {
-    position: 'absolute',
+    position: "absolute",
     left: -DISCHARGE_D / 2,
     top: -DISCHARGE_D / 2,
     width: DISCHARGE_D,
     height: DISCHARGE_D,
     borderRadius: 999,
     borderWidth: 1.5,
-    borderColor: '#FFFFFF',
+    borderColor: "#FFFFFF",
   },
 });

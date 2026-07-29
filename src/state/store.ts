@@ -44,12 +44,9 @@ let snapshotPatternId: string | null = null;
  */
 let chargeLanes: Lane[] | null = null;
 let chargePatternId: string | null = null;
-/** True when the charge itself armed temp — an abort must then un-arm it. */
-let chargeArmedSnapshot = false;
 const discardCharge = () => {
   chargeLanes = null;
   chargePatternId = null;
-  chargeArmedSnapshot = false;
 };
 
 const cloneLanes = (lanes: Lane[]): Lane[] =>
@@ -108,49 +105,57 @@ function nudgeLane(lane: Lane): Lane {
 const OPS = ['OR', 'AND', 'XOR', 'A>B'] as const;
 
 /**
- * One lane rolled at a charge TIER (dice hold). The tiers escalate in SCOPE,
- * not in violence: each is the one below it plus a wider set of parameters, so
- * a long hold reads as the same gesture getting bolder rather than four
- * different rolls.
+ * One lane rolled at a charge TIER (dice hold). The tiers escalate in SCOPE and
+ * in FORCE: each is the one below it plus a wider set of parameters, AND it
+ * moves each of them further per roll, so a long hold reads as the same gesture
+ * getting genuinely more violent rather than four different rolls.
  *
- *   1 NUDGE    — whole-track rotation only
- *   2 SHIFT    — + genA rotation and pulses
- *   3 SCRAMBLE — + genB pulses/rotation and the combine OP
- *   4 UPEND    — + velocity, gate and note (the lane headers churn too)
+ *   1 NUDGE    — whole-track rotation only                    (±1)
+ *   2 SHIFT    — + genA rotation and pulses                   (±1)
+ *   3 SCRAMBLE — + genB pulses/rotation and the combine OP     (±2)
+ *   4 UPEND    — + velocity, gate and note                     (±3, wilder OP)
  *
- * Every parameter is a bounded step from its current value, never a fresh
- * random draw: the roll fires up to 16 times a second at the top tier, and an
- * unbounded walk would leave velocity/note pinned at a clamp within a beat.
+ * Every parameter is still a bounded WALK from its current value rather than a
+ * fresh random draw — a redraw at this rate reads as noise, not as a pattern
+ * being pushed around. The stride is affordable because the roll rate halves
+ * from beat 3 (see chargeTicks): a full charge is ~7 rolls, not 11, so a bigger
+ * step per roll lands somewhere audible instead of pinning against a clamp.
  */
 function rollLane(lane: Lane, tier: 1 | 2 | 3 | 4): Lane {
   const dir = () => (Math.random() < 0.5 ? -1 : 1);
   const maybe = (p: number) => Math.random() < p;
+  /** How far one parameter may travel in a single roll at this tier. */
+  const force = tier <= 2 ? 1 : tier === 3 ? 2 : 3;
+  /** ±1…±scale, never 0 — a roll that moves nothing is a wasted tick. */
+  const kick = (scale: number = force) => dir() * (1 + rint(scale));
 
-  let l: Lane = { ...lane, trackRot: wrap(lane.trackRot + dir(), lane.length) };
+  let l: Lane = { ...lane, trackRot: wrap(lane.trackRot + kick(), lane.length) };
   if (tier === 1) return l;
 
   l = {
     ...l,
     genA: {
-      pulses: Math.min(l.length, Math.max(1, l.genA.pulses + (maybe(0.5) ? dir() : 0))),
-      rotation: wrap(l.genA.rotation + dir(), l.length),
+      pulses: Math.min(l.length, Math.max(1, l.genA.pulses + (maybe(0.5) ? kick() : 0))),
+      rotation: wrap(l.genA.rotation + kick(), l.length),
     },
   };
   if (tier === 2) return l;
 
   // SCRAMBLE brings the second generator in — and can switch it on or off, so
-  // the combine OP starts to matter.
+  // the combine OP starts to matter. UPEND churns the OP roughly twice as
+  // often: at the top tier the way the two generators COMBINE should be as
+  // unstable as what they generate.
   const halfMax = Math.max(1, Math.floor(l.length / 2));
   const genBOn = l.genB.pulses > 0 ? maybe(0.85) : maybe(0.45);
   l = {
     ...l,
     genB: genBOn
       ? {
-          pulses: Math.min(halfMax, Math.max(1, (l.genB.pulses || 1) + (maybe(0.5) ? dir() : 0))),
-          rotation: wrap(l.genB.rotation + dir(), l.length),
+          pulses: Math.min(halfMax, Math.max(1, (l.genB.pulses || 1) + (maybe(0.5) ? kick() : 0))),
+          rotation: wrap(l.genB.rotation + kick(), l.length),
         }
       : { pulses: 0, rotation: 0 },
-    op: genBOn && maybe(0.35) ? pickOne(OPS) : l.op,
+    op: genBOn && maybe(tier === 4 ? 0.65 : 0.35) ? pickOne(OPS) : l.op,
   };
   if (tier === 3) return l;
 
@@ -164,15 +169,17 @@ function rollLane(lane: Lane, tier: 1 | 2 | 3 | 4): Lane {
   // gain the other three don't already give. Velocity, gate and note are plain
   // numbers — they churn the lane headers without re-timing anything.
   //
-  // (Dropping it did NOT fix the tier-4 crash tracked in this branch's
-  // ANALYSIS.md — that is still open. This stands on its own merits.)
+  // (The tier-4 crash this branch carried was NOT here: it was
+  // `runOnJS(closeRing)` capturing `undefined` in floating-actions.tsx. This
+  // stands on its own merits.)
   return {
     ...l,
-    velocity: maybe(0.6) ? Math.max(40, Math.min(127, l.velocity + dir() * (4 + rint(9)))) : l.velocity,
-    gateMs: maybe(0.5) ? Math.max(10, Math.min(250, l.gateMs + dir() * (5 + rint(12)))) : l.gateMs,
-    // ±1 semitone at a time: on a drum lane every step is a different voice, so
-    // the drift has to stay small enough that the kit is still recognizable.
-    note: maybe(0.4) ? Math.max(24, Math.min(96, l.note + dir())) : l.note,
+    velocity: maybe(0.6) ? Math.max(40, Math.min(127, l.velocity + dir() * (8 + rint(20)))) : l.velocity,
+    gateMs: maybe(0.5) ? Math.max(10, Math.min(250, l.gateMs + dir() * (10 + rint(28)))) : l.gateMs,
+    // Up to ±2 semitones, and only sometimes: on a drum lane every step is a
+    // different voice, so this is the one UPEND parameter kept deliberately
+    // short of `force` — the kit still has to be recognizable on the other side.
+    note: maybe(0.4) ? Math.max(24, Math.min(96, l.note + kick(2))) : l.note,
   };
 }
 
@@ -260,11 +267,12 @@ export interface AppState {
   /**
    * One preview roll of a dice CHARGE (the capsule's dice hold), at the tier
    * the charge has reached. Rolls apply to the live pattern — the churn is
-   * heard as well as seen — and the whole hold is undone in one gesture by the
-   * temp key (armed by beginChargeRoll) or by an abort.
+   * heard as well as seen — and the whole hold is undone by an abort (drag off
+   * the key), or by the temp key if the user armed it BEFORE the hold.
    */
   rollActivePattern: (tier: 1 | 2 | 3 | 4) => void;
-  /** Charge hold started: remember this hold's starting lanes and arm temp. */
+  /** Charge hold started: remember this hold's starting lanes. Deliberately
+   * does NOT touch temp — that mode is the user's to turn on. */
   beginChargeRoll: () => void;
   /** Charge released: keep the last preview roll and wash the grid. */
   commitChargeRoll: () => void;
@@ -530,20 +538,12 @@ export const useStore = create<AppState>((set, get) => {
       if (!p) return;
       chargeLanes = cloneLanes(p.lanes);
       chargePatternId = p.id;
-      // A hold is destructive at the top tiers, so it leaves an escape hatch:
-      // temp arms with the pre-hold pattern and ONE tap on the temp key reverts
-      // the whole thing. Consecutive holds stack — the second one finds temp
-      // already armed and leaves the first hold's starting point in place, so
-      // that one tap still undoes the entire run. (A dice TAP still never arms
-      // temp; only the hold does.)
-      if (!s.snapshotActive) {
-        snapshotLanes = cloneLanes(p.lanes);
-        snapshotPatternId = p.id;
-        chargeArmedSnapshot = true;
-        set({ snapshotActive: true });
-      } else {
-        chargeArmedSnapshot = false;
-      }
+      // Temp is the USER'S mode and nothing else turns it on. An earlier cut
+      // armed it here as an undo hatch for a destructive hold, but a gesture
+      // that silently switches on a mode — lighting the capsule rim for a
+      // state you never asked for — is worse than the hatch is good (Brent).
+      // Mid-hold the abort (drag off the key) is still the way out; arming
+      // temp BEFORE a hold still stacks over it exactly as it always did.
     },
     commitChargeRoll: () => {
       // Release does NOT roll again — the last preview roll is what committed.
@@ -560,22 +560,14 @@ export const useStore = create<AppState>((set, get) => {
       const p = s.patterns.find((x) => x.id === s.activePatternId);
       const restored = chargeLanes;
       const restoredId = chargePatternId;
-      const unarm = chargeArmedSnapshot;
       discardCharge();
-      if (!p || !restored || restoredId !== p.id) {
-        if (unarm) {
-          discardSnapshot();
-          set({ snapshotActive: false });
-        }
-        return;
-      }
+      if (!p || !restored || restoredId !== p.id) return;
       mutateActive((pp) => ({ ...pp, lanes: restored }));
-      // Only un-arm temp if THIS hold armed it: aborting must not throw away a
-      // snapshot the user took deliberately before ever touching the dice.
-      if (unarm) discardSnapshot();
+      // Temp is untouched either way now — the charge never armed it, so an
+      // abort has nothing of its own to un-arm, and a snapshot the user took
+      // deliberately before the hold must survive.
       set((st) => ({
         mutateVersion: st.mutateVersion + 1,
-        ...(unarm ? { snapshotActive: false } : null),
         gridFx: { nonce: (st.gridFx?.nonce ?? 0) + 1, kind: 'revert' },
       }));
     },
