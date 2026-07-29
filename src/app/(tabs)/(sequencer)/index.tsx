@@ -63,9 +63,7 @@ export default function SequencerScreen() {
   // Dice HOLD: a charged roll (one preview roll per schedule tick, escalating
   // in scope) that commits whatever it reached on release.
   const rollPattern = useStore((s) => s.rollActivePattern);
-  const beginChargeRoll = useStore((s) => s.beginChargeRoll);
   const commitChargeRoll = useStore((s) => s.commitChargeRoll);
-  const abortChargeRoll = useStore((s) => s.abortChargeRoll);
   // Temp mode: the capsule's resident temp key lights while this is true.
   const snapshotActive = useStore((s) => s.snapshotActive);
   const armSnapshot = useStore((s) => s.armSnapshot);
@@ -264,7 +262,6 @@ export default function SequencerScreen() {
               mutatePattern();
             }}
             onRoll={rollPattern}
-            onChargeBegin={beginChargeRoll}
             // Logged on the COMMIT, once per hold — the preview rolls inside a
             // hold are one gesture, and how far people actually charge is the
             // question worth answering.
@@ -272,7 +269,6 @@ export default function SequencerScreen() {
               logObserveEvent('pattern.charged', { attributes: { tier, lanes: lanes.length } });
               commitChargeRoll();
             }}
-            onChargeAbort={abortChargeRoll}
             onArm={armSnapshot}
             onRevert={revertSnapshot}
             onKeep={keepSnapshot}

@@ -35,20 +35,6 @@ const wrap = (v: number, n: number) => ((v % n) + n) % n;
 let snapshotLanes: Lane[] | null = null;
 let snapshotPatternId: string | null = null;
 
-/**
- * Charge roll (dice hold — see components/sequencer/floating-actions.tsx): the
- * lanes as they were at the START of the CURRENT hold. The temp snapshot holds
- * the pattern from before the FIRST hold in a run, so it can't also serve the
- * abort — dragging off the key must undo only this hold. Same module-level,
- * never-persisted home as the two slots above.
- */
-let chargeLanes: Lane[] | null = null;
-let chargePatternId: string | null = null;
-const discardCharge = () => {
-  chargeLanes = null;
-  chargePatternId = null;
-};
-
 const cloneLanes = (lanes: Lane[]): Lane[] =>
   lanes.map((l) => ({ ...l, genA: { ...l.genA }, genB: { ...l.genB } }));
 
@@ -267,17 +253,13 @@ export interface AppState {
   /**
    * One preview roll of a dice CHARGE (the capsule's dice hold), at the tier
    * the charge has reached. Rolls apply to the live pattern — the churn is
-   * heard as well as seen — and the whole hold is undone by an abort (drag off
-   * the key), or by the temp key if the user armed it BEFORE the hold.
+   * heard as well as seen. A hold cannot be cancelled — it belongs to the
+   * touch and commits when the touch ends — so the way to keep an escape hatch
+   * is to arm the temp key BEFORE holding.
    */
   rollActivePattern: (tier: 1 | 2 | 3 | 4) => void;
-  /** Charge hold started: remember this hold's starting lanes. Deliberately
-   * does NOT touch temp — that mode is the user's to turn on. */
-  beginChargeRoll: () => void;
   /** Charge released: keep the last preview roll and wash the grid. */
   commitChargeRoll: () => void;
-  /** Charge aborted (finger dragged off the key): put this hold's lanes back. */
-  abortChargeRoll: () => void;
   /** Temp key tap while disarmed: store away the current lanes. */
   armSnapshot: () => void;
   /** Temp key tap while armed: restore the stored lanes and disarm. */
@@ -532,43 +514,13 @@ export const useStore = create<AppState>((set, get) => {
       // exactly the "unstable rather than edited" read the charge wants.
       set((st) => ({ mutateVersion: st.mutateVersion + 1 }));
     },
-    beginChargeRoll: () => {
-      const s = get();
-      const p = s.patterns.find((x) => x.id === s.activePatternId);
-      if (!p) return;
-      chargeLanes = cloneLanes(p.lanes);
-      chargePatternId = p.id;
-      // Temp is the USER'S mode and nothing else turns it on. An earlier cut
-      // armed it here as an undo hatch for a destructive hold, but a gesture
-      // that silently switches on a mode — lighting the capsule rim for a
-      // state you never asked for — is worse than the hatch is good (Brent).
-      // Mid-hold the abort (drag off the key) is still the way out; arming
-      // temp BEFORE a hold still stacks over it exactly as it always did.
-    },
     commitChargeRoll: () => {
       // Release does NOT roll again — the last preview roll is what committed.
       // The wash is the reveal: the pattern behind the churn, swept from the
       // capsule outward.
-      discardCharge();
       set((st) => ({
         mutateVersion: st.mutateVersion + 1,
         gridFx: { nonce: (st.gridFx?.nonce ?? 0) + 1, kind: 'reveal' },
-      }));
-    },
-    abortChargeRoll: () => {
-      const s = get();
-      const p = s.patterns.find((x) => x.id === s.activePatternId);
-      const restored = chargeLanes;
-      const restoredId = chargePatternId;
-      discardCharge();
-      if (!p || !restored || restoredId !== p.id) return;
-      mutateActive((pp) => ({ ...pp, lanes: restored }));
-      // Temp is untouched either way now — the charge never armed it, so an
-      // abort has nothing of its own to un-arm, and a snapshot the user took
-      // deliberately before the hold must survive.
-      set((st) => ({
-        mutateVersion: st.mutateVersion + 1,
-        gridFx: { nonce: (st.gridFx?.nonce ?? 0) + 1, kind: 'revert' },
       }));
     },
     armSnapshot: () => {

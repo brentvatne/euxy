@@ -255,9 +255,16 @@ const LED_ATTACK_MS = 260;
 const DISCHARGE_D = 128;
 /** Overcharge hairline, just outside the LEDs. */
 const OVERCHARGE_D = CHARGE_D - 4;
-/** Finger travel that ABORTS the hold. UPEND is destructive, so there has to
- * be a way out that is not "commit something you didn't want". */
-const ABORT_DIST = 24;
+/** How far the contracted encoder will lean after a wandering finger, and how
+ * quickly it stops giving. Anchored, not draggable: it is saying "I am still
+ * attached to your finger", not offering to be moved. */
+const PULL_MAX = 14;
+const PULL_FALLOFF = 90;
+/** Asymptotic rubber band — |result| < PULL_MAX for any input. */
+function rubberBand(d: number): number {
+  'worklet';
+  return (d * PULL_MAX) / (Math.abs(d) + PULL_FALLOFF);
+}
 /** The charge clock is the sequencer clock, but a bar has to stay a gesture:
  * 20 BPM would make one 12s, 300 BPM a 0.8s flick. */
 const CHARGE_BPM_MIN = 90;
@@ -321,6 +328,9 @@ type Charge = {
   peak: SharedValue<number>;
   /** 0 → 1 drives the expanding hairline on release. */
   discharge: SharedValue<number>;
+  /** Rubber-band lean toward a wandering finger, in points (see rubberBand). */
+  pullX: SharedValue<number>;
+  pullY: SharedValue<number>;
 };
 
 function useCharge(): Charge {
@@ -333,6 +343,8 @@ function useCharge(): Charge {
     ringOut: useSharedValue(0),
     peak: useSharedValue(0),
     discharge: useSharedValue(0),
+    pullX: useSharedValue(0),
+    pullY: useSharedValue(0),
   };
 }
 
@@ -440,9 +452,7 @@ export function FloatingActions({
   onAddLane,
   onMutate,
   onRoll,
-  onChargeBegin,
   onChargeCommit,
-  onChargeAbort,
   onArm,
   onRevert,
   onKeep,
@@ -454,9 +464,7 @@ export function FloatingActions({
   onMutate: () => void;
   /** One preview roll of a dice charge, at the tier reached so far. */
   onRoll: (tier: ChargeTier) => void;
-  onChargeBegin: () => void;
   onChargeCommit: (tier: ChargeTier) => void;
-  onChargeAbort: () => void;
   onArm: () => void;
   onRevert: () => void;
   onKeep: () => void;
@@ -783,9 +791,7 @@ export function FloatingActions({
           onMutate();
         }}
         onRoll={onRoll}
-        onChargeBegin={onChargeBegin}
         onChargeCommit={onChargeCommit}
-        onChargeAbort={onChargeAbort}
       />
       <SideKey charge={charge} side="right">
         <AddKey onPress={onAddLane} />
@@ -1153,9 +1159,9 @@ function AddKey({ onPress }: { onPress: () => void }) {
  *
  * Release pops: the pips collapse to the centre, the key springs proportionally
  * to what was charged, the ring discharges outward and the grid washes to
- * reveal what committed. Dragging ABORT_DIST off the key instead drains the
- * ring and puts the pre-hold pattern back — UPEND is destructive and needs a
- * way out.
+ * reveal what committed. Wandering off the key does NOT cancel: the charge
+ * belongs to the touch and ends when the touch does, with the encoder leaning
+ * after the finger on a short rubber band while it lasts.
  *
  * All of it is retargeted, never restarted (motion principle 7): a fast
  * press-release-press picks the ring up from wherever it currently sits.
@@ -1169,18 +1175,14 @@ function ChargeDice({
   charge,
   onMutate,
   onRoll,
-  onChargeBegin,
   onChargeCommit,
-  onChargeAbort,
 }: {
   disabled: boolean;
   reducedMotion: boolean;
   charge: Charge;
   onMutate: () => void;
   onRoll: (tier: ChargeTier) => void;
-  onChargeBegin: () => void;
   onChargeCommit: (tier: ChargeTier) => void;
-  onChargeAbort: () => void;
 }) {
   const [scatter, setScatter] = useState<{
     nonce: number;
@@ -1196,7 +1198,6 @@ function ChargeDice({
 
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const charging = useRef(false);
-  const aborted = useRef(false);
   /** Consumed once per hold, so the ring's close fires exactly once even though
    * the fill ramp crosses the top on its way down again during a drain. */
   const closed = useRef(false);
@@ -1236,6 +1237,8 @@ function ChargeDice({
     // (pop, release or abort), settling rather than cutting.
     cancelAnimation(keyShake);
     keyShake.value = withTiming(0, { duration: 90 });
+    charge.pullX.value = withSpring(0, SNAP);
+    charge.pullY.value = withSpring(0, SNAP);
     charge.contract.value = withSpring(0, EXPAND_SPRING);
     charge.scale.value = withSpring(0, EXPAND_SPRING);
     charge.bloom.value = withTiming(0, { duration: drainMs });
@@ -1299,7 +1302,6 @@ function ChargeDice({
   const beginCharge = (startFill: number, sixteenth: number) => {
     charging.current = true;
     closed.current = false;
-    onChargeBegin();
     charge.sixteenthMs.value = sixteenth;
     charge.contract.value = withSpring(1, CONTRACT_SPRING);
     charge.discharge.value = 0;
@@ -1400,23 +1402,9 @@ function ChargeDice({
     settleCharge(200);
   };
 
-  /** Dragged off the key: drain, put the pattern back, commit nothing. */
-  const abortCharge = () => {
-    if (!charging.current) return;
-    charging.current = false;
-    aborted.current = true;
-    clearTimers();
-    onChargeAbort();
-    charge.ringOut.value = withDelay(160, withTiming(0, { duration: 120 }));
-    settleCharge(240);
-    // One light impact at the moment the ring empties.
-    timers.current.push(setTimeout(() => haptics.impact("light"), 240));
-  };
-
   const onPressIn = () => {
     if (disabled) return;
     clearTimers();
-    aborted.current = false;
     popped.current = false;
     const sixteenth = chargeSixteenthMs();
     // Re-engaging during a drain picks the ring up where it sits, quantised up
@@ -1434,12 +1422,10 @@ function ChargeDice({
 
   const onPressOut = () => {
     if (disabled) return;
-    if (aborted.current || popped.current) {
-      // The abort — or the full ring firing itself — already resolved this
-      // hold; the release must do nothing. It must also NOT clear timers, or a
-      // quick lift would eat the abort's own "ring empty" haptic and the pop's
-      // settle.
-      aborted.current = false;
+    if (popped.current) {
+      // The full ring already fired itself; the release has nothing left to
+      // resolve. It must also NOT clear timers, or a quick lift would eat the
+      // pop's own settle.
       popped.current = false;
       return;
     }
@@ -1459,38 +1445,43 @@ function ChargeDice({
     releaseCharge();
   };
 
-  // Abort tracking. The Pressable owns press/release; this handler only WATCHES
-  // the finger, so it is manual-activation (it never takes the gesture) and
-  // declared simultaneous with the key so the press is not cancelled.
+  // Finger tracking. The Pressable owns press/release; this handler only
+  // WATCHES the finger, so it is manual-activation (it never takes the gesture)
+  // and declared simultaneous with the key so the press is not cancelled.
+  //
+  // Wandering off the key no longer cancels anything — the charge belongs to
+  // the TOUCH, and it ends when the touch does. Instead the encoder leans after
+  // your finger on a short rubber band: it is anchored, so it gives a little
+  // and then refuses, which says "still holding this" far better than a
+  // cancel-at-24pt tripwire that fired on ordinary finger drift.
   const originX = useSharedValue(0);
   const originY = useSharedValue(0);
-  const abortArmed = useSharedValue(0);
-  const abortWatch = Gesture.Pan()
+  const tracking = useSharedValue(0);
+  const dragWatch = Gesture.Pan()
     .manualActivation(true)
     .onTouchesDown((e) => {
       const t = e.allTouches[0];
       if (!t) return;
       originX.value = t.absoluteX;
       originY.value = t.absoluteY;
-      abortArmed.value = 1;
+      tracking.value = 1;
+      charge.pullX.value = 0;
+      charge.pullY.value = 0;
     })
-    // `abortCharge` reads the press machine's refs (timers, charging), and the
-    // compiler rule can't see that `scheduleOnRN` defers the call to a JS tick long
-    // after this render — a worklet handed to a gesture builder never runs
-    // during render.
-    // eslint-disable-next-line react-hooks/refs
     .onTouchesMove((e) => {
-      if (abortArmed.value !== 1) return;
+      if (tracking.value !== 1) return;
       const t = e.allTouches[0];
       if (!t) return;
-      const dx = t.absoluteX - originX.value;
-      const dy = t.absoluteY - originY.value;
-      if (dx * dx + dy * dy < ABORT_DIST * ABORT_DIST) return;
-      abortArmed.value = 0;
-      scheduleOnRN(abortCharge);
+      // Asymptotic: `d * MAX / (|d| + FALLOFF)` never exceeds PULL_MAX however
+      // far the finger travels, and most of the give is spent in the first few
+      // points — a strong spring on a short leash.
+      charge.pullX.value = rubberBand(t.absoluteX - originX.value);
+      charge.pullY.value = rubberBand(t.absoluteY - originY.value);
     })
     .onTouchesUp(() => {
-      abortArmed.value = 0;
+      tracking.value = 0;
+      charge.pullX.value = withSpring(0, SNAP);
+      charge.pullY.value = withSpring(0, SNAP);
     });
 
   const keyStyle = useAnimatedStyle(() => {
@@ -1522,13 +1513,13 @@ function ChargeDice({
   const flashStyle = useAnimatedStyle(() => ({ opacity: 0.85 * flash.value }));
 
   return (
-    <GestureDetector gesture={abortWatch}>
+    <GestureDetector gesture={dragWatch}>
       <Animated.View style={keyStyle}>
         <Key
           disabled={disabled}
           onPressIn={onPressIn}
           onPressOut={onPressOut}
-          simultaneousWithExternalGesture={abortWatch}
+          simultaneousWithExternalGesture={dragWatch}
           style={styles.btn}
           accessibilityRole="button"
           accessibilityLabel="Mutate pattern"
