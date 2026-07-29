@@ -6,6 +6,21 @@
 
 ---
 
+## 🔝 TOP PRIORITY — do these two next (Brent, 2026-07-28)
+
+Both come out of the dice charge (#48) and both are about making the app feel
+like hardware rather than adding surface area. Ahead of everything under
+"NEXT STEPS" and the feature backlog below.
+
+1. **Ripple shader from the dice pop** — a shader-driven ripple that crosses
+   the whole app outward from the dice when a charge fires.
+   → [Ripple shader from the dice pop](#ripple-shader-from-the-dice-pop-2026-07-28)
+2. **Continuous haptics that ramp in strength** — replace the faked
+   fire-them-faster ladder with a real intensity envelope; Pulsar looks like
+   a direct hit. → [Haptic language](#haptic-language-2026-07-25)
+
+---
+
 ## Phases
 
 ### Phase 1 — PoC Validation (§9, Build Order)
@@ -1140,6 +1155,9 @@ zero-re-render like the rest of the playhead path.
 
 ### Haptic language (2026-07-25)
 
+**The ramping-haptics research below is TOP PRIORITY (see the top of this
+file); the rest of this section is the standing inventory work.**
+
 The tactile companion to the LED motion system: presses already LOOK like
 hardware keys — they should feel like them. **Why it matters (Brent): on
 the OP-XY everything has a very tactile feel — haptics make using the app
@@ -1241,6 +1259,52 @@ rate-based escalation stays as the fallback for builds without the module.
 Note this does NOT violate the "never clock-synced" rule above: a charge ramp
 is a GESTURE envelope, not a per-beat pulse. But the moment it is expressed
 as repeated per-16th one-shots, it starts to.
+
+### Ripple shader from the dice pop (2026-07-28)
+
+**TOP PRIORITY.** When a charge fires, a ripple should cross the WHOLE APP
+outward from the dice — not just the lane grid. Right now the pop raises
+`gridFx: 'reveal'`, which the step strips render as a per-cell wash staggered
+by distance from the capsule (`CELL_STAGGER_MS × dist(i)`). That is a decent
+fake of a wavefront made of ~130 discrete view animations per lane, it stops
+at the strips, and it cannot bend, refract or decay the way a real ripple
+does.
+
+Do it as a Skia runtime shader (SkSL) instead — we already ship
+`@shopify/react-native-skia` and already run a Skia layer in the step strips
+behind `SKIA_STRIP_GLOW`, so the dependency and the pattern are both paid
+for. See "Skia shaders" under the LED-motion tech notes above; this is the
+same idea escalated from one lane to the whole screen.
+
+What to look up and try:
+
+- **Prior art first.** Survey the good ones — Shadertoy ripple/water
+  distortion, Skia's `RuntimeEffect` samples, the classic
+  `sin(distance - time)` radial displacement, and the "shockwave"
+  post-process used in games (a thin annulus of displacement travelling
+  outward, not a filled disc). Also look at how iOS does its own
+  radial reveals, and at Rive/Lottie ripple takes for timing reference.
+- **Uniforms:** origin (the dice's centre in screen space), progress, ring
+  thickness, amplitude, decay. Bind them straight to Reanimated shared
+  values so `charge.discharge` — which already runs 0 → 1 on release — IS
+  the ripple clock and nothing re-renders. The origin must track the
+  contracted encoder, which is the capsule centre, so it is already known.
+- **Amplitude should scale with the tier**, exactly as the pop's spring and
+  discharge hairline already do: a NUDGE ripple should barely disturb the
+  grid, an UPEND one should visibly bend it.
+- **Where it draws.** The honest version distorts a snapshot of the whole
+  screen, which means an offscreen pass — check what that costs before
+  committing. A cheaper first cut: one full-screen Skia canvas over the app
+  drawing only the wavefront (a soft annulus with additive light), no
+  displacement of the content underneath. Ship the cheap one, measure, then
+  decide whether real refraction earns its cost.
+- **Constraints:** must not touch the JS thread (the charge clock already
+  had to leave it), must honour Reduced Motion (settle to a single soft
+  flash, as the pop already does), and must not fight the LED language —
+  the grid's own lights stay the subject, the ripple is the medium.
+- Watch the interaction with the existing `'reveal'` wash: the ripple likely
+  REPLACES it rather than layering on top, or the two will read as two
+  different events for one gesture.
 
 ### Onboarding flow
 
