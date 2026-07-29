@@ -1,3 +1,4 @@
+import { parseClaudeStructuredOutput } from "../shared/claude-structured-output";
 import { parsePublicPlainText } from "../shared/public-plain-text";
 
 export type PublicFeedbackReport = {
@@ -66,23 +67,7 @@ function parseField(
 }
 
 function parseStructuredOutput(raw: string): Record<string, unknown> {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new Error("Claude intake output must contain valid JSON");
-  }
-
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("Claude intake output must contain a JSON object");
-  }
-
-  const envelope = parsed as Record<string, unknown>;
-  const candidate = envelope.structured_output ?? envelope;
-  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
-    throw new Error("Claude intake output is missing structured_output");
-  }
-  return candidate as Record<string, unknown>;
+  return parseClaudeStructuredOutput(raw, "Claude intake output");
 }
 
 function parseReportFields(
