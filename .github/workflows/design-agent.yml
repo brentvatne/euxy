@@ -5,8 +5,9 @@
 #
 # Label an issue `design-agent` once. After that:
 #   - labeling starts the first run (the body is the brief)
-#   - any later comment from an allowlisted author starts another, so feedback
-#     alone drives a revision — no re-labeling
+#   - any later comment from brentvatne starts another, so feedback alone drives
+#     a revision — no re-labeling. Comments that ask for no change ("nice",
+#     "lgtm") are classified on EAS and cost no design run.
 #
 # EAS decides fresh-vs-revision from the issue's own marker. Remove the label to
 # stop comments triggering runs.
@@ -33,9 +34,10 @@ jobs:
     # rather than anything a contributor pushed. EAS re-fetches the issue and
     # repeats these checks before spending a run.
     #
-    # The allowlist check is also what stops a feedback loop: this workflow's own
-    # acknowledgement and the agent's "Proposal opened" comment are posted by bot
-    # identities, which are not on the allowlist and so cannot retrigger it.
+    # Comments are restricted to brentvatne alone, matching agent-work.yml. That
+    # also stops a feedback loop: this workflow's acknowledgement and the agent's
+    # own "Proposal opened" / "Revised in" comments come from bot identities, which
+    # can never satisfy that check.
     #
     # `@notbrent …` comments are excluded because agent-work.yml owns that prefix;
     # an explicit command there should mean agent work, not a design revision.
@@ -55,10 +57,7 @@ jobs:
           github.event_name == 'issue_comment'
           && contains(github.event.issue.labels.*.name, 'design-agent')
           && !startsWith(github.event.comment.body, '@notbrent')
-          && contains(
-            fromJSON(vars.AGENT_WORK_ALLOWLIST || '["brentvatne"]'),
-            github.event.comment.user.login
-          )
+          && github.event.comment.user.login == 'brentvatne'
         )
       )
     runs-on: ubuntu-latest
@@ -73,6 +72,7 @@ jobs:
           TRUSTED_GIT_REF: ${{ github.sha }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_ID: ${{ github.event.issue.id }}
+          COMMENT_ID: ${{ github.event.comment.id }}
           ACTOR: ${{ github.event.comment.user.login || github.event.sender.login }}
         run: |
           if [[ -z "$EXPO_TOKEN" ]]; then
@@ -89,6 +89,7 @@ jobs:
               --arg git_ref "$TRUSTED_GIT_REF" \
               --arg issue_number "$ISSUE_NUMBER" \
               --arg issue_id "$ISSUE_ID" \
+              --arg comment_id "$COMMENT_ID" \
               --arg actor "$ACTOR" \
               '{
                 appId: $app_id,
@@ -97,6 +98,7 @@ jobs:
                 inputs: {
                   issue_number: $issue_number,
                   issue_id: $issue_id,
+                  comment_id: $comment_id,
                   actor: $actor
                 }
               }'

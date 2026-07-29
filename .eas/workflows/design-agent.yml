@@ -39,6 +39,10 @@ on:
         description: Immutable GitHub issue database ID
         type: string
         default: ''
+      comment_id:
+        description: Comment that triggered the run, classified before spending one
+        type: string
+        default: ''
       actor:
         description: Login that applied the label, re-authorized on this side
         type: string
@@ -59,6 +63,7 @@ jobs:
       CONTINUES_ISSUE: ${{ inputs.continues_issue }}
       ISSUE_NUMBER: ${{ inputs.issue_number }}
       ISSUE_ID: ${{ inputs.issue_id }}
+      COMMENT_ID: ${{ inputs.comment_id }}
       ACTOR: ${{ inputs.actor }}
       DESIGN_AGENT_ALLOWLIST: '["brentvatne"]'
       WORKFLOW_URL: ${{ workflow.url }}

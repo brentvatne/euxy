@@ -21,6 +21,11 @@ import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 import { runClaudeAgent } from "../shared/claude-agent";
+import {
+  buildDesignCommentIntentCommand,
+  buildDesignCommentIntentPrompt,
+  parseDesignCommentIntent,
+} from "./design-comment-intent";
 
 const OUT_DIR = resolve(".eas/design-agent/out");
 const MOCKUP_DIR = join(OUT_DIR, "mockups");
@@ -48,6 +53,7 @@ const WORKFLOW_URL = process.env.WORKFLOW_URL || "";
 let CONTINUES_ISSUE = (process.env.CONTINUES_ISSUE || "").trim();
 const ISSUE_NUMBER = (process.env.ISSUE_NUMBER || "").trim();
 const ACTOR = (process.env.ACTOR || "").trim();
+const COMMENT_ID = (process.env.COMMENT_ID || "").trim();
 const [owner, repo] = REPO_SLUG.split("/");
 if (!owner || !repo) throw new Error("REPO_SLUG must look like owner/repo");
 
@@ -80,6 +86,45 @@ async function run(
     child.exited,
   ]);
   return { code, out: out.trim(), err: err.trim() };
+}
+
+/** Ask Claude whether a comment is requesting a change; fail open to "revise". */
+async function classifyComment(comment: string): Promise<"revise" | "ignore"> {
+  const prompt = buildDesignCommentIntentPrompt(comment);
+  if (!prompt) {
+    console.log("▸ Comment is empty or too long to classify; treating it as a revision request.");
+    return "revise";
+  }
+
+  // Only what the classifier needs. It runs with no tools and one turn, so it
+  // never sees the Paper session or the GitHub token.
+  const classifierEnv: Record<string, string> = {
+    CLAUDE_CODE_OAUTH_TOKEN: req("CLAUDE_CODE_OAUTH_TOKEN"),
+    DISABLE_AUTOUPDATER: "1",
+  };
+  for (const name of ["PATH", "HOME", "LANG", "TMPDIR"]) {
+    if (process.env[name]) classifierEnv[name] = process.env[name]!;
+  }
+
+  const child = Bun.spawn(buildDesignCommentIntentCommand(), {
+    stdin: new Blob([prompt]),
+    stdout: "pipe",
+    stderr: "pipe",
+    env: classifierEnv,
+  });
+  const [out, code] = await Promise.all([new Response(child.stdout).text(), child.exited]);
+  if (code !== 0) {
+    console.log(`▸ Comment classifier exited ${code}; treating it as a revision request.`);
+    return "revise";
+  }
+  try {
+    const intent = parseDesignCommentIntent(out);
+    console.log(`▸ Comment classified as "${intent}".`);
+    return intent;
+  } catch (error) {
+    console.log(`▸ Could not parse the classifier output (${(error as Error).message}); revising.`);
+    return "revise";
+  }
 }
 
 /**
@@ -144,6 +189,31 @@ if (ISSUE_NUMBER) {
     throw new Error(`#${ISSUE_NUMBER} is a pull request, not an issue.`);
   }
   const body = (source.body ?? "").trim();
+
+  // A comment-triggered run is classified before it costs anything. The design
+  // run itself takes minutes and redraws artboards on the shared canvas, so
+  // acknowledgements must be free. Failing open (treating anything unclassifiable
+  // as a revision) is deliberate: a skipped request is worse than a wasted run.
+  if (COMMENT_ID) {
+    if (!/^[0-9]{1,19}$/.test(COMMENT_ID)) {
+      throw new Error(`COMMENT_ID must be numeric, got "${COMMENT_ID}"`);
+    }
+    const commentResponse = await gh(`/issues/comments/${COMMENT_ID}`);
+    if (!commentResponse.ok) {
+      throw new Error(`Could not read comment ${COMMENT_ID} (HTTP ${commentResponse.status}).`);
+    }
+    const comment = (await commentResponse.json()) as { body?: string; user?: { login?: string } };
+    // Re-check the author here too: the dispatcher's gate is on the GitHub side.
+    if (comment.user?.login !== ACTOR) {
+      throw new Error(`Comment ${COMMENT_ID} was not written by the dispatching actor.`);
+    }
+
+    const intent = await classifyComment((comment.body ?? "").trim());
+    if (intent === "ignore") {
+      console.log(`▸ Comment ${COMMENT_ID} asks for no change; skipping the run.`);
+      process.exit(0);
+    }
+  }
 
   if (body.includes("<!-- euxy-design-proposal -->")) {
     // Labeling an existing proposal means "revise this", so the thread becomes
