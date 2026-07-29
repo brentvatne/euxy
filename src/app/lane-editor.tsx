@@ -2,9 +2,11 @@
  * Lane Editor form sheet (Paper "02 · Lane Editor" + "02b · scrolled"). The
  * vertical D layout: the combined pattern is a compact pinned card (always
  * visible; a drop shadow appears once the form scrolls beneath it), then
- * sections ordered by how often they're touched — Generator 1/2 (sliders),
- * Combine (op · steps · track rotate), Sound (note + track), More (name,
- * resolution, velocity, gate as a compact grouped list), Randomize, Delete.
+ * Sound (note + track) — first, because it's what you set before touching the
+ * rhythm on a new lane (Brent 2026-07-29) — then Generator 1/2 (sliders),
+ * Combine (op · steps · track rotate), More (name, resolution, velocity, gate
+ * as a compact grouped list), Randomize, Delete. Listen explains itself in a
+ * one-line strip that exists only while it's engaged, not as a standing footnote.
  * Section headers use the current-iOS style (title case 17/22 semibold), like
  * the MIDI screen. No Steps|Graph toggle — the combined card is the only view.
  */
@@ -294,65 +296,9 @@ export default function LaneEditorSheet() {
             height: combinedCardHeight(lane.length) + PINNED_PAD_TOP + PINNED_PAD_BOTTOM,
           }}
         />
-        <Section title="Generator 1" dot={color.label}>
-          <SliderRow
-            label="Pulses"
-            value={lane.genA.pulses}
-            min={0}
-            max={lane.length}
-            onChange={(v) => updateGenerator(id, 'genA', { pulses: v })}
-          />
-          <SliderRow
-            label="Rotate"
-            value={lane.genA.rotation}
-            min={0}
-            max={maxRot}
-            onChange={(v) => updateGenerator(id, 'genA', { rotation: v })}
-          />
-        </Section>
-
-        <Section title="Generator 2" dot={color.label3} hint="0 pulses = off">
-          <SliderRow
-            label="Pulses"
-            value={lane.genB.pulses}
-            min={0}
-            max={lane.length}
-            onChange={(v) => updateGenerator(id, 'genB', { pulses: v })}
-          />
-          <SliderRow
-            label="Rotate"
-            value={lane.genB.rotation}
-            min={0}
-            max={maxRot}
-            onChange={(v) => updateGenerator(id, 'genB', { rotation: v })}
-          />
-        </Section>
-
-        <Section title="Combine">
-          <PickerBar<CombineOp>
-            options={OP_OPTIONS}
-            value={lane.op}
-            onChange={(op) => setLaneOp(id, op)}
-            size={13}
-          />
-          <SliderRow
-            label="Steps"
-            value={lane.length}
-            min={1}
-            max={64}
-            onChange={setLength}
-            // Bar-multiple landmarks land with a harder detent (encoder feel).
-            accentValues={[16, 32, 48, 64]}
-          />
-          <SliderRow
-            label="Track rotate"
-            value={lane.trackRot}
-            min={0}
-            max={maxRot}
-            onChange={(v) => updateLane(id, { trackRot: v })}
-          />
-        </Section>
-
+        {/* Sound leads the form (Brent 2026-07-29): note & track are what a new
+            lane needs before its rhythm is worth hearing, so they shouldn't sit
+            three slider sections down. */}
         <Section title="Sound">
           <View style={styles.cells}>
             <Pressable
@@ -411,6 +357,18 @@ export default function LaneEditorSheet() {
                 />
               </View>
             </Pressable>
+            {/* How Listen works, only while it's listening (Brent 2026-07-29 —
+                the standing footnote under the group explained a mode nobody was
+                in). Attached to the cell it drives, one line, present tense: it
+                reads as the mode's own status, not as documentation. */}
+            {listening ? (
+              <View style={[styles.listenHint, styles.cellMid]}>
+                <SFSymbol name="mic.fill" size={12} tint={color.label3} />
+                <AppText style={styles.listenHintText}>
+                  Play a note on the OP‑XY — its channel picks the track.
+                </AppText>
+              </View>
+            ) : null}
             {padsOpen ? (
               <NotePads
                 note={lane.note}
@@ -470,10 +428,65 @@ export default function LaneEditorSheet() {
               </View>
             ) : null}
           </View>
-          <AppText style={styles.groupFootnote}>
-            Listen — play a note from the OP‑XY’s aux track to set it. The channel you send on
-            selects the track, and euxy echoes the note back so you hear it played from that track.
-          </AppText>
+        </Section>
+
+        <Section title="Generator 1" dot={color.label}>
+          <SliderRow
+            label="Pulses"
+            value={lane.genA.pulses}
+            min={0}
+            max={lane.length}
+            onChange={(v) => updateGenerator(id, 'genA', { pulses: v })}
+          />
+          <SliderRow
+            label="Rotate"
+            value={lane.genA.rotation}
+            min={0}
+            max={maxRot}
+            onChange={(v) => updateGenerator(id, 'genA', { rotation: v })}
+          />
+        </Section>
+
+        <Section title="Generator 2" dot={color.label3} hint="0 pulses = off">
+          <SliderRow
+            label="Pulses"
+            value={lane.genB.pulses}
+            min={0}
+            max={lane.length}
+            onChange={(v) => updateGenerator(id, 'genB', { pulses: v })}
+          />
+          <SliderRow
+            label="Rotate"
+            value={lane.genB.rotation}
+            min={0}
+            max={maxRot}
+            onChange={(v) => updateGenerator(id, 'genB', { rotation: v })}
+          />
+        </Section>
+
+        <Section title="Combine">
+          <PickerBar<CombineOp>
+            options={OP_OPTIONS}
+            value={lane.op}
+            onChange={(op) => setLaneOp(id, op)}
+            size={13}
+          />
+          <SliderRow
+            label="Steps"
+            value={lane.length}
+            min={1}
+            max={64}
+            onChange={setLength}
+            // Bar-multiple landmarks land with a harder detent (encoder feel).
+            accentValues={[16, 32, 48, 64]}
+          />
+          <SliderRow
+            label="Track rotate"
+            value={lane.trackRot}
+            min={0}
+            max={maxRot}
+            onChange={(v) => updateLane(id, { trackRot: v })}
+          />
         </Section>
 
         <Section title="More">
@@ -615,15 +628,6 @@ const styles = StyleSheet.create({
   sectionBody: { gap: 14 },
 
   cells: { gap: 1 },
-  // iOS grouped-list footer (Paper 02: 13/18 label4, slight inset).
-  groupFootnote: {
-    fontFamily: font.text,
-    fontSize: 13,
-    lineHeight: 18,
-    color: color.label4,
-    paddingHorizontal: 4,
-    paddingTop: 8,
-  },
   cell: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -672,6 +676,23 @@ const styles = StyleSheet.create({
   },
   listenLabel: { fontFamily: font.text, fontWeight: '700', fontSize: 13, lineHeight: 16, color: color.ground },
   listenActive: { backgroundColor: color.surface3 },
+  // The while-listening strip: a cell of the same group (surface2, same insets)
+  // so it belongs to the Note row rather than floating as loose copy.
+  listenHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: color.surface2,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  listenHintText: {
+    flex: 1,
+    fontFamily: font.text,
+    fontSize: 13,
+    lineHeight: 18,
+    color: color.label3,
+  },
   listenLabelActive: { color: color.label },
   // Paper 02c: Listen recedes while the pad grid is the primary input.
   listenMuted: { backgroundColor: ramp[6] },
