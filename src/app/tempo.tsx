@@ -6,8 +6,9 @@
  * Cancel restores the open-time values (only the ones this sheet actually
  * changed, so a device-driven BPM is never stomped). In record mode the
  * OP-XY owns the clock: the BPM stepper is disabled, resolution stays
- * editable. The Paper board also mocks a TAP TEMPO key — not shipped yet
- * (ROADMAP §10 follow-up).
+ * editable. Either ± button also HOLDS to scroll BPM at an accelerating rate
+ * (use-hold-repeat) — 20…300 is too wide to tap across. The Paper board also
+ * mocks a TAP TEMPO key — not shipped yet (ROADMAP §10 follow-up).
  *
  * Base-resolution semantics: the base is only the DEFAULT grid for NEW
  * lanes — every lane carries its own resolutionTicks, so changing it here
@@ -19,8 +20,8 @@ import { Pressable } from 'react-native-gesture-handler';
 import { router } from 'expo-router';
 
 import { AppText, SFSymbol, SheetHeader } from '@/components/ui';
+import { useHoldRepeat } from '@/components/ui/use-hold-repeat';
 import { ValueFilm } from '@/components/ui/value-film';
-import { haptics } from '@/lib/shims';
 import { ResolutionPicker } from '@/components/patterns/resolution-picker';
 import { useActivePattern } from '@/state/selectors';
 import { useStore } from '@/state/store';
@@ -40,14 +41,21 @@ export default function TempoSheet() {
   // this sheet changed — in record mode the device moves BPM underneath us.
   const opened = useRef({ bpm, ticks, bpmDirty: false, ticksDirty: false });
 
+  /** One ± press, or one tick of a hold. Reads the CURRENT bpm from the store
+   * rather than this render's closure: a hold steps ~30×/second, faster than
+   * we can count on a re-render landing between ticks. Returns whether the
+   * value moved so the hold ends at BPM_MIN/BPM_MAX. Haptics come from
+   * useHoldRepeat (it thins them at speed). */
   const adjustBpm = (delta: number) => {
-    const next = Math.max(BPM_MIN, Math.min(BPM_MAX, Math.round(bpm) + delta));
-    if (next !== bpm) {
-      haptics.selection();
-      opened.current.bpmDirty = true;
-      setBpm(next);
-    }
+    const current = Math.round(useStore.getState().transport.bpm);
+    const next = Math.max(BPM_MIN, Math.min(BPM_MAX, current + delta));
+    if (next === current) return false;
+    opened.current.bpmDirty = true;
+    setBpm(next);
+    return true;
   };
+  const decBpm = useHoldRepeat(() => adjustBpm(-1));
+  const incBpm = useHoldRepeat(() => adjustBpm(1));
 
   const changeResolution = (t: number) => {
     opened.current.ticksDirty = true;
@@ -76,7 +84,7 @@ export default function TempoSheet() {
             <AppText variant="body">BPM</AppText>
             <View style={styles.tempoControls}>
               <Pressable
-                onPress={() => adjustBpm(-1)}
+                {...decBpm}
                 disabled={bpmDisabled || bpm <= BPM_MIN}
                 hitSlop={space.sm}
                 style={[styles.tempoBtn, (bpmDisabled || bpm <= BPM_MIN) && styles.disabled]}
@@ -97,7 +105,7 @@ export default function TempoSheet() {
                 </AppText>
               </View>
               <Pressable
-                onPress={() => adjustBpm(1)}
+                {...incBpm}
                 disabled={bpmDisabled || bpm >= BPM_MAX}
                 hitSlop={space.sm}
                 style={[styles.tempoBtn, (bpmDisabled || bpm >= BPM_MAX) && styles.disabled]}

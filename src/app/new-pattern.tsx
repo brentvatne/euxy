@@ -10,7 +10,7 @@
  * default is a shuffled glyph (icon-picker spec: every pattern gets a
  * distinct icon with zero effort), pre-selected and scrolled into view.
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 import { router } from 'expo-router';
@@ -19,6 +19,7 @@ import { AppText, SFSymbol, SheetHeader } from '@/components/ui';
 import { IconClear, IconDice } from '@/components/ui/icons';
 import { Key } from '@/components/ui/key';
 import { KeyboardAwareScrollView } from '@/components/ui/keyboard';
+import { useHoldRepeat } from '@/components/ui/use-hold-repeat';
 import { ValueFilm } from '@/components/ui/value-film';
 import { haptics } from '@/lib/shims';
 import { generatePatternName } from '@/lib/pattern-names';
@@ -49,6 +50,7 @@ export default function NewPatternSheet() {
   const [name, setName] = useState(suggestion);
   const [icon, setIcon] = useState<ChipName>(() => randomChipName());
   const [bpm, setBpm] = useState(120);
+  const bpmRef = useRef(bpm);
   const [ticks, setTicks] = useState<number>(timing.defaultResolutionTicks);
 
   // Land the row's initial scroll on the shuffled default (a peek of the
@@ -75,13 +77,19 @@ export default function NewPatternSheet() {
   };
   const clearName = () => setName('');
 
+  /** One ± press, or one tick of a hold. Steps from the ref, not this render's
+   * `bpm`: a hold ticks ~30×/second, faster than we can count on a re-render
+   * landing between ticks. Returns whether the value moved so the hold ends at
+   * BPM_MIN/BPM_MAX. Haptics come from useHoldRepeat (it thins them at speed). */
   const adjustBpm = (delta: number) => {
-    const next = Math.max(BPM_MIN, Math.min(BPM_MAX, bpm + delta));
-    if (next !== bpm) {
-      haptics.selection();
-      setBpm(next);
-    }
+    const next = Math.max(BPM_MIN, Math.min(BPM_MAX, bpmRef.current + delta));
+    if (next === bpmRef.current) return false;
+    bpmRef.current = next;
+    setBpm(next);
+    return true;
   };
+  const decBpm = useHoldRepeat(() => adjustBpm(-1));
+  const incBpm = useHoldRepeat(() => adjustBpm(1));
 
   return (
     <View style={styles.root}>
@@ -173,7 +181,7 @@ export default function NewPatternSheet() {
             <AppText variant="body">BPM</AppText>
             <View style={styles.tempoControls}>
               <Pressable
-                onPress={() => adjustBpm(-1)}
+                {...decBpm}
                 disabled={bpm <= BPM_MIN}
                 hitSlop={space.sm}
                 style={[styles.tempoBtn, bpm <= BPM_MIN && styles.disabled]}
@@ -190,7 +198,7 @@ export default function NewPatternSheet() {
                 </AppText>
               </View>
               <Pressable
-                onPress={() => adjustBpm(1)}
+                {...incBpm}
                 disabled={bpm >= BPM_MAX}
                 hitSlop={space.sm}
                 style={[styles.tempoBtn, bpm >= BPM_MAX && styles.disabled]}
