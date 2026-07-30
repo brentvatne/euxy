@@ -15,6 +15,7 @@ import Animated, {
   withSequence,
   withSpring,
   withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
 
 import { haptics } from '@/lib/shims';
@@ -28,15 +29,24 @@ export interface KeyProps extends Omit<PressableProps, 'style'> {
   ack?: boolean;
   /** Press-in feedback weight; 'none' for keys that provide their own. */
   haptic?: 'light' | 'medium' | 'none';
+  /**
+   * 0…1 — how much of the press travel to GIVE BACK while the finger is still
+   * down, for a press that has become a gesture of its own (the dice charge).
+   * The travel is a 6% scale, and a scale is resampling: held for the seconds a
+   * charge lasts it leaves the key's glyph off the device-pixel grid, which
+   * reads as the glyph going blurry (Brent, on the dice hold). A tap is far too
+   * short to see it, so only a key that owns a long hold passes this.
+   */
+  travelRelease?: SharedValue<number>;
   children?: React.ReactNode;
 }
 
-export function Key({ style, ack = false, haptic = 'light', onPressIn, onPressOut, children, ...rest }: KeyProps) {
+export function Key({ style, ack = false, haptic = 'light', travelRelease, onPressIn, onPressOut, children, ...rest }: KeyProps) {
   const down = useSharedValue(0);
   const ring = useSharedValue(0);
 
   const travelStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: 1 - 0.06 * down.value }],
+    transform: [{ scale: 1 - 0.06 * down.value * (1 - (travelRelease?.value ?? 0)) }],
   }));
   const ringStyle = useAnimatedStyle(() => ({
     opacity: 0.8 * ring.value,

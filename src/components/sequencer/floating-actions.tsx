@@ -1513,6 +1513,14 @@ function ChargeDice({
     opacity: 0.6 * charge.bloom.value,
   }));
   const flashStyle = useAnimatedStyle(() => ({ opacity: 0.85 * flash.value }));
+  // The press travel goes back EARLY in the contract (the same `contract * 3`
+  // handoff the armed rim uses), not across the whole 520ms spring: the travel
+  // is a 6% scale, and every frame it is held for is a frame of the pips being
+  // resampled off the device-pixel grid. Leading the contract confines that to
+  // the engage itself rather than the whole first beat of the charge.
+  const travelRelease = useDerivedValue(() =>
+    Math.min(1, charge.contract.value * 3),
+  );
 
   return (
     <GestureDetector gesture={dragWatch}>
@@ -1521,6 +1529,10 @@ function ChargeDice({
           disabled={disabled}
           onPressIn={onPressIn}
           onPressOut={onPressOut}
+          // A charge is no longer a press: the key hands its 6% press travel
+          // back as the capsule contracts, so the pips are not left scaled off
+          // the pixel grid for the whole hold (see KeyProps.travelRelease).
+          travelRelease={travelRelease}
           simultaneousWithExternalGesture={dragWatch}
           style={styles.btn}
           accessibilityRole="button"
