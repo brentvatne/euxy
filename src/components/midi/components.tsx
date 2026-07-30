@@ -171,22 +171,6 @@ export function LatencySlider({
   );
 }
 
-/** Monospace activity-log preview (last few lines) shown inside a Diagnostics cell. */
-export function LogPreview({ lines }: { lines: { id: number; dir: 'in' | 'out'; hex: string; label: string }[] }) {
-  if (lines.length === 0) {
-    return <AppText style={[styles.logLine, styles.logIdle]} mono>— waiting for MIDI device —</AppText>;
-  }
-  return (
-    <>
-      {lines.map((l) => (
-        <AppText key={l.id} mono numberOfLines={1} style={[styles.logLine, l.dir === 'out' ? styles.logOut : styles.logIn]}>
-          {l.dir === 'out' ? '→' : '←'} {l.hex} {l.label}
-        </AppText>
-      ))}
-    </>
-  );
-}
-
 const styles = StyleSheet.create({
   // iOS Settings-style header: aligned with the group's edge, body-size semibold.
   section: { paddingTop: 24, paddingBottom: 8, paddingHorizontal: space.lg },
@@ -207,9 +191,4 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.3 },
 
   slider: { height: 28 },
-
-  logLine: { fontSize: 12, lineHeight: 16 },
-  logIdle: { color: color.label },
-  logOut: { color: color.label },
-  logIn: { color: color.label3 },
 });
