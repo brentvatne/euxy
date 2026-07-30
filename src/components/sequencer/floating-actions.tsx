@@ -1935,7 +1935,14 @@ const styles = StyleSheet.create({
     padding: PAD,
   },
   barGlass: {
-    borderWidth: 0.5,
+    // Same device-pixel-grid problem the dice pips had, one level out. The
+    // Paper rim is 0.5pt = 1.5 device pixels at 3×, so the capsule's outline
+    // renders as a full-strength line PLUS a half-strength ghost line beside
+    // it (measured on a 3× sim: 31 + 17 of 255 down the sides) — a doubled
+    // edge, which is what reads as blur next to the crisp keys inside it.
+    // `hairlineWidth` is exactly ONE device pixel at every density (0.5pt at
+    // 2×, ⅓pt at 3×), which is what a "0.5px rim" means on a Retina screen.
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(255,255,255,0.12)",
   },
   barSolid: {
