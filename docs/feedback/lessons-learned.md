@@ -59,6 +59,16 @@ gesture code instead of questioning why it was custom.
   shim. Tooling: a standard "optional native module" helper, or dev-client
   surfacing "this JS needs native module X, absent from this build" as a
   non-fatal banner instead of a red screen.
+- **A deep-linked form sheet needs a guaranteed screen under it.** The channel
+  link (`euxy://c/<channel>`) was first registered inside the MIDI tab's stack,
+  copying how /p sits in the Patterns tab. A link that arrived before that tab
+  was ever visited made the sheet its stack's FIRST screen, so iOS dropped the
+  formSheet presentation: full height, no grabber, no header, no way back —
+  visible only on device, never in the code. Registering it in the root Stack
+  plus `unstable_settings = { anchor: '(tabs)' }` fixed it. Tooling: expo-router
+  could warn when a `presentation: 'formSheet'` screen can resolve as a
+  navigator's first route, and the expo-router skill should say that a
+  deep-linkable sheet belongs where an anchor keeps a screen beneath it.
 - **Fidelity passes catch what specs can't** — three hardware bugs (packet
   coalescing eating Start, dropped send timestamps → 0ms gates, run-loop-less
   CoreMIDI client freezing device lists) were invisible in sim testing and
