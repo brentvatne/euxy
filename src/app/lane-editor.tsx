@@ -2,9 +2,12 @@
  * Lane Editor form sheet (Paper "02 · Lane Editor" + "02b · scrolled"). The
  * vertical D layout: the combined pattern is a compact pinned card (always
  * visible; a drop shadow appears once the form scrolls beneath it), then
- * sections ordered by how often they're touched — Generator 1/2 (sliders),
- * Combine (op · steps · track rotate), Sound (note + track), More (name,
- * resolution, velocity, gate as a compact grouped list), Randomize, Delete.
+ * Sound (note + track) — first, because it's what you set before touching the
+ * rhythm on a new lane (Brent 2026-07-29) — then Generator 1/2 (sliders),
+ * Combine (op · steps · track rotate), More (name, resolution, velocity, gate
+ * as a compact grouped list), Randomize, Delete. Listen explains itself in a
+ * popover that hangs off the Listen key while it's engaged, not as a standing
+ * footnote under the group.
  * Section headers use the current-iOS style (title case 17/22 semibold), like
  * the MIDI screen. No Steps|Graph toggle — the combined card is the only view.
  */
@@ -20,6 +23,13 @@ import {
   type ScrollView,
 } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
+import Animated, {
+  Easing,
+  FadeOut,
+  ReduceMotion,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { midi, midiOut, sendTestNote } from '@/components/midi/runtime';
 import { midiNoteName } from '@/core/note';
@@ -82,6 +92,71 @@ const EDIT_FIELDS: { key: string; read: (l: Lane) => unknown }[] = [
   { key: 'gate', read: (l) => l.gateMs },
 ];
 
+/** Caret box (a rotated square, so its point is the diagonal). */
+const TIP_CARET = 12;
+
+/**
+ * The popover DROPS out of the Listen key: opacity leads, 6pt of travel, one
+ * soft settle. Short enough to feel like the key's own response to the tap
+ * (Brent 2026-07-29 asked for a popover instead of a strip in the group).
+ */
+const TIP_ENTER = () => {
+  'worklet';
+  return {
+    initialValues: { opacity: 0, transform: [{ translateY: -6 }] },
+    animations: {
+      opacity: withTiming(1, {
+        duration: 130,
+        easing: Easing.out(Easing.quad),
+        reduceMotion: ReduceMotion.System,
+      }),
+      transform: [
+        {
+          translateY: withSpring(0, {
+            duration: 320,
+            dampingRatio: 0.8,
+            reduceMotion: ReduceMotion.System,
+          }),
+        },
+      ],
+    },
+  };
+};
+/** Leaving is faster and drops the movement — the mode is already over. */
+const TIP_EXIT = FadeOut.duration(110).reduceMotion(ReduceMotion.System);
+
+/**
+ * The Listen popover: what Listen does, said once, while it is listening —
+ * the message Brent kept from the old group footnote, trimmed, with no icon.
+ * It floats over the rows below (pointerEvents none, so the pads and Track row
+ * underneath stay tappable) rather than taking a row of its own, so engaging
+ * Listen never reflows the form.
+ *
+ * `caretLeft` is the Listen key's measured centre in the Note row's coordinate
+ * space — measured, not derived from the label, because the key changes width
+ * when it flips to "Listening…".
+ */
+function ListenTip({ caretLeft }: { caretLeft: number }) {
+  return (
+    <Animated.View
+      pointerEvents="none"
+      entering={TIP_ENTER}
+      exiting={TIP_EXIT}
+      style={styles.tipLayer}
+    >
+      {/* Caret first, bubble second: the bubble paints over the square's lower
+          half, leaving only the point above its edge. */}
+      <View style={[styles.tipCaret, { left: caretLeft - TIP_CARET / 2 }]} />
+      <View style={styles.tipBubble}>
+        <AppText style={styles.tipText}>
+          Play a note from the OP‑XY’s aux track to set it. The channel picks the track, and euxy
+          echoes it back.
+        </AppText>
+      </View>
+    </Animated.View>
+  );
+}
+
 /** iOS-style section header (matches the MIDI screen's SectionHeader). */
 function Section({
   title,
@@ -125,6 +200,10 @@ export default function LaneEditorSheet() {
   const [padsOpen, setPadsOpen] = useState(false);
   // Track entry: same disclosure for the 8-track row — collapsed until tapped.
   const [trackOpen, setTrackOpen] = useState(false);
+  // Listen popover anchor: the key's centre along the Note row = its offset
+  // inside the row's right-hand group + that group's offset inside the cell.
+  const [listenGroupX, setListenGroupX] = useState(0);
+  const [listenKeyX, setListenKeyX] = useState(0);
   // The pinned card's drop shadow appears only once content scrolls under it.
   const [scrolled, setScrolled] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
@@ -294,123 +373,93 @@ export default function LaneEditorSheet() {
             height: combinedCardHeight(lane.length) + PINNED_PAD_TOP + PINNED_PAD_BOTTOM,
           }}
         />
-        <Section title="Generator 1" dot={color.label}>
-          <SliderRow
-            label="Pulses"
-            value={lane.genA.pulses}
-            min={0}
-            max={lane.length}
-            onChange={(v) => updateGenerator(id, 'genA', { pulses: v })}
-          />
-          <SliderRow
-            label="Rotate"
-            value={lane.genA.rotation}
-            min={0}
-            max={maxRot}
-            onChange={(v) => updateGenerator(id, 'genA', { rotation: v })}
-          />
-        </Section>
-
-        <Section title="Generator 2" dot={color.label3} hint="0 pulses = off">
-          <SliderRow
-            label="Pulses"
-            value={lane.genB.pulses}
-            min={0}
-            max={lane.length}
-            onChange={(v) => updateGenerator(id, 'genB', { pulses: v })}
-          />
-          <SliderRow
-            label="Rotate"
-            value={lane.genB.rotation}
-            min={0}
-            max={maxRot}
-            onChange={(v) => updateGenerator(id, 'genB', { rotation: v })}
-          />
-        </Section>
-
-        <Section title="Combine">
-          <PickerBar<CombineOp>
-            options={OP_OPTIONS}
-            value={lane.op}
-            onChange={(op) => setLaneOp(id, op)}
-            size={13}
-          />
-          <SliderRow
-            label="Steps"
-            value={lane.length}
-            min={1}
-            max={64}
-            onChange={setLength}
-            // Bar-multiple landmarks land with a harder detent (encoder feel).
-            accentValues={[16, 32, 48, 64]}
-          />
-          <SliderRow
-            label="Track rotate"
-            value={lane.trackRot}
-            min={0}
-            max={maxRot}
-            onChange={(v) => updateLane(id, { trackRot: v })}
-          />
-        </Section>
-
+        {/* Sound leads the form (Brent 2026-07-29): note & track are what a new
+            lane needs before its rhythm is worth hearing, so they shouldn't sit
+            three slider sections down. */}
         <Section title="Sound">
           <View style={styles.cells}>
-            <Pressable
-              style={({ pressed }) => [styles.cell, styles.cellFirst, pressed && styles.pressedDim]}
-              onPress={() => {
-                haptics.selection();
-                setPadsOpen((v) => !v);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Note"
-              accessibilityState={{ expanded: padsOpen }}
-            >
-              <AppText style={styles.cellTitle}>Note</AppText>
-              <View style={styles.cellRight}>
-                <AppText style={[styles.cellValue, padsOpen && styles.cellValueActive]}>
-                  {midiNoteName(lane.note)} · {lane.note}
-                </AppText>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.listen,
-                    padsOpen && styles.listenMuted,
-                    listening && styles.listenActive,
-                    pressed && styles.pressedDim,
-                  ]}
-                  onPress={() => {
-                    haptics.impact('light');
-                    setListening((v) => !v);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Listen for note"
-                  accessibilityState={{ selected: listening }}
+            {/* The Note row owns the Listen popover, so it needs its own
+                positioning context and has to paint above the rows below it. */}
+            <View style={styles.noteRow}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.cell,
+                  styles.cellFirst,
+                  pressed && styles.pressedDim,
+                ]}
+                onPress={() => {
+                  haptics.selection();
+                  setPadsOpen((v) => !v);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Note"
+                accessibilityState={{ expanded: padsOpen }}
+              >
+                <AppText style={styles.cellTitle}>Note</AppText>
+                <View
+                  style={styles.cellRight}
+                  onLayout={(e) => setListenGroupX(e.nativeEvent.layout.x)}
                 >
-                  <SFSymbol
-                    name="mic.fill"
-                    size={13}
-                    tint={listening ? color.label : padsOpen ? color.label3 : color.ground}
-                  />
-                  <AppText
-                    style={[
-                      styles.listenLabel,
-                      padsOpen && styles.listenLabelMuted,
-                      listening && styles.listenLabelActive,
-                    ]}
-                  >
-                    {listening ? 'Listening…' : 'Listen'}
+                  <AppText style={[styles.cellValue, padsOpen && styles.cellValueActive]}>
+                    {midiNoteName(lane.note)} · {lane.note}
                   </AppText>
-                </Pressable>
-                {/* Same disclosure chevron as the Track · Channel cell below,
-                    collapsed AND expanded (Brent 2026-07-29): with it hidden
-                    while collapsed, the row read as a plain readout and gave no
-                    hint it opened the pad grid. */}
-                <SFSymbol
-                  name={padsOpen ? 'chevron.up' : 'chevron.right'}
-                  size={padsOpen ? 12 : 16}
-                  tint={padsOpen ? color.label3 : color.labelDisabled}
-                />
-              </View>
-            </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.listen,
+                      padsOpen && styles.listenMuted,
+                      listening && styles.listenActive,
+                      pressed && styles.pressedDim,
+                    ]}
+                    onPress={() => {
+                      haptics.impact('light');
+                      setListening((v) => !v);
+                    }}
+                    // Re-measured whenever the key changes width ("Listen" →
+                    // "Listening…"), so the caret keeps pointing at its centre.
+                    onLayout={(e) =>
+                      setListenKeyX(e.nativeEvent.layout.x + e.nativeEvent.layout.width / 2)
+                    }
+                    accessibilityRole="button"
+                    accessibilityLabel="Listen for note"
+                    accessibilityState={{ selected: listening }}
+                  >
+                    <SFSymbol
+                      name="mic.fill"
+                      size={13}
+                      tint={listening ? color.label : padsOpen ? color.label3 : color.ground}
+                    />
+                    <AppText
+                      style={[
+                        styles.listenLabel,
+                        padsOpen && styles.listenLabelMuted,
+                        listening && styles.listenLabelActive,
+                      ]}
+                    >
+                      {listening ? 'Listening…' : 'Listen'}
+                    </AppText>
+                  </Pressable>
+                  {/* Same disclosure chevron as the Track · Channel cell below,
+                      collapsed AND expanded (Brent 2026-07-29): with it hidden
+                      while collapsed, the row read as a plain readout and gave no
+                      hint it opened the pad grid. */}
+                  <SFSymbol
+                    name={padsOpen ? 'chevron.up' : 'chevron.right'}
+                    size={padsOpen ? 12 : 16}
+                    tint={padsOpen ? color.label3 : color.labelDisabled}
+                  />
+                </View>
+              </Pressable>
+              {/* How Listen works, only while it's listening (Brent 2026-07-29 —
+                  the standing footnote under the group explained a mode nobody
+                  was in, and the in-group strip that replaced it read as another
+                  row). A popover off the key it belongs to: it says what the mode
+                  does and leaves with the mode. Not while the pad grid is open:
+                  it would float over the top octave, and Listen already recedes
+                  there (see listenMuted) because the pads are the input. */}
+              {listening && !padsOpen ? (
+                <ListenTip caretLeft={listenGroupX + listenKeyX} />
+              ) : null}
+            </View>
             {padsOpen ? (
               <NotePads
                 note={lane.note}
@@ -470,10 +519,65 @@ export default function LaneEditorSheet() {
               </View>
             ) : null}
           </View>
-          <AppText style={styles.groupFootnote}>
-            Listen — play a note from the OP‑XY’s aux track to set it. The channel you send on
-            selects the track, and euxy echoes the note back so you hear it played from that track.
-          </AppText>
+        </Section>
+
+        <Section title="Generator 1" dot={color.label}>
+          <SliderRow
+            label="Pulses"
+            value={lane.genA.pulses}
+            min={0}
+            max={lane.length}
+            onChange={(v) => updateGenerator(id, 'genA', { pulses: v })}
+          />
+          <SliderRow
+            label="Rotate"
+            value={lane.genA.rotation}
+            min={0}
+            max={maxRot}
+            onChange={(v) => updateGenerator(id, 'genA', { rotation: v })}
+          />
+        </Section>
+
+        <Section title="Generator 2" dot={color.label3} hint="0 pulses = off">
+          <SliderRow
+            label="Pulses"
+            value={lane.genB.pulses}
+            min={0}
+            max={lane.length}
+            onChange={(v) => updateGenerator(id, 'genB', { pulses: v })}
+          />
+          <SliderRow
+            label="Rotate"
+            value={lane.genB.rotation}
+            min={0}
+            max={maxRot}
+            onChange={(v) => updateGenerator(id, 'genB', { rotation: v })}
+          />
+        </Section>
+
+        <Section title="Combine">
+          <PickerBar<CombineOp>
+            options={OP_OPTIONS}
+            value={lane.op}
+            onChange={(op) => setLaneOp(id, op)}
+            size={13}
+          />
+          <SliderRow
+            label="Steps"
+            value={lane.length}
+            min={1}
+            max={64}
+            onChange={setLength}
+            // Bar-multiple landmarks land with a harder detent (encoder feel).
+            accentValues={[16, 32, 48, 64]}
+          />
+          <SliderRow
+            label="Track rotate"
+            value={lane.trackRot}
+            min={0}
+            max={maxRot}
+            onChange={(v) => updateLane(id, { trackRot: v })}
+          />
         </Section>
 
         <Section title="More">
@@ -615,15 +719,6 @@ const styles = StyleSheet.create({
   sectionBody: { gap: 14 },
 
   cells: { gap: 1 },
-  // iOS grouped-list footer (Paper 02: 13/18 label4, slight inset).
-  groupFootnote: {
-    fontFamily: font.text,
-    fontSize: 13,
-    lineHeight: 18,
-    color: color.label4,
-    paddingHorizontal: 4,
-    paddingTop: 8,
-  },
   cell: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -673,6 +768,42 @@ const styles = StyleSheet.create({
   listenLabel: { fontFamily: font.text, fontWeight: '700', fontSize: 13, lineHeight: 16, color: color.ground },
   listenActive: { backgroundColor: color.surface3 },
   listenLabelActive: { color: color.label },
+  // The Note row is the popover's positioning context and has to paint over the
+  // rows (and pad grid) below it.
+  noteRow: { zIndex: 2 },
+  // Popover: hangs off the bottom edge of the Note row, out of the layout.
+  tipLayer: { position: 'absolute', top: '100%', left: 0, right: 0 },
+  tipBubble: {
+    alignSelf: 'flex-end',
+    marginTop: 8,
+    marginRight: 8,
+    maxWidth: 300,
+    // A step above the cell it points at (the surface3 disclosure level), so it
+    // reads as floating over the group rather than as another row of it.
+    backgroundColor: color.surface3,
+    borderRadius: radius.cell,
+    paddingVertical: 10,
+    paddingHorizontal: 13,
+    shadowColor: '#000000',
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  tipCaret: {
+    position: 'absolute',
+    top: 3,
+    width: TIP_CARET,
+    height: TIP_CARET,
+    borderRadius: 2,
+    backgroundColor: color.surface3,
+    transform: [{ rotate: '45deg' }],
+  },
+  tipText: {
+    fontFamily: font.text,
+    fontSize: 13,
+    lineHeight: 18,
+    color: color.label2,
+  },
   // Paper 02c: Listen recedes while the pad grid is the primary input.
   listenMuted: { backgroundColor: ramp[6] },
   listenLabelMuted: { color: color.label3 },
