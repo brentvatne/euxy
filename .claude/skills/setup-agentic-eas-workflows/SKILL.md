@@ -79,7 +79,19 @@ copy euxy identifiers into another project.
 4. Check out trusted workflow code first. Do not execute automation from an untrusted PR head.
 5. Give the agent only task data and the minimum credential it actually needs. Prefer giving it no GitHub write token.
 6. Keep branch creation, commits, issue creation, PR creation, EAS Update publication, and cleanup in a deterministic wrapper.
-7. Reject agent-authored changes to workflow definitions, agent runners, prompt files, credential helpers, and other protected automation paths.
+7. Reject agent-authored changes to workflow definitions, agent runners, prompt
+   files, credential helpers, and other protected automation paths. Exempt a run
+   the maintainer started: the maintainer can already push those paths by hand,
+   the change still lands on a branch in a pull request, and nothing
+   auto-merges. Decide the exemption from an identity the requester cannot set —
+   an App Store Connect tester email, or a GitHub login re-fetched from the API —
+   and never from issue, comment, or feedback text. A trusted **bot** trigger is
+   not a maintainer: a review-response run driven by an AI reviewer keeps the
+   guard on. Log every path the exemption permitted.
+8. State the protected paths in the agent prompt itself. A guard the agent does
+   not know about is discovered only at the publish step, after the whole run has
+   been paid for. Documenting the rule in a README the prompt never loads does
+   not count.
 
 Use [references/security-checklist.md](references/security-checklist.md) for the full threat-model and credential checklist.
 
@@ -232,6 +244,37 @@ link the evidence instead.
 
 Read [references/workflow-patterns.md](references/workflow-patterns.md) for implementation patterns and failure handling.
 
+## Make every run's work recoverable
+
+The builder and its working tree are destroyed when the job ends. Any gate
+between the agent and the push therefore destroys the agent's work, not just the
+publication. A euxy feedback-triage run spent 26 minutes and $11.77 producing
+simulator-verified changes and lost all of them to a protected-path refusal that
+fired after the agent had already exited successfully.
+
+Treat the diff as evidence, not as a byproduct:
+
+1. Stage the agent's work (`git add -A`) and write a patch into the uploaded
+   artifact directory **before** the first gate that can end the run. Do this
+   even on the success path; the patch is then always the exact diff of the PR.
+2. Order the wrapper so staging precedes the agent exit-code check, the
+   description validation, the protected-path check, and the push. Any gate above
+   the rescue point is a gate that can still lose work.
+3. Read the diff as **bytes**, never as a decoded string. `git diff --cached
+   --binary` can emit any byte; decoding it as UTF-8 substitutes U+FFFD for each
+   invalid byte and yields a patch that looks correct and fails to apply.
+4. Write the base commit, the file list, and a ready-to-run `git apply` command
+   next to the patch. When a gate flagged specific paths, include a
+   `git apply --exclude=<path> ...` command so the rest can be applied in one
+   step.
+5. Make the rescue helper incapable of throwing. It runs on failure paths, so an
+   error inside it would replace the real diagnosis with its own.
+6. Add the patch and its note to the artifact `path:` list and keep the upload
+   step at `if: ${{ always() }}`. An artifact step that only runs on success
+   cannot preserve a failed run.
+7. Name the artifact files in the failure message, so the log says where the work
+   went.
+
 ## Add EAS Simulator verification safely
 
 1. Check simulator availability before exposing the robot `EXPO_TOKEN` to the agent.
@@ -270,6 +313,10 @@ Read [references/workflow-patterns.md](references/workflow-patterns.md) for impl
 ## Validate end to end
 
 1. Run shell syntax checks, type checks, focused tests, and protected-path tests.
+   Confirm the test runner actually reaches the automation tests. `bun test`
+   skips dot-directories, so a green root run can mean the entire `.eas/` suite
+   never executed — pass the path explicitly (`bun test ./.eas`) and compare the
+   test count against the file count.
 2. Validate EAS YAML with the live schema and pin GitHub Actions by commit SHA.
 3. Confirm every required secret exists in the intended EAS environment or GitHub Actions secret store without printing values.
 4. Use a disposable smoke test that creates a real branch, commit, issue or PR, independently observes it, then closes it and deletes the branch.

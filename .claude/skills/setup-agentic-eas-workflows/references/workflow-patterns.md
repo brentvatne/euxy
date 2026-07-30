@@ -89,7 +89,16 @@ jobs:
             .eas/agent-work/issue.json
             .eas/agent-work/PUBLIC_FINDINGS.json
             .eas/agent-work/sim/**/*
+            .eas/agent-work/RESCUED_WORK.patch
+            .eas/agent-work/RESCUED_WORK.md
 ```
+
+`if: ${{ always() }}` on the upload step is what makes a failed run recoverable;
+without it the artifact exists only when nothing went wrong. List the rescued
+patch explicitly — a `path:` glob that omits it silently drops the one file that
+matters after a refusal. Add the same runtime-only files to `.gitignore` and
+`.easignore` so they are never committed to the branch they describe and never
+uploaded to a builder.
 
 Fetch the live schema and validate the final YAML before running it.
 
@@ -157,6 +166,61 @@ Closes #123
 Use `Re: #123` only for analysis-only PRs that should not close the tracking issue when merged.
 
 Update only the managed workflow block when retrying. On a 422 from PR creation, query open PRs for the exact owner/head branch and reuse the matching PR.
+
+Page through the issue list when searching for the marker, and stop at the first
+match or at the end of the list. `GET /issues` returns **issues and pull
+requests together**, so in an automation-heavy repository a single
+`per_page=100` request stops covering older reports quickly — euxy hit 41 pull
+requests against 17 issues. A one-page lookup then silently opens a second
+tracking issue on any re-run of an older report.
+
+```ts
+for (let page = 1; page <= MAX_PAGES; page += 1) {
+  const list = await gh(`/issues?state=all&per_page=100&sort=created&direction=desc&page=${page}`);
+  const batch = await list.json();
+  const match = batch.find((c) => !c.pull_request && c.body?.includes(marker));
+  if (match) return match;
+  if (batch.length < 100) return null;      // saw the end: definitively absent
+}
+throw new Error("refusing to risk opening a duplicate");  // never create on doubt
+```
+
+Return "not found" only after seeing the end of the list. If the scan reaches its
+page cap without finding the issue or proving its absence, fail instead of
+creating one: a duplicate splits the discussion and re-notifies every subscriber.
+
+Write the issue only when the title or body actually changed. Re-running a report
+links a new workflow URL and so still writes, but a second `ensureIssue` call
+inside one run is usually a no-op, and a no-op `PATCH` bumps the issue for
+nothing.
+
+## Rescue the agent's diff into the artifact
+
+Run this immediately after staging and before every publish gate. It is the only
+copy of the work that outlives the builder.
+
+```ts
+// `out` is bytes. Decoding a diff as UTF-8 replaces each invalid byte with
+// U+FFFD and produces a patch that looks right and will not apply.
+const names = await run([git, "diff", "--cached", "--name-only"], { cwd });
+const files = names.out.toString("utf8").split("\n").filter(Boolean);
+if (!files.length) return null;
+const patch = await run([git, "diff", "--cached", "--binary"], { cwd });
+const head = await run([git, "rev-parse", "HEAD"], { cwd });
+await writeFile(join(outDir, "RESCUED_WORK.patch"), patch.out);   // Buffer, not string
+await writeFile(join(outDir, "RESCUED_WORK.md"), note);           // base commit + apply command
+```
+
+Wrap the whole helper in `try/catch` and return `null` on any error, so a problem
+inside the rescue cannot mask the failure that triggered it. Verify it end to end
+against a real repository containing a text file, a binary file, and a
+protected-path file: write the patch, apply it to a fresh clone, and compare the
+binary file byte for byte. Unit tests with a faked runner will not catch a
+string/bytes mistake.
+
+When the working directory is a scratch clone (a PR-review run that clones the PR
+branch under `/tmp`), read the diff from the clone but write the patch into the
+**checked-out** directory the workflow uploads.
 
 ## Fresh agent work session
 
