@@ -205,6 +205,12 @@ function extractExpoUrl(value: unknown): string | undefined {
  * custom scheme, and the https form still resolves for a reader without the app.
  */
 const CHANNEL_LINK_ORIGIN = "https://euxy.expo.app";
+/**
+ * Public external-beta link, the same one the site's CTA uses (`web/lib/links.ts`).
+ * A reader without the app cannot type a channel into a sheet they do not have,
+ * so the install path has to come first.
+ */
+const TESTFLIGHT_JOIN_URL = "https://testflight.apple.com/join/Ws2kvsxT";
 /** Rendered size in the PR body. The PNG itself is larger; this is the display box. */
 const QR_DISPLAY_PX = 168;
 
@@ -246,7 +252,8 @@ function renderPreviewBlock({
       `| **Channel \`${channel}\`**<br><br>Point an iPhone camera at the code, or open ` +
       `[${link.replace(`${CHANNEL_LINK_ORIGIN}/`, "")}](${link}) on the device. ` +
       `euxy switches to this channel and loads its latest compatible update.<br><br>` +
-      `No app yet? Enter \`${channel}\` in Channel Surf by hand. |`,
+      `No euxy on the device yet? [Join the TestFlight beta](${TESTFLIGHT_JOIN_URL}) first. ` +
+      `If the link opens Safari instead of the app, enter \`${channel}\` in Channel Surf by hand. |`,
   ].join("\n");
   return [
     PREVIEW_START,

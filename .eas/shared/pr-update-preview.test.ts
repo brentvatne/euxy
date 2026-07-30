@@ -101,7 +101,16 @@ describe("per-PR EAS Update previews", () => {
       `<!-- euxy-eas-update-channel: ${result.channel} -->`,
     );
     expect(harness.getBody()).toContain(`**Channel \`${result.channel}\`**`);
-    expect(harness.getBody()).toContain(`Enter \`${result.channel}\` in Channel Surf`);
+    // A reader without the app cannot type a channel into a sheet they do not
+    // have, so the install path comes first and the by-hand path is scoped to a
+    // link that failed to hand off.
+    expect(harness.getBody()).toContain(
+      "[Join the TestFlight beta](https://testflight.apple.com/join/Ws2kvsxT)",
+    );
+    expect(harness.getBody()).toContain(
+      `If the link opens Safari instead of the app, enter \`${result.channel}\` in Channel Surf`,
+    );
+    expect(harness.getBody()).not.toContain("No app yet?");
     // The QR encodes the universal link, and the image is a PNG: GitHub's image
     // proxy refuses SVG, and a camera will not open a `euxy://` scheme.
     expect(harness.getBody()).toContain(

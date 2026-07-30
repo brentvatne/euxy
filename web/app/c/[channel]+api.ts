@@ -17,6 +17,8 @@
  */
 import { channelLink, parseChannelLink } from '@/lib/channel-link';
 
+import { TESTFLIGHT_JOIN_URL } from '../../lib/links';
+
 const CANONICAL_ORIGIN = process.env.EXPO_PUBLIC_SITE_ORIGIN ?? 'https://euxy.expo.app';
 
 function siteOrigin(request: Request): string {
@@ -70,6 +72,8 @@ export function GET(request: Request, { channel }: { channel: string }) {
   .card{border:1px solid #26262A;border-radius:.875rem;background:#0C0C0E;padding:1.25rem;margin:1.5rem 0}
   .open{display:block;padding:.9rem 1rem;border-radius:.75rem;background:#F6F4F4;color:#000;
         font-weight:700;text-align:center;text-decoration:none}
+  a{color:#F6F4F4}
+  .case{color:#6C6C71;margin-top:2rem}
   ol{padding-left:1.25rem;margin:.5rem 0 0}
   li{margin:.35rem 0}
   .qr{display:block;width:9rem;height:9rem;margin:0 auto 1rem;border-radius:.5rem}
@@ -85,8 +89,12 @@ export function GET(request: Request, { channel }: { channel: string }) {
          alt="QR code for the ${safeChannel} channel link">
     <a class="open" href="${escapeHtml(channelLink(channelName))}">Open in euxy</a>
   </div>
-  <p>If that button does nothing, euxy is not installed on this device — or iOS has
-     not picked up the app association yet. Either way the channel can be entered by hand:</p>
+  <p class="case">If that button does nothing, one of two things is true.</p>
+  <p><strong>euxy is not on this device.</strong>
+     <a href="${escapeHtml(TESTFLIGHT_JOIN_URL)}">Join the TestFlight beta</a>, install euxy,
+     then open this link again. There is nothing to enter by hand until the app is installed.</p>
+  <p><strong>euxy is installed, but iOS sent the link here instead of to the app.</strong>
+     The app association can take a while to reach a device. Enter the channel by hand:</p>
   <ol>
     <li>Open euxy and go to the MIDI tab.</li>
     <li>Press and hold the <strong>MIDI Diagnostics</strong> header to reveal Channel Surf.</li>

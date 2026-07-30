@@ -12,6 +12,7 @@ import { color } from '@/theme/tokens';
 import { ConnectSteps } from '../components/connect-diagram';
 import { PatternPlayer } from '../components/pattern-player';
 import { setFavicon } from '../lib/favicon';
+import { TESTFLIGHT_JOIN_URL } from '../lib/links';
 import {
   CollapsibleSection,
   LedChip,
@@ -82,7 +83,7 @@ export default function Home() {
             , on your iPhone over USB-C MIDI.
           </Text>
           <Link
-            href="https://testflight.apple.com/join/Ws2kvsxT"
+            href={TESTFLIGHT_JOIN_URL}
             style={styles.betaKey}
             {...webAttrs({ cta: '', anim: '' })}
           >
