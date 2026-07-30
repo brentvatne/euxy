@@ -60,6 +60,7 @@ example
 # so they were being uploaded — verified with `eas build:inspect --stage
 # archive`.
 .agents/
+.argent/
 .codex/
 .claude/
 .expo-code-review/
