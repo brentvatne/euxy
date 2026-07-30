@@ -9,6 +9,14 @@ A universal **Expo (SDK 57) / React Native** app: a Euclidean rhythm sequencer
 that drives an OP-XY hardware synth over MIDI. iOS-native is the product; web
 exists only to test the MIDI connection. Judge against these repo conventions:
 
+- **Android is out of scope. Do NOT report Android-only findings.** The product
+  ships to iOS. `app.json` declares no `android.package`, and no Android build
+  exists. Missing Android configuration is therefore not a defect. This covers
+  partial `android` config, `intentFilters`, and `assetlinks.json`; unhandled
+  `Platform.OS === 'android'` branches; Android permissions and manifest entries;
+  and Android-only layout, styling, or gesture behavior. Do not ask for Android
+  parity, and do not raise Android as a risk in the overall PR handoff. A change
+  that breaks iOS, or the web MIDI page, is still a defect.
 - **Styling is React Native `StyleSheet` consuming `src/theme/tokens.ts`. Do NOT use
   NativeWind / Tailwind.** The design system is monochrome (see `docs/design/`).
 - **Sequencer timing must stay off the React render path.** The engine/scheduler
