@@ -63,7 +63,7 @@ describe("GitHub triage issues", () => {
     });
 
     expect(calls.map((call) => [call.path, call.init?.method])).toEqual([
-      ["/issues?state=all&per_page=100&sort=created&direction=desc", undefined],
+      ["/issues?state=all&per_page=100&sort=created&direction=desc&page=1", undefined],
       ["/issues", "POST"],
       ["/issues/42", "PATCH"],
     ]);
@@ -164,6 +164,169 @@ describe("GitHub triage issues", () => {
     expect(updatedBody).toContain("https://expo.dev/new-run");
     expect(updatedBody).not.toContain("Old public summary.");
     expect(updatedBody).not.toContain("https://expo.dev/old-run");
+  });
+
+  test("finds the tracking issue past the first page instead of opening a duplicate", async () => {
+    // The regression this covers: `/issues` returns issues AND pull requests, so
+    // in an automation-heavy repo an older report's issue drops off page 1 and a
+    // re-run used to silently create a second issue for the same report.
+    const marker = `<!-- euxy-triage:feedback:${createHash("sha256")
+      .update("feedback-page-3")
+      .digest("hex")
+      .slice(0, 20)} -->`;
+    const filler = (page: number) =>
+      Array.from({ length: 100 }, (_, index) => ({
+        number: page * 1000 + index,
+        html_url: `https://github.com/brentvatne/euxy/pull/${page * 1000 + index}`,
+        body: "an unrelated automation pull request",
+        pull_request: { url: "https://api.github.com/pulls/1" },
+      }));
+    const calls: { path: string; init?: RequestInit }[] = [];
+    const gh = async (path: string, init?: RequestInit) => {
+      calls.push({ path, init });
+      if (path.includes("&page=1")) return jsonResponse(filler(1));
+      if (path.includes("&page=2")) return jsonResponse(filler(2));
+      if (path.includes("&page=3")) {
+        return jsonResponse([
+          { number: 55, html_url: "https://github.com/x/y/issues/55", body: `${marker}\nold body` },
+        ]);
+      }
+      return jsonResponse({});
+    };
+
+    await expect(
+      ensureTriageIssue({
+        gh,
+        kind: "feedback",
+        owner: "brentvatne",
+        repo: "euxy",
+        sourceKey: "feedback-page-3",
+        workflowUrl: "https://expo.dev/accounts/brent-org/projects/euxy/workflows/runs/rerun",
+        publicFetch: async () =>
+          jsonResponse({
+            number: 55,
+            html_url: "https://github.com/x/y/issues/55",
+            body: "https://expo.dev/accounts/brent-org/projects/euxy/workflows/runs/rerun\ntriage in progress",
+          }),
+      })
+    ).resolves.toEqual({ number: 55, htmlUrl: "https://github.com/x/y/issues/55" });
+
+    expect(calls.filter((call) => call.path.startsWith("/issues?")).length).toBe(3);
+    expect(calls.some((call) => call.path === "/issues" && call.init?.method === "POST")).toBe(false);
+    expect(calls.some((call) => call.path === "/issues/55" && call.init?.method === "PATCH")).toBe(true);
+  });
+
+  test("refuses to open a duplicate when the issue list is too long to rule one out", async () => {
+    const gh = async (path: string) => {
+      if (path.startsWith("/issues?")) {
+        return jsonResponse(
+          Array.from({ length: 100 }, (_, index) => ({
+            number: index,
+            html_url: `https://github.com/x/y/pull/${index}`,
+            body: "unrelated",
+            pull_request: {},
+          }))
+        );
+      }
+      throw new Error(`unexpected write to ${path}`);
+    };
+
+    await expect(
+      ensureTriageIssue({
+        gh,
+        kind: "feedback",
+        owner: "brentvatne",
+        repo: "euxy",
+        sourceKey: "feedback-unbounded",
+        workflowUrl: "https://expo.dev/accounts/brent-org/projects/euxy/workflows/runs/run",
+      })
+    ).rejects.toThrow("refusing to risk opening a duplicate");
+  });
+
+  test("skips the write when the tracking issue is already current", async () => {
+    const workflowUrl = "https://expo.dev/accounts/brent-org/projects/euxy/workflows/runs/same-run";
+    const marker = `<!-- euxy-triage:feedback:${createHash("sha256")
+      .update("feedback-nochange")
+      .digest("hex")
+      .slice(0, 20)} -->`;
+    const currentBody =
+      `${marker}\nThis issue tracks automated triage of private TestFlight screenshot feedback.\n\n` +
+      "Tester identity, the original report and screenshot, device details, and private analysis are intentionally omitted.\n\n" +
+      "<!-- euxy-triage-workflow:start -->\n## Automation\n\n" +
+      `- EAS workflow: [View the run](${workflowUrl})\n- Status: triage in progress\n` +
+      "<!-- euxy-triage-workflow:end -->";
+    const calls: { path: string; init?: RequestInit }[] = [];
+    const gh = async (path: string, init?: RequestInit) => {
+      calls.push({ path, init });
+      if (path.startsWith("/issues?")) {
+        return jsonResponse([
+          { number: 88, html_url: "https://github.com/x/y/issues/88", body: currentBody },
+        ]);
+      }
+      return jsonResponse({});
+    };
+
+    await ensureTriageIssue({
+      gh,
+      kind: "feedback",
+      owner: "brentvatne",
+      repo: "euxy",
+      sourceKey: "feedback-nochange",
+      workflowUrl,
+      publicFetch: async () =>
+        jsonResponse({
+          number: 88,
+          html_url: "https://github.com/x/y/issues/88",
+          body: currentBody,
+        }),
+    });
+
+    expect(calls.map((call) => [call.path, call.init?.method])).toEqual([
+      ["/issues?state=all&per_page=100&sort=created&direction=desc&page=1", undefined],
+    ]);
+  });
+
+  test("still writes when re-running links a different workflow URL", async () => {
+    const marker = `<!-- euxy-triage:feedback:${createHash("sha256")
+      .update("feedback-relink")
+      .digest("hex")
+      .slice(0, 20)} -->`;
+    const currentBody =
+      `${marker}\nbody\n\n<!-- euxy-triage-workflow:start -->\n## Automation\n\n` +
+      "- EAS workflow: [View the run](https://expo.dev/first-run)\n- Status: triage in progress\n" +
+      "<!-- euxy-triage-workflow:end -->";
+    const calls: { path: string; init?: RequestInit }[] = [];
+    const gh = async (path: string, init?: RequestInit) => {
+      calls.push({ path, init });
+      if (path.startsWith("/issues?")) {
+        return jsonResponse([
+          { number: 91, html_url: "https://github.com/x/y/issues/91", body: currentBody },
+        ]);
+      }
+      return jsonResponse({});
+    };
+
+    await ensureTriageIssue({
+      gh,
+      kind: "feedback",
+      owner: "brentvatne",
+      repo: "euxy",
+      sourceKey: "feedback-relink",
+      workflowUrl: "https://expo.dev/accounts/brent-org/projects/euxy/workflows/runs/second-run",
+      publicFetch: async () =>
+        jsonResponse({
+          number: 91,
+          html_url: "https://github.com/x/y/issues/91",
+          body:
+            "https://expo.dev/accounts/brent-org/projects/euxy/workflows/runs/second-run\ntriage in progress",
+        }),
+    });
+
+    const patch = calls.find((call) => call.init?.method === "PATCH");
+    expect(patch?.path).toBe("/issues/91");
+    const body = JSON.parse(String(patch?.init?.body)).body;
+    expect(body).toContain("runs/second-run");
+    expect(body).not.toContain("https://expo.dev/first-run");
   });
 
   test("rejects malformed public summaries before writing", async () => {

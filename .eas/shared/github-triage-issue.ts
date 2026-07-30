@@ -52,9 +52,70 @@ const EVIDENCE_BLOCK_END = "<!-- euxy-triage-evidence:end -->";
 const WORKFLOW_BLOCK_START = "<!-- euxy-triage-workflow:start -->";
 const WORKFLOW_BLOCK_END = "<!-- euxy-triage-workflow:end -->";
 
+// The tracking issue for a report is found by a hidden marker derived from the
+// report's stable id, so re-running triage for the same feedback updates the
+// existing issue instead of opening a second one.
 function sourceMarker(kind: TriageIssueKind, sourceKey: string): string {
   const digest = createHash("sha256").update(sourceKey).digest("hex").slice(0, 20);
   return `<!-- euxy-triage:${kind}:${digest} -->`;
+}
+
+type IssueListEntry = {
+  number?: number;
+  html_url?: string;
+  title?: string;
+  body?: string | null;
+  pull_request?: unknown;
+};
+
+const ISSUE_LOOKUP_PAGE_SIZE = 100;
+// 20 pages × 100 = 2000 issues and pull requests. `/issues` returns both, and
+// this repo is mostly automation PRs, so the list outgrows a single page long
+// before it has 2000 real issues.
+const ISSUE_LOOKUP_MAX_PAGES = 20;
+
+/**
+ * Scans issues newest-first for the marker, one page at a time, stopping at the
+ * first match or at the end of the list.
+ *
+ * A single unpaginated page was the bug this replaces: once the newest 100
+ * issues-and-PRs no longer included an older report's issue, re-running triage
+ * for that report silently opened a duplicate. Returns null only after seeing
+ * the end of the list, so "not found" always means "really not there".
+ */
+async function findTriageIssueByMarker(
+  gh: GitHubRepoRequest,
+  marker: string
+): Promise<IssueListEntry | null> {
+  for (let page = 1; page <= ISSUE_LOOKUP_MAX_PAGES; page += 1) {
+    const list = await gh(
+      `/issues?state=all&per_page=${ISSUE_LOOKUP_PAGE_SIZE}&sort=created&direction=desc&page=${page}`
+    );
+    if (!list.ok) {
+      throw new Error(
+        `Could not look up an existing triage issue (HTTP ${list.status}): ${await list.text()}`
+      );
+    }
+    const batch: unknown = await list.json();
+    if (!Array.isArray(batch)) {
+      throw new Error(`GitHub returned an unexpected issue list on page ${page}.`);
+    }
+    const entries = batch as IssueListEntry[];
+    const match = entries.find(
+      (candidate) =>
+        !candidate.pull_request &&
+        typeof candidate.body === "string" &&
+        candidate.body.includes(marker)
+    );
+    if (match) return match;
+    if (entries.length < ISSUE_LOOKUP_PAGE_SIZE) return null;
+  }
+  // Absence was never proven, and a second issue for one report is worse than
+  // stopping: it splits the discussion and re-notifies everyone.
+  throw new Error(
+    `Scanned ${ISSUE_LOOKUP_MAX_PAGES * ISSUE_LOOKUP_PAGE_SIZE} issues without finding or ruling ` +
+      `out the tracking issue for this report; refusing to risk opening a duplicate.`
+  );
 }
 
 function issueCopy(kind: TriageIssueKind) {
@@ -184,19 +245,11 @@ export async function ensureTriageIssue({
   const publicSourceId = sourceId ? validateSourceId(sourceId) : null;
   const publicApproval = approval ? validateApproval(approval) : undefined;
   const publicSummary = summary ? validateSummary(summary) : null;
-  const list = await gh("/issues?state=all&per_page=100&sort=created&direction=desc");
-  if (!list.ok) {
-    throw new Error(`Could not look up an existing triage issue (HTTP ${list.status}): ${await list.text()}`);
+  let issue = await findTriageIssueByMarker(gh, marker);
+  const reusedIssue = Boolean(issue);
+  if (reusedIssue) {
+    console.log(`▸ Found the existing tracking issue #${issue!.number} for this report — updating it.`);
   }
-  const recentIssues = (await list.json()) as {
-    number?: number;
-    html_url?: string;
-    body?: string | null;
-    pull_request?: unknown;
-  }[];
-  let issue = recentIssues.find(
-    (candidate) => !candidate.pull_request && typeof candidate.body === "string" && candidate.body.includes(marker)
-  );
 
   if (!issue) {
     let createdBody = `${marker}\n${copy.body}`;
@@ -226,17 +279,28 @@ export async function ensureTriageIssue({
   );
   const summarizedBody = publicSummary ? withSummary(currentBody, publicSummary) : currentBody;
   const sourcedBody = publicSourceId ? withSource(summarizedBody, publicSourceId) : summarizedBody;
-  const updated = await gh(`/issues/${issue.number}`, {
-    method: "PATCH",
-    body: JSON.stringify({
-      ...(publicSummary ? { title: publicSummary.title } : {}),
-      body: withWorkflowLink(sourcedBody, workflowUrl, status, publicApproval),
-    }),
-  });
-  if (!updated.ok) {
-    throw new Error(
-      `Could not link the EAS workflow from issue #${issue.number} (HTTP ${updated.status}): ${await updated.text()}`
-    );
+  const nextBody = withWorkflowLink(sourcedBody, workflowUrl, status, publicApproval);
+  // Write only when something actually changed. A re-run of the same report links
+  // the new workflow URL and so does write; a second call inside one run usually
+  // does not, and a no-op PATCH would bump the issue and re-notify subscribers
+  // for nothing.
+  const bodyChanged = issue.body !== nextBody;
+  const titleChanged = Boolean(publicSummary && issue.title !== publicSummary.title);
+  if (bodyChanged || titleChanged) {
+    const updated = await gh(`/issues/${issue.number}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        ...(publicSummary ? { title: publicSummary.title } : {}),
+        body: nextBody,
+      }),
+    });
+    if (!updated.ok) {
+      throw new Error(
+        `Could not link the EAS workflow from issue #${issue.number} (HTTP ${updated.status}): ${await updated.text()}`
+      );
+    }
+  } else {
+    console.log(`▸ Issue #${issue.number} is already current — no update needed.`);
   }
 
   await assertPubliclyVisible({
