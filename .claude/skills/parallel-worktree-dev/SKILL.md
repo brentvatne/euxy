@@ -108,30 +108,52 @@ Notes:
 Full details: `expo:eas-simulator`. The euxy-specific loop — one session per unit, each
 opening its own tunnel URL:
 
+Drive local sessions with **argent** (`@swmansion/argent`), not agent-device.
+
+Two invocation rules, both of which fail silently or confusingly if ignored:
+
+- **`eas simulator:exec` eats `--flag` arguments.** `simulator:exec argent run <tool> --udid X`
+  reaches argent with the flags stripped, and it swallows `--help` too. Wrap everything in
+  `sh -c` and pass one `--args` JSON blob.
+- **Gesture coordinates are normalized 0.0–1.0**, not pixels or points. Pixel values silently
+  no-op.
+
 ```bash
 # from the worktree, with a clean dotenv
 printf '# managed by eas-cli\n' > .env.eas-simulator
-npx --yes eas-cli@latest simulator:start --platform ios --type agent-device --non-interactive
-npx --yes eas-cli@latest simulator:get --json   # confirm status IN_PROGRESS
+npx --yes eas-cli@latest simulator:start --platform ios --type argent --non-interactive
+# writes ARGENT_TOOLS_URL / ARGENT_AUTH_TOKEN / EAS_SIMULATOR_SESSION_ID
 
-# Install the dev build once per session (from build:list URL), then open the tunnel URL.
-npx --yes eas-cli@latest simulator:exec npx agent-device@0.20.1 \
-  install-from-source <dev-build-url> --platform ios
-npx --yes eas-cli@latest simulator:exec npx agent-device@0.20.1 \
-  open 'exp+euxy://expo-development-client/?url=https://euxy-engine.brent-org.8081.exp.direct' \
-  --platform ios
+# The booted device is the one to target; the rest of the list is Shutdown.
+eas simulator:exec sh -c 'argent run list-devices --args "{}"'
+UDID=<the Booted udid>
 
-# Snapshot before every interaction; refs are invalid after navigation/layout changes.
-npx --yes eas-cli@latest simulator:exec npx agent-device@0.20.1 snapshot -i
-npx --yes eas-cli@latest simulator:exec npx agent-device@0.20.1 press @e2
-npx --yes eas-cli@latest simulator:exec npx agent-device@0.20.1 screenshot ./shot.png
+# argent has no install-from-source URL verb: download and extract the .app first.
+eas simulator:exec sh -c "argent run reinstall-app --args '{\"udid\":\"$UDID\",\"bundleId\":\"dev.brent.euxy\",\"appPath\":\"<path-to.app>\"}'"
+
+# Dev client: the tunnel URL must be https — http://<sub>.exp.direct fails from the cloud sim.
+eas simulator:exec sh -c "argent run open-url --args '{\"udid\":\"$UDID\",\"url\":\"euxy://expo-development-client/?url=https%3A%2F%2Feuxy-engine.brent-org.8081.exp.direct\"}'"
+
+# Read the screen, then act on it.
+eas simulator:exec sh -c "argent run native-describe-screen --args '{\"udid\":\"$UDID\"}'"
+eas simulator:exec sh -c "argent run gesture-tap --args '{\"udid\":\"$UDID\",\"x\":0.5,\"y\":0.5}'"
+eas simulator:exec sh -c "argent run screenshot --args '{\"udid\":\"$UDID\",\"scale\":0.5}'"
 ```
 
-Running 4 sessions at once = 4× concurrent billing while they run. `.env.eas-simulator`
-carries a token → it's gitignored; keep it that way.
+`screenshot` defaults to `scale` **0.3** (about 362px wide on an iPhone 17), which is too coarse
+to judge layout. Pass `0.5` — roughly 600px, readable without paying for full native resolution.
+Add `"includeImageInContext":false` when capturing a baseline you only intend to diff.
 
-For workflow jobs, use the repository's pinned toolchain. For ad-hoc local use,
-keep the controller version explicit as shown above.
+`restart-app` re-loads the last bundle URL; prefer it over the dev menu's Reload, which eats
+synthetic taps. There is no long-press tool — use `gesture-custom` with a `Down`/`Up` pair and a
+`delayMs`.
+
+Running 4 sessions at once = 4× concurrent billing while they run. `.env.eas-simulator`
+carries a token → it's gitignored; keep it that way. So is `.argent/`, where argent drops
+retrieved recordings — a wrapper that runs `git add -A` would otherwise commit them.
+
+For workflow jobs, use the repository's pinned toolchain, which still drives `agent-device`.
+For ad-hoc local use, keep the controller version explicit as shown above.
 
 ## 4. Reproduce motion with video and inspect the frames
 
@@ -140,14 +162,32 @@ or dropped frames. For any animation, gesture, transition, or timing issue:
 
 1. Put the app in a deterministic starting state. Keep the preset, viewport,
    navigation state, and app data fixed between runs.
-2. Start recording immediately before one clean reproduction:
+2. Start recording immediately before one clean reproduction. **`trimStatic` must be
+   `false`** — it defaults to `true` and collapses stretches where the screen does not
+   change, which silently destroys the very frame cadence you are about to measure:
 
    ```bash
-   npx --yes eas-cli@latest simulator:exec npx agent-device@0.20.1 \
-     record start ./before.mp4 --max-size 1024
-   # Re-run snapshot before each interaction, then perform only the interaction under test.
-   npx --yes eas-cli@latest simulator:exec npx agent-device@0.20.1 record stop
+   eas simulator:exec sh -c "argent run screen-recording-start --args '{\"udid\":\"$UDID\",\"timeLimitSeconds\":60,\"trimStatic\":false,\"showTouches\":true}'"
+   # Re-read the screen before each interaction, then perform only the interaction under test.
+   eas simulator:exec sh -c "argent run screen-recording-stop --args '{\"udid\":\"$UDID\"}'"
    ```
+
+   `screen-recording-stop` returns `{ video, durationMs }` where `video` is a path it has
+   already downloaded into `.argent/recordings/`. Copy it to where you want it; do not
+   read the `outputFile` from `screen-recording-start`, which is a temp path on the
+   session host. Output is h264 mp4 at native resolution and a true 30fps (verified:
+   955 frames / 31.833s, intervals dead even at 33.3ms).
+
+   `showTouches` (default `true`) draws a pulse at each tap and a trail along swipes.
+   Keep it on for reproductions — it shows where the interaction landed — and turn it off
+   when the overlay would obscure the thing under test.
+
+   Recordings carry an "Argent By @swmansion" watermark burned into the bottom-left, over
+   app content. It cannot be turned off from the client: the documented
+   `argent disable video-watermark` flag is read where the encoder runs, so on a hosted
+   session it does nothing, and passing `watermark: false` to `screen-recording-start` is
+   accepted and silently ignored. Fine for diagnosis; consider it before publishing a
+   recording anywhere public.
 
    Keep `before.mp4` unchanged.
 3. Analyze the recording before diagnosing from code. Keep the original video
