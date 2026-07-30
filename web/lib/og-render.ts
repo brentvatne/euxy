@@ -62,5 +62,18 @@ export async function renderCard(element: unknown): Promise<Uint8Array> {
   return new Resvg(svg).render().asPng();
 }
 
+/**
+ * Rasterize an SVG string to a PNG.
+ *
+ * Separate from renderCard because a QR code is already geometry: it needs
+ * resvg but not satori, yoga, or fonts. Sharing this module keeps the wasm
+ * compiled exactly once — a second module compiling RESVG_MODULE would double
+ * the worker's start-up cost for no reason.
+ */
+export async function renderSvg(svg: string): Promise<Uint8Array> {
+  await ensureReady();
+  return new Resvg(svg).render().asPng();
+}
+
 /** A payload maps to exactly one card, so the URL is content-addressed. */
 export const IMMUTABLE_CACHE = 'public, max-age=31536000, immutable';

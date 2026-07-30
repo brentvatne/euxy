@@ -27,7 +27,25 @@ export function parseChannelLink(raw: string | string[] | undefined): string | n
   return CHANNEL.test(channel) ? channel : null;
 }
 
-/** The link that switches an install to `channel` — what a QR code encodes. */
+/** The custom-scheme link. Only an install already on this device can open it. */
 export function channelLink(channel: string): string {
   return `euxy://c/${encodeURIComponent(channel)}`;
+}
+
+/**
+ * Where the universal link lives. `applinks:euxy.expo.app` in app.json and
+ * `/c*` in web/public/.well-known/apple-app-site-association are the two halves
+ * that make iOS hand this path to the app instead of Safari; both must ship
+ * before a link opens the app.
+ */
+export const CHANNEL_LINK_ORIGIN = 'https://euxy.expo.app';
+
+/**
+ * The link a QR code encodes. Universal, not `euxy://`: a camera app will not
+ * open a custom scheme it cannot verify, and this form still resolves — to a
+ * page explaining the channel — on a device without the app. iOS opens the app
+ * directly when the association is in place.
+ */
+export function channelUniversalLink(channel: string): string {
+  return `${CHANNEL_LINK_ORIGIN}/c/${encodeURIComponent(channel)}`;
 }

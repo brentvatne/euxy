@@ -100,8 +100,16 @@ describe("per-PR EAS Update previews", () => {
     expect(harness.getBody()).toContain(
       `<!-- euxy-eas-update-channel: ${result.channel} -->`,
     );
-    expect(harness.getBody()).toContain(`Channel: \`${result.channel}\``);
-    expect(harness.getBody()).toContain("Enter `");
+    expect(harness.getBody()).toContain(`**Channel \`${result.channel}\`**`);
+    expect(harness.getBody()).toContain(`Enter \`${result.channel}\` in Channel Surf`);
+    // The QR encodes the universal link, and the image is a PNG: GitHub's image
+    // proxy refuses SVG, and a camera will not open a `euxy://` scheme.
+    expect(harness.getBody()).toContain(
+      `<img src="https://euxy.expo.app/qr/${result.channel}.png"`,
+    );
+    expect(harness.getBody()).toContain(`<a href="https://euxy.expo.app/c/${result.channel}">`);
+    expect(harness.getBody()).not.toContain("euxy://");
+    expect(harness.getBody()).toContain('alt="QR code that switches euxy to the');
 
     const updateCommand = harness.commands.find((command) =>
       command.includes("update"),

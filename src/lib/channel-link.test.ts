@@ -3,7 +3,7 @@
 // @ts-expect-error -- `bun:test` is available to the test runner, not the app.
 import { describe, expect, test } from 'bun:test';
 
-import { channelLink, parseChannelLink } from './channel-link';
+import { channelLink, channelUniversalLink, parseChannelLink } from './channel-link';
 
 describe('channel deep links', () => {
   test('accepts the channel names EAS Update publishes to', () => {
@@ -29,5 +29,26 @@ describe('channel deep links', () => {
   test('builds a link the app can parse back', () => {
     expect(channelLink('amber-42')).toBe('euxy://c/amber-42');
     expect(parseChannelLink(channelLink('preview').split('/').pop())).toBe('preview');
+  });
+
+  test('builds the universal link a QR code encodes', () => {
+    expect(channelUniversalLink('amber-42')).toBe('https://euxy.expo.app/c/amber-42');
+    // Same path shape as the scheme form, so one route serves both.
+    expect(parseChannelLink(channelUniversalLink('preview').split('/').pop())).toBe('preview');
+  });
+
+  test('the universal link is https and carries no credentials or query', () => {
+    // A QR is scanned from a screen by whoever is holding a phone; the encoded
+    // URL must not be a place to smuggle anything.
+    for (const channel of ['amber-42', 'preview', 'feature_1.2']) {
+      const url = new URL(channelUniversalLink(channel));
+      expect(url.protocol).toBe('https:');
+      expect(url.hostname).toBe('euxy.expo.app');
+      expect(url.username).toBe('');
+      expect(url.password).toBe('');
+      expect(url.search).toBe('');
+      expect(url.hash).toBe('');
+      expect(url.pathname).toBe(`/c/${channel}`);
+    }
   });
 });

@@ -3,7 +3,7 @@
     "details": [
       {
         "appID": "GQ4S96SE9Z.dev.brent.euxy",
-        "paths": ["/p*"]
+        "paths": ["/p*", "/c*"]
       }
     ]
   }

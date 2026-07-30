@@ -26,6 +26,7 @@ const ALLOWLIST = [
   'core/lane-pattern.ts',
   'core/share-codec.ts',
   'core/opxy.ts',
+  'lib/channel-link.ts',
   'state/types.ts',
   'state/lane.ts',
   'state/presets.ts',

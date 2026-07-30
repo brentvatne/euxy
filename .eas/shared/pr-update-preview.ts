@@ -194,6 +194,28 @@ function extractExpoUrl(value: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * The universal channel link and its QR code, both served by the web app —
+ * `web/app/c/[channel]+api.ts` and `web/app/qr/[channel]+api.ts`. The link form
+ * must stay in step with `src/lib/channel-link.ts`, which is the app's own
+ * definition; it is restated here rather than imported because this module runs
+ * on the workflow worker, outside the app's module graph.
+ *
+ * The QR encodes the https form, not `euxy://`: a camera app will not open a
+ * custom scheme, and the https form still resolves for a reader without the app.
+ */
+const CHANNEL_LINK_ORIGIN = "https://euxy.expo.app";
+/** Rendered size in the PR body. The PNG itself is larger; this is the display box. */
+const QR_DISPLAY_PX = 168;
+
+function channelUniversalLink(channel: string): string {
+  return `${CHANNEL_LINK_ORIGIN}/c/${encodeURIComponent(channel)}`;
+}
+
+function channelQrImage(channel: string): string {
+  return `${CHANNEL_LINK_ORIGIN}/qr/${encodeURIComponent(channel)}.png`;
+}
+
 function renderPreviewBlock({
   channel,
   status,
@@ -211,13 +233,28 @@ function renderPreviewBlock({
           ? `[Open the latest EAS Update](${updateUrl}).`
           : "The latest EAS Update was published successfully."
         : "The latest publication failed; inspect the EAS workflow logs.";
+  const link = channelUniversalLink(channel);
+  // A two-column table keeps the code beside its facts instead of pushing them
+  // off the first screen. Raw <img> because Markdown image syntax cannot size an
+  // image, and a 296px QR at full width reads as a decoration rather than a
+  // control. GitHub allows img/a with these attributes.
+  const scanCard = [
+    "| Scan to join | |",
+    "| :---: | --- |",
+    `| <a href="${link}"><img src="${channelQrImage(channel)}" width="${QR_DISPLAY_PX}" ` +
+      `height="${QR_DISPLAY_PX}" alt="QR code that switches euxy to the ${channel} channel"></a> ` +
+      `| **Channel \`${channel}\`**<br><br>Point an iPhone camera at the code, or open ` +
+      `[${link.replace(`${CHANNEL_LINK_ORIGIN}/`, "")}](${link}) on the device. ` +
+      `euxy switches to this channel and loads its latest compatible update.<br><br>` +
+      `No app yet? Enter \`${channel}\` in Channel Surf by hand. |`,
+  ].join("\n");
   return [
     PREVIEW_START,
     "## Preview update",
     "",
-    `Channel: \`${channel}\``,
+    scanCard,
     "",
-    `${result} Enter \`${channel}\` in Channel Surf to load this PR's latest compatible update.`,
+    result,
     "",
     channelMarker(channel),
     PREVIEW_END,
