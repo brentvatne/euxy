@@ -778,9 +778,15 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginRight: 8,
     maxWidth: 300,
-    // A step above the cell it points at (the surface3 disclosure level), so it
-    // reads as floating over the group rather than as another row of it.
-    backgroundColor: color.surface3,
+    // surface4, the top of the ramp — NOT surface3. The fill was always fully
+    // opaque, but surface3 is the level a row expands INTO (trackPanel, the pad
+    // grid) and lands only ~14 of 255 above the surface2 cell this floats over,
+    // so the panel read as see-through. One step up clears both the cell and
+    // the disclosure level, and the rim pins the edge the soft shadow left
+    // ambiguous — together they read as solid rather than as a frosted overlay.
+    backgroundColor: color.surface4,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: ramp[3],
     borderRadius: radius.cell,
     paddingVertical: 10,
     paddingHorizontal: 13,
@@ -795,14 +801,17 @@ const styles = StyleSheet.create({
     width: TIP_CARET,
     height: TIP_CARET,
     borderRadius: 2,
-    backgroundColor: color.surface3,
+    // Matches the bubble it points out of — the caret is the same surface.
+    backgroundColor: color.surface4,
     transform: [{ rotate: '45deg' }],
   },
   tipText: {
     fontFamily: font.text,
     fontSize: 13,
     lineHeight: 18,
-    color: color.label2,
+    // label2 on the lighter panel falls to ~4.2:1; primary label holds the copy
+    // legible, and the popover is only up while Listen is engaged anyway.
+    color: color.label,
   },
   // Paper 02c: Listen recedes while the pad grid is the primary input.
   listenMuted: { backgroundColor: ramp[6] },
