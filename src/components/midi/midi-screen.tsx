@@ -3,7 +3,7 @@
  * form: Connection · Timing · Diagnostics · Routing · Panic. This screen is
  * also the entire web experience — it drives the platform `MidiPort` via the
  * shared runtime, so on web it doubles as the minimal MIDI connection tester
- * (enable → pick output/input → watch traffic → panic; send a test note from
+ * (enable → pick output/input → panic; watch traffic and send a test note from
  * the Activity-log screen).
  */
 import { router, useFocusEffect } from 'expo-router';
@@ -18,7 +18,7 @@ import { haptics } from '@/lib/shims';
 import { useActivePattern, useSettings, useTransport } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import { color, space } from '@/theme/tokens';
-import { Cell, ClockModeToggle, ConnectionBadge, GRAY, Group, LatencySlider, LogPreview, PushRow, SectionHeader, ValueRow } from './components';
+import { Cell, ClockModeToggle, ConnectionBadge, GRAY, Group, LatencySlider, PushRow, SectionHeader, ValueRow } from './components';
 import { enableMidi, panic, refreshDevices, setLatency, useMidiRuntime } from './runtime';
 
 const LATENCY_MIN = -120;
@@ -133,13 +133,13 @@ export default function MidiScreen() {
       </AppText>
 
       {/* DIAGNOSTICS — long-press the header for the hidden channel-surf
-          sheet (runtime EAS Update channel switching). */}
+          sheet (runtime EAS Update channel switching). The raw byte stream is
+          deliberately NOT previewed here: live traffic scrolling under a
+          settings form reads as noise, so it lives one tap away behind the
+          Activity-log row and nowhere else. */}
       <SectionHeader onLongPress={openChannelSurf}>Diagnostics</SectionHeader>
       <Group>
-        <PushRow pos="first" label="Activity log" onPress={() => router.push('/activity-log')} />
-        <Cell pos="last" contentStyle={styles.logCell}>
-          <LogPreview lines={rt.log.slice(0, 4)} />
-        </Cell>
+        <PushRow pos="single" label="Activity log" onPress={() => router.push('/activity-log')} />
       </Group>
 
       {/* ROUTING — lane → channel map for the ACTIVE pattern. Read-only:
@@ -204,7 +204,6 @@ const styles = StyleSheet.create({
   },
   latencyValue: { fontSize: 16, lineHeight: 20, fontWeight: '600', color: GRAY },
 
-  logCell: { flexDirection: 'column', alignItems: 'stretch', gap: 3, paddingVertical: 12 },
   emptyRouting: { fontSize: 16, lineHeight: 20, color: GRAY },
 
   panicWrap: { paddingTop: 22, paddingBottom: 8, paddingHorizontal: space.lg },
