@@ -36,7 +36,12 @@
  * padding 8 · gap 10 · 48px keys · 14px margin. Fallback = solid #16161D.
  */
 import { useEffect, useRef, useState } from "react";
-import { StyleSheet, View, useWindowDimensions } from "react-native";
+import {
+  PixelRatio,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import {
   Gesture,
   GestureDetector,
@@ -89,9 +94,16 @@ const MARGIN = 14;
 // rounded rects (rx 1) at coordinates 5.2 / 9.4 / 13.6.
 const GLYPH = 18;
 const U = GLYPH / 22;
-const PIP = 3.2 * U;
-const PIP_R = 1 * U;
-const PIP_COORD = [5.2 * U, 9.4 * U, 13.6 * U];
+/** Snap to whole device pixels. The 22-unit artboard scaled to 18pt lands the
+ * pips on 7.85 device pixels at 3×, so two edges of every pip are a
+ * half-covered grey column and the glyph reads as blurred next to the crisp
+ * SF Symbols beside it. Rounding pip size, radius and cell coordinates to the
+ * grid keeps the Paper geometry (nothing moves by more than a third of a
+ * point) and gives each pip four hard edges. */
+const px = (v: number) => PixelRatio.roundToNearestPixel(v);
+const PIP = px(3.2 * U);
+const PIP_R = px(1 * U);
+const PIP_COORD = [px(5.2 * U), px(9.4 * U), px(13.6 * U)];
 /** Rest cells of the 5 pips on the glyph's 3×3 grid: TL TR C BL BR. */
 const REST_CELLS = [
   [0, 0],
@@ -1501,6 +1513,14 @@ function ChargeDice({
     opacity: 0.6 * charge.bloom.value,
   }));
   const flashStyle = useAnimatedStyle(() => ({ opacity: 0.85 * flash.value }));
+  // The press travel goes back EARLY in the contract (the same `contract * 3`
+  // handoff the armed rim uses), not across the whole 520ms spring: the travel
+  // is a 6% scale, and every frame it is held for is a frame of the pips being
+  // resampled off the device-pixel grid. Leading the contract confines that to
+  // the engage itself rather than the whole first beat of the charge.
+  const travelRelease = useDerivedValue(() =>
+    Math.min(1, charge.contract.value * 3),
+  );
 
   return (
     <GestureDetector gesture={dragWatch}>
@@ -1509,6 +1529,10 @@ function ChargeDice({
           disabled={disabled}
           onPressIn={onPressIn}
           onPressOut={onPressOut}
+          // A charge is no longer a press: the key hands its 6% press travel
+          // back as the capsule contracts, so the pips are not left scaled off
+          // the pixel grid for the whole hold (see KeyProps.travelRelease).
+          travelRelease={travelRelease}
           simultaneousWithExternalGesture={dragWatch}
           style={styles.btn}
           accessibilityRole="button"
@@ -1911,7 +1935,14 @@ const styles = StyleSheet.create({
     padding: PAD,
   },
   barGlass: {
-    borderWidth: 0.5,
+    // Same device-pixel-grid problem the dice pips had, one level out. The
+    // Paper rim is 0.5pt = 1.5 device pixels at 3×, so the capsule's outline
+    // renders as a full-strength line PLUS a half-strength ghost line beside
+    // it (measured on a 3× sim: 31 + 17 of 255 down the sides) — a doubled
+    // edge, which is what reads as blur next to the crisp keys inside it.
+    // `hairlineWidth` is exactly ONE device pixel at every density (0.5pt at
+    // 2×, ⅓pt at 3×), which is what a "0.5px rim" means on a Retina screen.
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(255,255,255,0.12)",
   },
   barSolid: {
