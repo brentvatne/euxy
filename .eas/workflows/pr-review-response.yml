@@ -63,3 +63,5 @@ jobs:
             .eas/pr-review/RESPONSE.md
             .eas/pr-review/ACTIONS.json
             .eas/pr-review/sim/**/*
+            .eas/pr-review/RESCUED_WORK.patch
+            .eas/pr-review/RESCUED_WORK.md

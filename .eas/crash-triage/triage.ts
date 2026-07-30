@@ -42,7 +42,12 @@ import {
 } from "../shared/public-simulator-evidence";
 import { runClaudeAgent } from "../shared/claude-agent";
 import { publishPullRequestUpdate } from "../shared/pr-update-preview";
-import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
+import { rescueAgentWork } from "../shared/rescue-patch";
+import {
+  assertSafeAgentDiff,
+  findProtectedAutomationChanges,
+  isMaintainerRequest,
+} from "../shared/safe-agent-diff";
 
 const env = process.env;
 const GIT = env.GIT_BIN || "git";
@@ -364,16 +369,6 @@ if (!(await Bun.file(ANALYSIS).exists())) {
     `# Crash triage — ${feedbackId || "(no id)"}\n\nThe agent did not produce an analysis (rc=${agentRc}); manual investigation needed.\n\nCrash: ${feedbackUrl || "<no url>"} (id: ${feedbackId || "n/a"})\n`
   );
 }
-if (agentRc !== 0) {
-  console.error(`✗ Agent failed (rc=${agentRc}) — refusing to publish partial or unverified changes.`);
-  process.exit(1);
-}
-
-if (env.DRY_RUN === "1") {
-  console.log("▸ DRY_RUN=1 → skipping branch/PR. Analysis at " + ANALYSIS);
-  process.exit(0);
-}
-
 // ---- ensure a real git checkout ----
 // The App Store Connect trigger (repo connected to EAS) checks out a full clone.
 // `eas workflow:run` archive uploads have no .git — the summary is still uploaded
@@ -395,6 +390,10 @@ if (!owner || !repo) {
   process.exit(1);
 }
 
+// ---- stage the agent's work and rescue it into the artifact ----
+// Staged before the publish gates on purpose: a failed agent, a protected path,
+// or a failed push all end the run, and the builder's working tree goes with it.
+// The patch in the uploaded artifact is the only copy that survives.
 // Key the branch on the crash signature so the next report of the same crash
 // dedups against this PR (falls back to the feedback id in degraded mode).
 const shortId = (feedbackId || String(Date.now())).replace(/[^a-zA-Z0-9]/g, "").slice(0, 12) || String(Date.now());
@@ -408,10 +407,42 @@ await sh([GIT, "add", "-A"]);
 // did the agent change code (anything besides the triage bookkeeping)?
 const staged = await sh([GIT, "diff", "--cached", "--name-only"]);
 const stagedPaths = staged.out.split("\n").filter(Boolean);
+const maintainerRequest = isMaintainerRequest({
+  email: String(crash.testerEmail ?? ""),
+  env,
+});
+const protectedPaths = findProtectedAutomationChanges(stagedPaths);
+await rescueAgentWork({
+  outDir: TRIAGE_DIR,
+  reason:
+    agentRc === 0
+      ? `agent rc=0; staged before the publish gates for crash ${feedbackId || "(no id)"}`
+      : `agent failed with rc=${agentRc}`,
+  blockedPaths: maintainerRequest ? [] : protectedPaths,
+});
+
+if (agentRc !== 0) {
+  console.error(`✗ Agent failed (rc=${agentRc}) — refusing to publish partial or unverified changes.`);
+  process.exit(1);
+}
+
+if (env.DRY_RUN === "1") {
+  console.log("▸ DRY_RUN=1 → skipping branch/PR. Analysis at " + ANALYSIS);
+  process.exit(0);
+}
+
 try {
-  assertSafeAgentDiff(stagedPaths);
+  const allowed = assertSafeAgentDiff(stagedPaths, { maintainerRequest });
+  if (allowed.length) {
+    console.log(
+      `▸ Tester ${crash.testerEmail} is the maintainer → allowing ${allowed.length} protected ` +
+        `automation path(s) in this PR (still branch-only, never auto-merged):`
+    );
+    for (const path of allowed) console.log(`    - ${path}`);
+  }
 } catch (error) {
   console.error(`✗ ${(error as Error).message}`);
+  console.error(`▸ The work is preserved in the ${TRIAGE_DIR} artifact — see RESCUED_WORK.md.`);
   process.exit(1);
 }
 const codeChanged = stagedPaths

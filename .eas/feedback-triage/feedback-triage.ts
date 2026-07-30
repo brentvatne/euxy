@@ -46,7 +46,12 @@ import {
 } from "../shared/public-simulator-evidence";
 import { runClaudeAgent } from "../shared/claude-agent";
 import { publishPullRequestUpdate } from "../shared/pr-update-preview";
-import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
+import { rescueAgentWork } from "../shared/rescue-patch";
+import {
+  assertSafeAgentDiff,
+  findProtectedAutomationChanges,
+  isMaintainerRequest,
+} from "../shared/safe-agent-diff";
 
 const env = process.env;
 const GIT = env.GIT_BIN || "git";
@@ -322,6 +327,42 @@ console.log(`▸ Agent finished (rc=${agentRc}).`);
 if (!(await Bun.file(ANALYSIS).exists())) {
   await Bun.write(ANALYSIS, `# Feedback triage — ${feedback.id}\n\nThe agent produced no analysis (rc=${agentRc}); manual triage needed.\n\n> ${String(feedback.comment)}\n`);
 }
+// ---- 3. stage the agent's work and rescue it into the artifact ----
+// Everything below this line can end the run: a failed agent, a rejected
+// description, a protected path, a failed push. The builder and its working tree
+// are discarded when the job ends, so the diff is staged and copied into the
+// uploaded artifact FIRST. Otherwise a gate one step from the finish line throws
+// away every minute of simulator-verified work with no way to get it back.
+const branch = `feedback-triage/${shortId}`;
+const base = env.PR_BASE || "main";
+// `eas workflow:run` uploads a bare archive (no .git). Reconstruct a repo pointed
+// at origin/<base> with a --mixed reset so the working tree (archive + the agent's
+// edits) is preserved and `git add -A` stages exactly the agent's diff vs base.
+const isRepo = (await sh([GIT, "rev-parse", "--is-inside-work-tree"], { allowFail: true })).out === "true";
+if (!isRepo) {
+  console.log(`▸ No .git (archive upload) — reconstructing from origin/${base} to branch + push.`);
+  await sh([GIT, "init", "-q"]);
+  await sh([GIT, "remote", "add", "origin", `https://x-access-token:${GH_TOKEN}@github.com/${owner}/${repo}.git`]);
+  await sh([GIT, "fetch", "-q", "--depth=1", "origin", base]);
+  await sh([GIT, "reset", "--mixed", "FETCH_HEAD"]);
+}
+await sh([GIT, "config", "user.name", "notbrent"]);
+await sh([GIT, "config", "user.email", "16714793+notbrent@users.noreply.github.com"]);
+await sh([GIT, "checkout", "-B", branch]);
+await sh([GIT, "add", "-A"]);
+const staged = await sh([GIT, "diff", "--cached", "--name-only"]);
+const stagedPaths = staged.out.split("\n").filter(Boolean);
+const maintainerRequest = isMaintainerRequest({ email: testerEmail, env });
+const protectedPaths = findProtectedAutomationChanges(stagedPaths);
+await rescueAgentWork({
+  outDir: DIR,
+  reason:
+    agentRc === 0
+      ? `agent rc=0; staged before the publish gates for feedback ${feedback.id}`
+      : `agent failed with rc=${agentRc}`,
+  blockedPaths: maintainerRequest ? [] : protectedPaths,
+});
+
 if (agentRc !== 0) {
   console.error(`✗ Agent failed (rc=${agentRc}) — refusing to publish partial or unverified changes.`);
   process.exit(1);
@@ -378,30 +419,19 @@ try {
   }
 }
 
-// ---- 3. branch + commit ----
-const branch = `feedback-triage/${shortId}`;
-const base = env.PR_BASE || "main";
-// `eas workflow:run` uploads a bare archive (no .git). Reconstruct a repo pointed
-// at origin/<base> with a --mixed reset so the working tree (archive + the agent's
-// edits) is preserved and `git add -A` stages exactly the agent's diff vs base.
-const isRepo = (await sh([GIT, "rev-parse", "--is-inside-work-tree"], { allowFail: true })).out === "true";
-if (!isRepo) {
-  console.log(`▸ No .git (archive upload) — reconstructing from origin/${base} to branch + push.`);
-  await sh([GIT, "init", "-q"]);
-  await sh([GIT, "remote", "add", "origin", `https://x-access-token:${GH_TOKEN}@github.com/${owner}/${repo}.git`]);
-  await sh([GIT, "fetch", "-q", "--depth=1", "origin", base]);
-  await sh([GIT, "reset", "--mixed", "FETCH_HEAD"]);
-}
-await sh([GIT, "config", "user.name", "notbrent"]);
-await sh([GIT, "config", "user.email", "16714793+notbrent@users.noreply.github.com"]);
-await sh([GIT, "checkout", "-B", branch]);
-await sh([GIT, "add", "-A"]);
-const staged = await sh([GIT, "diff", "--cached", "--name-only"]);
-const stagedPaths = staged.out.split("\n").filter(Boolean);
+// ---- 4. commit + publish ----
 try {
-  assertSafeAgentDiff(stagedPaths);
+  const allowed = assertSafeAgentDiff(stagedPaths, { maintainerRequest });
+  if (allowed.length) {
+    console.log(
+      `▸ Tester ${testerEmail} is the maintainer → allowing ${allowed.length} protected ` +
+        `automation path(s) in this PR (still branch-only, never auto-merged):`
+    );
+    for (const path of allowed) console.log(`    - ${path}`);
+  }
 } catch (error) {
   console.error(`✗ ${(error as Error).message}`);
+  console.error(`▸ The work is preserved in the ${DIR} artifact — see RESCUED_WORK.md.`);
   process.exit(1);
 }
 const codeChanged = stagedPaths.some((f) => !f.startsWith(`${DIR}/`));

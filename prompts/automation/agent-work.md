@@ -80,3 +80,8 @@ GitHub report or explicitly asked you to work on it.
   one of the concrete no-change conditions above applies.
 - Keep the visible PR description easy to scan. Do not duplicate technical
   detail outside the expandable Approach blocks.
+- Automation paths are protected: `.eas/`, `.github/workflows/`,
+  `.github/scripts/`, `prompts/automation/`, and `.expo-code-review/`. A run the
+  maintainer started may change them; every other run is refused at the publish
+  step and loses the whole diff. If you must change one, keep it minimal and say
+  so in your analysis.

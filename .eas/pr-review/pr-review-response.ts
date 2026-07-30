@@ -33,7 +33,12 @@ import {
   publishPublicSimulatorEvidence,
   renderPublicSimulatorEvidence,
 } from "../shared/public-simulator-evidence";
-import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
+import { rescueAgentWork } from "../shared/rescue-patch";
+import {
+  assertSafeAgentDiff,
+  findProtectedAutomationChanges,
+  isMaintainerRequest,
+} from "../shared/safe-agent-diff";
 import {
   normalizePullRequestAgentResponse,
   parsePullRequestAgentActions,
@@ -515,6 +520,36 @@ if (await Bun.file(`${WORK}/.eas/pr-review/ACTIONS.json`).exists()) {
 if (existsSync(`${WORK}/.eas/pr-review/sim`)) {
   await sh(["cp", "-R", `${WORK}/.eas/pr-review/sim`, ".eas/pr-review/"]);
 }
+// ---- stage the agent's work and rescue it into the artifact ----
+// Staged before the publish gates on purpose: a failed agent, a protected path,
+// or a failed push all end the run, and the builder's working tree goes with it.
+// The patch is written to the CHECKOUT's .eas/pr-review (what the workflow
+// uploads), not to WORK, which is a scratch clone under /tmp.
+await sh([GIT, "-C", WORK, "config", "user.name", BOT_NAME]);
+await sh([GIT, "-C", WORK, "config", "user.email", BOT_EMAIL]);
+await sh([GIT, "-C", WORK, "add", "-A"]);
+// Never commit the transient feedback/response files (the PR branch predates the
+// gitignore entry for them) — keep only the agent's actual code changes.
+await sh([GIT, "-C", WORK, "reset", "-q", "--", ".eas/pr-review"], {
+  allowFail: true,
+});
+const staged = await sh([GIT, "-C", WORK, "diff", "--cached", "--name-only"]);
+const stagedPaths = staged.out.split("\n").filter(Boolean);
+// fb.author is the API-verified author of the command this run is answering. The
+// AI reviewer bot is a trusted trigger but is NOT the maintainer, so a bot-driven
+// run keeps the protected-path guard on.
+const maintainerRequest = isMaintainerRequest({ login: fb.author, env });
+const protectedPaths = findProtectedAutomationChanges(stagedPaths);
+await rescueAgentWork({
+  outDir: ".eas/pr-review",
+  gitDir: WORK,
+  reason:
+    agentRc === 0
+      ? `agent rc=0; staged before the publish gates for PR #${prNumber}`
+      : `agent failed with rc=${agentRc}`,
+  blockedPaths: maintainerRequest ? [] : protectedPaths,
+});
+
 // A failed agent run may have left partial/unverified edits — never commit those.
 if (agentRc !== 0) {
   await gh(`/issues/${prNumber}/comments`, {
@@ -548,19 +583,18 @@ const evidenceSection = publicEvidence
   : "";
 
 // ---- commit + push to the PR branch (feedback/RESPONSE are under a gitignored path) ----
-await sh([GIT, "-C", WORK, "config", "user.name", BOT_NAME]);
-await sh([GIT, "-C", WORK, "config", "user.email", BOT_EMAIL]);
-await sh([GIT, "-C", WORK, "add", "-A"]);
-// Never commit the transient feedback/response files (the PR branch predates the
-// gitignore entry for them) — keep only the agent's actual code changes.
-await sh([GIT, "-C", WORK, "reset", "-q", "--", ".eas/pr-review"], {
-  allowFail: true,
-});
-const staged = await sh([GIT, "-C", WORK, "diff", "--cached", "--name-only"]);
 try {
-  assertSafeAgentDiff(staged.out.split("\n").filter(Boolean));
+  const allowed = assertSafeAgentDiff(stagedPaths, { maintainerRequest });
+  if (allowed.length) {
+    console.log(
+      `▸ ${fb.author} is the maintainer → allowing ${allowed.length} protected ` +
+        `automation path(s) on this branch (never auto-merged):`,
+    );
+    for (const path of allowed) console.log(`    - ${path}`);
+  }
 } catch (error) {
   console.error(`✗ ${(error as Error).message}`);
+  console.error("▸ The work is preserved in the .eas/pr-review artifact — see RESCUED_WORK.md.");
   process.exit(1);
 }
 const summary = (await Bun.file(`${WORK}/.eas/pr-review/RESPONSE.md`).exists())

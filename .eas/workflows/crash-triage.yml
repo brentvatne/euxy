@@ -58,3 +58,5 @@ jobs:
             .eas/crash-triage/ANALYSIS.md
             .eas/crash-triage/crash.json
             .eas/crash-triage/sim/**/*
+            .eas/crash-triage/RESCUED_WORK.patch
+            .eas/crash-triage/RESCUED_WORK.md

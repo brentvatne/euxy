@@ -88,3 +88,8 @@ SETUP-TRACING.md
 .eas/pr-review/ACTIONS.json
 .eas/pr-review/sim/
 .github/pr-review/
+
+# The rescued diff a triage run writes so its work survives a failed publish.
+# Uploaded as a workflow artifact; never part of the branch it describes.
+.eas/*/RESCUED_WORK.patch
+.eas/*/RESCUED_WORK.md

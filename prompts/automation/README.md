@@ -130,7 +130,33 @@ comments with its findings and publishes only when explicitly requested.
   `github-actions[bot]` identity are rejected.
 - Full PR-agent responses stop after three bot-authored response commits on a
   branch. Publish-only commands do not consume an iteration.
-- The agent cannot change protected workflow, runner, prompt, or credential
-  paths and never merges or auto-approves.
+- Protected workflow, runner, prompt, and credential paths may be changed only
+  by a run the maintainer started — see "Protected automation paths" below. The
+  agent never merges or auto-approves.
 - Full agent paths use EAS compute and may use EAS Simulator. The publish-only
   fast path skips Claude and simulator verification.
+
+## Protected automation paths
+
+`.eas/shared/safe-agent-diff.ts` lists the paths an agent-authored push may not
+touch: `.eas/`, `.github/workflows/`, `.github/scripts/`, `prompts/automation/`,
+and `.expo-code-review/`. These hold the credentials and the prompts, so a
+request from someone other than the maintainer must not be able to rewrite them.
+
+A run the **maintainer** started is exempt. The maintainer can already push these
+paths by hand, the change still lands on a branch in a pull request, and nothing
+auto-merges. Identity comes only from a source the requester cannot set — an App
+Store Connect tester email, or a GitHub login re-fetched from the API — and is
+matched against `MAINTAINER_EMAILS` / `MAINTAINER_GITHUB_LOGINS` (defaults:
+`brentvatne@gmail.com`, `brentvatne`). Bot identities are not maintainers, so a
+PR-review run triggered by the AI reviewer keeps the guard on. Every permitted
+protected path is printed in the job log.
+
+## Rescued work
+
+Each run stages the agent's diff and writes `RESCUED_WORK.patch` plus
+`RESCUED_WORK.md` into its artifact directory *before* the publish gates run. A
+builder and its working tree are discarded when the job ends, so without this a
+gate one step from the push — a failed agent, a rejected description, a protected
+path, a failed push — threw away every minute of verified work. Download the
+workflow artifact and apply the patch with the command in `RESCUED_WORK.md`.

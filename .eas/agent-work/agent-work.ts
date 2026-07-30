@@ -30,7 +30,12 @@ import {
 } from "../shared/public-simulator-evidence";
 import { runClaudeAgent } from "../shared/claude-agent";
 import { publishPullRequestUpdate } from "../shared/pr-update-preview";
-import { assertSafeAgentDiff } from "../shared/safe-agent-diff";
+import { rescueAgentWork } from "../shared/rescue-patch";
+import {
+  assertSafeAgentDiff,
+  findProtectedAutomationChanges,
+  isMaintainerRequest,
+} from "../shared/safe-agent-diff";
 import {
   bodyForInvestigation,
   parseAgentWorkCommand,
@@ -263,6 +268,28 @@ console.log(`▸ Agent finished (rc=${agentRc}).`);
 if (!(await Bun.file(ANALYSIS).exists())) {
   await Bun.write(ANALYSIS, `# Agent work session — #${issue.number}\n\nThe agent did not produce an analysis (rc=${agentRc}); manual review is needed.\n\nGitHub report: ${issue.url}\n`);
 }
+// ---- stage the agent's work and rescue it into the artifact ----
+// Staged before the publish gates on purpose: a failed agent, a protected path,
+// or a failed push all end the run, and the builder's working tree goes with it.
+// The patch in the uploaded artifact is the only copy that survives.
+const branch = `agent-work/${issue.number}`;
+await sh([GIT, "config", "user.name", "euxy agent-work bot"]);
+await sh([GIT, "config", "user.email", "agent-work@users.noreply.github.com"]);
+await sh([GIT, "checkout", "-B", branch]);
+await sh([GIT, "add", "-A"]);
+const staged = await sh([GIT, "diff", "--cached", "--name-only"]);
+const stagedPaths = staged.out.split("\n").filter(Boolean);
+const maintainerRequest = isMaintainerRequest({ login: dispatch.actor, env });
+const protectedPaths = findProtectedAutomationChanges(stagedPaths);
+await rescueAgentWork({
+  outDir: DIR,
+  reason:
+    agentRc === 0
+      ? `agent rc=0; staged before the publish gates for issue #${issue.number}`
+      : `agent failed with rc=${agentRc}`,
+  blockedPaths: maintainerRequest ? [] : protectedPaths,
+});
+
 if (agentRc !== 0) {
   console.error(`✗ Agent failed (rc=${agentRc}) — refusing to publish partial or unverified changes.`);
   process.exit(1);
@@ -273,18 +300,18 @@ if (env.DRY_RUN === "1") {
   process.exit(0);
 }
 
-// ---- branch / commit / push ----
-const branch = `agent-work/${issue.number}`;
-await sh([GIT, "config", "user.name", "euxy agent-work bot"]);
-await sh([GIT, "config", "user.email", "agent-work@users.noreply.github.com"]);
-await sh([GIT, "checkout", "-B", branch]);
-await sh([GIT, "add", "-A"]);
-const staged = await sh([GIT, "diff", "--cached", "--name-only"]);
-const stagedPaths = staged.out.split("\n").filter(Boolean);
 try {
-  assertSafeAgentDiff(stagedPaths);
+  const allowed = assertSafeAgentDiff(stagedPaths, { maintainerRequest });
+  if (allowed.length) {
+    console.log(
+      `▸ ${dispatch.actor} is the maintainer → allowing ${allowed.length} protected ` +
+        `automation path(s) in this PR (still branch-only, never auto-merged):`
+    );
+    for (const path of allowed) console.log(`    - ${path}`);
+  }
 } catch (error) {
   console.error(`✗ ${(error as Error).message}`);
+  console.error(`▸ The work is preserved in the ${DIR} artifact — see RESCUED_WORK.md.`);
   process.exit(1);
 }
 const codeChanged = stagedPaths.some((f) => !f.startsWith(`${DIR}/`));

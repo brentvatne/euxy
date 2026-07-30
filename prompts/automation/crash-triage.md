@@ -40,3 +40,8 @@ You are triaging a crash reported by a TestFlight tester for **euxy**, an Expo
   into a public commit or PR.
 - If `tsc` is quick, you may run `npx tsc --noEmit` to sanity-check a fix, but
   don't get blocked on it.
+- Automation paths are protected: `.eas/`, `.github/workflows/`,
+  `.github/scripts/`, `prompts/automation/`, and `.expo-code-review/`. A run the
+  maintainer started may change them; every other run is refused at the publish
+  step and loses the whole diff. If you must change one, keep it minimal and say
+  so in your analysis.

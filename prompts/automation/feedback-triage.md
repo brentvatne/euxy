@@ -47,3 +47,8 @@ acting on.
   both fine — a confident guess is not.
 - Treat `PUBLIC_PR.json` as public. It must stand on its own as a useful code
   review description without revealing any private TestFlight detail.
+- Automation paths are protected: `.eas/`, `.github/workflows/`,
+  `.github/scripts/`, `prompts/automation/`, and `.expo-code-review/`. A run the
+  maintainer started may change them; every other run is refused at the publish
+  step and loses the whole diff. If you must change one, keep it minimal and say
+  so in your analysis.

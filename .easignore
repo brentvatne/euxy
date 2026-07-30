@@ -82,6 +82,14 @@ SETUP-TRACING.md
 .eas/pr-review/RESPONSE.md
 .eas/pr-review/ACTIONS.json
 .eas/public-evidence-site/dist/
+.eas/crash-triage/RESCUED_WORK.patch
+.eas/crash-triage/RESCUED_WORK.md
+.eas/feedback-triage/RESCUED_WORK.patch
+.eas/feedback-triage/RESCUED_WORK.md
+.eas/agent-work/RESCUED_WORK.patch
+.eas/agent-work/RESCUED_WORK.md
+.eas/pr-review/RESCUED_WORK.patch
+.eas/pr-review/RESCUED_WORK.md
 .github/pr-review/
 
 # Not needed to build the native app, and together ~80% of the archive.

@@ -58,3 +58,5 @@ jobs:
             .eas/feedback-triage/PUBLIC_REPORT.json
             .eas/feedback-triage/PUBLIC_PR.json
             .eas/feedback-triage/sim/**/*
+            .eas/feedback-triage/RESCUED_WORK.patch
+            .eas/feedback-triage/RESCUED_WORK.md

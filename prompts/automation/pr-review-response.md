@@ -72,3 +72,8 @@ changes, and verify the result.
 - Stay on-topic: only address the review feedback for THIS PR.
 - Be honest — "addressed 1–2, point 3 needs a product decision" is fine; a change
   you can't verify is not.
+- Automation paths are protected: `.eas/`, `.github/workflows/`,
+  `.github/scripts/`, `prompts/automation/`, and `.expo-code-review/`. A run the
+  maintainer started may change them; every other run is refused at the publish
+  step and loses the whole diff. If you must change one, keep it minimal and say
+  so in your analysis.

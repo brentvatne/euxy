@@ -63,3 +63,5 @@ jobs:
             .eas/agent-work/issue.json
             .eas/agent-work/PUBLIC_FINDINGS.json
             .eas/agent-work/sim/**/*
+            .eas/agent-work/RESCUED_WORK.patch
+            .eas/agent-work/RESCUED_WORK.md
