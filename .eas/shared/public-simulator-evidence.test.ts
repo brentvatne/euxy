@@ -107,8 +107,9 @@ describe("public simulator evidence", () => {
     expect(await readFile(join(siteDir, "dist", "verification.mp4"))).toEqual(MP4);
     const page = await readFile(join(siteDir, "dist", "index.html"), "utf8");
     expect(page).toContain('href="./before.mp4"');
-    expect(page).toContain("Play baseline simulator run");
-    expect(page).toContain("Play full simulator run");
+    expect(page).toContain("Play the before-change reproduction");
+    expect(page).toContain("Play the after-change verification");
+    expect(page).not.toContain("simulator run");
     expect(page).toContain('class="comparison"');
     expect(page.match(/<img /g)).toHaveLength(2);
     expect(page).not.toContain("<video");
@@ -130,8 +131,9 @@ describe("public simulator evidence", () => {
       "![Behavior after the change in EAS Simulator]"
     );
     expect(rendered).toContain(
-      "| [Full recording](https://euxy--evidence123.expo.app/#before) | [Full recording](https://euxy--evidence123.expo.app/#after) |"
+      "| [Reproduction recording](https://euxy--evidence123.expo.app/#before) | [Verification recording](https://euxy--evidence123.expo.app/#after) |"
     );
+    expect(rendered).not.toContain("[Full recording]");
   });
 
   test("uses a readable single-column fallback without a before screenshot", () => {

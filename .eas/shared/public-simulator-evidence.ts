@@ -176,14 +176,14 @@ function evidenceHtml({
     ? `
           <a class="recording-link" href="./${BEFORE_VIDEO_NAME}">
             <span class="play-icon" aria-hidden="true"></span>
-            <span>Play baseline simulator run</span>
+            <span>Play the before-change reproduction</span>
           </a>`
     : "";
   const afterRecording = hasVideo
     ? `
           <a class="recording-link" href="./${VIDEO_NAME}">
             <span class="play-icon" aria-hidden="true"></span>
-            <span>Play full simulator run</span>
+            <span>Play the after-change verification</span>
           </a>`
     : "";
   const recordings = hasBeforeVideo || hasVideo
@@ -317,7 +317,7 @@ function evidenceHtml({
       <header class="page-header">
         <p class="eyebrow">Simulator verification</p>
         <h1>Before and after</h1>
-        <p class="lede">A direct visual comparison, plus complete recordings when the test captured them.</p>
+        <p class="lede">A direct visual comparison, plus the reproduction and verification recordings when the test captured them.</p>
       </header>
       <section class="${comparisonClass}" aria-label="Before and after screenshots">${beforeScreenshot}
         <article class="evidence-card" id="after">
@@ -461,11 +461,11 @@ export function renderPublicSimulatorEvidence(evidence: PublicSimulatorEvidence)
   }
   const pageLink = `[Open the full simulator evidence page](${evidence.pageUrl})`;
   const afterRecording = evidence.videoUrl
-    ? `[Full recording](${evidence.pageUrl}#after)`
+    ? `[Verification recording](${evidence.pageUrl}#after)`
     : `[Verification details](${evidence.pageUrl}#after)`;
   if (evidence.beforeScreenshotUrl) {
     const beforeRecording = evidence.beforeVideoUrl
-      ? `[Full recording](${evidence.pageUrl}#before)`
+      ? `[Reproduction recording](${evidence.pageUrl}#before)`
       : `[Baseline details](${evidence.pageUrl}#before)`;
     return [
       "## Verification evidence",
@@ -480,7 +480,7 @@ export function renderPublicSimulatorEvidence(evidence: PublicSimulatorEvidence)
   }
 
   const beforeRecording = evidence.beforeVideoUrl
-    ? `[Watch or download the complete before-change recording](${evidence.pageUrl}#before)`
+    ? `[Watch or download the before-change reproduction recording](${evidence.pageUrl}#before)`
     : "";
   return [
     "## Verification evidence",
