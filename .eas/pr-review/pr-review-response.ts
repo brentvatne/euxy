@@ -23,6 +23,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 import {
+  type AgentSimulatorSession,
   prepareAgentSimulator,
   stopAgentSimulator,
 } from "../shared/agent-simulator";
@@ -489,6 +490,9 @@ console.log(
   `\n===== FULL PROMPT PASSED TO CLAUDE =====\n${prompt}\n===== END PROMPT =====\n`,
 );
 let agentRc = 1;
+// Captured in the finally so the pull request can link the session the agent
+// actually verified in; stopping the session clears the id.
+let simulatorSession: AgentSimulatorSession | null = null;
 try {
   agentRc = await runClaudeAgent({
     claudeCommand: CLAUDE,
@@ -498,7 +502,7 @@ try {
     cwd: WORK,
   });
 } finally {
-  if (simValidation) await stopAgentSimulator({ cwd: WORK, env });
+  if (simValidation) simulatorSession = await stopAgentSimulator({ cwd: WORK, env });
 }
 console.log(`▸ Agent finished (rc=${agentRc}).`);
 await sh(["mkdir", "-p", ".eas/pr-review"]);
@@ -572,6 +576,7 @@ const publicEvidence = await publishPublicSimulatorEvidence({
     env.SIMULATOR_ARTIFACT_DIR || ".eas/pr-review/sim",
   ),
   env,
+  sessionUrl: simulatorSession?.url ?? null,
 });
 if (publicEvidence) {
   console.log(

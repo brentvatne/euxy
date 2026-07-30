@@ -33,7 +33,11 @@
  */
 import { createSign, createHash } from "node:crypto";
 
-import { prepareAgentSimulator, stopAgentSimulator } from "../shared/agent-simulator";
+import {
+  type AgentSimulatorSession,
+  prepareAgentSimulator,
+  stopAgentSimulator,
+} from "../shared/agent-simulator";
 import { createOrFindPullRequest } from "../shared/github-pull-request";
 import { ensureTriageIssue } from "../shared/github-triage-issue";
 import {
@@ -350,6 +354,9 @@ for (const [k, v] of Object.entries(env)) {
   agentEnv[k] = v;
 }
 let agentRc = 1;
+// Captured in the finally so the pull request can link the session the agent
+// actually verified in; stopping the session clears the id.
+let simulatorSession: AgentSimulatorSession | null = null;
 try {
   agentRc = await runClaudeAgent({
     claudeCommand: CLAUDE,
@@ -358,7 +365,7 @@ try {
     env: agentEnv,
   });
 } finally {
-  if (simValidation) await stopAgentSimulator({ env });
+  if (simValidation) simulatorSession = await stopAgentSimulator({ env });
 }
 console.log(`▸ Agent finished (rc=${agentRc}).`);
 
@@ -453,6 +460,7 @@ const publicEvidence = await publishPublicSimulatorEvidence({
     env.PUBLIC_SIMULATOR_EVIDENCE === "1",
   artifactDir: SIMULATOR_ARTIFACT_DIR,
   env,
+  sessionUrl: simulatorSession?.url ?? null,
 });
 if (publicEvidence) {
   console.log(`▸ Published and independently verified simulator evidence: ${publicEvidence.pageUrl}`);

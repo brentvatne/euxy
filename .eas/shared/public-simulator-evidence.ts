@@ -20,6 +20,12 @@ export type PublicSimulatorEvidence = {
   beforeVideoUrl?: string;
   screenshotUrl: string;
   videoUrl?: string;
+  /**
+   * The EAS Simulator session this evidence was captured in. An expo.dev
+   * dashboard URL, so it needs project access — unlike everything else here,
+   * which is public. Omitted when the session could not be resolved.
+   */
+  sessionUrl?: string;
 };
 
 type SelectedEvidence = {
@@ -47,6 +53,8 @@ type PublishOptions = {
   env?: Record<string, string | undefined>;
   run?: CommandRunner;
   publicFetch?: typeof fetch;
+  /** Dashboard URL of the session that produced these captures, when known. */
+  sessionUrl?: string | null;
 };
 
 function redact(text: string, token?: string): string {
@@ -362,6 +370,36 @@ function parseDeploymentUrl(raw: string): string {
   return url.toString();
 }
 
+/**
+ * A simulator-session dashboard URL and nothing else. This is the one link in
+ * the evidence block that is NOT an EAS Hosting file, so it gets its own check
+ * instead of joining the same-origin comparison below.
+ */
+function isSimulatorSessionUrl(value: string): boolean {
+  try {
+    assertSimulatorSessionUrl(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function assertSimulatorSessionUrl(value: string): URL {
+  const url = new URL(value);
+  if (
+    url.protocol !== "https:" ||
+    url.hostname !== "expo.dev" ||
+    !/^\/accounts\/[^/]+\/projects\/[^/]+\/simulator-sessions\/[0-9a-f-]{36}$/.test(url.pathname) ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash
+  ) {
+    throw new Error("Simulator session link must be an expo.dev simulator-session URL.");
+  }
+  return url;
+}
+
 function assertEasHostingUrl(value: string, description: string): URL {
   const url = new URL(value);
   if (
@@ -459,6 +497,14 @@ export function renderPublicSimulatorEvidence(evidence: PublicSimulatorEvidence)
   ) {
     throw new Error("Public simulator evidence URLs must use the fixed evidence filenames.");
   }
+  // Validated on its own: it is an expo.dev dashboard link, not a hosted file,
+  // so it must stay out of the same-origin comparison above.
+  const sessionUrl = evidence.sessionUrl
+    ? assertSimulatorSessionUrl(evidence.sessionUrl).toString()
+    : null;
+  const sessionLink = sessionUrl
+    ? `Captured in EAS Simulator session [${sessionUrl.split("/").pop()}](${sessionUrl}) (needs project access).`
+    : "";
   const pageLink = `[Open the full simulator evidence page](${evidence.pageUrl})`;
   const afterRecording = evidence.videoUrl
     ? `[Verification recording](${evidence.pageUrl}#after)`
@@ -476,6 +522,7 @@ export function renderPublicSimulatorEvidence(evidence: PublicSimulatorEvidence)
       `| ${beforeRecording} | ${afterRecording} |`,
       "",
       pageLink,
+      ...(sessionLink ? ["", sessionLink] : []),
     ].join("\n");
   }
 
@@ -489,6 +536,7 @@ export function renderPublicSimulatorEvidence(evidence: PublicSimulatorEvidence)
     "### After",
     `![Behavior after the change in EAS Simulator](${evidence.screenshotUrl})`,
     afterRecording,
+    sessionLink,
   ].filter(Boolean).join("\n\n");
 }
 
@@ -499,6 +547,7 @@ export async function publishPublicSimulatorEvidence({
   env = process.env,
   run = runCommand,
   publicFetch = fetch,
+  sessionUrl = null,
 }: PublishOptions): Promise<PublicSimulatorEvidence | null> {
   if (!enabled) return null;
 
@@ -599,6 +648,9 @@ export async function publishPublicSimulatorEvidence({
       : {}),
     screenshotUrl: new URL(SCREENSHOT_NAME, pageUrl).toString(),
     ...(video ? { videoUrl: new URL(VIDEO_NAME, pageUrl).toString() } : {}),
+    // Validated here so an unusable link is dropped at the source rather than
+    // failing the render after the deployment already succeeded.
+    ...(sessionUrl && isSimulatorSessionUrl(sessionUrl) ? { sessionUrl } : {}),
   };
   await assertPublicEvidence(
     evidence,

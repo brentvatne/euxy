@@ -136,6 +136,103 @@ describe("public simulator evidence", () => {
     expect(rendered).not.toContain("[Full recording]");
   });
 
+  test("carries a valid session link through publication and drops an invalid one", async () => {
+    const sessionUrl =
+      "https://expo.dev/accounts/brent-org/projects/euxy/simulator-sessions/019fb1af-10f1-761d-a740-5d41b013d189";
+    const publish = async (candidate: string | null) => {
+      const { artifactDir, siteDir } = await fixture();
+      await Promise.all([
+        writeFile(join(artifactDir, "final.png"), PNG_1X1),
+        writeFile(join(artifactDir, "final.txt"), "Confirm the sheet is presented."),
+      ]);
+      return publishPublicSimulatorEvidence({
+        enabled: true,
+        artifactDir,
+        siteDir,
+        sessionUrl: candidate,
+        env: { PATH: process.env.PATH, EXPO_TOKEN: "t", EAS_CLI_BIN: "eas" },
+        run: async () => ({
+          code: 0,
+          out: JSON.stringify({ url: "https://euxy--evidence123.expo.app" }),
+          err: "",
+        }),
+        publicFetch: (async (input: string | URL) => {
+          const url = new URL(String(input));
+          if (url.pathname === "/") {
+            return new Response('<html data-evidence="euxy-public-simulator-evidence"></html>', {
+              headers: { "content-type": "text/html; charset=utf-8" },
+            });
+          }
+          return new Response(PNG_1X1, { headers: { "content-type": "image/png" } });
+        }) as unknown as typeof fetch,
+      });
+    };
+
+    expect((await publish(sessionUrl))?.sessionUrl).toBe(sessionUrl);
+    // A bad or absent link must not fail a run whose evidence already deployed.
+    expect((await publish("https://evil.example.com/x"))?.sessionUrl).toBeUndefined();
+    expect((await publish(null))?.sessionUrl).toBeUndefined();
+  });
+
+  test("links the simulator session the evidence was captured in", () => {
+    const sessionId = "019fb1af-10f1-761d-a740-5d41b013d189";
+    const sessionUrl =
+      `https://expo.dev/accounts/brent-org/projects/euxy/simulator-sessions/${sessionId}`;
+    const base = {
+      pageUrl: "https://euxy--evidence123.expo.app/",
+      beforeScreenshotUrl: "https://euxy--evidence123.expo.app/before.png",
+      screenshotUrl: "https://euxy--evidence123.expo.app/final.png",
+    };
+
+    const rendered = renderPublicSimulatorEvidence({ ...base, sessionUrl });
+    expect(rendered).toContain(`Captured in EAS Simulator session [${sessionId}](${sessionUrl})`);
+    // The link needs project access; say so rather than imply it is public.
+    expect(rendered).toContain("(needs project access)");
+
+    // Also present in the single-column fallback.
+    const fallback = renderPublicSimulatorEvidence({
+      pageUrl: base.pageUrl,
+      screenshotUrl: base.screenshotUrl,
+      sessionUrl,
+    });
+    expect(fallback).toContain(sessionUrl);
+
+    // Absent without a session, and never an empty dangling line.
+    const without = renderPublicSimulatorEvidence(base);
+    expect(without).not.toContain("Captured in EAS Simulator session");
+    expect(without.endsWith("\n")).toBe(false);
+  });
+
+  test("rejects a session link that is not an expo.dev simulator session", () => {
+    const base = {
+      pageUrl: "https://euxy--evidence123.expo.app/",
+      screenshotUrl: "https://euxy--evidence123.expo.app/final.png",
+    };
+    for (const sessionUrl of [
+      "https://evil.example.com/accounts/a/projects/b/simulator-sessions/019fb1af-10f1-761d-a740-5d41b013d189",
+      "https://expo.dev/accounts/a/projects/b/simulator-sessions/not-a-uuid",
+      "https://expo.dev/accounts/a/projects/b/builds/019fb1af-10f1-761d-a740-5d41b013d189",
+      "https://expo.dev/accounts/a/projects/b/simulator-sessions/019fb1af-10f1-761d-a740-5d41b013d189?t=1",
+    ]) {
+      expect(() => renderPublicSimulatorEvidence({ ...base, sessionUrl })).toThrow(
+        "Simulator session link must be an expo.dev simulator-session URL."
+      );
+    }
+  });
+
+  test("the session link is excluded from the same-origin evidence check", () => {
+    // Every hosted file must share the page origin; the session link is a
+    // dashboard URL on expo.dev and must not trip that rule.
+    expect(() =>
+      renderPublicSimulatorEvidence({
+        pageUrl: "https://euxy--evidence123.expo.app/",
+        screenshotUrl: "https://euxy--evidence123.expo.app/final.png",
+        sessionUrl:
+          "https://expo.dev/accounts/brent-org/projects/euxy/simulator-sessions/019fb1af-10f1-761d-a740-5d41b013d189",
+      })
+    ).not.toThrow();
+  });
+
   test("uses a readable single-column fallback without a before screenshot", () => {
     const rendered = renderPublicSimulatorEvidence({
       pageUrl: "https://euxy--evidence123.expo.app/",
