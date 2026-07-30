@@ -284,6 +284,17 @@ the channel with the same definition the app uses (share one pure module across
 app, site, and workflow) and return 404 for anything else. Never serve a fallback
 image on a bad channel: a QR that encodes the wrong thing looks like it worked.
 
+Write the fallback copy for a reader who does NOT have the build. Three audiences
+read this block, and only the first is served by the link: someone with the app
+installed, someone with the app whose link the OS routed to the browser anyway,
+and someone with no app at all. Give the third an install path — the TestFlight
+or store link — and keep it separate from the enter-it-by-hand steps, which only
+work for the second. "No app yet? Enter `<channel>` by hand" is the failure this
+rule exists for: the instruction is impossible for exactly the reader it
+addresses, because the field to type into is inside the app they do not have.
+Keep the install URL in one module per runtime so the site's own call to action
+and the automation's copy cannot drift apart.
+
 Verify by decoding, not by looking. Fetch the deployed PNG and decode it back to
 the exact expected URL across short, long, and separator-bearing channel names.
 Do this against a real preview deployment as well as locally: a local dev server
