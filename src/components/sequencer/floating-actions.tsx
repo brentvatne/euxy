@@ -36,7 +36,12 @@
  * padding 8 · gap 10 · 48px keys · 14px margin. Fallback = solid #16161D.
  */
 import { useEffect, useRef, useState } from "react";
-import { StyleSheet, View, useWindowDimensions } from "react-native";
+import {
+  PixelRatio,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import {
   Gesture,
   GestureDetector,
@@ -89,9 +94,16 @@ const MARGIN = 14;
 // rounded rects (rx 1) at coordinates 5.2 / 9.4 / 13.6.
 const GLYPH = 18;
 const U = GLYPH / 22;
-const PIP = 3.2 * U;
-const PIP_R = 1 * U;
-const PIP_COORD = [5.2 * U, 9.4 * U, 13.6 * U];
+/** Snap to whole device pixels. The 22-unit artboard scaled to 18pt lands the
+ * pips on 7.85 device pixels at 3×, so two edges of every pip are a
+ * half-covered grey column and the glyph reads as blurred next to the crisp
+ * SF Symbols beside it. Rounding pip size, radius and cell coordinates to the
+ * grid keeps the Paper geometry (nothing moves by more than a third of a
+ * point) and gives each pip four hard edges. */
+const px = (v: number) => PixelRatio.roundToNearestPixel(v);
+const PIP = px(3.2 * U);
+const PIP_R = px(1 * U);
+const PIP_COORD = [px(5.2 * U), px(9.4 * U), px(13.6 * U)];
 /** Rest cells of the 5 pips on the glyph's 3×3 grid: TL TR C BL BR. */
 const REST_CELLS = [
   [0, 0],
