@@ -13,18 +13,19 @@
  *   2. `argent run` works with no prior `argent init` on a fresh worker;
  *   3. a session started with `--type argent` exposes one Booted device;
  *   4. screen-recording-start/stop round-trips and DOWNLOADS the file to the worker;
- *   5. the mp4 is h264 at a true 30fps with evenly spaced frames;
+ *   5. the mp4 is h264 at a true 30fps and its frames extract for analysis;
  *   6. screenshot at scale 0.5 returns a usable PNG.
  *
  * Exits non-zero on the first failed assertion. Leaves the mp4 and png in
  * SMOKE_ARTIFACT_DIR so the run's artifact carries the evidence.
  */
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const env = process.env;
 const EAS = env.EAS_CLI_BIN || "eas";
 const FFPROBE = env.FFPROBE_BIN || "ffprobe";
+const FFMPEG = env.FFMPEG_BIN || "ffmpeg";
 const ARGENT_VERSION = env.ARGENT_VERSION || "0.17.0";
 const OUT = env.SMOKE_ARTIFACT_DIR || ".eas/argent-smoke/out";
 const RECORD_SECONDS = 25;
@@ -174,28 +175,47 @@ try {
       `${derivedFps.toFixed(3)} fps`
     );
 
-    const times = await run([
-      FFPROBE, "-v", "error", "-select_streams", "v:0",
-      "-show_entries", "frame=pts_time", "-of", "csv=p=0", videoPath,
+    // Assert what the real prompt does, rather than something adjacent to it.
+    // simulator-verification.md analyzes motion by extracting decoded frames with
+    // `-fps_mode passthrough`, so that is the capability worth proving. An earlier
+    // version of this check queried `frame=pts_time` instead and failed on a
+    // recording whose timing was perfect: the pinned Linux ffprobe returns nothing
+    // for that entry, while the stream-level probe above works fine.
+    // Temp, not OUT: a few hundred full-resolution PNGs are scratch, not evidence.
+    const frameDir = join(env.RUNNER_TEMP || "/tmp", "argent-smoke-frames");
+    await mkdir(frameDir, { recursive: true });
+    const extract = await run([
+      FFMPEG, "-v", "error", "-i", videoPath,
+      "-fps_mode", "passthrough", join(frameDir, "frame-%05d.png"),
     ]);
-    // `csv=p=0` puts a trailing comma on at least the first row, and some ffprobe
-    // builds put one on every row — `Number("0.000000,")` is NaN, which silently
-    // emptied this list and reported a deviation of Infinity. Take the first
-    // field and parseFloat it, which tolerates both shapes.
-    const lines = times.out.split("\n").filter(Boolean);
-    const stamps = lines
-      .map((line) => parseFloat(line.split(",")[0] ?? ""))
-      .filter((value) => Number.isFinite(value))
-      .slice(0, 40);
-    const deltas = stamps.slice(1).map((value, index) => (value - stamps[index]!) * 1000);
-    const worst = deltas.length ? Math.max(...deltas.map((d) => Math.abs(d - 33.3))) : Infinity;
+    const extracted = (await readdir(frameDir)).filter((name) => name.endsWith(".png"));
     check(
-      "frame intervals are evenly spaced",
-      deltas.length >= 10 && worst < 5,
-      deltas.length
-        ? `${deltas.length} intervals, worst deviation ${worst.toFixed(1)}ms from 33.3ms`
-        : `parsed ${stamps.length} timestamps from ${lines.length} rows; first row ${JSON.stringify(lines[0] ?? "")}`
+      "frames extract for motion analysis",
+      extract.code === 0 && Math.abs(extracted.length - Number(fields.nb_frames)) <= 1,
+      `${extracted.length} PNGs for ${fields.nb_frames} frames${extract.err ? ` — ${extract.err.slice(0, 120)}` : ""}`
     );
+    // Frame-level timestamps are a bonus: the pinned decoder may not expose them,
+    // and nothing in the evidence pipeline depends on them.
+    for (const entry of ["pts_time", "best_effort_timestamp_time", "pkt_pts_time"]) {
+      const times = await run([
+        FFPROBE, "-v", "error", "-select_streams", "v:0",
+        "-show_entries", `frame=${entry}`, "-of", "csv=p=0", videoPath,
+      ]);
+      // csv=p=0 puts a trailing comma on at least the first row, so take the
+      // first field and parseFloat it rather than Number() on the whole line.
+      const stamps = times.out
+        .split("\n")
+        .map((line) => parseFloat(line.split(",")[0] ?? ""))
+        .filter((value) => Number.isFinite(value))
+        .slice(0, 40);
+      if (stamps.length < 10) continue;
+      const deltas = stamps.slice(1).map((value, index) => (value - stamps[index]!) * 1000);
+      const worst = Math.max(...deltas.map((d) => Math.abs(d - 33.3)));
+      console.log(
+        `  frame=${entry}: ${deltas.length} intervals, worst deviation ${worst.toFixed(1)}ms from 33.3ms`
+      );
+      break;
+    }
 
     await writeFile(join(OUT, "recording.mp4"), await readFile(videoPath));
   }

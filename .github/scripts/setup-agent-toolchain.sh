@@ -6,6 +6,12 @@ set -euo pipefail
 readonly CLAUDE_CODE_VERSION="2.1.220"
 readonly BUN_VERSION="1.3.14"
 readonly EAS_CLI_VERSION="21.3.0"
+# Which controller the WORKFLOWS drive the remote simulator with. This is the
+# single source of truth for the switch: `.eas/shared/simulator-controller.test.ts`
+# reads it and requires every workflow surface to match, so a half-finished switch
+# fails a test instead of reaching a run. Local worktree development is a separate
+# choice and is not bound by this value.
+readonly SIMULATOR_CONTROLLER="agent-device"
 readonly AGENT_DEVICE_VERSION="0.20.1"
 readonly FFMPEG_STATIC_VERSION="5.3.0"
 readonly FFPROBE_STATIC_VERSION="3.1.0"
@@ -58,6 +64,7 @@ fi
 if command -v set-env >/dev/null 2>&1; then
   set-env CLAUDE_PLUGIN_DIR "${EXPO_PLUGIN_DIR}"
   set-env EAS_CLI_BIN "eas"
+  set-env SIMULATOR_CONTROLLER "${SIMULATOR_CONTROLLER}"
   set-env AGENT_DEVICE_BIN "agent-device"
   set-env FFMPEG_BIN "${ffmpeg_bin}"
   set-env FFPROBE_BIN "${ffprobe_bin}"
