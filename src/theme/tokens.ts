@@ -34,7 +34,7 @@ export const ramp = {
  * 6734baca…_opt.svg): 8 shades, each spanning a PAIR of adjacent keys, so a
  * 16-step row sweeps the full ramp dark → light. The artwork's first pair is
  * pure #000; we lift it to #16161D so those cells stay visible on the app's
- * black ground. Step fills use `keyRamp[Math.floor((slot % 16) / 2)]`.
+ * black ground. These 8 are the ANCHORS; step grids fill from `stepFill`.
  */
 export const keyRamp = [
   '#16161D', // pair 1-2 (#000 in the TE artwork)
@@ -46,6 +46,41 @@ export const keyRamp = [
   '#A4A5AC',
   '#C5C6CD', // pair 15-16 — tops out below the keyboard-key gray, never white
 ] as const;
+
+/**
+ * Step-grid fills — `keyRamp` resampled to 16 shades, ONE PER SLOT, so a
+ * 16-step row reads as a continuous gray sweep instead of eight visible
+ * two-cell plateaus. Same tonal range as the artwork ramp (slot 1 is still
+ * #16161D, slot 16 still #C5C6CD, still never white): only the sampling gets
+ * finer, so the grid looks like the same gradient with twice the steps.
+ *
+ * Derivation — `keyRamp` sampled at `slot * 7 / 15`, linear per channel:
+ * every even slot lands within a couple of levels of its old pair color, and
+ * the odd slots are the newly interpolated shades between them.
+ */
+export const stepRamp = [
+  '#16161D',
+  '#1B1D23',
+  '#1F2329',
+  '#2E3137',
+  '#3D4046',
+  '#4A4C52',
+  '#56585E',
+  '#616369',
+  '#6D6F74',
+  '#76787D',
+  '#7E8085',
+  '#87898F',
+  '#97989F',
+  '#A6A7AE',
+  '#B6B7BE',
+  '#C5C6CD',
+] as const;
+
+/** Fill for a step at `slot`, wrapped into its 16-slot row. */
+export function stepFill(slot: number): string {
+  return stepRamp[((slot % 16) + 16) % 16];
+}
 
 export const color = {
   // Surfaces

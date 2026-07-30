@@ -1,7 +1,7 @@
 /**
  * StepStrip — a lane's step blocks in the full OP-XY hardware convention
  * (Paper "01 · Sequencer" gradient revision): block fills always sweep the
- * sequencer-key ramp (`keyRamp`, 8 shades × 2 slots per 16-slot row) exactly
+ * sequencer-key ramp (`stepFill`, 16 shades, one per slot in a 16-slot row)
  * like the device's key row — fills never encode the sequence. Every
  * SEQUENCED step carries a steady white LED at its top-center (the key
  * lights), and the playhead is the light travelling the grid — on an empty
@@ -27,7 +27,7 @@ import { playheadPlaying, playheadTick } from '@/core/playhead';
 import { patternForLane } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import type { Lane } from '@/state/types';
-import { keyRamp } from '@/theme/tokens';
+import { stepFill } from '@/theme/tokens';
 import { FlickerBloom } from '@/components/ui/flicker-bloom';
 import { Led as LedBase } from '@/components/ui/led';
 import { SKIA_STRIP_GLOW } from '@/lib/flags';
@@ -208,7 +208,7 @@ export function StepStrip({ lane, washDelay = 0, active = true }: StepStripProps
                     // Fill = the OP-XY key ramp for this row slot (hardware
                     // convention: fills never encode the sequence — the LEDs
                     // do). Every 16-slot row sweeps the full ramp.
-                    { backgroundColor: keyRamp[Math.floor((i % PER_ROW) / 2)] },
+                    { backgroundColor: stepFill(i % PER_ROW) },
                   ]}
                 >
                   {/* Skia path draws the steady LEDs itself (with real bloom). */}

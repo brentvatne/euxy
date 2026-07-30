@@ -10,7 +10,7 @@
 import { CHIPS } from '@/components/patterns/chips';
 import { patternForLane } from '@/core/lane-pattern';
 import type { SharedLane } from '@/core/share-codec';
-import { keyRamp } from '@/theme/tokens';
+import { stepFill } from '@/theme/tokens';
 
 export const OG_WIDTH = 1200;
 export const OG_HEIGHT = 630;
@@ -109,7 +109,7 @@ function laneGrid(lanes: GridLane[], cell: number, withLabels: boolean, playhead
             width: cell,
             height: cell,
             borderRadius: cell * 0.2,
-            backgroundColor: keyRamp[Math.floor((i % 16) / 2)],
+            backgroundColor: stepFill(i % 16),
           },
           ...children,
         ),

@@ -1,5 +1,5 @@
 /**
- * The share-card lane grid, live: one labeled row per lane, keyRamp gradient
+ * The share-card lane grid, live: one labeled row per lane, stepRamp gradient
  * fills, steady white LEDs on sequenced steps, and the app's playhead
  * language while playing — a travelling white light on empty steps that
  * becomes a prominent black dot when it crosses a hit. Long lanes wrap at 16
@@ -14,7 +14,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { laneStepAt } from '@/core/euclid';
 import { patternForLane } from '@/core/lane-pattern';
 import type { SharedLane } from '@/core/share-codec';
-import { color, keyRamp } from '@/theme/tokens';
+import { color, stepFill } from '@/theme/tokens';
 import { MONO, webAttrs } from './ui';
 
 const GAP = 2;
@@ -112,7 +112,7 @@ function LaneRow({ lane, tick, m }: { lane: SharedLane; tick: number; m: Metrics
             {slots.map((i) => (
               <Cell
                 key={i}
-                fill={keyRamp[Math.floor((i % 16) / 2)]}
+                fill={stepFill(i % 16)}
                 hit={steps[i] === 1}
                 playhead={i === playStep}
                 m={m}
