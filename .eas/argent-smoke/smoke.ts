@@ -165,14 +165,37 @@ try {
     check("frame rate is a true 30fps", fields.avg_frame_rate === "30/1", fields.avg_frame_rate);
     check("recording captured frames", Number(fields.nb_frames) > 30, `${fields.nb_frames} frames`);
 
+    // Independent of per-frame timestamps, so it still reports something useful
+    // if the probe below comes back in an unexpected shape.
+    const derivedFps = Number(fields.nb_frames) / Number(fields.duration);
+    check(
+      "frames/duration agrees with 30fps",
+      Math.abs(derivedFps - 30) < 0.5,
+      `${derivedFps.toFixed(3)} fps`
+    );
+
     const times = await run([
       FFPROBE, "-v", "error", "-select_streams", "v:0",
       "-show_entries", "frame=pts_time", "-of", "csv=p=0", videoPath,
     ]);
-    const stamps = times.out.split("\n").map(Number).filter((n) => Number.isFinite(n)).slice(0, 40);
+    // `csv=p=0` puts a trailing comma on at least the first row, and some ffprobe
+    // builds put one on every row — `Number("0.000000,")` is NaN, which silently
+    // emptied this list and reported a deviation of Infinity. Take the first
+    // field and parseFloat it, which tolerates both shapes.
+    const lines = times.out.split("\n").filter(Boolean);
+    const stamps = lines
+      .map((line) => parseFloat(line.split(",")[0] ?? ""))
+      .filter((value) => Number.isFinite(value))
+      .slice(0, 40);
     const deltas = stamps.slice(1).map((value, index) => (value - stamps[index]!) * 1000);
     const worst = deltas.length ? Math.max(...deltas.map((d) => Math.abs(d - 33.3))) : Infinity;
-    check("frame intervals are evenly spaced", worst < 5, `worst deviation ${worst.toFixed(1)}ms from 33.3ms`);
+    check(
+      "frame intervals are evenly spaced",
+      deltas.length >= 10 && worst < 5,
+      deltas.length
+        ? `${deltas.length} intervals, worst deviation ${worst.toFixed(1)}ms from 33.3ms`
+        : `parsed ${stamps.length} timestamps from ${lines.length} rows; first row ${JSON.stringify(lines[0] ?? "")}`
+    );
 
     await writeFile(join(OUT, "recording.mp4"), await readFile(videoPath));
   }
