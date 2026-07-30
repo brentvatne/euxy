@@ -26,6 +26,15 @@ configureObserve({
   integrations: { 'expo-router': true },
 });
 
+/**
+ * The tab group is this Stack's anchor, so a link that resolves to one of the
+ * sheets above (only /c/<channel> today) always lands with the tabs mounted
+ * underneath — a form sheet needs a screen to present on top of, and the app
+ * needs somewhere to be once the sheet is dismissed. Groups get this from their
+ * matching route name; the root has no group, so it is declared.
+ */
+export const unstable_settings = { anchor: '(tabs)' };
+
 function RootLayout() {
   // Simulator screenshot staging (no-op unless the host set the flag).
   useShotRig();
@@ -89,6 +98,14 @@ function RootLayout() {
               header. Switches the EAS Update channel at runtime. */}
           <Stack.Screen
             name="channel-surf"
+            options={{ ...sheetOptions, sheetAllowedDetents: [0.6] }}
+          />
+          {/* Same sheet, reached by a channel link (euxy://c/<channel>) that
+              carries the channel to switch to — see c/[channel].tsx. It belongs
+              in THIS Stack, not the MIDI tab's: the anchor declared above keeps
+              the tabs mounted under it however the link arrives. */}
+          <Stack.Screen
+            name="c/[channel]"
             options={{ ...sheetOptions, sheetAllowedDetents: [0.6] }}
           />
           {/* NOTE: the shared-pattern sheet (/p) is NOT here — it lives in the
