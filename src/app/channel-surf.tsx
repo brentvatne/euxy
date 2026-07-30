@@ -2,8 +2,12 @@
  * Channel surf sheet (Paper C3Y-0) — hidden debug UI for switching the EAS
  * Update channel at runtime. Opened by long-pressing the Diagnostics section
  * header on the MIDI tab, or by a channel deep link (`euxy://c/<channel>`,
- * registered at (tabs)/(midi)/c/[channel].tsx) which arrives with its target
- * channel and starts the switch on open. Device-screen panel shows the running update
+ * registered at app/c/[channel].tsx) which arrives with its target
+ * channel and starts the switch on open. A switch reloads the app and iOS
+ * replays the launch URL, so that same link opens this sheet once more on the
+ * bundle it switched into; that arrival is reported (`SWITCHED TO …`) rather
+ * than surfed a second time — see `surfedIntoChannel`.
+ * Device-screen panel shows the running update
  * (channel · runtime · id) plus a terminal-style input for the target
  * channel; quick-pick chips offer the channels surfed to most recently on this
  * install, backfilled with the defaults. Fetch & reload runs
@@ -23,6 +27,7 @@ import { parseChannelLink } from '@/lib/channel-link';
 import {
   getChannelOverrideRecord,
   getQuickPickChannels,
+  surfedIntoChannel,
   surfToChannelAsync,
   type SurfPhase,
 } from '@/lib/channel-surf';
@@ -62,6 +67,9 @@ export default function ChannelSurfSheet() {
   // sheet was opened from Diagnostics. `linked` is null for a damaged link.
   const { channel: linkParam } = useLocalSearchParams<{ channel?: string }>();
   const linked = parseChannelLink(linkParam);
+  // This launch IS the result of following this link: the switch ran, reloaded,
+  // and iOS handed the same URL back. Nothing left to do but say so.
+  const arrived = linked != null && linked === surfedIntoChannel;
   const [override, setOverride] = useState(getChannelOverrideRecord);
   const [quickPicks, setQuickPicks] = useState(getQuickPickChannels);
   // Null until the prompt is edited (or a chip tapped), so the field follows
@@ -75,15 +83,17 @@ export default function ChannelSurfSheet() {
   const value = typed ?? linked ?? override ?? '';
   const target = value.trim();
 
-  /** Why a link could not switch — the link param is its only input. */
+  /** What became of a link — the link param is its only input. */
   const linkNotice =
     linkParam === undefined
       ? null
       : !linked
         ? 'LINK CHANNEL INVALID'
-        : !surfable
-          ? `LINK ${linked.toUpperCase()} · ${updatesInfo.isEnabled ? 'DEV CLIENT' : 'UPDATES UNAVAILABLE'}`
-          : null;
+        : arrived
+          ? `SWITCHED TO ${linked.toUpperCase()}`
+          : !surfable
+            ? `LINK ${linked.toUpperCase()} · ${updatesInfo.isEnabled ? 'DEV CLIENT' : 'UPDATES UNAVAILABLE'}`
+            : null;
 
   const surf = async (channel: string | null) => {
     setError(null);
@@ -116,11 +126,18 @@ export default function ChannelSurfSheet() {
   // channel, not on the mount, because Expo Router can reuse this sheet when a
   // second link arrives; the applied path reloads the JS, so a successful switch
   // never comes back here. `linkNotice` covers the outcomes this skips (damaged
-  // link, nothing to surf on this build).
+  // link, nothing to surf on this build, a switch this launch already applied).
   useEffect(() => {
     if (linkParam === undefined) return;
     if (!linked) {
       logObserveEvent('channel_surf.link_invalid', { severity: 'warn' });
+      return;
+    }
+    // The replayed link of a switch that already landed: surfing again would
+    // set the same override and check the channel the app is now running, so
+    // the panel just reports the result.
+    if (arrived) {
+      logObserveEvent('channel_surf.link_arrived', { attributes: { channel: linked } });
       return;
     }
     // Run from a frame callback, not straight out of the effect: the panel
@@ -131,7 +148,7 @@ export default function ChannelSurfSheet() {
       if (surfable) void surf(linked);
     });
     return () => cancelAnimationFrame(frame);
-  }, [linked, linkParam]);
+  }, [arrived, linked, linkParam]);
 
   const status = error
     ? `ERR ${error}`
