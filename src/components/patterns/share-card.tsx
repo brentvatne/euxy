@@ -6,7 +6,7 @@
  *
  * Anatomy (mock values recorded in docs/design/pattern-sharing-research.md
  * §4): #08080A card · identity row (28px chip glyph + name + mono stats) ·
- * labeled lane grid (52px label col, 14px keyRamp cells, glowing LEDs) ·
+ * labeled lane grid (52px label col, 14px stepRamp cells, glowing LEDs) ·
  * LIGHT QR panel (dark rounded dot-matrix modules, EC-H, 15×15-module
  * carve-out holding the pattern's chip) · mono caption.
  */
@@ -27,7 +27,7 @@ import { chipForPattern, CHIP_SHADE_COLORS, effectiveChipName } from '@/componen
 import { patternForLane } from '@/core/lane-pattern';
 import { shareUrl } from '@/core/share-codec';
 import type { Pattern } from '@/state/types';
-import { color, keyRamp } from '@/theme/tokens';
+import { color, stepFill } from '@/theme/tokens';
 
 const PAD = 18;
 const CHIP = 28;
@@ -180,7 +180,7 @@ export function ShareCard({
           width={CELL}
           height={CELL}
           r={4}
-          color={keyRamp[Math.floor((i % 16) / 2)]}
+          color={stepFill(i % 16)}
         />,
       );
       if (played[i]) leds.push({ cx: x + CELL / 2, cy: y + 4 });

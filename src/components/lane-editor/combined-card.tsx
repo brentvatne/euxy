@@ -23,7 +23,7 @@ import Animated, {
 import { generator, withRotation } from '@/core/euclid';
 import { patternForLane } from '@/state/selectors';
 import type { Lane } from '@/state/types';
-import { color, keyRamp } from '@/theme/tokens';
+import { color, stepFill } from '@/theme/tokens';
 import { FlickerBloom } from '@/components/ui/flicker-bloom';
 import { Led } from '@/components/ui/led';
 
@@ -122,7 +122,7 @@ export function CombinedCard({
                         styles.cell,
                         {
                           width: cellW,
-                          backgroundColor: keyRamp[Math.floor((i % PER_ROW) / 2)],
+                          backgroundColor: stepFill(i % PER_ROW),
                         },
                       ]}
                     >
