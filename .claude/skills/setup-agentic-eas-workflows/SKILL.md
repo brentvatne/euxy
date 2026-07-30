@@ -212,7 +212,9 @@ Use this lifecycle for crash, feedback, and agent work automation:
    review-response publication on the same PR. List existing channels before
    allocation, fail closed on a truncated or malformed list, pass
    `--environment preview` explicitly, and never let the agent select the
-   channel.
+   channel. Give the channel a QR code in the PR body so joining it is a camera
+   point rather than a transcription — see "Preview channel QR codes" in the
+   patterns reference for the four constraints that dictate how.
 9. Treat PR preview metadata writes as observability, not publication
    authority. Warn with bounded response diagnostics when the initial
    `publishing` marker or final `published` marker cannot be written or read
@@ -241,6 +243,13 @@ review-response runs, preserve the original description and prior comments;
 add a new concise PR comment with the comparison table and a link to that run's
 evidence page. If investigation produces no PR, an issue findings comment may
 link the evidence instead.
+
+When an AI reviewer's findings trigger the review-response agent, that reviewer's
+shared context decides what the agent spends paid runs on. State the project's
+scope there, not only in the code: which platforms ship, which do not, and what
+is deliberately absent. A reviewer that does not know a platform is out of scope
+will correctly notice missing configuration for it and wrongly ask for parity,
+and the response agent will dutifully build it.
 
 Read [references/workflow-patterns.md](references/workflow-patterns.md) for implementation patterns and failure handling.
 
@@ -307,8 +316,17 @@ Treat the diff as evidence, not as a byproduct:
    cards. Put recordings in a separate, clearly labeled section or link list;
    do not reuse a screenshot as a video poster where it reads as a duplicate
    before/after capture.
-8. Stop the session in a `finally`/always-run cleanup path. Redact the Expo token from subprocess output.
-9. Fall back to static verification only when the workflow's policy explicitly permits it.
+8. Stop the session in a `finally`/always-run cleanup path, and have that path
+   read the session id BEFORE the stop and return it — stopping clears the
+   session file, so reading it afterwards gets nothing. Redact the Expo token
+   from subprocess output.
+9. Link the returned session from the pull request, beside the evidence it
+   produced. Without the id, matching an evidence page to a session means lining
+   up a comment against the run window and guessing. Resolve the dashboard URL
+   from the CLI listing rather than assembling the path, validate it against that
+   exact session, and treat resolution as best effort: never fail a run whose
+   work is done over a missing link.
+10. Fall back to static verification only when the workflow's policy explicitly permits it.
 
 ## Validate end to end
 

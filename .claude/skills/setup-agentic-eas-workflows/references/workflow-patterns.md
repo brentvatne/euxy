@@ -251,6 +251,45 @@ Update remains successful if only final PR metadata is stale or unavailable.
 PR creation can precede Update completion, so inspect final job status and logs
 before diagnosing a missing publication.
 
+## Preview channel QR codes
+
+Naming the channel is not enough: a reviewer still has to type it into the app by
+hand. Put a scannable code in the PR body instead. Four constraints decide the
+whole design, and each one silently produces a broken result if ignored:
+
+1. **Encode the universal link, not the custom scheme.** A camera app will not
+   open `yourapp://…`, and the https form still resolves for a reader without the
+   app. Serve a real page at that path — state the channel and how to enter it by
+   hand — and do NOT auto-redirect to the scheme from it: if the OS had wanted to
+   open the app it already would have, so firing the scheme only produces "cannot
+   open the page".
+2. **Ship both halves of the association.** `ios.associatedDomains`
+   (`applinks:<host>`) in the app config AND the path in
+   `public/.well-known/apple-app-site-association`. One without the other opens
+   the browser. Adding a path means redeploying the site, and Apple's CDN plus
+   on-device caching mean an installed build may not hand off until it refetches.
+3. **Serve PNG, not SVG.** GitHub proxies remote images through camo, and camo
+   refuses SVG — an `<img>` pointing at an SVG renders as nothing in a PR body.
+   Keep the generator pure by emitting SVG, then rasterize in the route. If the
+   project already renders OG cards with resvg wasm, reuse that compiled module
+   instead of compiling a second one.
+4. **Put the channel in the path, not a query string.** An EAS Hosting CDN cache
+   key ignores the query, so `?channel=a` and `?channel=b` collide on one cached
+   image. A path segment varies the key, and one channel yields one code, so the
+   URL is content-addressed and takes an immutable cache.
+
+Use raw `<img width= height=>` rather than Markdown image syntax, which cannot
+size an image — a full-width code reads as decoration, not a control. Validate
+the channel with the same definition the app uses (share one pure module across
+app, site, and workflow) and return 404 for anything else. Never serve a fallback
+image on a bad channel: a QR that encodes the wrong thing looks like it worked.
+
+Verify by decoding, not by looking. Fetch the deployed PNG and decode it back to
+the exact expected URL across short, long, and separator-bearing channel names.
+Do this against a real preview deployment as well as locally: a local dev server
+runs API routes in Node, while production runs them in a Workers runtime with
+different wasm rules.
+
 ## Human approval for external TestFlight feedback
 
 Create a useful intake issue for every report, but distinguish intake authority
@@ -313,8 +352,27 @@ The wrapper should:
 5. for animation, gesture, transition, or timing issues, extract and inspect the
    native ordered frames around the defect and record the relevant frame
    numbers or timestamps;
-6. run `eas simulator:stop` in `finally`;
+6. read the session id from the session file, then run `eas simulator:stop` in
+   `finally` and return the id — stopping clears the file, so reading it
+   afterwards gets nothing;
 7. redact `EXPO_TOKEN` from all captured output.
+
+Return the stopped session from the cleanup helper so the caller can link it:
+
+```ts
+const sessionId = parseSessionId(await readFile(sessionPath));  // before the stop
+await run([eas, "simulator:stop"]);
+// Take the URL from the CLI listing; do not assemble the dashboard path here.
+const listed = await run([eas, "simulator:list", "--limit", "25", "--json", "--non-interactive"]);
+return { id: sessionId, url: parseSessionUrl(listed.out, sessionId) };  // url may be null
+```
+
+Both parsers are guards, because the id reaches a public PR body. Require the
+session file value to be a UUID or drop it rather than echo it. Require the
+listing's URL to be https, on the dashboard host, and to end in that exact
+session — with no credentials, query, or fragment — so a listing that returned
+something else cannot put an arbitrary link in a pull request. Resolution is best
+effort: a null URL is normal and must never fail the run.
 
 Use a unique temporary directory under the runner-provided temp base. Do not assume a fixed shared `/tmp` path or place session credentials in a publishable directory.
 Install pinned `ffmpeg`/`ffprobe` on the workflow worker, not inside the remote
@@ -344,6 +402,13 @@ occurred, including analysis-only outcomes. A trusted wrapper should:
 5. fetch the page and media without credentials and compare the public bytes to
    the selected local files; and
 6. place only those verified URLs in PR bodies or PR follow-up comments.
+
+Link the simulator session that produced the captures, under the comparison. It
+is the one link in that block that is NOT a public hosted file but a dashboard
+URL, so give it its own validation instead of adding it to the same-origin
+comparison in step 4, and label it as needing project access so nobody reads it
+as public. Drop an unresolved or malformed link at the source rather than letting
+it fail a render after the deployment already succeeded.
 
 Embed the initial evidence and a clear full-page link in an automation-created
 PR body. Put verified Before and After stills in a two-column GitHub Markdown
