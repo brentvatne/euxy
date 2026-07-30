@@ -9,7 +9,8 @@
  * popover that hangs off the Listen key while it's engaged, not as a standing
  * footnote under the group.
  * Section headers use the current-iOS style (title case 17/22 semibold), like
- * the MIDI screen. No Steps|Graph toggle — the combined card is the only view.
+ * the MIDI screen; the leading Sound group is headerless (its rows name
+ * themselves). No Steps|Graph toggle — the combined card is the only view.
  */
 import { useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
@@ -157,27 +158,38 @@ function ListenTip({ caretLeft }: { caretLeft: number }) {
   );
 }
 
-/** iOS-style section header (matches the MIDI screen's SectionHeader). */
+/**
+ * iOS-style section header (matches the MIDI screen's SectionHeader).
+ *
+ * `title` is optional: a group whose own rows already name themselves doesn't
+ * need one. A headerless group takes `gapAfter` so the NEXT section's header
+ * keeps its distance — with only the standard 22pt section gap above it, that
+ * header sits close enough to the untitled rows to read as titling them.
+ */
 function Section({
   title,
   dot,
   hint,
+  gapAfter,
   children,
 }: {
-  title: string;
+  title?: string;
   dot?: string;
   hint?: string;
+  gapAfter?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <View style={styles.section}>
-      <View style={styles.sectionHead}>
-        <View style={styles.sectionTitleRow}>
-          {dot ? <View style={[styles.sectionDot, { backgroundColor: dot }]} /> : null}
-          <AppText style={styles.sectionTitle}>{title}</AppText>
+    <View style={[styles.section, gapAfter && styles.sectionGapAfter]}>
+      {title ? (
+        <View style={styles.sectionHead}>
+          <View style={styles.sectionTitleRow}>
+            {dot ? <View style={[styles.sectionDot, { backgroundColor: dot }]} /> : null}
+            <AppText style={styles.sectionTitle}>{title}</AppText>
+          </View>
+          {hint ? <AppText style={styles.sectionHint}>{hint}</AppText> : null}
         </View>
-        {hint ? <AppText style={styles.sectionHint}>{hint}</AppText> : null}
-      </View>
+      ) : null}
       <View style={styles.sectionBody}>{children}</View>
     </View>
   );
@@ -375,8 +387,11 @@ export default function LaneEditorSheet() {
         />
         {/* Sound leads the form (Brent 2026-07-29): note & track are what a new
             lane needs before its rhythm is worth hearing, so they shouldn't sit
-            three slider sections down. */}
-        <Section title="Sound">
+            three slider sections down. No header (Brent 2026-07-30): the two
+            rows are labelled Note and Track · Channel, so a "Sound" title over
+            them named nothing the rows didn't already say — and as the form's
+            first group it has no sibling above it to be told apart from. */}
+        <Section gapAfter>
           <View style={styles.cells}>
             {/* The Note row owns the Listen popover, so it needs its own
                 positioning context and has to paint above the rows below it. */}
@@ -706,6 +721,10 @@ const styles = StyleSheet.create({
 
   // MIDI-screen header style (title case, 17/22 semibold, label3).
   section: { paddingHorizontal: 16, paddingTop: 22 },
+  // Trailing space for a headerless group (Brent 2026-07-30): 22 + 14 = 36pt
+  // between the Sound cells and the Generator 1 header, so that header clearly
+  // opens the section below rather than closing the one above.
+  sectionGapAfter: { paddingBottom: 14 },
   sectionHead: {
     flexDirection: 'row',
     alignItems: 'center',
