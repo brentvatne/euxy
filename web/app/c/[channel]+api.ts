@@ -63,8 +63,16 @@ export function GET(request: Request, { channel }: { channel: string }) {
 <link rel="canonical" href="${escapeHtml(`${origin}/c/${channelName}`)}">
 <meta name="robots" content="noindex,nofollow">
 <style>
-  html,body{background-color:#000;margin:0}
-  body{color:#98989F;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.6}
+  /* Border-box everywhere: main sets an explicit width, so under the default
+     content-box its 1.25rem side padding lands OUTSIDE that width and the page
+     is 2.5rem wider than the viewport on any screen under 34rem. */
+  *,*::before,*::after{box-sizing:border-box}
+  html,body{background-color:#000;margin:0;max-width:100%;overflow-x:hidden}
+  /* A channel name is one unbroken token up to 64 characters (lib/channel-link
+     CHANNEL), which no phone can fit on a line — break it rather than let the
+     heading and the inline code spans push the page sideways. */
+  body{color:#98989F;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.6;
+       overflow-wrap:anywhere}
   main{width:min(34rem,100%);margin:0 auto;padding:3rem 1.25rem 4rem}
   h1{color:#F6F4F4;font-size:1.5rem;letter-spacing:-0.02em;margin:0 0 .25rem}
   .eyebrow{color:#6C6C71;font-size:.6875rem;letter-spacing:.12em;text-transform:uppercase;margin:0 0 1.25rem}
