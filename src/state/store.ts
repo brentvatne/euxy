@@ -99,7 +99,7 @@ const OPS = ['OR', 'AND', 'XOR', 'A>B'] as const;
  *   1 NUDGE    — whole-track rotation only                    (±1)
  *   2 SHIFT    — + genA rotation and pulses                   (±1)
  *   3 SCRAMBLE — + genB pulses/rotation and the combine OP     (±2)
- *   4 UPEND    — + velocity, gate and note                     (±3, wilder OP)
+ *   4 UPEND    — + velocity and gate                           (±3, wilder OP)
  *
  * Every parameter is still a bounded WALK from its current value rather than a
  * fresh random draw — a redraw at this rate reads as noise, not as a pattern
@@ -112,8 +112,8 @@ function rollLane(lane: Lane, tier: 1 | 2 | 3 | 4): Lane {
   const maybe = (p: number) => Math.random() < p;
   /** How far one parameter may travel in a single roll at this tier. */
   const force = tier <= 2 ? 1 : tier === 3 ? 2 : 3;
-  /** ±1…±scale, never 0 — a roll that moves nothing is a wasted tick. */
-  const kick = (scale: number = force) => dir() * (1 + rint(scale));
+  /** ±1…±force, never 0 — a roll that moves nothing is a wasted tick. */
+  const kick = () => dir() * (1 + rint(force));
 
   let l: Lane = { ...lane, trackRot: wrap(lane.trackRot + kick(), lane.length) };
   if (tier === 1) return l;
@@ -145,15 +145,20 @@ function rollLane(lane: Lane, tier: 1 | 2 | 3 | 4): Lane {
   };
   if (tier === 3) return l;
 
-  // UPEND: the lane's VOICE joins the roll — velocity, gate and note, so the
+  // UPEND: how HARD the lane plays joins the roll — velocity and gate, so the
   // lane headers churn too.
   //
-  // NOT resolution. The spec left "whether note and resolution belong in the
-  // roll at all" as a product call (issue #48, open question 5), and resolution
-  // is the one parameter here that RE-TIMES the lane rather than re-voicing it:
-  // rolling it at 8Hz re-drives every strip's playhead geometry for no musical
-  // gain the other three don't already give. Velocity, gate and note are plain
-  // numbers — they churn the lane headers without re-timing anything.
+  // NOT note, and NOT the track. Issue #48 left "whether note and resolution
+  // belong in the roll at all" as an open product call; the answer is no. A
+  // lane's note and its OP-XY track ARE the lane — on a drum kit the note IS
+  // which drum, so rolling it swaps the kick for a tom and the lane you were
+  // shaping is gone. The dice re-rolls the RHYTHM (that is what every tier
+  // below does, and what the Lane Editor's own Randomize already promises:
+  // "note & track stay"); the voice is set deliberately, in the editor or by
+  // Listen. Resolution stays out for its own reason: it RE-TIMES the lane
+  // rather than re-voicing it, and rolling it re-drives every strip's playhead
+  // geometry for no musical gain. Velocity and gate are plain numbers — they
+  // push how the lane is played without changing what it plays.
   //
   // (The tier-4 crash this branch carried was NOT here: it was
   // `runOnJS(closeRing)` capturing `undefined` in floating-actions.tsx. This
@@ -162,10 +167,6 @@ function rollLane(lane: Lane, tier: 1 | 2 | 3 | 4): Lane {
     ...l,
     velocity: maybe(0.6) ? Math.max(40, Math.min(127, l.velocity + dir() * (8 + rint(20)))) : l.velocity,
     gateMs: maybe(0.5) ? Math.max(10, Math.min(250, l.gateMs + dir() * (10 + rint(28)))) : l.gateMs,
-    // Up to ±2 semitones, and only sometimes: on a drum lane every step is a
-    // different voice, so this is the one UPEND parameter kept deliberately
-    // short of `force` — the kit still has to be recognizable on the other side.
-    note: maybe(0.4) ? Math.max(24, Math.min(96, l.note + kick(2))) : l.note,
   };
 }
 
