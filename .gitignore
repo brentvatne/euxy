@@ -94,6 +94,8 @@ SETUP-TRACING.md
 .eas/*/RESCUED_WORK.patch
 .eas/*/RESCUED_WORK.md
 
+.eas/argent-smoke/out/
+
 # Argent writes into the project root when it drives a simulator: retrieved
 # screen recordings (megabytes of mp4) and a project-scope feature-flag file.
 # Nothing here belongs in a commit, and a wrapper's `git add -A` would otherwise

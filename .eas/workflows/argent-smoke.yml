@@ -1,0 +1,58 @@
+# Argent smoke test — DISPOSABLE. Delete this file once the argent switch has
+# either landed or been abandoned.
+#
+# Answers one question the laptop cannot: does the argent controller work from an
+# EAS workflow worker? Those are `linux-medium` containers with no argent config,
+# driving a macOS-hosted simulator over HTTP — a different client from a dev
+# machine in every respect that matters.
+#
+# Runs no agent, reads no prompt, writes no branch, publishes nothing. It starts a
+# session, records a clip, and asserts the result is analyzable evidence.
+#
+#   eas workflow:run .eas/workflows/argent-smoke.yml
+#
+# Requires the EXPO_TOKEN environment secret (the simulator session), and nothing
+# else — no Claude or GitHub credentials are exposed to this job.
+
+name: Argent smoke test
+
+on:
+  workflow_dispatch:
+    inputs:
+      argent_version:
+        description: Exact argent version to pin and verify
+        type: string
+        default: 0.17.0
+
+jobs:
+  smoke:
+    name: Verify argent recording from an EAS worker
+    environment: preview
+    runs_on: linux-medium
+    env:
+      ARGENT_VERSION: ${{ inputs.argent_version }}
+      SMOKE_ARTIFACT_DIR: .eas/argent-smoke/out
+      DISABLE_AUTOUPDATER: '1'
+      EAS_SKIP_CLI_VERSION_CHECK: '1'
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      # Reused as-is so the smoke test measures the same pinned eas-cli, ffmpeg,
+      # and ffprobe the real jobs use, rather than a parallel set of versions.
+      - name: Install pinned agent toolchain
+        run: bash .github/scripts/setup-agent-toolchain.sh
+      - name: Install pinned argent
+        run: |
+          npm install --global --no-audit --no-fund "@swmansion/argent@${ARGENT_VERSION}"
+          argent --version
+      - name: Smoke test argent
+        run: bun .eas/argent-smoke/smoke.ts
+      - name: Upload the recording and screenshot
+        if: ${{ always() }}
+        uses: eas/upload_artifact
+        with:
+          type: other
+          name: argent-smoke
+          path: |
+            .eas/argent-smoke/out/recording.mp4
+            .eas/argent-smoke/out/screenshot.png
