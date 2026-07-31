@@ -54,6 +54,11 @@ import { useMarkInteractive } from '@/lib/use-mark-interactive';
 const PINNED_PAD_TOP = 14;
 const PINNED_PAD_BOTTOM = 14;
 
+/** A list cell's vertical padding. Shared with the Listen key's hit area, which
+ * grows by exactly this much on each side to reach the row's top and bottom
+ * edges — see `listenHit`. */
+const CELL_PAD_V = 13;
+
 const OP_OPTIONS: { label: string; value: CombineOp }[] = [
   { label: 'OR', value: 'OR' },
   { label: 'AND', value: 'AND' },
@@ -418,19 +423,19 @@ export default function LaneEditorSheet() {
                   <AppText style={[styles.cellValue, padsOpen && styles.cellValueActive]}>
                     {midiNoteName(lane.note)} · {lane.note}
                   </AppText>
+                  {/* The pill is the paint; the Pressable around it is the
+                      target, and it fills the row's full height (see
+                      listenHit). */}
                   <Pressable
-                    style={({ pressed }) => [
-                      styles.listen,
-                      padsOpen && styles.listenMuted,
-                      listening && styles.listenActive,
-                      pressed && styles.pressedDim,
-                    ]}
+                    style={({ pressed }) => [styles.listenHit, pressed && styles.pressedDim]}
                     onPress={() => {
                       haptics.impact('light');
                       setListening((v) => !v);
                     }}
                     // Re-measured whenever the key changes width ("Listen" →
                     // "Listening…"), so the caret keeps pointing at its centre.
+                    // The hit wrapper adds no horizontal padding, so this is
+                    // still the pill's own box.
                     onLayout={(e) =>
                       setListenKeyX(e.nativeEvent.layout.x + e.nativeEvent.layout.width / 2)
                     }
@@ -438,20 +443,28 @@ export default function LaneEditorSheet() {
                     accessibilityLabel="Listen for note"
                     accessibilityState={{ selected: listening }}
                   >
-                    <SFSymbol
-                      name="mic.fill"
-                      size={13}
-                      tint={listening ? color.label : padsOpen ? color.label3 : color.ground}
-                    />
-                    <AppText
+                    <View
                       style={[
-                        styles.listenLabel,
-                        padsOpen && styles.listenLabelMuted,
-                        listening && styles.listenLabelActive,
+                        styles.listen,
+                        padsOpen && styles.listenMuted,
+                        listening && styles.listenActive,
                       ]}
                     >
-                      {listening ? 'Listening…' : 'Listen'}
-                    </AppText>
+                      <SFSymbol
+                        name="mic.fill"
+                        size={13}
+                        tint={listening ? color.label : padsOpen ? color.label3 : color.ground}
+                      />
+                      <AppText
+                        style={[
+                          styles.listenLabel,
+                          padsOpen && styles.listenLabelMuted,
+                          listening && styles.listenLabelActive,
+                        ]}
+                      >
+                        {listening ? 'Listening…' : 'Listen'}
+                      </AppText>
+                    </View>
                   </Pressable>
                   {/* Same disclosure chevron as the Track · Channel cell below,
                       collapsed AND expanded (Brent 2026-07-29): with it hidden
@@ -743,7 +756,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: color.surface2,
-    paddingVertical: 13,
+    paddingVertical: CELL_PAD_V,
     paddingHorizontal: 16,
   },
   cellFirst: { borderTopLeftRadius: radius.cell, borderTopRightRadius: radius.cell, borderBottomLeftRadius: 2, borderBottomRightRadius: 2 },
@@ -774,6 +787,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: color.label,
     padding: 0,
+  },
+  // Listen's TOUCH target (TestFlight — the key wanted more vertical hit area).
+  // The pill is only ~26pt tall and it alone sets the Note row's height, so a
+  // tap in the row's padding above or below it missed Listen and hit the Note
+  // cell behind it, opening the pad grid instead. The padding grows the target
+  // to the row's full height; the equal negative margin takes that growth back
+  // out of the layout, so the row keeps its size and the pill its shape. This
+  // has to be a real frame overflow, not `hitSlop`: the pill's parent (cellRight)
+  // is exactly the pill's height, and a hit area that only exists as slop on a
+  // gesture-handler button doesn't extend that parent's box, so the touch would
+  // still be clipped at the pill's own edges.
+  listenHit: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: CELL_PAD_V,
+    marginVertical: -CELL_PAD_V,
   },
   listen: {
     flexDirection: 'row',
