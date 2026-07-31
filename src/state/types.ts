@@ -55,6 +55,10 @@ export interface Pattern {
   lanes: Lane[];
   /** Last-edit timestamp (ms epoch) — drives "edited just now" in the library. */
   updatedAt: number;
+  /** Creation timestamp (ms epoch) — the library's default sort key. Absent on
+   * patterns saved before this field existed; the store backfills those from
+   * `updatedAt` once at hydration, so nothing has to migrate. */
+  createdAt?: number;
   /** Chip glyph name (components/patterns/chips.ts). Absent on old patterns —
    * they fall back to a stable hash pick, no migration needed. */
   icon?: string;
@@ -76,6 +80,9 @@ export interface Transport {
   countInBeat: number;
 }
 
+/** Patterns-library sort order (the library header's "Sort by" menu). */
+export type PatternSort = 'created' | 'bpm';
+
 export interface Settings {
   /** Selected MIDI output/input device ids (null = none). */
   outputId: string | null;
@@ -92,6 +99,9 @@ export interface Settings {
   /** Which bottom corner the floating capsule is docked in (drag to move).
    * Absent on old blobs — the store defaults it to 'right'. */
   floatBarCorner: 'left' | 'right';
+  /** How the Patterns library is ordered. Absent on old blobs — the store
+   * defaults it to 'created' (newest first). */
+  patternSort: PatternSort;
 }
 
 export interface Selection {

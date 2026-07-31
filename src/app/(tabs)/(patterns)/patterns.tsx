@@ -2,7 +2,8 @@
  * Patterns library (Paper node GR-0). Large-title list of saved patterns with a
  * native header search bar and swipe-to-delete. Tapping a row loads it into the
  * sequencer and switches to the Sequencer tab. A + in the header opens the New
- * Pattern sheet. Empty state (node 2NR-0) shows when there are no patterns.
+ * Pattern sheet, and a Sort by menu next to it orders the list (newest first by
+ * default). Empty state (node 2NR-0) shows when there are no patterns.
  */
 import { useMemo, useState } from 'react';
 import { ActionSheetIOS, Alert, Platform, StyleSheet, View } from 'react-native';
@@ -19,6 +20,7 @@ import { AppText, SFSymbol } from '@/components/ui';
 import { reportFirstScreenLayout } from '@/components/boot-signal';
 import { PatternGlyph } from '@/components/patterns/pattern-glyph';
 import { PatternRow } from '@/components/patterns/pattern-row';
+import { SortMenuButton, sortPatterns } from '@/components/patterns/sort-menu';
 import { isPresetPattern } from '@/state/presets';
 import { usePatterns } from '@/state/selectors';
 import { useStore } from '@/state/store';
@@ -54,6 +56,8 @@ export default function PatternsScreen() {
   const duplicatePattern = useStore((s) => s.duplicatePattern);
   const resetPreset = useStore((s) => s.resetPreset);
   const resetAllPresets = useStore((s) => s.resetAllPresets);
+  const sort = useStore((s) => s.settings.patternSort);
+  const setPatternSort = useStore((s) => s.setPatternSort);
   const [query, setQuery] = useState('');
 
   const promptRename = (pattern: Pattern) => {
@@ -139,10 +143,11 @@ export default function PatternsScreen() {
   useMarkInteractive();
 
   const filtered = useMemo(() => {
+    const ordered = sortPatterns(patterns, sort);
     const q = query.trim().toLowerCase();
-    if (!q) return patterns;
-    return patterns.filter((p) => p.name.toLowerCase().includes(q));
-  }, [patterns, query]);
+    if (!q) return ordered;
+    return ordered.filter((p) => p.name.toLowerCase().includes(q));
+  }, [patterns, query, sort]);
 
   const openPattern = (id: string) => {
     // Tapping a pattern swaps it in place (hardware-style, see loadPattern)
@@ -159,7 +164,16 @@ export default function PatternsScreen() {
 
   return (
     <GestureHandlerRootView style={styles.flex}>
-      <Stack.Screen options={{ headerRight: () => <HeaderAddButton /> }} />
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <View style={styles.headerActions}>
+              <SortMenuButton sort={sort} onChange={setPatternSort} />
+              <HeaderAddButton />
+            </View>
+          ),
+        }}
+      />
       <Stack.SearchBar
         placeholder="Search"
         hideWhenScrolling={false}
@@ -251,6 +265,8 @@ function NoMatches({ query }: { query: string }) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  // Sort menu then +, the iOS order for a large-title header's trailing group.
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   root: { flex: 1, backgroundColor: color.ground },
   content: { paddingHorizontal: space.lg, paddingBottom: space.xxl },
   empty: {
