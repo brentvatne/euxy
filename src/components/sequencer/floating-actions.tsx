@@ -32,7 +32,8 @@
  *   • Drag lifts the capsule and snaps it to a bottom corner (persisted).
  *
  * Chrome (Paper 5SI-0): Liquid Glass container (rgba(28,28,34,.55) mock →
- * native GlassView) + 0.5px rgba(255,255,255,.12) rim + solid #2C2C2E keys,
+ * native GlassView) + a 2-device-pixel white rim (see RIM_W, which carries the
+ * Paper "0.5px" value's history) + solid #2C2C2E keys,
  * padding 8 · gap 10 · 48px keys · 14px margin. Fallback = solid #16161D.
  */
 import { useEffect, useRef, useState } from "react";
@@ -89,6 +90,40 @@ const KEY_SIZE = 48;
 const PAD = 8;
 const KEY_GAP = 10;
 const MARGIN = 14;
+
+/**
+ * The capsule's outline.
+ *
+ * Paper 5SI-0 asks for a "0.5px" rim. That was first taken literally (0.5pt =
+ * 1.5 device pixels at 3×, which renders as a full line plus a half-strength
+ * ghost beside it — a doubled edge), then pinned to `hairlineWidth`, which is
+ * exactly ONE device pixel at any density. One pixel is enough on the
+ * stadium's long straight sides, but it is not enough ink for a CURVE: while
+ * the capsule is contracted into the charge encoder the outline is nothing but
+ * curve, and a single-pixel stroke at 12% white sits right at the threshold
+ * where antialiasing, the charge swell's resampling and screenshot compression
+ * each take a bite out of it. Measured across a 3× frame of the encoder, the
+ * rim ran from +26 of 255 over the shell on some arcs to +0 on others: the
+ * dial's edge reads as a broken, wandering line rather than a drawn one.
+ *
+ * So: TWO device pixels, a little brighter. Still a hairline at arm's length
+ * (⅔pt at 3×), but every pixel along the curve is fully covered, so the
+ * outline closes at every angle and in both shapes. It is also drawn as its
+ * OWN layer (styles.rim) instead of as the shell's border — one plain view
+ * stroke over black, independent of how the native glass material paints its
+ * own boundary.
+ */
+const RIM_W = StyleSheet.hairlineWidth * 2;
+const RIM_ALPHA = 0.24;
+/**
+ * ...and the rim is a light, so it has a rest state and a lit state: 60% while
+ * the capsule is a bar of keys (the Paper whisper, just continuous now), rising
+ * to full as it becomes the encoder — where the outline stops being trim and
+ * becomes the dial's own edge against black, the thing that says where the
+ * dial ends and how big it has grown. Opacity over a pre-lit rim is the only
+ * animated channel (the LED perf rule).
+ */
+const RIM_REST = 0.6;
 
 // Paper dice glyph: 18px box, drawn in a 22-unit viewBox — pips are 3.2u
 // rounded rects (rx 1) at coordinates 5.2 / 9.4 / 13.6.
@@ -782,6 +817,15 @@ export function FloatingActions({
     height: BAR_H + (CHARGE_D - BAR_H) * charge.contract.value,
   }));
 
+  // The outline (see RIM_W) comes up to full as the capsule becomes the
+  // encoder. `charge.contract.value` is read INLINE here for the same reason
+  // the armed-rim styles do it (see the note above rimGlowStyle): behind a
+  // helper worklet this style would never subscribe to `contract` and the rim
+  // would stay at its rest brightness all the way down.
+  const rimStyle = useAnimatedStyle(() => ({
+    opacity: RIM_REST + (1 - RIM_REST) * charge.contract.value,
+  }));
+
   const keys = (
     <View style={styles.row}>
       {/* Temp is a RESIDENT key (Brent's corrected semantics): tap to hold
@@ -839,10 +883,11 @@ export function FloatingActions({
           >
             {liquidGlassAvailable && AnimatedGlassView ? (
               // Real material refracts the playhead LEDs sweeping beneath
-              // it; the rim + tint match the Paper mock (rgba(28,28,34,.55)).
+              // it; the tint matches the Paper mock (rgba(28,28,34,.55)). The
+              // rim is the layer below, not this view's border.
               <AnimatedGlassView
                 glassEffectStyle="regular"
-                style={[styles.bar, styles.barGlass, shellStyle]}
+                style={[styles.bar, shellStyle]}
               >
                 {keys}
               </AnimatedGlassView>
@@ -851,6 +896,11 @@ export function FloatingActions({
                 {keys}
               </Animated.View>
             )}
+            {/* The capsule's outline (see RIM_W) — its own layer over the
+                shell, glass or solid. Absolute-fill, so the shape is whatever
+                the shell currently is: the stadium at rest, the encoder's
+                circle at full contract. */}
+            <Animated.View pointerEvents="none" style={[styles.rim, rimStyle]} />
             {/* Armed rim (variant A) — glow halo blooms in while the LINE
                 draws itself around the outline; disarm undraws it. Both
                 start at the top-left arc (right above the temp key, the SVG
@@ -1906,8 +1956,9 @@ function TempKey({
 }
 
 // Paper 5SI-0: glass capsule (rgba(28,28,34,.55) + blur 24 saturate 160% in
-// the mock — real GlassView here), 0.5px rgba(255,255,255,.12) rim, soft
-// 0/10/24 shadow, solid #2C2C2E keys. Fallback = the old solid #16161D bar.
+// the mock — real GlassView here), white rim in its own layer (`rim`, see
+// RIM_W), soft 0/10/24 shadow, solid #2C2C2E keys. Fallback = the old solid
+// #16161D bar — which now carries the same rim, where before it had none.
 const styles = StyleSheet.create({
   barAnchor: {
     position: "absolute",
@@ -1934,16 +1985,14 @@ const styles = StyleSheet.create({
     gap: KEY_GAP,
     padding: PAD,
   },
-  barGlass: {
-    // Same device-pixel-grid problem the dice pips had, one level out. The
-    // Paper rim is 0.5pt = 1.5 device pixels at 3×, so the capsule's outline
-    // renders as a full-strength line PLUS a half-strength ghost line beside
-    // it (measured on a 3× sim: 31 + 17 of 255 down the sides) — a doubled
-    // edge, which is what reads as blur next to the crisp keys inside it.
-    // `hairlineWidth` is exactly ONE device pixel at every density (0.5pt at
-    // 2×, ⅓pt at 3×), which is what a "0.5px rim" means on a Retina screen.
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.12)",
+  // The capsule's outline, drawn over the shell rather than on it (see RIM_W
+  // for the width and the history). Pre-lit at RIM_ALPHA — only the opacity
+  // animates.
+  rim: {
+    ...FILL,
+    borderRadius: 999,
+    borderWidth: RIM_W,
+    borderColor: `rgba(255,255,255,${RIM_ALPHA})`,
   },
   barSolid: {
     backgroundColor: ramp[7],
