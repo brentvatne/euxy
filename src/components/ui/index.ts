@@ -6,5 +6,6 @@ export { Stepper } from './stepper';
 export { StepBlock } from './step-block';
 export { LaneRow } from './lane-row';
 export { SheetHeader } from './sheet-header';
+export { Tip } from './tip';
 export { TransportBar } from './transport-bar';
 export { IconSkipToStart, IconPlay, IconPause, IconStop, IconPanic } from './icons';
