@@ -152,6 +152,21 @@ export const radius = {
 /** iOS HIG minimum interactive target. Every tappable control ≥ this. */
 export const HIT_TARGET = 44;
 
+/**
+ * Touch area added around a small control, per side, via `hitSlop`.
+ *
+ * The ± keys of a stepper are the case this exists for: their glyph is a 16pt
+ * symbol, the key that draws it is 40-44pt, and a thumb aims at neither — it
+ * aims at the whole cell. 16 grows a 40pt key to a 72pt target, which is the
+ * dead space around it in every stepper we ship, so the slop never reaches a
+ * neighbouring control.
+ *
+ * RN hit-tests into children that overflow their parent, so this is NOT capped
+ * by the row a key sits in — verified on device: a 40pt key with slop 8 takes
+ * a tap 27pt off its centre. Only an ancestor with `overflow: 'hidden'` clips.
+ */
+export const HIT_SLOP = 16;
+
 /** Timing constants (from ROADMAP §13) the UI reads but does not own. */
 export const timing = {
   ppqn: 24,
