@@ -116,16 +116,46 @@ function MSButton({ label, active, onPress }: { label: string; active: boolean; 
   );
 }
 
+/** The row's vertical padding and the space between its header and its step
+ * strip. Both are owned by the two PRESSABLES inside the row instead of by the
+ * row itself, so no point of a lane is dead space — see the TOUCH TARGET notes
+ * on `header` / `titleGroup` / `steps`. */
+const ROW_PAD_V = space.md;
+const HEADER_GAP = 9;
+
 const styles = StyleSheet.create({
   row: {
-    paddingVertical: space.md,
     paddingHorizontal: space.lg,
-    gap: 9,
     borderTopWidth: 1,
     borderTopColor: ramp[7],
   },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  titleGroup: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
+  // TOUCH TARGET (TestFlight — the rows wanted more vertical hit area). The
+  // padding that used to sit on the row now sits here and on `steps`, and the
+  // two pressables grow to fill it: a tap in a lane's top padding, in the gap
+  // above its strip, or in its bottom padding used to hit nothing at all.
+  // Frames, not `hitSlop`: a hit area that only exists as slop on a
+  // gesture-handler button does not extend its parent's box, so the touch is
+  // still clipped at the parent's edges (same lesson as the Lane Editor's
+  // `listenHit`). Geometry is unchanged — row padding 12 + header 44 + gap 9.
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: ROW_PAD_V,
+  },
+  // Stretched over the header's FULL frame (its padding included, via the
+  // equal negative margin) and grown across the width left of M/S, so the
+  // whole header line opens the editor — not just the label itself.
+  titleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexShrink: 1,
+    flexGrow: 1,
+    alignSelf: 'stretch',
+    marginTop: -ROW_PAD_V,
+    paddingTop: ROW_PAD_V,
+  },
   accent: { width: 4, height: 26, borderRadius: 2, backgroundColor: ramp[4] },
   accentLit: { borderRadius: 2, backgroundColor: color.label },
   textBlock: { gap: 1 },
@@ -152,7 +182,15 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 0 },
   },
-  steps: { flexDirection: 'row', gap: 4 },
+  // The strip's target reaches UP through the gap under the header and DOWN
+  // through the row's bottom padding, so the band between two lanes belongs to
+  // the lane above it rather than to nothing.
+  steps: {
+    flexDirection: 'row',
+    gap: 4,
+    paddingTop: HEADER_GAP,
+    paddingBottom: ROW_PAD_V,
+  },
   // Press-down feedback for large surfaces (concept H's "face one shade
   // darker", as dim — travel would warp wide rows).
   pressedDim: { opacity: 0.65 },
