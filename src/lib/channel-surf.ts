@@ -25,6 +25,9 @@ const QUICK_PICK_LIMIT = 4;
 
 const KV_KEY = 'updateChannelOverride';
 const RECENTS_KEY = 'updateChannelRecents';
+/** Set just before a surf reloads, cleared by the launch that reload produces
+ * — see `surfedIntoChannel`. */
+const PENDING_KEY = 'updateChannelSurfPending';
 /** Recents kept on disk — more than the sheet shows, so a channel survives
  * being pushed off the chip row by a couple of one-off surfs. */
 const RECENTS_MAX = 8;
@@ -100,6 +103,39 @@ export function getQuickPickChannels(): string[] {
   return picks.slice(0, QUICK_PICK_LIMIT);
 }
 
+function setPendingSurf(channel: string | null) {
+  try {
+    const kv = kvStore();
+    if (!kv) return;
+    if (channel) kv.setItemSync(PENDING_KEY, channel);
+    else kv.removeItemSync(PENDING_KEY);
+  } catch {
+    // best effort; a missed marker only costs a redundant re-surf
+  }
+}
+
+/**
+ * The channel a surf reloaded this launch into, or null on an ordinary launch.
+ * Read (and cleared from disk) once here at module load, because the sheet
+ * needs it on its very first render.
+ *
+ * iOS hands the launch URL back after `reloadUpdateAsync`, so a channel link
+ * that switched the channel arrives a SECOND time on the bundle it switched
+ * into — verified on device. Without this marker the sheet cannot tell that
+ * replay from a link the user just followed, so it re-runs the whole switch
+ * and reports `NO UPDATE ON <channel>` for a switch that in fact succeeded.
+ */
+export const surfedIntoChannel: string | null = (() => {
+  try {
+    const kv = kvStore();
+    const channel = kv?.getItemSync(PENDING_KEY) ?? null;
+    if (channel != null) kv?.removeItemSync(PENDING_KEY);
+    return channel;
+  } catch {
+    return null;
+  }
+})();
+
 export type SurfPhase = 'checking' | 'downloading' | 'reloading';
 
 /**
@@ -123,12 +159,22 @@ export async function surfToChannelAsync(
   onPhase('downloading');
   await fetchUpdateAsync();
   onPhase('reloading');
-  await reloadUpdateAsync({
-    reloadScreenOptions: {
-      backgroundColor: '#000000',
-      fade: true,
-      spinner: { enabled: true, size: 'medium' },
-    },
-  });
+  // The launch URL comes back after the reload, so the link that started this
+  // switch runs again on the bundle it switched into. Leave the target behind
+  // for that launch to find (`surfedIntoChannel`) instead of re-surfing.
+  setPendingSurf(channel);
+  try {
+    await reloadUpdateAsync({
+      reloadScreenOptions: {
+        backgroundColor: '#000000',
+        fade: true,
+        spinner: { enabled: true, size: 'medium' },
+      },
+    });
+  } catch (e) {
+    // No reload, so no replayed link to suppress on the next launch.
+    setPendingSurf(null);
+    throw e;
+  }
   return true;
 }
