@@ -24,13 +24,6 @@ import {
   type ScrollView,
 } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
-import Animated, {
-  Easing,
-  FadeOut,
-  ReduceMotion,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
 
 import { midi, midiOut, sendTestNote } from '@/components/midi/runtime';
 import { midiNoteName } from '@/core/note';
@@ -39,7 +32,7 @@ import { useLane } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import type { CombineOp, Lane } from '@/state/types';
 import { color, font, radius, ramp, space } from '@/theme/tokens';
-import { AppText, SFSymbol, SheetHeader } from '@/components/ui';
+import { AppText, SFSymbol, SheetHeader, Tip } from '@/components/ui';
 import { KeyboardAwareScrollView } from '@/components/ui/keyboard';
 import { ledExitSuppressed } from '@/components/ui/led';
 import { CombinedCard, combinedCardHeight } from '@/components/lane-editor/combined-card';
@@ -98,68 +91,17 @@ const EDIT_FIELDS: { key: string; read: (l: Lane) => unknown }[] = [
   { key: 'gate', read: (l) => l.gateMs },
 ];
 
-/** Caret box (a rotated square, so its point is the diagonal). */
-const TIP_CARET = 12;
-
-/**
- * The popover DROPS out of the Listen key: opacity leads, 6pt of travel, one
- * soft settle. Short enough to feel like the key's own response to the tap
- * (Brent 2026-07-29 asked for a popover instead of a strip in the group).
- */
-const TIP_ENTER = () => {
-  'worklet';
-  return {
-    initialValues: { opacity: 0, transform: [{ translateY: -6 }] },
-    animations: {
-      opacity: withTiming(1, {
-        duration: 130,
-        easing: Easing.out(Easing.quad),
-        reduceMotion: ReduceMotion.System,
-      }),
-      transform: [
-        {
-          translateY: withSpring(0, {
-            duration: 320,
-            dampingRatio: 0.8,
-            reduceMotion: ReduceMotion.System,
-          }),
-        },
-      ],
-    },
-  };
-};
-/** Leaving is faster and drops the movement — the mode is already over. */
-const TIP_EXIT = FadeOut.duration(110).reduceMotion(ReduceMotion.System);
-
 /**
  * The Listen popover: what Listen does, said once, while it is listening —
  * the message Brent kept from the old group footnote, trimmed, with no icon.
- * It floats over the rows below (pointerEvents none, so the pads and Track row
- * underneath stay tappable) rather than taking a row of its own, so engaging
- * Listen never reflows the form.
- *
- * `caretLeft` is the Listen key's measured centre in the Note row's coordinate
- * space — measured, not derived from the label, because the key changes width
- * when it flips to "Listening…".
+ * The shape (and the drop-out animation) is the shared `Tip`.
  */
 function ListenTip({ caretLeft }: { caretLeft: number }) {
   return (
-    <Animated.View
-      pointerEvents="none"
-      entering={TIP_ENTER}
-      exiting={TIP_EXIT}
-      style={styles.tipLayer}
-    >
-      {/* Caret first, bubble second: the bubble paints over the square's lower
-          half, leaving only the point above its edge. */}
-      <View style={[styles.tipCaret, { left: caretLeft - TIP_CARET / 2 }]} />
-      <View style={styles.tipBubble}>
-        <AppText style={styles.tipText}>
-          Play a note from the OP‑XY’s aux track to set it. The channel picks the track, and euxy
-          echoes it back.
-        </AppText>
-      </View>
-    </Animated.View>
+    <Tip caretLeft={caretLeft}>
+      Play a note from the OP‑XY’s aux track to set it. The channel picks the track, and euxy
+      echoes it back.
+    </Tip>
   );
 }
 
@@ -819,48 +761,6 @@ const styles = StyleSheet.create({
   // The Note row is the popover's positioning context and has to paint over the
   // rows (and pad grid) below it.
   noteRow: { zIndex: 2 },
-  // Popover: hangs off the bottom edge of the Note row, out of the layout.
-  tipLayer: { position: 'absolute', top: '100%', left: 0, right: 0 },
-  tipBubble: {
-    alignSelf: 'flex-end',
-    marginTop: 8,
-    marginRight: 8,
-    maxWidth: 300,
-    // surface4, the top of the ramp — NOT surface3. The fill was always fully
-    // opaque, but surface3 is the level a row expands INTO (trackPanel, the pad
-    // grid) and lands only ~14 of 255 above the surface2 cell this floats over,
-    // so the panel read as see-through. One step up clears both the cell and
-    // the disclosure level, and the rim pins the edge the soft shadow left
-    // ambiguous — together they read as solid rather than as a frosted overlay.
-    backgroundColor: color.surface4,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: ramp[3],
-    borderRadius: radius.cell,
-    paddingVertical: 10,
-    paddingHorizontal: 13,
-    shadowColor: '#000000',
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-  },
-  tipCaret: {
-    position: 'absolute',
-    top: 3,
-    width: TIP_CARET,
-    height: TIP_CARET,
-    borderRadius: 2,
-    // Matches the bubble it points out of — the caret is the same surface.
-    backgroundColor: color.surface4,
-    transform: [{ rotate: '45deg' }],
-  },
-  tipText: {
-    fontFamily: font.text,
-    fontSize: 13,
-    lineHeight: 18,
-    // label2 on the lighter panel falls to ~4.2:1; primary label holds the copy
-    // legible, and the popover is only up while Listen is engaged anyway.
-    color: color.label,
-  },
   // Paper 02c: Listen recedes while the pad grid is the primary input.
   listenMuted: { backgroundColor: ramp[6] },
   listenLabelMuted: { color: color.label3 },
