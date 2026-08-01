@@ -25,7 +25,7 @@ import { ValueFilm } from '@/components/ui/value-film';
 import { ResolutionPicker } from '@/components/patterns/resolution-picker';
 import { useActivePattern } from '@/state/selectors';
 import { useStore } from '@/state/store';
-import { color, font, radius, space } from '@/theme/tokens';
+import { color, font, HIT_SLOP, radius, space } from '@/theme/tokens';
 import { BPM_MAX, BPM_MIN } from './new-pattern';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
@@ -86,7 +86,7 @@ export default function TempoSheet() {
               <Pressable
                 {...decBpm}
                 disabled={bpmDisabled || bpm <= BPM_MIN}
-                hitSlop={space.sm}
+                hitSlop={HIT_SLOP}
                 style={[styles.tempoBtn, (bpmDisabled || bpm <= BPM_MIN) && styles.disabled]}
                 accessibilityRole="button"
                 accessibilityLabel="Decrease tempo"
@@ -107,7 +107,7 @@ export default function TempoSheet() {
               <Pressable
                 {...incBpm}
                 disabled={bpmDisabled || bpm >= BPM_MAX}
-                hitSlop={space.sm}
+                hitSlop={HIT_SLOP}
                 style={[styles.tempoBtn, (bpmDisabled || bpm >= BPM_MAX) && styles.disabled]}
                 accessibilityRole="button"
                 accessibilityLabel="Increase tempo"

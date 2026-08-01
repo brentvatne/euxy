@@ -1,13 +1,14 @@
 /**
  * Stepper — a value with − / + buttons. Used for steps, pulses, rotation, tempo.
- * Both buttons meet the 44pt hit target; the glyph area may look smaller.
+ * The chips are 44pt; HIT_SLOP grows what each one actually presses well past
+ * that, because the glyph is a lot smaller than the area a thumb aims at.
  * Either button also HOLDS to scroll the value at an accelerating rate — see
  * use-hold-repeat (which owns the selection haptic for both paths).
  */
 import { StyleSheet, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
-import { color, HIT_TARGET, radius, space } from '@/theme/tokens';
+import { color, HIT_SLOP, HIT_TARGET, radius, space } from '@/theme/tokens';
 import { AppText } from './text';
 import { SFSymbol } from './symbol';
 import { useHoldRepeat } from './use-hold-repeat';
@@ -56,7 +57,7 @@ export function Stepper({
           style={[styles.btn, value <= min && styles.btnDisabled]}
           accessibilityRole="button"
           accessibilityLabel="Decrease"
-          hitSlop={space.sm}
+          hitSlop={HIT_SLOP}
         >
           <SFSymbol name="minus" size={16} tint={value <= min ? color.labelDisabled : color.label} />
         </Pressable>
@@ -71,7 +72,7 @@ export function Stepper({
           style={[styles.btn, value >= max && styles.btnDisabled]}
           accessibilityRole="button"
           accessibilityLabel="Increase"
-          hitSlop={space.sm}
+          hitSlop={HIT_SLOP}
         >
           <SFSymbol name="plus" size={16} tint={value >= max ? color.labelDisabled : color.label} />
         </Pressable>

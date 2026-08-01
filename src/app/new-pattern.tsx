@@ -27,7 +27,7 @@ import { allChipNames, randomChipName, type ChipName } from '@/components/patter
 import { IconPicker } from '@/components/patterns/icon-picker';
 import { ResolutionPicker } from '@/components/patterns/resolution-picker';
 import { useStore } from '@/state/store';
-import { color, font, radius, space, timing } from '@/theme/tokens';
+import { color, font, HIT_SLOP, radius, space, timing } from '@/theme/tokens';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
 /** Tempo bounds — shared with the Tempo sheet (app/tempo.tsx). */
@@ -183,7 +183,7 @@ export default function NewPatternSheet() {
               <Pressable
                 {...decBpm}
                 disabled={bpm <= BPM_MIN}
-                hitSlop={space.sm}
+                hitSlop={HIT_SLOP}
                 style={[styles.tempoBtn, bpm <= BPM_MIN && styles.disabled]}
                 accessibilityRole="button"
                 accessibilityLabel="Decrease tempo"
@@ -200,7 +200,7 @@ export default function NewPatternSheet() {
               <Pressable
                 {...incBpm}
                 disabled={bpm >= BPM_MAX}
-                hitSlop={space.sm}
+                hitSlop={HIT_SLOP}
                 style={[styles.tempoBtn, bpm >= BPM_MAX && styles.disabled]}
                 accessibilityRole="button"
                 accessibilityLabel="Increase tempo"
