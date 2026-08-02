@@ -50,12 +50,11 @@ import { useStore } from '@/state/store';
 import type { Lane } from '@/state/types';
 import { timing } from '@/theme/tokens';
 import {
-  BLOCK_H,
-  GAP,
   LED,
   LED_TOP,
-  PER_ROW,
+  stepLeft,
   stepStripHeight,
+  stepTop,
 } from './step-strip-layout';
 
 /** Canvas bleed so the bloom never clips at the strip edges. */
@@ -91,8 +90,8 @@ export function StepStripGlow({
   const gridH = stepStripHeight(n);
   const canvasSize = { width: width + PAD * 2, height: gridH + PAD * 2 };
 
-  const cxAt = (s: number) => PAD + (s % PER_ROW) * (blockW + GAP) + blockW / 2;
-  const cyAt = (s: number) => PAD + Math.floor(s / PER_ROW) * (BLOCK_H + GAP) + CY;
+  const cxAt = (s: number) => PAD + stepLeft(s, blockW) + blockW / 2;
+  const cyAt = (s: number) => PAD + stepTop(s) + CY;
 
   return (
     <>
@@ -174,11 +173,11 @@ function PlayheadLayer({
 
   const cxAt = (s: number) => {
     'worklet';
-    return PAD + (s % PER_ROW) * (blockW + GAP) + blockW / 2;
+    return PAD + stepLeft(s, blockW) + blockW / 2;
   };
   const cyAt = (s: number) => {
     'worklet';
-    return PAD + Math.floor(s / PER_ROW) * (BLOCK_H + GAP) + CY;
+    return PAD + stepTop(s) + CY;
   };
 
   // Phosphor phase: restarts 0 → 1 on every step so the embers decay
