@@ -86,23 +86,46 @@ const AnimatedGlassView = GlassView
   ? Animated.createAnimatedComponent(GlassView)
   : null;
 
+/**
+ * SUPERSAMPLE FACTOR (Brent 2026-08-03): the whole capsule assembly lays out
+ * at SS× its visual size and the drag transform divides its scale by SS, so
+ * the resting capsule renders at scale 1/SS and the charge swell only ever
+ * moves it TOWARD 1 (0.5 → 0.61). Bitmap-backed content — SVG pips, glyphs,
+ * glows, the glass material — rasterizes at SS× and is always MINIFIED, never
+ * upsampled, so nothing blurs under the swell. Geometry (borders, fills) was
+ * already scale-invariant and is unaffected.
+ *
+ * Conventions this file now follows:
+ *   • LAYOUT constants (sizes, radii, insets, stroke widths, shadow radii,
+ *     translations of things INSIDE the capsule) carry ×SS.
+ *   • TRANSLATIONS applied in dragStyle happen in parent space, BEFORE the
+ *     ÷SS scale, so they stay in visual points (kicks, drag, rubber-band
+ *     lean) — except terms computed FROM layout constants, which divide.
+ *   • The anchor's right/bottom compensate for the transform shrinking the
+ *     layout box toward its own center.
+ */
+const SS = 2;
+
 // Paper 5SI-0 chrome: 48px keys on padding 8 / gap 10, 14px screen margin.
-const KEY_SIZE = 48;
-const PAD = 8;
-const KEY_GAP = 10;
+const KEY_SIZE = 48 * SS;
+const PAD = 8 * SS;
+const KEY_GAP = 10 * SS;
+/** Visual screen margin — applied at the anchor, outside the scaled subtree. */
 const MARGIN = 14;
 
 // Paper dice glyph: 18px box, drawn in a 22-unit viewBox — pips are 3.2u
 // rounded rects (rx 1) at coordinates 5.2 / 9.4 / 13.6.
-const GLYPH = 18;
+const GLYPH = 18 * SS;
 const U = GLYPH / 22;
-/** Snap to whole device pixels. The 22-unit artboard scaled to 18pt lands the
- * pips on 7.85 device pixels at 3×, so two edges of every pip are a
+/** Snap to whole VISUAL device pixels. The 22-unit artboard scaled to 18pt
+ * lands the pips on 7.85 device pixels at 3×, so two edges of every pip are a
  * half-covered grey column and the glyph reads as blurred next to the crisp
  * SF Symbols beside it. Rounding pip size, radius and cell coordinates to the
  * grid keeps the Paper geometry (nothing moves by more than a third of a
- * point) and gives each pip four hard edges. */
-const px = (v: number) => PixelRatio.roundToNearestPixel(v);
+ * point) and gives each pip four hard edges. Snapped in VISUAL space (÷SS,
+ * round, ×SS): layout pixels are half a visual pixel each, and snapping to
+ * them would leave the rendered pip edges on half-pixel boundaries. */
+const px = (v: number) => PixelRatio.roundToNearestPixel(v / SS) * SS;
 const PIP = px(3.2 * U);
 const PIP_R = px(1 * U);
 const PIP_COORD = [px(5.2 * U), px(9.4 * U), px(13.6 * U)];
@@ -125,8 +148,8 @@ const REST_CELLS = [
  */
 const PEAK_GLYPH = CHIPS.bolt;
 /** 5×5 geometry inside the same 18pt glyph box the 3×3 pips use. */
-const PEAK_CELL = 2.6;
-const PEAK_STEP = 3.2;
+const PEAK_CELL = 2.6 * SS;
+const PEAK_STEP = 3.2 * SS;
 const PEAK_ORIGIN = (GLYPH - (PEAK_STEP * 4 + PEAK_CELL)) / 2;
 /**
  * Inverted shades for the three chip levels (rest-dim, lit, light). NOT a
@@ -170,7 +193,7 @@ const BAR_H = KEY_SIZE + PAD * 2;
  * onLayout measurement: the charge contract animates FROM this number and a
  * measurement arriving a frame late would make the first contract jump. */
 const BAR_W = PAD * 2 + KEY_SIZE * 3 + KEY_GAP * 2;
-const TRACE_INSET = 1;
+const TRACE_INSET = 1 * SS;
 const TRACE_R = (BAR_H - TRACE_INSET * 2) / 2;
 /** Stadium perimeter at the trace's inset — the dash both the arm draw-in and
  * the keep trace fill. */
@@ -257,16 +280,16 @@ const CHARGE_ENTER_MS = 120;
 /** One LED per 16th → 16 LEDs = one bar = a full charge. */
 const RING_LEDS = 16;
 /** Contracted capsule: a single round encoder under the finger. */
-const CHARGE_D = 72;
+const CHARGE_D = 72 * SS;
 /** LED centre radius — inside the 72px encoder, clear of the 48px key. */
-const RING_R = 29;
-const RING_LED = 4;
+const RING_R = 29 * SS;
+const RING_LED = 4 * SS;
 /** Steady lit alpha an LED decays to; the 0ms attack tops it to full. */
 const LED_STEADY = 0.55;
 /** Per-LED attack decay — 0ms attack, then this long back to steady lit. */
 const LED_ATTACK_MS = 260;
 /** Hairline that leaves on release: 48 → 128px (spec's ring discharge). */
-const DISCHARGE_D = 128;
+const DISCHARGE_D = 128 * SS;
 /** How far the contracted encoder will lean after a wandering finger, and how
  * quickly it stops giving. Anchored, not draggable: it is saying "I am still
  * attached to your finger", not offering to be moved. Tuned on device —
@@ -290,8 +313,9 @@ const CHARGE_BPM_MAX = 180;
  * still reads as one continuous press. */
 const PEAK_HOLD_MS = 500;
 /** Peak tremor: the key buzzes while the closed ring waits to fire. Small and
- * fast — a machine straining, not a "no" shake. ~17Hz at just over a pixel. */
-const SHAKE_PX = 1.2;
+ * fast — a machine straining, not a "no" shake. ~17Hz at just over a pixel.
+ * Layout units: this translate lives INSIDE the ÷SS-scaled subtree. */
+const SHAKE_PX = 1.2 * SS;
 const SHAKE_MS = 60;
 
 // response/damping from the spec's motion table, expressed as Reanimated's
@@ -495,7 +519,7 @@ export function FloatingActions({
   const ty = useSharedValue(0);
   const lift = useSharedValue(0);
   const anchorFor = (c: "left" | "right") =>
-    c === "left" ? -(screenW - BAR_W - MARGIN * 2) : 0;
+    c === "left" ? -(screenW - BAR_W / SS - MARGIN * 2) : 0;
   const anchorInit = useRef(false);
   useEffect(() => {
     // Drag disabled → ignore any persisted corner (it would be stranded)
@@ -627,11 +651,12 @@ export function FloatingActions({
       // HEADED (release position projected ~180ms along the gesture
       // velocity), not just where the finger lets go, and feed the velocity
       // into the settle springs so the throw carries through the landing.
-      const center = screenW - MARGIN - BAR_W / 2 + anchorX.value + tx.value;
+      const center =
+        screenW - MARGIN - BAR_W / SS / 2 + anchorX.value + tx.value;
       const projected = center + e.velocityX * THROW_PROJECTION_S;
       const left = projected < screenW / 2;
       anchorX.value = withSpring(
-        left ? -(screenW - BAR_W - MARGIN * 2) : 0,
+        left ? -(screenW - BAR_W / SS - MARGIN * 2) : 0,
         SNAP,
       );
       tx.value = withSpring(0, { ...SNAP, velocity: e.velocityX });
@@ -695,10 +720,14 @@ export function FloatingActions({
 
   const dragStyle = useAnimatedStyle(() => ({
     transform: [
+      // Translations happen BEFORE the ÷SS scale, i.e. in parent space —
+      // which is also where the SS× layout box lives, so box-geometry
+      // compensation stays in LAYOUT units while finger-derived motion stays
+      // in visual points (they're the same axis; only their sources differ).
       // The contract keeps the DICE KEY still: the capsule is right/bottom
-      // anchored, so shrinking it toward a 72px circle would slide its centre
-      // 54pt right and 4pt down — these two terms put it back. The dice is the
-      // middle key, so the capsule's centre IS the key's centre.
+      // anchored, so shrinking the box toward the encoder slides its centre
+      // right and down — these two terms put it back. The dice is the middle
+      // key, so the capsule's centre IS the key's centre.
       {
         translateX:
           anchorX.value +
@@ -718,17 +747,21 @@ export function FloatingActions({
       },
       { rotate: `${-2.2 * roll.value}deg` },
       {
+        // ÷SS is the supersample: the assembly lays out at SS× and rests at
+        // 1/SS, so the swell moves the scale TOWARD 1 — bitmap content is
+        // always minified, never blurred upward.
         scale:
-          1 +
-          0.04 * lift.value +
-          0.03 * Math.abs(roll.value) +
-          0.05 * pop.value +
-          // The capsule swells as it charges (retargeted per LED, so it never
-          // restarts) — something straining to get away from you. The swell
-          // rides the ring LINEARLY rather than settling early, so it is still
-          // visibly growing at the top of the charge instead of parking near
-          // its maximum inside the first beat.
-          0.22 * charge.scale.value,
+          (1 +
+            0.04 * lift.value +
+            0.03 * Math.abs(roll.value) +
+            0.05 * pop.value +
+            // The capsule swells as it charges (retargeted per LED, so it never
+            // restarts) — something straining to get away from you. The swell
+            // rides the ring LINEARLY rather than settling early, so it is
+            // still visibly growing at the top of the charge instead of
+            // parking near its maximum inside the first beat.
+            0.22 * charge.scale.value) /
+          SS,
       },
     ],
   }));
@@ -843,7 +876,7 @@ export function FloatingActions({
                   // kept it over the OP-XY cyan). Arming stays white;
                   // persisting is the one green gesture on the bar.
                   stroke="rgba(48,209,88,0.35)"
-                  strokeWidth={7}
+                  strokeWidth={7 * SS}
                   strokeLinecap="round"
                   strokeDasharray={`${TRACE_PERIM}`}
                   animatedProps={traceGlowProps}
@@ -856,7 +889,7 @@ export function FloatingActions({
                   rx={TRACE_R}
                   fill="none"
                   stroke={color.connected}
-                  strokeWidth={3}
+                  strokeWidth={3 * SS}
                   strokeLinecap="round"
                   strokeDasharray={`${TRACE_PERIM}`}
                   animatedProps={traceProps}
@@ -1840,10 +1873,14 @@ function TempKey({
 // the mock — real GlassView here), 0.5px rgba(255,255,255,.12) rim, soft
 // 0/10/24 shadow, solid #2C2C2E keys. Fallback = the old solid #16161D bar.
 const styles = StyleSheet.create({
+  // The layout box is SS× the visual capsule and the ÷SS scale shrinks it
+  // toward its own center, so the anchor overshoots the margins by half the
+  // VISUAL size — the scaled-down capsule's right/bottom edges land exactly
+  // MARGIN from the screen edge.
   barAnchor: {
     position: "absolute",
-    right: MARGIN,
-    bottom: MARGIN,
+    right: MARGIN - BAR_W / SS / 2,
+    bottom: MARGIN - BAR_H / SS / 2,
   },
   // The shell: its SIZE contracts during a charge, so the key row inside is
   // centred and clipped rather than laid out against the shrinking edge.
@@ -1860,12 +1897,12 @@ const styles = StyleSheet.create({
     // 1.22× and antialiases symmetrically. Same rim on glass and the solid
     // fallback: it doubles as the armed indicator (shellRimStyle brightens
     // its color to 35%).
-    borderWidth: 2,
+    borderWidth: 2 * SS,
     borderColor: "rgba(255,255,255,0.07)",
     shadowColor: "#000000",
     shadowOpacity: 0.4,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 10 },
+    shadowRadius: 24 * SS,
+    shadowOffset: { width: 0, height: 10 * SS },
   },
   row: {
     width: BAR_W,
@@ -1906,7 +1943,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     shadowColor: "#FFFFFF",
     shadowOpacity: 0.8,
-    shadowRadius: 3,
+    shadowRadius: 3 * SS,
     shadowOffset: { width: 0, height: 0 },
   },
   // Charge: the key surface lifts a shade as the ring fills, then inverts
@@ -1929,10 +1966,10 @@ const styles = StyleSheet.create({
     backgroundColor: color.label,
   },
   ghostDot: {
-    width: 11,
-    height: 11,
+    width: 11 * SS,
+    height: 11 * SS,
     borderRadius: 999,
-    borderWidth: 1.5,
+    borderWidth: 1.5 * SS,
     borderColor: "#8E8E93",
     alignItems: "center",
     justifyContent: "center",
@@ -1951,7 +1988,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     shadowColor: "#FFFFFF",
     shadowOpacity: 1,
-    shadowRadius: 6,
+    shadowRadius: 6 * SS,
     shadowOffset: { width: 0, height: 0 },
   },
   // Variant A armed rim, glow layer: a soft halo under the crisp SVG line.
@@ -1964,11 +2001,11 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     borderRadius: 999,
-    borderWidth: 3,
+    borderWidth: 3 * SS,
     borderColor: "rgba(255,255,255,0.25)",
     shadowColor: "#FFFFFF",
     shadowOpacity: 0.4,
-    shadowRadius: 16,
+    shadowRadius: 16 * SS,
     shadowOffset: { width: 0, height: 0 },
   },
   // The keep-trace SVG keeps its own fixed geometry, pinned to the capsule's
@@ -1994,15 +2031,15 @@ const styles = StyleSheet.create({
   // arrives at the dice already wearing the LED white it will live as.
   drainDot: {
     position: "absolute",
-    top: KEY_SIZE / 2 - 2.5,
-    left: KEY_SIZE / 2 - 2.5,
-    width: 5,
-    height: 5,
+    top: KEY_SIZE / 2 - 2.5 * SS,
+    left: KEY_SIZE / 2 - 2.5 * SS,
+    width: 5 * SS,
+    height: 5 * SS,
     borderRadius: 999,
     backgroundColor: "#FFFFFF",
     shadowColor: "#FFFFFF",
     shadowOpacity: 0.8,
-    shadowRadius: 3,
+    shadowRadius: 3 * SS,
     shadowOffset: { width: 0, height: 0 },
   },
   // --- Charge ring -----------------------------------------------------
@@ -2029,7 +2066,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     shadowColor: "#FFFFFF",
     shadowOpacity: 0.9,
-    shadowRadius: 3,
+    shadowRadius: 3 * SS,
     shadowOffset: { width: 0, height: 0 },
   },
   // Outer bloom over the charge — a static shadow whose alpha is the only
@@ -2044,7 +2081,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.05)",
     shadowColor: "#FFFFFF",
     shadowOpacity: 0.9,
-    shadowRadius: 22,
+    shadowRadius: 22 * SS,
     shadowOffset: { width: 0, height: 0 },
   },
   // The pop: the lit ring leaves as one hairline, 48 → 128px.
@@ -2055,7 +2092,7 @@ const styles = StyleSheet.create({
     width: DISCHARGE_D,
     height: DISCHARGE_D,
     borderRadius: 999,
-    borderWidth: 1.5,
+    borderWidth: 1.5 * SS,
     borderColor: "#FFFFFF",
     // Rides transform: scale (0.375 → 1). Clipping flips RN onto the
     // CALayer border path so the hairline scales as vector geometry
