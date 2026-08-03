@@ -26,8 +26,21 @@ import {
 // store never notifies.
 const subscribeNever = () => () => {};
 
+/** Pills shown before "See all patterns" expands the list. */
+const VISIBLE_PILLS = 6;
+
 export default function Home() {
   const presets = useMemo(() => presetPatterns(), []);
+  // Web-only ordering: Two-Step trades places with Ambient Drift so an
+  // up-tempo groove sits in the collapsed six (Brent). The app keeps the
+  // shared presets.ts order — this swap is presentation, not data.
+  const ordered = useMemo(() => {
+    const list = [...presets];
+    const a = list.findIndex((p) => p.id === 'preset_ambient');
+    const b = list.findIndex((p) => p.id === 'preset_twostep');
+    if (a >= 0 && b >= 0) [list[a], list[b]] = [list[b], list[a]];
+    return list;
+  }, [presets]);
   // Encode the EFFECTIVE glyph — preset glyphs come from the id-keyed curated
   // map, and ids don't travel in the payload.
   const examplePayload = useMemo(() => {
@@ -53,6 +66,15 @@ export default function Home() {
     (tappedId && presets.find((p) => p.id === tappedId)) ||
     (urlPreset && presets.find((p) => p.id === `preset_${urlPreset}`)) ||
     presets[0];
+
+  // The list starts collapsed to VISIBLE_PILLS. One-way: expanding is the
+  // only control — nothing on the page re-hides pills out from under a
+  // scrolled reader. A ?preset= deep link to a hidden pill expands up
+  // front so the active pill is never invisible.
+  const [showAll, setShowAll] = useState(false);
+  const expanded =
+    showAll || ordered.findIndex((p) => p.id === selected.id) >= VISIBLE_PILLS;
+  const visiblePresets = expanded ? ordered : ordered.slice(0, VISIBLE_PILLS);
 
   const selectPreset = (id: string) => {
     setTappedId(id);
@@ -92,10 +114,10 @@ export default function Home() {
         </View>
 
         <View style={styles.player}>
-          {/* The payoff leads: with 24 presets the pill list is taller than
-              the player, and below it Play sat ~380px under the fold on a
-              phone. No remount key — the player swaps schedulers on pattern
-              change so playback continues across preset switches. */}
+          {/* The payoff leads: expanded, the pill list is taller than the
+              player, and below it Play sat ~380px under the fold on a phone.
+              No remount key — the player swaps schedulers on pattern change
+              so playback continues across preset switches. */}
           <PatternPlayer
             pattern={selected}
             chip={chipForPattern(selected)}
@@ -103,7 +125,7 @@ export default function Home() {
             reserve={presets.map((p) => p.lanes)}
           />
           <View style={styles.pills}>
-            {presets.map((p) => {
+            {visiblePresets.map((p) => {
               const active = p.id === selected.id;
               return (
                 <Pressable
@@ -127,6 +149,23 @@ export default function Home() {
                 </Pressable>
               );
             })}
+            {!expanded && (
+              <Pressable
+                onPress={() => setShowAll(true)}
+                accessibilityRole="button"
+                accessibilityLabel={`See all ${ordered.length} patterns`}
+                {...webAttrs({ anim: '', pill: '' })}
+                style={({ pressed }) => [
+                  styles.pill,
+                  styles.seeAllPill,
+                  pressed && styles.pillPressed,
+                ]}
+              >
+                <Text style={styles.pillLabel}>
+                  See all patterns ({ordered.length})
+                </Text>
+              </Pressable>
+            )}
           </View>
         </View>
 
@@ -253,6 +292,8 @@ const styles = StyleSheet.create({
     backgroundColor: color.surface,
   },
   pillActive: { backgroundColor: color.label },
+  // No glyph, so the label carries the pill alone: even padding both sides.
+  seeAllPill: { paddingLeft: 17 },
   pillPressed: { transform: [{ scale: 0.97 }] },
   pillLabel: { fontFamily: SANS, fontSize: 16, fontWeight: '500', color: color.label2 },
   pillLabelActive: { color: '#101014' },
