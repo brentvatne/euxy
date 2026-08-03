@@ -32,8 +32,8 @@ import { color, stepFill } from '@/theme/tokens';
 import { FlickerBloom } from '@/components/ui/flicker-bloom';
 import { Led } from '@/components/ui/led';
 // The card's columns ARE the sequencer strip's columns (same 16 slots, same
-// 3px step gap, same wider gap before each downbeat) — one source of geometry
-// so the two grids stay countable in the same places.
+// uniform 4px step gap, same lit downbeat tick) — one source of geometry so
+// the two grids stay countable in the same places.
 import {
   isDownbeat,
   PER_ROW,
@@ -42,9 +42,9 @@ import {
   stepLeft,
   TICK_BOTTOM,
   TICK_H,
-  TICK_INSET,
   TICK_RADIUS,
-  tickColor,
+  TICK_W,
+  tickOnLightFill,
 } from '@/components/sequencer/step-strip-layout';
 
 const CELL_H = 30;
@@ -153,7 +153,8 @@ export function CombinedCard({
                         <View
                           style={[
                             styles.tick,
-                            { width: cellW - TICK_INSET * 2, backgroundColor: tickColor(i) },
+                            tickOnLightFill(i) && styles.tickLightFill,
+                            { left: (cellW - TICK_W) / 2 },
                           ]}
                         />
                       ) : null}
@@ -316,18 +317,30 @@ const styles = StyleSheet.create({
   },
   grid: { gap: GRID_GAP },
   rowPair: { gap: 5 },
-  // No row gap: each cell carries its own leading gap so the beat groups can be
-  // spaced wider than the steps inside them (see stepGapBefore).
+  // No row gap: each cell carries its own leading gap (uniform, but slot 0
+  // starts flush — see stepGapBefore).
   gridRow: { flexDirection: 'row' },
   cell: { height: CELL_H, borderRadius: 3, alignItems: 'center', paddingTop: 3 },
-  // Downbeat underline (V4c) — same tick as the sequencer strips, so the two
-  // grids stay one language.
+  // Downbeat tick (V4b "lit tick") — same tick as the sequencer strips, so
+  // the two grids stay one language.
   tick: {
     position: 'absolute',
     bottom: TICK_BOTTOM,
-    left: TICK_INSET,
+    width: TICK_W,
     height: TICK_H,
     borderRadius: TICK_RADIUS,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    shadowColor: '#FFFFFF',
+    shadowOpacity: 0.45,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  tickLightFill: {
+    backgroundColor: '#FFFFFF',
+    shadowOpacity: 0.6,
+    outlineWidth: 1,
+    outlineColor: 'rgba(0,0,0,0.40)',
+    outlineStyle: 'solid',
   },
   attrSlot: {
     height: 4,

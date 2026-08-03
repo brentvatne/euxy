@@ -49,9 +49,9 @@ import {
   stepTop,
   TICK_BOTTOM,
   TICK_H,
-  TICK_INSET,
   TICK_RADIUS,
-  tickColor,
+  TICK_W,
+  tickOnLightFill,
 } from './step-strip-layout';
 import { StepStripGlow } from './step-strip-skia';
 
@@ -233,7 +233,8 @@ export function StepStrip({ lane, washDelay = 0, active = true }: StepStripProps
                     <View
                       style={[
                         styles.tick,
-                        { width: blockW - TICK_INSET * 2, backgroundColor: tickColor(i) },
+                        tickOnLightFill(i) && styles.tickLightFill,
+                        { left: (blockW - TICK_W) / 2 },
                       ]}
                     />
                   ) : null}
@@ -365,13 +366,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
   },
-  // Downbeat underline (V4c): static, drawn with the cell — never animates.
+  // Downbeat tick (V4b "lit tick"): a small LED-treated light, static, drawn
+  // with the cell — never animates. Dimmer than any hit LED.
   tick: {
     position: 'absolute',
     bottom: TICK_BOTTOM,
-    left: TICK_INSET,
+    width: TICK_W,
     height: TICK_H,
     borderRadius: TICK_RADIUS,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    shadowColor: '#FFFFFF',
+    shadowOpacity: 0.45,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  // The four lightest ramp fills: full-white core + a 1px dark ring OUTSIDE
+  // the bar (Paper V4b's spread ring) instead of flipping the tick dark.
+  tickLightFill: {
+    backgroundColor: '#FFFFFF',
+    shadowOpacity: 0.6,
+    outlineWidth: 1,
+    outlineColor: 'rgba(0,0,0,0.40)',
+    outlineStyle: 'solid',
   },
   // Concept J: lit film over a nudged step (grey `lit`, opacity-only).
   bloom: {

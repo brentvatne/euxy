@@ -5,7 +5,6 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   BEAT,
-  BEAT_GAP,
   isDownbeat,
   PER_ROW,
   STEP_GAP,
@@ -14,7 +13,7 @@ import {
   stepLeft,
   stepStripHeight,
   stepTop,
-  tickColor,
+  tickOnLightFill,
 } from './step-strip-layout';
 
 describe('stepStripHeight', () => {
@@ -29,31 +28,30 @@ describe('stepStripHeight', () => {
   });
 });
 
-describe('beat grouping', () => {
-  test('only downbeats past the row start get the wide gap', () => {
+describe('uniform spacing', () => {
+  test('every step past the row start gets the same gap', () => {
     expect(stepGapBefore(0)).toBe(0);
     expect(stepGapBefore(1)).toBe(STEP_GAP);
-    expect(stepGapBefore(BEAT)).toBe(BEAT_GAP);
-    expect(stepGapBefore(12)).toBe(BEAT_GAP);
-    // Rows wrap on a multiple of BEAT, so slot 0 of row 2 starts flush.
+    expect(stepGapBefore(BEAT)).toBe(STEP_GAP);
+    expect(stepGapBefore(12)).toBe(STEP_GAP);
+    // Rows wrap at 16, so slot 0 of row 2 starts flush.
     expect(stepGapBefore(PER_ROW)).toBe(0);
-    expect(stepGapBefore(PER_ROW + BEAT)).toBe(BEAT_GAP);
+    expect(stepGapBefore(PER_ROW + BEAT)).toBe(STEP_GAP);
   });
 
-  test('keeps the strip width a uniform 4px row had', () => {
+  test('keeps the width the grouped row had (gaps sum to 60)', () => {
     const width = 361;
     const blockW = stepBlockWidth(width);
-    // Old geometry: 16 blocks + 15 gaps of 4.
     expect(blockW).toBeCloseTo((width - 15 * 4) / PER_ROW, 10);
     // The last block still ends exactly at the strip's right edge.
     expect(stepLeft(PER_ROW - 1, blockW) + blockW).toBeCloseTo(width, 10);
   });
 
-  test('x is the run of gaps before the step', () => {
+  test('x is a plain slot pitch', () => {
     const blockW = 18;
     expect(stepLeft(0, blockW)).toBe(0);
     expect(stepLeft(1, blockW)).toBe(blockW + STEP_GAP);
-    expect(stepLeft(BEAT, blockW)).toBe(BEAT * blockW + 3 * STEP_GAP + BEAT_GAP);
+    expect(stepLeft(BEAT, blockW)).toBe(BEAT * (blockW + STEP_GAP));
     // Wrapped rows repeat the first row's x.
     expect(stepLeft(PER_ROW + 5, blockW)).toBe(stepLeft(5, blockW));
   });
@@ -78,14 +76,14 @@ describe('downbeat underline', () => {
     expect(isDownbeat(PER_ROW + 1)).toBe(false);
   });
 
-  test('flips dark only on the four lightest ramp slots', () => {
-    expect(tickColor(0)).toBe('rgba(255,255,255,0.40)');
-    expect(tickColor(8)).toBe('rgba(255,255,255,0.40)');
-    expect(tickColor(11)).toBe('rgba(255,255,255,0.40)');
-    expect(tickColor(12)).toBe('rgba(0,0,0,0.45)');
-    expect(tickColor(15)).toBe('rgba(0,0,0,0.45)');
+  test('rings the tick only on the four lightest ramp slots', () => {
+    expect(tickOnLightFill(0)).toBe(false);
+    expect(tickOnLightFill(8)).toBe(false);
+    expect(tickOnLightFill(11)).toBe(false);
+    expect(tickOnLightFill(12)).toBe(true);
+    expect(tickOnLightFill(15)).toBe(true);
     // Wrapped rows re-enter the ramp: slot 12 of row 2 is light-filled too.
-    expect(tickColor(PER_ROW + 12)).toBe('rgba(0,0,0,0.45)');
-    expect(tickColor(PER_ROW)).toBe('rgba(255,255,255,0.40)');
+    expect(tickOnLightFill(PER_ROW + 12)).toBe(true);
+    expect(tickOnLightFill(PER_ROW)).toBe(false);
   });
 });
