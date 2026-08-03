@@ -29,17 +29,55 @@ const subscribeNever = () => () => {};
 /** Pills shown before "See all presets" expands the list. */
 const VISIBLE_PILLS = 6;
 
+/**
+ * Web-only display order: a judgment call on what OP-XY owners reach for,
+ * electronic genres first (Brent, 2026-08-02). The first VISIBLE_PILLS are
+ * the collapsed set. Ids missing from this list sort after it in presets.ts
+ * order, so a new preset never vanishes. The app keeps the shared presets.ts
+ * order — this is presentation, not data.
+ */
+const WEB_ORDER = [
+  'preset_lofi', // Lo-Fi Bounce — the confirmed opener
+  'preset_house', // Four on the Floor
+  'preset_twostep', // Two-Step
+  'preset_halftime', // Halftime
+  'preset_techno', // Warehouse
+  'preset_headnod', // Head Nod
+  // — collapsed fold —
+  'preset_acid', // Acid Line
+  'preset_electro', // Electro
+  'preset_drunk', // Drunk Swing
+  'preset_triphop', // Trip-Hop
+  'preset_idm', // Broken Machine
+  'preset_phonk', // Phonk
+  'preset_dembow', // Dembow
+  'preset_motorik', // Motorik
+  'preset_moneybeat', // Money Beat
+  'preset_ambient', // Ambient Drift
+  'preset_tapeloop', // Tape Loop
+  'preset_footwork', // Footwork
+  'preset_stutter', // Stutter
+  'preset_shuffle', // Shuffle
+  'preset_purdie', // Half-Time Shuffle
+  'preset_bossa', // Bossa Nova
+  'preset_samba', // Samba
+  'preset_cinquillo', // Cinquillo
+  'preset_bembe', // Bembé
+  'preset_hemiola', // Three Over Four
+  'preset_aksak', // Aksak
+  'preset_dbeat', // D-Beat
+];
+
 export default function Home() {
   const presets = useMemo(() => presetPatterns(), []);
-  // Web-only ordering: Two-Step trades places with Ambient Drift so an
-  // up-tempo groove sits in the collapsed six (Brent). The app keeps the
-  // shared presets.ts order — this swap is presentation, not data.
   const ordered = useMemo(() => {
-    const list = [...presets];
-    const a = list.findIndex((p) => p.id === 'preset_ambient');
-    const b = list.findIndex((p) => p.id === 'preset_twostep');
-    if (a >= 0 && b >= 0) [list[a], list[b]] = [list[b], list[a]];
-    return list;
+    const rank = new Map(WEB_ORDER.map((id, i) => [id, i]));
+    // Stable sort: unranked ids share one rank past the end, so they keep
+    // their presets.ts order after the ranked ones.
+    return [...presets].sort(
+      (a, b) =>
+        (rank.get(a.id) ?? WEB_ORDER.length) - (rank.get(b.id) ?? WEB_ORDER.length),
+    );
   }, [presets]);
   // Encode the EFFECTIVE glyph — preset glyphs come from the id-keyed curated
   // map, and ids don't travel in the payload.
