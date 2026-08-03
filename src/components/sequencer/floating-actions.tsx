@@ -31,9 +31,11 @@
  *     on the tick.
  *   • Drag lifts the capsule and snaps it to a bottom corner (persisted).
  *
- * Chrome (Paper 5SI-0): Liquid Glass container (rgba(28,28,34,.55) mock →
- * native GlassView) + 0.5px rgba(255,255,255,.12) rim + solid #2C2C2E keys,
- * padding 8 · gap 10 · 48px keys · 14px margin. Fallback = solid #16161D.
+ * Chrome (Paper 5SI-0, rim per "Floating bar — scale-safe chrome" variant 1):
+ * Liquid Glass container (rgba(28,28,34,.55) mock → native GlassView) + 2px
+ * rgba(255,255,255,.07) rim + solid #2C2C2E keys, padding 8 · gap 10 · 48px
+ * keys · 14px margin. Fallback = solid #16161D with the same rim. Armed temp
+ * = the rim itself brightens to 35% white (no drawn outline).
  */
 import { useEffect, useRef, useState } from "react";
 import {
@@ -539,93 +541,50 @@ export function FloatingActions({
     touchBeat.value = Math.floor(playheadTick.value / timing.ppqn);
   };
 
-  // Temp variant A (Brent's pick): the WHOLE bar wears the mode. Armed = the
-  // glass hairline becomes a lit rim (instant on, quick decay off); keep =
-  // the outline TRACES clockwise around the capsule. The trace's shared
-  // values live here (the bar draws them) but the temp key's press machine
-  // drives them.
+  // Temp mode: the WHOLE bar wears it. Armed = the shell's 2px rim brightens
+  // (fat-rim variant 1); keep = the green trace runs clockwise around the
+  // capsule. The trace's shared values live here (the bar draws them) but
+  // the temp key's press machine drives them. The trace is only ever visible
+  // during the keep hold, when nothing scales the capsule — so its thin SVG
+  // strokes never meet the scale problem the armed hairline had.
   const keepProgress = useSharedValue(0);
   const keepTick = useSharedValue(0);
   const keepDrain = useSharedValue(0);
-  // Arming DRAWS the rim in (Brent): a quick clockwise trace of the outline
-  // (~320ms, the same path the keep trace runs) while the glow halo blooms
-  // in underneath. Disarming UNDRAWS it — the line retracts back toward the
-  // temp key (~220ms, Brent's correction) while the halo fades with it.
-  const armProgress = useSharedValue(0);
-  // The halo's alpha is its OWN shared value rather than a `withTiming` in the
-  // style: the charge multiplies the rim's opacity down, and an animation
-  // object can't be multiplied by anything.
+  // Variant 1, "fat rim" (Paper "Floating bar — scale-safe chrome", Brent's
+  // pick 2026-08-03): the armed state IS the shell's own 2px rim brightening
+  // from 7% to 35% white, plus the glow halo. One animated color, no drawn-in
+  // line — the old SVG draw-on and its rimCircle handoff are gone. Because
+  // the rim lives on the shell's border it inherits every shape the shell
+  // takes (stadium, contracting, the 72px encoder) and every scale the
+  // capsule rides — a 2px border keeps a solid core at 1.22×, which is the
+  // whole reason the hairline left.
   const armGlow = useSharedValue(0);
   useEffect(() => {
-    // RETARGET from wherever the line currently sits (principle 7). The
-    // `armProgress.value = 0` that used to precede the draw snapped a
-    // half-undrawn rim back to nothing before redrawing it — a visible cut on
-    // a key that gets mashed. Durations scale by the distance still to travel,
-    // so a re-arm from 60% drawn doesn't crawl through the last 40%.
+    // RETARGET from wherever the brightness currently sits (principle 7):
+    // withTiming picks up mid-flight, so mashing the temp key never cuts.
     armGlow.value = withTiming(snapshotActive ? 1 : 0, {
       duration: snapshotActive ? 320 : 220,
       easing: Easing.out(Easing.quad),
       reduceMotion: ReduceMotion.System,
     });
-    if (snapshotActive) {
-      armProgress.value = withTiming(1, {
-        duration: Math.max(80, 320 * (1 - armProgress.value)),
-        easing: Easing.out(Easing.quad),
-        reduceMotion: ReduceMotion.System,
-      });
-    } else {
-      armProgress.value = withTiming(0, {
-        duration: Math.max(60, 220 * armProgress.value),
-        // ease-OUT on the retract as well: ease-in held the line still for the
-        // first frames after the tap, the exact moment being watched.
-        easing: Easing.out(Easing.quad),
-        reduceMotion: ReduceMotion.System,
-      });
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshotActive]);
-  // ARMED + CHARGING: temp mode has to stay legible while the capsule
-  // contracts, so the rim CHANGES SHAPE rather than leaving. Two layers split
-  // the job, because neither can do both:
-  //
-  //   • the SVG stadium (rimLine) owns the draw-on, since only a dash offset
-  //     can trace the outline clockwise — but its geometry is a fixed
-  //     180×64 stadium, which is nonsense around a 72px encoder, so it hands
-  //     off during the contract;
-  //   • rimCircle is a plain bordered view on absolute-fill, so it inherits
-  //     whatever shape the shell currently is and stays correct the whole way
-  //     down. It has no draw-on, which costs nothing here: a charge can only
-  //     start once the arm has already finished drawing.
-  //
-  // The halo (rimGlow) is also absolute-fill, so it just tracks the shell and
-  // needs no handoff at all.
-  //
-  // The `charge.contract.value` read is INLINED into each style below rather
-  // than shared through a `rimFade()` helper worklet. useAnimatedStyle derives
-  // its mapper inputs from the shared values in its OWN closure; behind a
-  // helper, `charge` lives in the helper's closure instead, so the style never
-  // subscribed to `contract` and simply never re-ran as the capsule
-  // contracted — the full-size stadium stayed lit around a 72px encoder.
+  // The halo is absolute-fill, so it tracks the shell's shape untouched.
   const rimGlowStyle = useAnimatedStyle(() => ({ opacity: armGlow.value }));
-  // The circle takes over exactly as fast as the stadium leaves, so the two
-  // cross-fade into one continuous outline.
-  const rimCircleStyle = useAnimatedStyle(() => {
-    const took = Math.min(1, charge.contract.value * 3);
-    return { opacity: armProgress.value * took };
-  });
-  // The line's visibility rides the draw itself — dash length carries both
-  // the draw-in and the undraw; opacity only kills the dot that remains at 0.
-  // While a keep hold fills, the armed rim DUCKS to 25% (by 15% of the fill)
-  // so the bright trace draws on a near-dark track — line-over-line was too
-  // subtle to see (Brent). Early release drains keepProgress → rim restores.
-  const rimLineStyle = useAnimatedStyle(() => {
-    const fade = 1 - Math.min(1, charge.contract.value * 3);
+  // While a keep hold fills, the armed rim DUCKS back toward rest (by 15% of
+  // the fill) so the bright green trace draws on a near-dark track —
+  // line-over-line was too subtle to see (Brent). Early release drains
+  // keepProgress → the rim re-brightens.
+  const shellRimStyle = useAnimatedStyle(() => {
     const duck = 1 - 0.75 * Math.min(1, keepProgress.value / 0.15);
-    return { opacity: armProgress.value > 0.001 ? duck * fade : 0 };
+    return {
+      borderColor: interpolateColor(
+        armGlow.value * duck,
+        [0, 1],
+        ['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.35)'],
+      ),
+    };
   });
-  const rimLineProps = useAnimatedProps(() => ({
-    strokeDashoffset: TRACE_PERIM * (1 - armProgress.value),
-  }));
   const traceProps = useAnimatedProps(() => ({
     strokeDashoffset: TRACE_PERIM * (1 - keepProgress.value),
   }));
@@ -839,66 +798,28 @@ export function FloatingActions({
           >
             {liquidGlassAvailable && AnimatedGlassView ? (
               // Real material refracts the playhead LEDs sweeping beneath
-              // it; the rim + tint match the Paper mock (rgba(28,28,34,.55)).
+              // it; the tint matches the Paper mock (rgba(28,28,34,.55)).
+              // The 2px rim rides the shell itself and BRIGHTENS when temp
+              // arms (variant 1) — shellRimStyle animates only its color.
               <AnimatedGlassView
                 glassEffectStyle="regular"
-                style={[styles.bar, styles.barGlass, shellStyle]}
+                style={[styles.bar, shellStyle, shellRimStyle]}
               >
                 {keys}
               </AnimatedGlassView>
             ) : (
-              <Animated.View style={[styles.bar, styles.barSolid, shellStyle]}>
+              <Animated.View
+                style={[styles.bar, styles.barSolid, shellStyle, shellRimStyle]}
+              >
                 {keys}
               </Animated.View>
             )}
-            {/* Armed rim (variant A) — glow halo blooms in while the LINE
-                draws itself around the outline; disarm undraws it. Both
-                start at the top-left arc (right above the temp key, the SVG
-                rect path origin) and run clockwise. */}
+            {/* Armed halo — blooms in as the rim brightens, fades on disarm.
+                Absolute-fill, so it tracks whatever shape the shell is. */}
             <Animated.View
               pointerEvents="none"
               style={[styles.rimGlow, rimGlowStyle]}
             />
-            {/* The armed rim once the capsule is no longer a stadium — same
-                white hairline, inheriting the contracting shell's shape.
-                TWO views because crisp-under-scale and glow are mutually
-                exclusive on one view: `overflow: 'hidden'` puts the border on
-                the CALayer vector path (sharp through the 1.22× charge swell)
-                but masksToBounds would clip the shadow, so the glow rides an
-                identical unclipped twin underneath. Same animated style — the
-                pair fades as one. */}
-            <Animated.View
-              pointerEvents="none"
-              style={[styles.rimCircleGlow, rimCircleStyle]}
-            />
-            <Animated.View
-              pointerEvents="none"
-              style={[styles.rimCircle, rimCircleStyle]}
-            />
-            <Animated.View
-              pointerEvents="none"
-              style={[styles.rimLayer, rimLineStyle]}
-            >
-              <Svg
-                width={BAR_W}
-                height={BAR_H}
-                viewBox={`0 0 ${BAR_W} ${BAR_H}`}
-              >
-                <AnimatedRect
-                  x={TRACE_INSET}
-                  y={TRACE_INSET}
-                  width={BAR_W - TRACE_INSET * 2}
-                  height={BAR_H - TRACE_INSET * 2}
-                  rx={TRACE_R}
-                  fill="none"
-                  stroke={color.label}
-                  strokeWidth={1.5}
-                  strokeLinecap="round"
-                  strokeDasharray={`${TRACE_PERIM}`}
-                  animatedProps={rimLineProps}
-                />
-              </Svg>
-            </Animated.View>
             {/* Keep trace — a comet of light over the ducked rim: a wide
                 soft halo stroke under a crisp bright line. */}
             <Animated.View
@@ -1933,6 +1854,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 999,
     overflow: "hidden",
+    // Variant 1 "fat rim": 2px at 7% white replaces the old hairline. A
+    // hairline rode the capsule's scale straight off the device-pixel grid
+    // (soft doubled edge — measured on a 3× sim); 2px keeps a solid core at
+    // 1.22× and antialiases symmetrically. Same rim on glass and the solid
+    // fallback: it doubles as the armed indicator (shellRimStyle brightens
+    // its color to 35%).
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.07)",
     shadowColor: "#000000",
     shadowOpacity: 0.4,
     shadowRadius: 24,
@@ -1943,17 +1872,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: KEY_GAP,
     padding: PAD,
-  },
-  barGlass: {
-    // Same device-pixel-grid problem the dice pips had, one level out. The
-    // Paper rim is 0.5pt = 1.5 device pixels at 3×, so the capsule's outline
-    // renders as a full-strength line PLUS a half-strength ghost line beside
-    // it (measured on a 3× sim: 31 + 17 of 255 down the sides) — a doubled
-    // edge, which is what reads as blur next to the crisp keys inside it.
-    // `hairlineWidth` is exactly ONE device pixel at every density (0.5pt at
-    // 2×, ⅓pt at 3×), which is what a "0.5px rim" means on a Retina screen.
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.12)",
   },
   barSolid: {
     backgroundColor: ramp[7],
@@ -2053,46 +1971,7 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 0 },
   },
-  // The armed rim's contracted form: absolute-fill, so it is whatever shape the
-  // shell currently is — a stadium at rest, a circle around the encoder at full
-  // contract. Same 1.5px white hairline as the SVG line it takes over from.
-  // The crisp half of the armed rim: clipping flips RN onto the CALayer
-  // border path, so the hairline scales as vector geometry through the
-  // charge swell instead of a nearest-filtered bitmap. No shadow here —
-  // masksToBounds would clip it; the twin below carries it.
-  rimCircle: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 999,
-    borderWidth: 1.5,
-    borderColor: color.label,
-    overflow: "hidden",
-  },
-  // The glow half: same geometry, unclipped, so the shadow survives. The
-  // armed rim is LIGHT, so it blooms like every other lit element here
-  // (same emissive treatment as ringLed / drainDot). Static shadow, opacity
-  // is the only animated channel — the LED perf rule. Its own rasterized
-  // border sits exactly under the crisp twin, feeding the shadow its
-  // silhouette; any scale artifacts on it hide beneath the vector line
-  // and read as glow.
-  rimCircleGlow: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 999,
-    borderWidth: 1.5,
-    borderColor: color.label,
-    shadowColor: "#FFFFFF",
-    shadowOpacity: 0.55,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 0 },
-  },
-  // The stadium rim SVGs keep their own fixed geometry, pinned to the capsule's
+  // The keep-trace SVG keeps its own fixed geometry, pinned to the capsule's
   // fixed corner, rather than stretching with the contracting shell.
   rimLayer: {
     position: "absolute",
