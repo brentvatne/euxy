@@ -21,9 +21,9 @@ const MAX_CELL = 22;
 
 /**
  * App step-strip geometry (src/components/sequencer/step-strip-layout.ts),
- * scaled to the responsive cell: steps group in fours with a wider gap
- * before each downbeat (3/8 at full size), rows of a wrapped lane sit 4
- * apart, and every downbeat cell carries the dim inset underline (V4c).
+ * scaled to the responsive cell: uniform 4px step gaps, rows of a wrapped
+ * lane sit 4 apart, and every downbeat cell carries the V4b lit tick — a
+ * small LED-treated light centered inside the bottom edge.
  */
 interface Metrics {
   cell: number;
@@ -31,9 +31,8 @@ interface Metrics {
   labelW: number;
   labelSize: number;
   stepGap: number;
-  beatGap: number;
   rowGap: number;
-  tickInset: number;
+  tickW: number;
   tickBottom: number;
 }
 
@@ -41,18 +40,13 @@ function metricsFor(width: number): Metrics {
   const labelW = width >= 440 ? 78 : 54;
   const labelGap = 8;
   const avail = width - labelW - labelGap;
-  // A full 16-slot row has 12 in-beat gaps and 3 downbeat gaps.
-  const fit = (stepGap: number, beatGap: number) =>
-    Math.floor((avail - 12 * stepGap - 3 * beatGap) / 16);
-  let stepGap = 3;
-  let beatGap = 8;
-  let cell = Math.min(MAX_CELL, fit(stepGap, beatGap));
+  const fit = (stepGap: number) => Math.floor((avail - 15 * stepGap) / 16);
+  let stepGap = 4;
+  let cell = Math.min(MAX_CELL, fit(stepGap));
   if (cell < 16) {
-    // Tight viewports shrink the gaps with the cells, keeping the beat
-    // grouping legible instead of eating the whole width.
+    // Tight viewports shrink the gap with the cells.
     stepGap = 2;
-    beatGap = 5;
-    cell = Math.min(MAX_CELL, fit(stepGap, beatGap));
+    cell = Math.min(MAX_CELL, fit(stepGap));
   }
   cell = Math.max(8, cell);
   return {
@@ -61,9 +55,8 @@ function metricsFor(width: number): Metrics {
     labelW,
     labelSize: width >= 440 ? 11 : 9,
     stepGap,
-    beatGap,
     rowGap: cell >= 16 ? 4 : 2,
-    tickInset: cell >= 16 ? 3 : 2,
+    tickW: cell >= 16 ? 8 : 6,
     tickBottom: cell >= 16 ? 3 : 2,
   };
 }
@@ -72,10 +65,9 @@ function metricsFor(width: number): Metrics {
  * works unchanged — 1 / 5 / 9 / 13 of every row. */
 const isDownbeat = (i: number) => i % 4 === 0;
 
-/** Tick color over the ramp: light everywhere except the four lightest
- * slots, where a light tick would vanish (step-strip-layout.tickColor). */
-const tickColor = (slot: number) =>
-  slot >= 12 ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.40)';
+/** The four lightest ramp slots, where the lit tick needs its dark ring
+ * (step-strip-layout.tickOnLightFill). */
+const tickOnLightFill = (slot: number) => slot >= 12;
 
 function Cell({
   slot,
@@ -107,9 +99,9 @@ function Cell({
           height: m.cell,
           borderRadius: m.cell >= 16 ? 4 : 3,
           backgroundColor: fill,
-          // Beat grouping lives in the gap BEFORE each cell (app convention):
-          // none at the row start, wider before each downbeat.
-          marginLeft: slot === 0 ? 0 : isDownbeat(slot) ? m.beatGap : m.stepGap,
+          // Uniform spacing: the same gap before every cell except the row
+          // start (app convention — stepGapBefore).
+          marginLeft: slot === 0 ? 0 : m.stepGap,
         },
       ]}
     >
@@ -140,11 +132,11 @@ function Cell({
         <View
           style={[
             styles.tick,
+            tickOnLightFill(slot) && styles.tickLightFill,
             {
               bottom: m.tickBottom,
-              left: m.tickInset,
-              width: m.cell - m.tickInset * 2,
-              backgroundColor: tickColor(slot),
+              left: (m.cell - m.tickW) / 2,
+              width: m.tickW,
             },
           ]}
         />
@@ -280,10 +272,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
   },
-  // Downbeat underline (V4c): static, drawn with the cell.
+  // Downbeat tick (V4b "lit tick"): a small LED-treated light, static.
   tick: {
     position: 'absolute',
     height: 2,
     borderRadius: 1,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    boxShadow: '0 0 4px rgba(255,255,255,0.45)',
+  },
+  // The four lightest ramp fills: full-white core + a 1px dark spread ring
+  // instead of flipping the tick dark (Paper V4b).
+  tickLightFill: {
+    backgroundColor: '#FFFFFF',
+    boxShadow: '0 0 0 1px rgba(0,0,0,0.40), 0 0 4px rgba(255,255,255,0.60)',
   },
 });
