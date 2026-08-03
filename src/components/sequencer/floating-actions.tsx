@@ -595,19 +595,16 @@ export function FloatingActions({
   }, [snapshotActive]);
   // The halo is absolute-fill, so it tracks the shell's shape untouched.
   const rimGlowStyle = useAnimatedStyle(() => ({ opacity: armGlow.value }));
-  // While a keep hold fills, the armed rim DUCKS back toward rest (by 15% of
-  // the fill) so the bright green trace draws on a near-dark track —
+  // The armed ring is its OWN overlay rather than a color change on the
+  // shell's rim: it can be thicker than the chrome (3pt vs 2pt) without
+  // heavying the rest state, and its animation is opacity-only (the LED perf
+  // rule). While a keep hold fills, it DUCKS back toward rest (by 15% of the
+  // fill) so the bright green trace draws on a near-dark track —
   // line-over-line was too subtle to see (Brent). Early release drains
-  // keepProgress → the rim re-brightens.
-  const shellRimStyle = useAnimatedStyle(() => {
+  // keepProgress → the ring re-brightens.
+  const armedRimStyle = useAnimatedStyle(() => {
     const duck = 1 - 0.75 * Math.min(1, keepProgress.value / 0.15);
-    return {
-      borderColor: interpolateColor(
-        armGlow.value * duck,
-        [0, 1],
-        ['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.35)'],
-      ),
-    };
+    return { opacity: armGlow.value * duck };
   });
   const traceProps = useAnimatedProps(() => ({
     strokeDashoffset: TRACE_PERIM * (1 - keepProgress.value),
@@ -832,26 +829,29 @@ export function FloatingActions({
             {liquidGlassAvailable && AnimatedGlassView ? (
               // Real material refracts the playhead LEDs sweeping beneath
               // it; the tint matches the Paper mock (rgba(28,28,34,.55)).
-              // The 2px rim rides the shell itself and BRIGHTENS when temp
-              // arms (variant 1) — shellRimStyle animates only its color.
               <AnimatedGlassView
                 glassEffectStyle="regular"
-                style={[styles.bar, shellStyle, shellRimStyle]}
+                style={[styles.bar, shellStyle]}
               >
                 {keys}
               </AnimatedGlassView>
             ) : (
-              <Animated.View
-                style={[styles.bar, styles.barSolid, shellStyle, shellRimStyle]}
-              >
+              <Animated.View style={[styles.bar, styles.barSolid, shellStyle]}>
                 {keys}
               </Animated.View>
             )}
-            {/* Armed halo — blooms in as the rim brightens, fades on disarm.
+            {/* Armed halo — blooms in under the ring, fades on disarm.
                 Absolute-fill, so it tracks whatever shape the shell is. */}
             <Animated.View
               pointerEvents="none"
               style={[styles.rimGlow, rimGlowStyle]}
+            />
+            {/* The armed ring (variant 1's brightened rim, grown to 3pt) —
+                absolute-fill like the halo, so it inherits the contracting
+                shell's shape with no handoff. */}
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.armedRim, armedRimStyle]}
             />
             {/* Keep trace — a comet of light over the ducked rim: a wide
                 soft halo stroke under a crisp bright line. */}
@@ -1891,12 +1891,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 999,
     overflow: "hidden",
-    // Variant 1 "fat rim": 2px at 7% white replaces the old hairline. A
+    // Variant 1 "fat rim": 2pt at 7% white replaces the old hairline. A
     // hairline rode the capsule's scale straight off the device-pixel grid
-    // (soft doubled edge — measured on a 3× sim); 2px keeps a solid core at
-    // 1.22× and antialiases symmetrically. Same rim on glass and the solid
-    // fallback: it doubles as the armed indicator (shellRimStyle brightens
-    // its color to 35%).
+    // (soft doubled edge — measured on a 3× sim); 2pt keeps a solid core
+    // under any scale and antialiases symmetrically. Same rim on glass and
+    // the solid fallback. Armed brightening is the separate armedRim
+    // overlay, which can be thicker without heavying this rest chrome.
     borderWidth: 2 * SS,
     borderColor: "rgba(255,255,255,0.07)",
     shadowColor: "#000000",
@@ -2007,6 +2007,23 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 16 * SS,
     shadowOffset: { width: 0, height: 0 },
+  },
+  // The armed temp ring: 3pt (SS-scaled), brighter than the 2pt rest rim it
+  // sits over. Everything here obeys the no-rasterization requirements —
+  // uniform solid border, uniform radius, `overflow: 'hidden'` (childless,
+  // so the clip costs nothing) — which keeps RN on the CALayer vector path,
+  // and the width is a whole visual point so it lands on the device-pixel
+  // grid at rest. Opacity is the only animated channel.
+  armedRim: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 999,
+    borderWidth: 3 * SS,
+    borderColor: "rgba(255,255,255,0.35)",
+    overflow: "hidden",
   },
   // The keep-trace SVG keeps its own fixed geometry, pinned to the capsule's
   // fixed corner, rather than stretching with the contracting shell.
