@@ -10,7 +10,8 @@
  *
  * Columns are grouped in fours — a wider gap before every downbeat — exactly as
  * the sequencer strips group them, so 1 / 5 / 9 / 13 land in the same places in
- * both grids.
+ * both grids, and every downbeat cell carries the same dim inset underline
+ * (V4c) the strips draw.
  */
 import { useEffect, useState } from 'react';
 import { useIsFirstRender } from '@/lib/use-is-first-render';
@@ -34,10 +35,16 @@ import { Led } from '@/components/ui/led';
 // 3px step gap, same wider gap before each downbeat) — one source of geometry
 // so the two grids stay countable in the same places.
 import {
+  isDownbeat,
   PER_ROW,
   stepBlockWidth,
   stepGapBefore,
   stepLeft,
+  TICK_BOTTOM,
+  TICK_H,
+  TICK_INSET,
+  TICK_RADIUS,
+  tickColor,
 } from '@/components/sequencer/step-strip-layout';
 
 const CELL_H = 30;
@@ -141,6 +148,14 @@ export function CombinedCard({
                     >
                       {combined[i] ? (
                         <Led ignite={!isFirstRender} style={styles.light} />
+                      ) : null}
+                      {isDownbeat(i) ? (
+                        <View
+                          style={[
+                            styles.tick,
+                            { width: cellW - TICK_INSET * 2, backgroundColor: tickColor(i) },
+                          ]}
+                        />
                       ) : null}
                     </View>
                   ))}
@@ -305,6 +320,15 @@ const styles = StyleSheet.create({
   // spaced wider than the steps inside them (see stepGapBefore).
   gridRow: { flexDirection: 'row' },
   cell: { height: CELL_H, borderRadius: 3, alignItems: 'center', paddingTop: 3 },
+  // Downbeat underline (V4c) — same tick as the sequencer strips, so the two
+  // grids stay one language.
+  tick: {
+    position: 'absolute',
+    bottom: TICK_BOTTOM,
+    left: TICK_INSET,
+    height: TICK_H,
+    borderRadius: TICK_RADIUS,
+  },
   attrSlot: {
     height: 4,
     flexDirection: 'row',

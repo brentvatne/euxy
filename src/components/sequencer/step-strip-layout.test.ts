@@ -6,6 +6,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   BEAT,
   BEAT_GAP,
+  isDownbeat,
   PER_ROW,
   STEP_GAP,
   stepBlockWidth,
@@ -13,6 +14,7 @@ import {
   stepLeft,
   stepStripHeight,
   stepTop,
+  tickColor,
 } from './step-strip-layout';
 
 describe('stepStripHeight', () => {
@@ -61,5 +63,29 @@ describe('beat grouping', () => {
     expect(stepTop(PER_ROW - 1)).toBe(0);
     expect(stepTop(PER_ROW)).toBe(26);
     expect(stepTop(PER_ROW * 3)).toBe(78);
+  });
+});
+
+describe('downbeat underline', () => {
+  test('marks 1 / 5 / 9 / 13 of every row, wrapped rows included', () => {
+    expect(isDownbeat(0)).toBe(true);
+    expect(isDownbeat(1)).toBe(false);
+    expect(isDownbeat(BEAT)).toBe(true);
+    expect(isDownbeat(PER_ROW - 1)).toBe(false);
+    // A wrapped lane's second row starts on a downbeat and keeps the cadence.
+    expect(isDownbeat(PER_ROW)).toBe(true);
+    expect(isDownbeat(PER_ROW + BEAT)).toBe(true);
+    expect(isDownbeat(PER_ROW + 1)).toBe(false);
+  });
+
+  test('flips dark only on the four lightest ramp slots', () => {
+    expect(tickColor(0)).toBe('rgba(255,255,255,0.40)');
+    expect(tickColor(8)).toBe('rgba(255,255,255,0.40)');
+    expect(tickColor(11)).toBe('rgba(255,255,255,0.40)');
+    expect(tickColor(12)).toBe('rgba(0,0,0,0.45)');
+    expect(tickColor(15)).toBe('rgba(0,0,0,0.45)');
+    // Wrapped rows re-enter the ramp: slot 12 of row 2 is light-filled too.
+    expect(tickColor(PER_ROW + 12)).toBe('rgba(0,0,0,0.45)');
+    expect(tickColor(PER_ROW)).toBe('rgba(255,255,255,0.40)');
   });
 });

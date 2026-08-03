@@ -13,7 +13,9 @@
  * sizes its blocks against exactly 16 slots — a short lane (8, 12) keeps the
  * same block size and leaves trailing space; a 64-step lane is 4 rows. Steps
  * are grouped in fours by a wider gap before each downbeat, so 1 / 5 / 9 / 13
- * are countable at a glance (see step-strip-layout's BEAT_GAP).
+ * are countable at a glance (see step-strip-layout's BEAT_GAP), and each
+ * downbeat cell carries a dim inset underline at its bottom edge (V4c) so the
+ * beat reads without counting groups.
  *
  * The travelling light is two UI-thread overlays sharing one derived step:
  *   • `Light` — an LED shown only while the current step is EMPTY
@@ -36,6 +38,7 @@ import { SKIA_STRIP_GLOW } from '@/lib/flags';
 import {
   BLOCK_H,
   GAP,
+  isDownbeat,
   LED,
   LED_TOP,
   PER_ROW,
@@ -44,6 +47,11 @@ import {
   stepLeft,
   stepStripHeight,
   stepTop,
+  TICK_BOTTOM,
+  TICK_H,
+  TICK_INSET,
+  TICK_RADIUS,
+  tickColor,
 } from './step-strip-layout';
 import { StepStripGlow } from './step-strip-skia';
 
@@ -221,6 +229,14 @@ export function StepStrip({ lane, washDelay = 0, active = true }: StepStripProps
                 >
                   {/* Skia path draws the steady LEDs itself (with real bloom). */}
                   {pattern[i] && !SKIA_STRIP_GLOW ? <Led ignite={!isFirstRender} /> : null}
+                  {isDownbeat(i) ? (
+                    <View
+                      style={[
+                        styles.tick,
+                        { width: blockW - TICK_INSET * 2, backgroundColor: tickColor(i) },
+                      ]}
+                    />
+                  ) : null}
                 </View>
               ))}
             </View>
@@ -348,6 +364,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#08080a',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
+  },
+  // Downbeat underline (V4c): static, drawn with the cell — never animates.
+  tick: {
+    position: 'absolute',
+    bottom: TICK_BOTTOM,
+    left: TICK_INSET,
+    height: TICK_H,
+    borderRadius: TICK_RADIUS,
   },
   // Concept J: lit film over a nudged step (grey `lit`, opacity-only).
   bloom: {
