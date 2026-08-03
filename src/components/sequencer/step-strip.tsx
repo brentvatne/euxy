@@ -11,7 +11,11 @@
  * ALL steps are always visible (no horizontal scrolling): like the Lane
  * Editor's combined card, a lane wraps at 16 steps per row, and every lane
  * sizes its blocks against exactly 16 slots — a short lane (8, 12) keeps the
- * same block size and leaves trailing space; a 64-step lane is 4 rows.
+ * same block size and leaves trailing space; a 64-step lane is 4 rows. Steps
+ * are grouped in fours by a wider gap before each downbeat, so 1 / 5 / 9 / 13
+ * are countable at a glance (see step-strip-layout's BEAT_GAP), and each
+ * downbeat cell carries a dim inset underline at its bottom edge (V4c) so the
+ * beat reads without counting groups.
  *
  * The travelling light is two UI-thread overlays sharing one derived step:
  *   • `Light` — an LED shown only while the current step is EMPTY
@@ -34,10 +38,20 @@ import { SKIA_STRIP_GLOW } from '@/lib/flags';
 import {
   BLOCK_H,
   GAP,
+  isDownbeat,
   LED,
   LED_TOP,
   PER_ROW,
+  stepBlockWidth,
+  stepGapBefore,
+  stepLeft,
   stepStripHeight,
+  stepTop,
+  TICK_BOTTOM,
+  TICK_H,
+  TICK_INSET,
+  TICK_RADIUS,
+  tickColor,
 } from './step-strip-layout';
 import { StepStripGlow } from './step-strip-skia';
 
@@ -184,7 +198,7 @@ export function StepStrip({ lane, washDelay = 0, active = true }: StepStripProps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mutateVersion, gridFx, reducedMotion]);
 
-  const blockW = width > 0 ? (width - GAP * (PER_ROW - 1)) / PER_ROW : 0;
+  const blockW = width > 0 ? stepBlockWidth(width) : 0;
 
   const rows: number[][] = [];
   for (let i = 0; i < n; i += PER_ROW) {
@@ -204,7 +218,9 @@ export function StepStrip({ lane, washDelay = 0, active = true }: StepStripProps
                   key={i}
                   style={[
                     styles.block,
-                    { width: blockW },
+                    // Beat grouping lives in the gap BEFORE each block, so the
+                    // row keeps its width (see step-strip-layout).
+                    { width: blockW, marginLeft: stepGapBefore(i) },
                     // Fill = the OP-XY key ramp for this row slot (hardware
                     // convention: fills never encode the sequence — the LEDs
                     // do). Every 16-slot row sweeps the full ramp.
@@ -213,6 +229,14 @@ export function StepStrip({ lane, washDelay = 0, active = true }: StepStripProps
                 >
                   {/* Skia path draws the steady LEDs itself (with real bloom). */}
                   {pattern[i] && !SKIA_STRIP_GLOW ? <Led ignite={!isFirstRender} /> : null}
+                  {isDownbeat(i) ? (
+                    <View
+                      style={[
+                        styles.tick,
+                        { width: blockW - TICK_INSET * 2, backgroundColor: tickColor(i) },
+                      ]}
+                    />
+                  ) : null}
                 </View>
               ))}
             </View>
@@ -246,8 +270,8 @@ export function StepStrip({ lane, washDelay = 0, active = true }: StepStripProps
                 style={[
                   styles.bloom,
                   {
-                    left: (step % PER_ROW) * (blockW + GAP),
-                    top: Math.floor(step / PER_ROW) * (BLOCK_H + GAP),
+                    left: stepLeft(step, blockW),
+                    top: stepTop(step),
                     width: blockW,
                   },
                 ]}
@@ -284,20 +308,14 @@ function TravellingLight({
     const s = step.value;
     return {
       opacity: playheadPlaying.value && pattern[s] !== 1 ? 1 : 0,
-      transform: [
-        { translateX: (s % PER_ROW) * (blockW + GAP) },
-        { translateY: Math.floor(s / PER_ROW) * (BLOCK_H + GAP) },
-      ],
+      transform: [{ translateX: stepLeft(s, blockW) }, { translateY: stepTop(s) }],
     };
   });
   const darkStyle = useAnimatedStyle(() => {
     const s = step.value;
     return {
       opacity: playheadPlaying.value && pattern[s] === 1 ? 1 : 0,
-      transform: [
-        { translateX: (s % PER_ROW) * (blockW + GAP) },
-        { translateY: Math.floor(s / PER_ROW) * (BLOCK_H + GAP) },
-      ],
+      transform: [{ translateX: stepLeft(s, blockW) }, { translateY: stepTop(s) }],
     };
   });
 
@@ -315,7 +333,9 @@ function TravellingLight({
 
 const styles = StyleSheet.create({
   root: { flex: 1, position: 'relative', gap: GAP },
-  row: { flexDirection: 'row', gap: GAP },
+  // No horizontal gap here: each block carries its own leading gap so the beat
+  // groups can be spaced wider than the steps inside them.
+  row: { flexDirection: 'row' },
   block: {
     height: BLOCK_H,
     borderRadius: RADIUS,
@@ -344,6 +364,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#08080a',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
+  },
+  // Downbeat underline (V4c): static, drawn with the cell — never animates.
+  tick: {
+    position: 'absolute',
+    bottom: TICK_BOTTOM,
+    left: TICK_INSET,
+    height: TICK_H,
+    borderRadius: TICK_RADIUS,
   },
   // Concept J: lit film over a nudged step (grey `lit`, opacity-only).
   bloom: {

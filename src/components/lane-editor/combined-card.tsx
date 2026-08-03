@@ -7,6 +7,11 @@
  * pulses on each step — G1 as the brighter left dot, G2 as the dimmer right
  * dot (with XOR you can see a both-dot step stay lightless). Steps wrap at 16
  * per row and never shrink; the editor never shows a playhead here.
+ *
+ * Columns are grouped in fours — a wider gap before every downbeat — exactly as
+ * the sequencer strips group them, so 1 / 5 / 9 / 13 land in the same places in
+ * both grids, and every downbeat cell carries the same dim inset underline
+ * (V4c) the strips draw.
  */
 import { useEffect, useState } from 'react';
 import { useIsFirstRender } from '@/lib/use-is-first-render';
@@ -26,9 +31,22 @@ import type { Lane } from '@/state/types';
 import { color, stepFill } from '@/theme/tokens';
 import { FlickerBloom } from '@/components/ui/flicker-bloom';
 import { Led } from '@/components/ui/led';
+// The card's columns ARE the sequencer strip's columns (same 16 slots, same
+// 3px step gap, same wider gap before each downbeat) — one source of geometry
+// so the two grids stay countable in the same places.
+import {
+  isDownbeat,
+  PER_ROW,
+  stepBlockWidth,
+  stepGapBefore,
+  stepLeft,
+  TICK_BOTTOM,
+  TICK_H,
+  TICK_INSET,
+  TICK_RADIUS,
+  tickColor,
+} from '@/components/sequencer/step-strip-layout';
 
-const PER_ROW = 16;
-const GAP = 3;
 const CELL_H = 30;
 const CARD_PAD = 10;
 const GRID_GAP = 12;
@@ -75,7 +93,7 @@ export function CombinedCard({
       ? withRotation(generator(lane.genB.pulses, n, lane.genB.rotation), lane.trackRot)
       : (new Array(n).fill(0) as number[]);
   const [width, setWidth] = useState(0);
-  const cellW = width > 0 ? (width - GAP * (PER_ROW - 1)) / PER_ROW : 0;
+  const cellW = width > 0 ? stepBlockWidth(width) : 0;
 
   // LEDs in the card's FIRST render must not run the ignition bloom — only
   // lights added by live edits (slider drags) ignite (see ui/led.tsx).
@@ -122,6 +140,8 @@ export function CombinedCard({
                         styles.cell,
                         {
                           width: cellW,
+                          // Beat grouping rides the gap BEFORE each cell.
+                          marginLeft: stepGapBefore(i),
                           backgroundColor: stepFill(i % PER_ROW),
                         },
                       ]}
@@ -129,12 +149,23 @@ export function CombinedCard({
                       {combined[i] ? (
                         <Led ignite={!isFirstRender} style={styles.light} />
                       ) : null}
+                      {isDownbeat(i) ? (
+                        <View
+                          style={[
+                            styles.tick,
+                            { width: cellW - TICK_INSET * 2, backgroundColor: tickColor(i) },
+                          ]}
+                        />
+                      ) : null}
                     </View>
                   ))}
                 </View>
                 <View style={styles.gridRow}>
                   {row.map((i) => (
-                    <View key={i} style={[styles.attrSlot, { width: cellW }]}>
+                    <View
+                      key={i}
+                      style={[styles.attrSlot, { width: cellW, marginLeft: stepGapBefore(i) }]}
+                    >
                       {aRot[i] ? <View style={[styles.attrDot, styles.attrG1]} /> : null}
                       {bRot[i] ? <View style={[styles.attrDot, styles.attrG2]} /> : null}
                     </View>
@@ -191,7 +222,7 @@ function RerollWash({
   // The lane's own width: a row is only as wide as the steps it holds, so a
   // 12- or 8-step lane stops well short of the card's right edge.
   const cols = Math.min(PER_ROW, Math.max(1, steps));
-  const contentW = cols >= PER_ROW ? width : cols * cellW + (cols - 1) * GAP;
+  const contentW = cols >= PER_ROW ? width : stepLeft(cols - 1, cellW) + cellW;
   // 2.5 cells of light, but never wider than the lane itself — on a 1–2 step
   // lane an oversized band would fill the whole row and never read as moving.
   const curtainW = Math.min(cellW * 2.5, contentW);
@@ -243,7 +274,7 @@ function RerollWash({
       i,
       delay: sweepCol * colMs + rand(i) * colMs * 0.8,
       peak: 0.3 + 0.35 * rand(i + steps),
-      left: col * (cellW + GAP),
+      left: stepLeft(col, cellW),
       top: Math.floor(i / PER_ROW) * ROW_PITCH,
     };
   });
@@ -274,8 +305,9 @@ function RerollWash({
 }
 
 // Paper "02 · Lane Editor": card #232325 r12 p10, NO header (the grid speaks
-// for itself); cells 30 tall r3 gap 3, 16/row; light 6px white, dark ring,
-// glow, top-centered 3px from the top; attribution row 3px dots, 4px tall.
+// for itself); cells 30 tall r3, 16/row, gap 3 inside a beat and 8 before each
+// downbeat; light 6px white, dark ring, glow, top-centered 3px from the top;
+// attribution row 3px dots, 4px tall.
 const styles = StyleSheet.create({
   card: {
     backgroundColor: color.stepEmptyDim,
@@ -284,8 +316,19 @@ const styles = StyleSheet.create({
   },
   grid: { gap: GRID_GAP },
   rowPair: { gap: 5 },
-  gridRow: { flexDirection: 'row', gap: GAP },
+  // No row gap: each cell carries its own leading gap so the beat groups can be
+  // spaced wider than the steps inside them (see stepGapBefore).
+  gridRow: { flexDirection: 'row' },
   cell: { height: CELL_H, borderRadius: 3, alignItems: 'center', paddingTop: 3 },
+  // Downbeat underline (V4c) — same tick as the sequencer strips, so the two
+  // grids stay one language.
+  tick: {
+    position: 'absolute',
+    bottom: TICK_BOTTOM,
+    left: TICK_INSET,
+    height: TICK_H,
+    borderRadius: TICK_RADIUS,
+  },
   attrSlot: {
     height: 4,
     flexDirection: 'row',
