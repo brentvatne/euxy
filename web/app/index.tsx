@@ -26,7 +26,7 @@ import {
 // store never notifies.
 const subscribeNever = () => () => {};
 
-/** Pills shown before "See all patterns" expands the list. */
+/** Pills shown before "See all presets" expands the list. */
 const VISIBLE_PILLS = 6;
 
 export default function Home() {
@@ -153,7 +153,7 @@ export default function Home() {
               <Pressable
                 onPress={() => setShowAll(true)}
                 accessibilityRole="button"
-                accessibilityLabel={`See all ${ordered.length} patterns`}
+                accessibilityLabel={`See all ${ordered.length} presets`}
                 {...webAttrs({ anim: '', pill: '' })}
                 style={({ pressed }) => [
                   styles.pill,
@@ -162,7 +162,7 @@ export default function Home() {
                 ]}
               >
                 <Text style={styles.pillLabel}>
-                  See all patterns ({ordered.length})
+                  See all presets ({ordered.length})
                 </Text>
               </Pressable>
             )}
