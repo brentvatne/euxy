@@ -93,5 +93,10 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1.5,
     borderColor: '#F6F4F4',
+    // The ring blooms via transform: scale. Clipping flips RN onto the
+    // CALayer border path (vector, scales crisp); unclipped borders are
+    // rasterized with a nearest-neighbor magnification filter and alias
+    // as they grow. No children, so the clip costs nothing.
+    overflow: 'hidden',
   },
 });

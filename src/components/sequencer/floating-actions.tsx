@@ -860,7 +860,17 @@ export function FloatingActions({
               style={[styles.rimGlow, rimGlowStyle]}
             />
             {/* The armed rim once the capsule is no longer a stadium — same
-                white hairline, inheriting the contracting shell's shape. */}
+                white hairline, inheriting the contracting shell's shape.
+                TWO views because crisp-under-scale and glow are mutually
+                exclusive on one view: `overflow: 'hidden'` puts the border on
+                the CALayer vector path (sharp through the 1.22× charge swell)
+                but masksToBounds would clip the shadow, so the glow rides an
+                identical unclipped twin underneath. Same animated style — the
+                pair fades as one. */}
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.rimCircleGlow, rimCircleStyle]}
+            />
             <Animated.View
               pointerEvents="none"
               style={[styles.rimCircle, rimCircleStyle]}
@@ -2046,6 +2056,10 @@ const styles = StyleSheet.create({
   // The armed rim's contracted form: absolute-fill, so it is whatever shape the
   // shell currently is — a stadium at rest, a circle around the encoder at full
   // contract. Same 1.5px white hairline as the SVG line it takes over from.
+  // The crisp half of the armed rim: clipping flips RN onto the CALayer
+  // border path, so the hairline scales as vector geometry through the
+  // charge swell instead of a nearest-filtered bitmap. No shadow here —
+  // masksToBounds would clip it; the twin below carries it.
   rimCircle: {
     position: "absolute",
     top: 0,
@@ -2055,9 +2069,24 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1.5,
     borderColor: color.label,
-    // The armed rim is LIGHT, so it blooms like every other lit element here
-    // (same emissive treatment as ringLed / drainDot). Static shadow, opacity
-    // is the only animated channel — the LED perf rule.
+    overflow: "hidden",
+  },
+  // The glow half: same geometry, unclipped, so the shadow survives. The
+  // armed rim is LIGHT, so it blooms like every other lit element here
+  // (same emissive treatment as ringLed / drainDot). Static shadow, opacity
+  // is the only animated channel — the LED perf rule. Its own rasterized
+  // border sits exactly under the crisp twin, feeding the shadow its
+  // silhouette; any scale artifacts on it hide beneath the vector line
+  // and read as glow.
+  rimCircleGlow: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: color.label,
     shadowColor: "#FFFFFF",
     shadowOpacity: 0.55,
     shadowRadius: 6,
@@ -2149,5 +2178,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1.5,
     borderColor: "#FFFFFF",
+    // Rides transform: scale (0.375 → 1). Clipping flips RN onto the
+    // CALayer border path so the hairline scales as vector geometry
+    // instead of a nearest-filtered bitmap. No children, no shadow.
+    overflow: "hidden",
   },
 });
