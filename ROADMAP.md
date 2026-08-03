@@ -1118,6 +1118,10 @@ become one-line order-array recipes.
 
 ### Randomize lock modal
 
+**CANCELLED (2026-07-28) — the sheet is no longer wanted.** Superseded by
+the per-lane lock button below (Brent, 2026-08-02). The section is kept for
+its lock-semantics notes (what survives a roll, live-roll behavior).
+
 Randomize currently re-rolls the rhythm wholesale. Add a modal (iOS form
 sheet, matching the New Pattern sheet) opened from Randomize — or long-press
 Randomize for instant re-roll with last settings — that lets the user LOCK
@@ -1142,6 +1146,29 @@ keeps, Cancel restores the lane captured at sheet-open (one deep copy —
 same mechanic as the pattern snapshot key). Footnote: "locked settings
 survive the roll · remembered per lane". Not mocked: the lock-count hint on
 the Lane Editor's Randomize row.
+
+### Per-lane lock — lock a lane, randomize the others (Brent 2026-08-02)
+
+Add a lock button to each lane. A locked lane survives every pattern-level
+re-roll: mutate (floating-bar dice) skips it, and any "randomize all" action
+re-rolls only the unlocked lanes. This replaces the cancelled Randomize-lock
+sheet as the lock affordance.
+
+- **Semantics:** lock guards the whole lane (rhythm + sound + timing) against
+  pattern-level operations. Open question: does lock also disable the lane's
+  own Randomize button in the Lane Editor, or is an explicit per-lane action
+  always allowed? Lean allowed — the lock is about collateral damage, not
+  intent.
+- **UI:** design in Paper first. Candidates: a third key in the lane's M/S
+  cluster (an "L" with the same light-bar language — engaged = lit bar), or a
+  swipe action / lane-title long-press if a third letter crowds the row.
+  Locked state must be visible at a glance from the lane list.
+- **Persistence:** lock set persists with the pattern, like mute/solo flags.
+- **Pairing:** the dice long-press slot is free (the old TODO in
+  floating-actions.tsx is stale) — a candidate trigger for "re-roll all
+  unlocked lanes" once locks exist.
+- Undo/mutate history already snapshots the whole pattern, so locked lanes
+  round-trip through undo unchanged.
 
 ### Light on/off micro-animation
 
