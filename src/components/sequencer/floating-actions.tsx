@@ -55,7 +55,6 @@ import Animated, {
   ReduceMotion,
   cancelAnimation,
   interpolateColor,
-  useAnimatedProps,
   useAnimatedReaction,
   useAnimatedStyle,
   useDerivedValue,
@@ -70,7 +69,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { CHIPS } from "@/components/patterns/chips";
-import Svg, { Path, Rect } from "react-native-svg";
+import Svg, { Path } from "react-native-svg";
 
 import { playheadPlaying, playheadTick } from "@/core/playhead";
 import { useStore } from "@/state/store";
@@ -79,7 +78,6 @@ import { GlassView, haptics, liquidGlassAvailable } from "@/lib/shims";
 import { color, ramp, timing } from "@/theme/tokens";
 import { Key } from "@/components/ui/key";
 
-const AnimatedRect = Animated.createAnimatedComponent(Rect);
 /** The capsule shell itself animates its size during a charge, so the glass
  * container has to be an animated component too. */
 const AnimatedGlassView = GlassView
@@ -193,13 +191,18 @@ const BAR_H = KEY_SIZE + PAD * 2;
  * onLayout measurement: the charge contract animates FROM this number and a
  * measurement arriving a frame late would make the first contract jump. */
 const BAR_W = PAD * 2 + KEY_SIZE * 3 + KEY_GAP * 2;
-const TRACE_INSET = 1 * SS;
-const TRACE_R = (BAR_H - TRACE_INSET * 2) / 2;
-/** Stadium perimeter at the trace's inset — the dash both the arm draw-in and
- * the keep trace fill. */
-const TRACE_PERIM =
-  2 * (BAR_W - TRACE_INSET * 2 - (BAR_H - TRACE_INSET * 2)) +
-  2 * Math.PI * TRACE_R;
+/**
+ * Keep progress bar (scale-safe variant 3's underline, adopted for keep after
+ * the outline trace read as a lumpy third line fighting the rim + armed ring
+ * — Brent's photo, 2026-08-03): a 3pt green bar inset inside the capsule's
+ * straight bottom edge that FILLS left → right with the hold. Solid area
+ * fill, no curved stroke, nothing overlapping the rings — and the same
+ * underline vocabulary as the step grid's V4b ticks. Spans exactly the
+ * stadium's flat section (corner arcs are BAR_H/2 each side).
+ */
+const KEEP_BAR_W = BAR_W - BAR_H;
+const KEEP_BAR_H = 3 * SS;
+const KEEP_BAR_BOTTOM = 4 * SS;
 
 /** The four inset props, as a spreadable object: this RN version's types do
  * not expose `StyleSheet.absoluteFillObject`. */
@@ -565,12 +568,10 @@ export function FloatingActions({
     touchBeat.value = Math.floor(playheadTick.value / timing.ppqn);
   };
 
-  // Temp mode: the WHOLE bar wears it. Armed = the shell's 2px rim brightens
-  // (fat-rim variant 1); keep = the green trace runs clockwise around the
-  // capsule. The trace's shared values live here (the bar draws them) but
-  // the temp key's press machine drives them. The trace is only ever visible
-  // during the keep hold, when nothing scales the capsule — so its thin SVG
-  // strokes never meet the scale problem the armed hairline had.
+  // Temp mode: the WHOLE bar wears it. Armed = the 3pt armed ring lights
+  // over the chrome; keep = the green underline bar fills left → right
+  // along the capsule's bottom edge. The keep values live here (the bar
+  // draws them) but the temp key's press machine drives them.
   const keepProgress = useSharedValue(0);
   const keepTick = useSharedValue(0);
   const keepDrain = useSharedValue(0);
@@ -598,33 +599,27 @@ export function FloatingActions({
   // The armed ring is its OWN overlay rather than a color change on the
   // shell's rim: it can be thicker than the chrome (3pt vs 2pt) without
   // heavying the rest state, and its animation is opacity-only (the LED perf
-  // rule). While a keep hold fills, it DUCKS back toward rest (by 15% of the
-  // fill) so the bright green trace draws on a near-dark track —
-  // line-over-line was too subtle to see (Brent). Early release drains
-  // keepProgress → the ring re-brightens.
-  const armedRimStyle = useAnimatedStyle(() => {
-    const duck = 1 - 0.75 * Math.min(1, keepProgress.value / 0.15);
-    return { opacity: armGlow.value * duck };
-  });
-  const traceProps = useAnimatedProps(() => ({
-    strokeDashoffset: TRACE_PERIM * (1 - keepProgress.value),
-  }));
-  // Same dash, separate hook (an animatedProps instance binds to ONE view):
-  // drives the soft halo stroke under the crisp trace line.
-  const traceGlowProps = useAnimatedProps(() => ({
-    strokeDashoffset: TRACE_PERIM * (1 - keepProgress.value),
-  }));
-  const traceStyle = useAnimatedStyle(() => {
+  // rule). No keep-duck anymore: the keep progress moved off the outline to
+  // the underline bar, which overlaps nothing.
+  const armedRimStyle = useAnimatedStyle(() => ({ opacity: armGlow.value }));
+  const keepBarStyle = useAnimatedStyle(() => {
     // Hidden at rest; brightens on each quarter tick; hands its light to the
     // drain dot on keep (same formula the per-key ring used). Epsilon, not
-    // `=== 0`: the trace now decays THROUGH zero on a re-press instead of
+    // `=== 0`: the fill now decays THROUGH zero on a re-press instead of
     // being hard-reset to it, so it must not flicker on the way past.
     const fade = 1 - Math.min(1, charge.contract.value * 3);
+    const s = Math.max(0.0001, keepProgress.value);
     return {
       opacity:
         keepProgress.value < 0.001
           ? 0
           : (0.85 + 0.15 * keepTick.value) * (1 - keepDrain.value) * fade,
+      // Fill anchored at the bar's LEFT end (under the temp key): scaleX
+      // shrinks around center, so shift back by half the missing width.
+      transform: [
+        { translateX: (-KEEP_BAR_W * (1 - s)) / 2 },
+        { scaleX: s },
+      ],
     };
   });
 
@@ -853,49 +848,15 @@ export function FloatingActions({
               pointerEvents="none"
               style={[styles.armedRim, armedRimStyle]}
             />
-            {/* Keep trace — a comet of light over the ducked rim: a wide
-                soft halo stroke under a crisp bright line. */}
+            {/* Keep progress — the green underline filling left → right from
+                under the temp key. Keep = COMMIT: it wears the success green
+                (color.connected's role — Brent saw it live and kept it over
+                the OP-XY cyan). Arming stays white; persisting is the one
+                green gesture on the bar. */}
             <Animated.View
               pointerEvents="none"
-              style={[styles.rimLayer, traceStyle]}
-            >
-              <Svg
-                width={BAR_W}
-                height={BAR_H}
-                viewBox={`0 0 ${BAR_W} ${BAR_H}`}
-              >
-                <AnimatedRect
-                  x={TRACE_INSET}
-                  y={TRACE_INSET}
-                  width={BAR_W - TRACE_INSET * 2}
-                  height={BAR_H - TRACE_INSET * 2}
-                  rx={TRACE_R}
-                  fill="none"
-                  // Keep = COMMIT: the trace wears the success green
-                  // (color.connected's role — Brent saw it live and
-                  // kept it over the OP-XY cyan). Arming stays white;
-                  // persisting is the one green gesture on the bar.
-                  stroke="rgba(48,209,88,0.35)"
-                  strokeWidth={7 * SS}
-                  strokeLinecap="round"
-                  strokeDasharray={`${TRACE_PERIM}`}
-                  animatedProps={traceGlowProps}
-                />
-                <AnimatedRect
-                  x={TRACE_INSET}
-                  y={TRACE_INSET}
-                  width={BAR_W - TRACE_INSET * 2}
-                  height={BAR_H - TRACE_INSET * 2}
-                  rx={TRACE_R}
-                  fill="none"
-                  stroke={color.connected}
-                  strokeWidth={3 * SS}
-                  strokeLinecap="round"
-                  strokeDasharray={`${TRACE_PERIM}`}
-                  animatedProps={traceProps}
-                />
-              </Svg>
-            </Animated.View>
+              style={[styles.keepBar, keepBarStyle]}
+            />
             {/* The charge ring lives OUTSIDE the shell: the discharge hairline
                 expands to 128px and the shell clips its own children. It
                 centres on the capsule's centre, which is the dice key. */}
@@ -1991,9 +1952,8 @@ const styles = StyleSheet.create({
     shadowRadius: 6 * SS,
     shadowOffset: { width: 0, height: 0 },
   },
-  // Variant A armed rim, glow layer: a soft halo under the crisp SVG line.
-  // Only its OPACITY animates (border + shadow render once — the LED perf
-  // rule); the sharp line is the AnimatedRect above it.
+  // Armed glow layer: a soft halo under the crisp armed ring. Only its
+  // OPACITY animates (border + shadow render once — the LED perf rule).
   rimGlow: {
     position: "absolute",
     top: 0,
@@ -2025,14 +1985,22 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.35)",
     overflow: "hidden",
   },
-  // The keep-trace SVG keeps its own fixed geometry, pinned to the capsule's
-  // fixed corner, rather than stretching with the contracting shell.
-  rimLayer: {
+  // Keep progress bar — pinned right/bottom (the capsule's fixed corner) so
+  // a contracting shell slides it away with the fade rather than stretching
+  // it. Solid fill + static glow shadow; opacity and scaleX are the only
+  // animated channels.
+  keepBar: {
     position: "absolute",
-    right: 0,
-    bottom: 0,
-    width: BAR_W,
-    height: BAR_H,
+    right: BAR_H / 2,
+    bottom: KEEP_BAR_BOTTOM,
+    width: KEEP_BAR_W,
+    height: KEEP_BAR_H,
+    borderRadius: KEEP_BAR_H / 2,
+    backgroundColor: color.connected,
+    shadowColor: color.connected,
+    shadowOpacity: 0.6,
+    shadowRadius: 3 * SS,
+    shadowOffset: { width: 0, height: 0 },
   },
   flash: {
     position: "absolute",
