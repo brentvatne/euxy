@@ -1170,6 +1170,21 @@ sheet as the lock affordance.
 - Undo/mutate history already snapshots the whole pattern, so locked lanes
   round-trip through undo unchanged.
 
+### Sort patterns by most frequently used (Brent 2026-08-04)
+
+Add "Most used" (or similar) to the Patterns sort menu, alongside the Date
+Added and BPM orders PR #89's header work established (`SORT_OPTIONS` in
+`src/components/patterns/sort-menu.tsx`).
+
+- **Tracking:** count pattern loads — increment when a pattern is opened into
+  the sequencer, not on preview or list render. Persist per pattern alongside
+  the existing pattern metadata; exact counter semantics (raw count vs
+  recency-weighted) open, raw count is fine to start.
+- Counts are local device state, not part of the shareable pattern payload —
+  they must not travel through share links or QR codes.
+- Ties (fresh install, everything at 0) fall back to Date Added so the order
+  stays stable.
+
 ### Light on/off micro-animation
 
 The step LEDs currently snap between states. Add a subtle turn-on/turn-off
