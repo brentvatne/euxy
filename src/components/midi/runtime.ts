@@ -272,18 +272,23 @@ let loggedOutputId: string | null | undefined;
 export function selectOutput(id: string | null) {
   midi.selectOutput(id);
   useStore.getState().setOutput(id);
-  if (id !== loggedOutputId) {
-    loggedOutputId = id;
-    // MIDI is half of what this app IS and had zero instrumentation. Device
-    // names are high-cardinality and user-identifying, so only the KIND ships.
-    const name = id ? snap.outputs.find((d) => d.id === id)?.name : undefined;
-    logObserveEvent(id ? 'midi.output_connected' : 'midi.output_cleared', {
-      attributes: {
-        kind: name ? (isOpXy(name) ? 'op-xy' : 'other') : 'none',
-        outputs_available: snap.outputs.length,
-      },
-    });
-  }
+  if (id === loggedOutputId) return;
+  const hadDevice = typeof loggedOutputId === 'string';
+  loggedOutputId = id;
+  // Every launch's auto-connect pass lands here with no device and nothing
+  // previously logged — that is the steady state, not a disconnection, and it
+  // made output_cleared fire once per boot (EAS Observe: 82/82 with boot.ready,
+  // all kind:'none'). Only a device actually going away earns the event.
+  if (id == null && !hadDevice) return;
+  // MIDI is half of what this app IS and had zero instrumentation. Device
+  // names are high-cardinality and user-identifying, so only the KIND ships.
+  const name = id ? snap.outputs.find((d) => d.id === id)?.name : undefined;
+  logObserveEvent(id ? 'midi.output_connected' : 'midi.output_cleared', {
+    attributes: {
+      kind: name ? (isOpXy(name) ? 'op-xy' : 'other') : 'none',
+      outputs_available: snap.outputs.length,
+    },
+  });
 }
 
 export function selectInput(id: string | null) {

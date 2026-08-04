@@ -12,6 +12,8 @@
  */
 import type { ComponentType } from 'react';
 
+import { clearPendingBootReload, markPendingBootReload } from '@/components/boot-signal';
+
 type UseUpdates = () => { isUpdatePending: boolean };
 type ReloadOptions = {
   reloadScreenOptions?: {
@@ -62,7 +64,18 @@ try {
 }
 
 export const useUpdates: UseUpdates = (...args) => useUpdatesImpl(...args);
-export const reloadUpdateAsync = (options?: ReloadOptions) => reloadAsyncImpl(options);
+export const reloadUpdateAsync = async (options?: ReloadOptions) => {
+  // The reload re-evals the whole bundle, replaying the boot sequence. Leave
+  // a marker so that boot reports itself as kind:'reload', not a fresh launch
+  // (see bootKind in components/boot-signal.ts).
+  markPendingBootReload();
+  try {
+    await reloadAsyncImpl(options);
+  } catch (e) {
+    clearPendingBootReload();
+    throw e;
+  }
+};
 /** Static snapshot of the running update (fixed for the app's lifetime). */
 export const updatesInfo: UpdatesInfo = updatesInfoImpl;
 /** Channel surfing: override (or clear, with null) the expo-channel-name

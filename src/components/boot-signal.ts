@@ -40,6 +40,64 @@ export function bootElapsedMs(): number {
   return Date.now() - bootStartedAt;
 }
 
+// --- Boot kind: native launch vs expo-updates reload -----------------------
+
+const RELOAD_PENDING_KEY = 'bootReloadPending';
+
+type Kv = {
+  getItemSync(key: string): string | null;
+  setItemSync(key: string, value: string): void;
+  removeItemSync(key: string): void;
+};
+
+function kvStore(): Kv | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('expo-sqlite/kv-store').default as Kv;
+  } catch {
+    return null;
+  }
+}
+
+/** Set right before expo-updates' reloadAsync tears this bundle down, so the
+ * bundle eval it produces can tell itself apart from a native launch. */
+export function markPendingBootReload(): void {
+  try {
+    kvStore()?.setItemSync(RELOAD_PENDING_KEY, '1');
+  } catch {
+    // Best effort — a missed marker only costs one mislabeled boot.ready.
+  }
+}
+
+/** A reload that failed never happened — don't tag the next real launch. */
+export function clearPendingBootReload(): void {
+  try {
+    kvStore()?.removeItemSync(RELOAD_PENDING_KEY);
+  } catch {
+    // Same best-effort contract as markPendingBootReload.
+  }
+}
+
+/**
+ * How this bundle eval came to run. 'launch' is the OS starting the app —
+ * warm launches never re-eval JS, so there is no third case. 'reload' is
+ * expo-updates' reloadAsync (channel surf, applying a staged update) booting
+ * the JS a second time inside the same native session. EAS Observe showed
+ * reload boots re-firing `boot.ready` with ~200ms elapsed_ms seconds after
+ * the real one; the event carries this kind so those can be filtered out of
+ * launch-time stats. Read (and cleared from disk) once at module eval.
+ */
+export const bootKind: 'launch' | 'reload' = (() => {
+  try {
+    const kv = kvStore();
+    if (kv?.getItemSync(RELOAD_PENDING_KEY) == null) return 'launch';
+    kv.removeItemSync(RELOAD_PENDING_KEY);
+    return 'reload';
+  } catch {
+    return 'launch';
+  }
+})();
+
 let firstScreenLaidOut = false;
 let pending: (() => void) | null = null;
 

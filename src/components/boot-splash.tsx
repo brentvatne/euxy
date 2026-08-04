@@ -37,6 +37,7 @@ import Animated, {
 import {
   bootChipProgress,
   bootElapsedMs,
+  bootKind,
   onFirstScreenLayout,
   reportBootOverlayGone,
 } from '@/components/boot-signal';
@@ -114,9 +115,12 @@ export function BootSplash() {
     // fade completes) — which means TTI alone can never tell us whether the
     // app underneath got slower. This event is that number, plus which gate
     // actually released the boot: 'failsafe' means both layout callbacks were
-    // missed and the user waited out FAILSAFE_MS for nothing.
+    // missed and the user waited out FAILSAFE_MS for nothing. `kind` separates
+    // native launches from expo-updates reloads (channel surf, applying a
+    // staged update), which replay this whole boot with a ~200ms elapsed_ms —
+    // filter to kind:'launch' when reading launch-time stats.
     logObserveEvent('boot.ready', {
-      attributes: { gate, elapsed_ms: bootElapsedMs(), reduce_motion: reduceMotion },
+      attributes: { gate, kind: bootKind, elapsed_ms: bootElapsedMs(), reduce_motion: reduceMotion },
       severity: gate === 'failsafe' ? 'warn' : 'info',
     });
     SplashScreen.hide();
