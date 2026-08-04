@@ -15,8 +15,8 @@ import type { SharedPattern } from '@/core/share-codec';
 import { timing } from '@/theme/tokens';
 import { makeLane, uid } from './lane';
 import { attachPersistence, loadPersisted } from './persistence';
-import { PRESETS_VERSION, presetPatterns } from './presets';
-import type { CombineOp, Lane, Pattern, Settings, Transport } from './types';
+import { PRESET_CREATED_AT, PRESETS_VERSION, isPresetPattern, presetPatterns } from './presets';
+import type { CombineOp, Lane, Pattern, PatternSort, Settings, Transport } from './types';
 
 const rint = (n: number) => Math.floor(Math.random() * n);
 const pickOne = <T,>(arr: readonly T[]): T => arr[rint(arr.length)];
@@ -196,6 +196,7 @@ function seedPattern(): Pattern {
     bpm: 120,
     baseResolutionTicks: timing.defaultResolutionTicks,
     updatedAt: Date.now(),
+    createdAt: Date.now(),
     lanes: defaultLanes(),
   };
 }
@@ -277,6 +278,8 @@ export interface AppState {
   setLatencyOffsetMs: (ms: number) => void;
   setCountInBeats: (beats: number) => void;
   setFloatBarCorner: (corner: 'left' | 'right') => void;
+  /** Order the Patterns library is listed in (library header "Sort by"). */
+  setPatternSort: (sort: PatternSort) => void;
 
   // Patterns -------------------------------------------------------------
   newPattern: (opts?: {
@@ -348,6 +351,16 @@ export const useStore = create<AppState>((set, get) => {
     const have = new Set(patterns.map((p) => p.id));
     patterns = [...patterns, ...presetPatterns().filter((p) => !have.has(p.id))];
   }
+  // Patterns saved before `createdAt` existed get it backfilled from their
+  // last-edit stamp — the closest birth date on record — FROZEN here, so
+  // editing an old pattern later doesn't reshuffle the creation-date sort.
+  // Presets seeded by an earlier build take the shared factory stamp instead,
+  // so they sit below the user's own patterns like a fresh install's do.
+  patterns = patterns.map((p) =>
+    p.createdAt == null
+      ? { ...p, createdAt: isPresetPattern(p.id) ? PRESET_CREATED_AT : p.updatedAt }
+      : p,
+  );
 
   return {
     patterns,
@@ -372,6 +385,7 @@ export const useStore = create<AppState>((set, get) => {
       latencyOffsetMs: 0,
       countInBeats: 4,
       floatBarCorner: 'right',
+      patternSort: 'created',
       ...persisted?.settings,
     },
 
@@ -589,6 +603,7 @@ export const useStore = create<AppState>((set, get) => {
     setCountInBeats: (countInBeats) => set((s) => ({ settings: { ...s.settings, countInBeats } })),
     setFloatBarCorner: (floatBarCorner) =>
       set((s) => ({ settings: { ...s.settings, floatBarCorner } })),
+    setPatternSort: (patternSort) => set((s) => ({ settings: { ...s.settings, patternSort } })),
 
     // Patterns
     newPattern: (opts) => {
@@ -599,6 +614,7 @@ export const useStore = create<AppState>((set, get) => {
         baseResolutionTicks: opts?.baseResolutionTicks ?? timing.defaultResolutionTicks,
         lanes: [],
         updatedAt: Date.now(),
+        createdAt: Date.now(),
         // Every pattern gets a distinct glyph with zero effort (icon-picker
         // spec) — the New Pattern sheet passes a deliberate pick through here.
         icon: opts?.icon ?? randomChipName(),
@@ -625,6 +641,7 @@ export const useStore = create<AppState>((set, get) => {
         // decodePattern — the untrusted-input boundary.
         lanes: shared.lanes.map((lane) => makeLane({ ...lane })),
         updatedAt: Date.now(),
+        createdAt: Date.now(),
         icon: shared.icon ?? randomChipName(),
       };
       discardSnapshot();
@@ -648,6 +665,9 @@ export const useStore = create<AppState>((set, get) => {
         name: `${source.name} Copy`,
         lanes: source.lanes.map((lane) => makeLane({ ...lane, id: uid('lane') })),
         updatedAt: Date.now(),
+        // Overrides the spread source stamp: the clone is born now, so it
+        // sorts as the newest pattern rather than inheriting the original's age.
+        createdAt: Date.now(),
       };
       // Unlike newPattern/importPattern (appended, then loaded so they're the
       // active row), a clone stays put in the library — it needs to land at
@@ -687,6 +707,7 @@ export const useStore = create<AppState>((set, get) => {
             baseResolutionTicks: timing.defaultResolutionTicks,
             lanes: [],
             updatedAt: Date.now(),
+            createdAt: Date.now(),
           };
           noteLoaded(fresh);
           return {
