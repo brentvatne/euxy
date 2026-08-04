@@ -28,6 +28,14 @@ export const PRESETS_VERSION = 3;
 /** True for the factory presets (NOT the seed pattern). */
 export const isPresetPattern = (id: string) => id.startsWith('preset_');
 
+/**
+ * Creation stamp every factory preset carries: shipped content dates from the
+ * app, not from the moment it happened to be seeded. Fixed and shared, so the
+ * library's newest-first sort keeps YOUR patterns on top and (stable sort) the
+ * presets below them in the curated order of this file.
+ */
+export const PRESET_CREATED_AT = 0;
+
 type LaneSpec = Partial<Lane> & Pick<Lane, 'name' | 'note' | 'channel'>;
 
 function pattern(id: string, name: string, bpm: number, lanes: LaneSpec[]): Pattern {
@@ -37,6 +45,7 @@ function pattern(id: string, name: string, bpm: number, lanes: LaneSpec[]): Patt
     bpm,
     baseResolutionTicks: timing.defaultResolutionTicks,
     updatedAt: Date.now(),
+    createdAt: PRESET_CREATED_AT,
     lanes: lanes.map((spec) => makeLane(spec)),
   };
 }
