@@ -357,8 +357,9 @@ The wrapper should:
 1. run `eas simulator:availability --json`;
 2. create a dedicated session file;
 3. provide the EAS Simulator skill and a strict duration cap to the agent;
-4. start with `--type agent-device`, drive the session through
-   `eas simulator:exec agent-device ...`, and save screenshots/recordings to a
+4. start with `--type argent`, drive the session through
+   `eas simulator:exec sh -c "argent run <tool> --args '<json>'"`, and save
+   screenshots/recordings to a
    private artifact directory;
 5. for animation, gesture, transition, or timing issues, extract and inspect the
    native ordered frames around the defect and record the relevant frame

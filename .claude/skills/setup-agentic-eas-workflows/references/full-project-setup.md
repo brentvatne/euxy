@@ -12,7 +12,7 @@ GitHub issue/comment/review
   -> EAS workflow dispatch with immutable IDs and trusted git SHA
   -> EAS runner re-fetches and revalidates GitHub state
   -> Claude Opus edits with a minimal environment
-  -> agent-device verifies on EAS Simulator when relevant
+  -> argent verifies on EAS Simulator when relevant
   -> wrapper validates the diff, commits, pushes, opens/finds PR
   -> wrapper publishes a per-PR EAS Update
   -> independent public readback verifies GitHub and evidence writes
@@ -136,7 +136,7 @@ Have `.github/scripts/setup-agent-toolchain.sh` install exact versions of:
 - Claude Code;
 - Bun;
 - EAS CLI;
-- `agent-device`;
+- `@swmansion/argent` (the `argent` CLI);
 - `ffmpeg-static` and `ffprobe-static`; and
 - the Expo skills/plugin at an immutable Git commit.
 
@@ -147,7 +147,7 @@ The current euxy pins are a known-good baseline:
 | Claude Code | `2.1.220` |
 | Bun | `1.3.14` |
 | EAS CLI | `21.3.0` |
-| `agent-device` | `0.20.1` |
+| `@swmansion/argent` | `0.17.0` |
 | `ffmpeg-static` | `5.3.0` |
 | `ffprobe-static` | `3.1.0` |
 | Expo skills plugin | `1.8.5` |
@@ -158,9 +158,9 @@ them only as one reviewed change with version assertions and tests.
 
 Verify every installed version and the presence of
 `eas-simulator/SKILL.md`. Persist `CLAUDE_PLUGIN_DIR`, `EAS_CLI_BIN`,
-`AGENT_DEVICE_BIN`, `FFMPEG_BIN`, and `FFPROBE_BIN` between workflow steps
+`ARGENT_BIN`, `FFMPEG_BIN`, and `FFPROBE_BIN` between workflow steps
 using the environment mechanism provided by EAS Workflows or GitHub Actions.
-Do not use `latest`, ranges, unpinned `npx`, or Argent.
+Do not use `latest`, ranges, or unpinned `npx`.
 
 ## 4. Build the shared Claude runner
 
@@ -269,11 +269,15 @@ eas simulator:availability --json
 If available:
 
 1. initialize the session file expected by EAS CLI;
-2. start at most one 30-minute iOS session with `--type agent-device`;
-3. install a `development-simulator` artifact;
+2. start at most one 30-minute iOS session with `--type argent`;
+3. install a `development-simulator` artifact (download and extract the `.app`,
+   then `argent run reinstall-app` — there is no install-from-URL verb);
 4. use the EAS Simulator skill's Mode C to connect the dev client to Metro;
-5. run `eas simulator:exec agent-device snapshot -i` before interactions;
-6. use only refs from the current snapshot;
+5. run `argent run native-describe-screen` (via
+   `eas simulator:exec sh -c "argent run <tool> --args '<json>'"`) before
+   interactions;
+6. use only normalized 0.0–1.0 coordinates derived from the current screen
+   description;
 7. capture `before.png`, `before.mp4`, `final.png`, and `verification.mp4` as
    applicable; and
 8. stop the session in `finally`, with a wrapper safety net.
@@ -357,7 +361,7 @@ Add unit/contract tests for:
 - fresh-context exclusion;
 - minimal agent environment and explicit model;
 - protected paths;
-- simulator availability, cleanup, and agent-device commands;
+- simulator availability, cleanup, and argent commands;
 - native-frame evidence requirements;
 - public findings validation;
 - GitHub 201/422 handling and independent readback;

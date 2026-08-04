@@ -20,20 +20,21 @@ driving vocabulary, not a flag flip.
 
 | | Controller | Source of truth |
 | --- | --- | --- |
-| Automation workflows | currently `agent-device` | `SIMULATOR_CONTROLLER` in `.github/scripts/setup-agent-toolchain.sh` |
+| Automation workflows | currently `argent` | `SIMULATOR_CONTROLLER` in `.github/scripts/setup-agent-toolchain.sh` |
 | Local worktree development | currently `argent` | `.claude/skills/parallel-worktree-dev/SKILL.md` |
 
 Never assume the two match. Read the source of truth before writing any command.
 
 ## Which to reach for
 
-- **agent-device** — the workflow default. Recordings are clean, so they can be
-  published as public PR evidence.
-- **argent** — richer surface: 73 tools including native view hierarchy, React and
+- **agent-device** — recordings are clean, so they can be published as public PR
+  evidence with no caveat.
+- **argent** — the workflow default (adopted 2026-08-04) and the local-dev
+  controller. Richer surface: 73 tools including native view hierarchy, React and
   native profilers, network logs, and flows. Recordings carry an
-  "Argent By @swmansion" watermark that **cannot be disabled from the client**, so
-  prefer it for diagnosis and avoid it for anything published publicly. See
-  "Watermark" below before choosing it for evidence.
+  "Argent By @swmansion" watermark that **cannot be disabled from the client**;
+  the workflow prompt currently accepts that watermark on published evidence.
+  See "Watermark" below for the alternatives if that stops being acceptable.
 
 ## The consistency guard
 

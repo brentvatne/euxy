@@ -152,7 +152,8 @@ Running 4 sessions at once = 4× concurrent billing while they run. `.env.eas-si
 carries a token → it's gitignored; keep it that way. So is `.argent/`, where argent drops
 retrieved recordings — a wrapper that runs `git add -A` would otherwise commit them.
 
-For workflow jobs, use the repository's pinned toolchain, which still drives `agent-device`.
+For workflow jobs, use the repository's pinned toolchain, which drives `argent` as well
+(source of truth: `SIMULATOR_CONTROLLER` in `.github/scripts/setup-agent-toolchain.sh`).
 For ad-hoc local use, keep the controller version explicit as shown above.
 
 ## 4. Reproduce motion with video and inspect the frames

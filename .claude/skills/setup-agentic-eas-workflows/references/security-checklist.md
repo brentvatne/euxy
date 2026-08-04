@@ -46,7 +46,7 @@
 - [ ] Pin CLIs, runtimes, and plugins by exact versions.
 - [ ] Pass an explicit pinned model to headless agent commands; do not inherit a
       mutable CLI default.
-- [ ] Pin and verify `agent-device`, `ffmpeg`, and `ffprobe` for simulator video
+- [ ] Pin and verify `argent`, `ffmpeg`, and `ffprobe` for simulator video
       evidence; do not install replacements during the agent run or use Argent.
 - [ ] Pin remote skill/plugin repositories by commit and verify the checked-out SHA.
 - [ ] Assert required skill files exist before starting the agent.

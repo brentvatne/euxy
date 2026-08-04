@@ -42,7 +42,7 @@ Read [references/full-project-setup.md](references/full-project-setup.md)
 completely before implementing the flow in a project that does not already have
 these wrappers. It provides the portable file map, Expo configuration, secret
 contract, dispatcher and runner sequence, command grammar, fresh-start
-semantics, agent-device verification, Update publication, evidence publishing,
+semantics, argent verification, Update publication, evidence publishing,
 review-response loop, tests, and rollout procedure.
 
 Use the same default names (`Agent work session`, `agent-work.yml`,
@@ -175,7 +175,7 @@ GitHub may restrict a newly created personal account as suspected automation or 
    remote source by exact version or immutable commit SHA. For Claude `-p`,
    always pass an explicit `--model`; do not inherit a mutable CLI default.
 2. Install the Expo plugin and verify the required skill files exist, including `eas-simulator/SKILL.md` when simulator verification is enabled.
-3. Install and verify `agent-device`, `ffmpeg`, and `ffprobe` at pinned versions
+3. Install and verify `argent`, `ffmpeg`, and `ffprobe` at pinned versions
    when interactive or frame-level simulator verification is enabled. Do not
    install or use Argent in these workflows.
 4. Put editable prompts in Markdown files such as `prompts/automation/*.md`; pass the selected path in an environment variable.
@@ -289,9 +289,10 @@ Treat the diff as evidence, not as a byproduct:
 1. Check simulator availability before exposing the robot `EXPO_TOKEN` to the agent.
 2. Create the simulator session file outside the repository or protect it from publication.
 3. Tell the agent which simulator skill to read and cap the session duration.
-   Start EAS Simulator with `--type agent-device`, drive it through
-   `eas simulator:exec agent-device ...`, and refresh the interactive snapshot
-   before using element refs after any navigation or layout change.
+   Start EAS Simulator with `--type argent`, drive it through
+   `eas simulator:exec sh -c "argent run <tool> --args '<json>'"`, and re-read
+   the screen with `native-describe-screen` before deriving coordinates after
+   any navigation or layout change. Gesture coordinates are normalized 0.0–1.0.
 4. Compare before/after behavior and save screenshots and bounded recordings as
    private artifacts. For animation, gesture, transition, or timing issues, a
    complete interaction recording is required; a still screenshot is not
@@ -305,7 +306,7 @@ Treat the diff as evidence, not as a byproduct:
    duplicates, or dropped-state transitions before diagnosing or claiming a
    fix. Repeat the same analysis on the after-change recording. Keep derived
    frame sets private unless the trusted wrapper explicitly validates and
-   selects files for publication. `agent-device` records the remote simulator
+   selects files for publication. `argent` records the remote simulator
    interaction; pinned `ffmpeg`/`ffprobe` on the EAS workflow worker inspect the
    resulting artifact. Do not require those decoders inside the simulator
    process, and do not trim or transcode timing evidence before analysis.
