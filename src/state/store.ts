@@ -717,16 +717,23 @@ export const useStore = create<AppState>((set, get) => {
     // ids) so the active/selection ids stay valid; a deleted preset is
     // re-appended. This is also the escape hatch for installs that seeded
     // presets before a factory-definition fix — seeding never retouches them.
+    //
+    // Restoring the ACTIVE pattern also pulls the transport back to the factory
+    // tempo: the engine ticks at transport.bpm (core/engine.ts), so leaving it
+    // on the edited value would play the shipped lanes at the wrong speed and
+    // strand a stale readout in the transport bar.
     resetPreset: (id) =>
       set((s) => {
         const factory = presetPatterns().find((p) => p.id === id);
         if (!factory) return {};
         const exists = s.patterns.some((p) => p.id === id);
+        const isActive = s.activePatternId === id;
         return {
           patterns: exists
             ? s.patterns.map((p) => (p.id === id ? factory : p))
             : [...s.patterns, factory],
-          selection: s.activePatternId === id ? { laneId: null } : s.selection,
+          selection: isActive ? { laneId: null } : s.selection,
+          transport: isActive ? { ...s.transport, bpm: factory.bpm } : s.transport,
         };
       }),
     resetAllPresets: () =>
@@ -735,9 +742,11 @@ export const useStore = create<AppState>((set, get) => {
         const byId = new Map(factories.map((p) => [p.id, p]));
         const restored = s.patterns.map((p) => byId.get(p.id) ?? p);
         const missing = factories.filter((f) => !s.patterns.some((p) => p.id === f.id));
+        const active = byId.get(s.activePatternId);
         return {
           patterns: [...restored, ...missing],
-          selection: byId.has(s.activePatternId) ? { laneId: null } : s.selection,
+          selection: active ? { laneId: null } : s.selection,
+          transport: active ? { ...s.transport, bpm: active.bpm } : s.transport,
         };
       }),
   };

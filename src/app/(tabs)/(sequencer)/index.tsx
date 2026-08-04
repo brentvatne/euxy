@@ -14,12 +14,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { engine } from '@/core/engine';
 import { midiNoteName } from '@/core/note';
+import { isPresetPattern } from '@/state/presets';
 import { laneAudible, useActivePattern, useAnySolo, useSettings } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import type { Lane } from '@/state/types';
 import { onBootOverlayGone, reportFirstScreenLayout } from '@/components/boot-signal';
 import { useMidiRuntime } from '@/components/midi/runtime';
-import { logObserveEvent } from '@/lib/shims';
+import { haptics, logObserveEvent } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { color } from '@/theme/tokens';
 import { LaneRow, TransportBar } from '@/components/ui';
@@ -55,6 +56,7 @@ export default function SequencerScreen() {
   const renameActivePattern = useStore((s) => s.renameActivePattern);
   const clearLanes = useStore((s) => s.clearLanes);
   const revertToLoaded = useStore((s) => s.revertToLoaded);
+  const resetPreset = useStore((s) => s.resetPreset);
   const setClockMode = useStore((s) => s.setClockMode);
   const toggleMute = useStore((s) => s.toggleMute);
   const toggleSolo = useStore((s) => s.toggleSolo);
@@ -165,6 +167,27 @@ export default function SequencerScreen() {
     );
   };
 
+  // Unlike Revert to loaded (a swap, so it undoes itself) a factory restore
+  // discards edits for good — so it asks first, on the same terms as the
+  // Patterns list's Restore factory presets.
+  const confirmRestorePreset = () => {
+    Alert.alert(
+      'Restore preset?',
+      `“${pattern.name}” goes back to its shipped lanes and tempo. Your edits to it are replaced.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Restore',
+          style: 'destructive',
+          onPress: () => {
+            resetPreset(pattern.id);
+            haptics.success();
+          },
+        },
+      ],
+    );
+  };
+
   const onMenuAction = (action: PatternMenuAction) => {
     switch (action) {
       case 'new':
@@ -184,6 +207,9 @@ export default function SequencerScreen() {
       case 'revert':
         revertToLoaded();
         break;
+      case 'restore':
+        confirmRestorePreset();
+        break;
       case 'clear':
         clearLanes();
         break;
@@ -202,6 +228,7 @@ export default function SequencerScreen() {
         patternChip={chipForPattern(pattern)}
         connected={connected}
         deviceName={outputDevice?.name ?? 'No device'}
+        canRestorePreset={isPresetPattern(pattern.id)}
         onMenuAction={onMenuAction}
       />
       {/* The lane list with the floating action bar (Paper 7A-0) hovering
