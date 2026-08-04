@@ -20,7 +20,7 @@ import { AppText, SFSymbol } from '@/components/ui';
 import { reportFirstScreenLayout } from '@/components/boot-signal';
 import { PatternGlyph } from '@/components/patterns/pattern-glyph';
 import { PatternRow } from '@/components/patterns/pattern-row';
-import { SortMenuButton, sortPatterns } from '@/components/patterns/sort-menu';
+import { SORT_OPTIONS, SortMenuButton, sortPatterns } from '@/components/patterns/sort-menu';
 import { isPresetPattern } from '@/state/presets';
 import { usePatterns } from '@/state/selectors';
 import { useStore } from '@/state/store';
@@ -166,6 +166,49 @@ export default function PatternsScreen() {
     <GestureHandlerRootView style={styles.flex}>
       <Stack.Screen
         options={{
+          // Two native bar items, each with `sharesBackground: false`. A single
+          // headerRight element is ONE UIBarButtonItem, so both glyphs landed in
+          // one shared Liquid Glass capsule and read as a button group; opting
+          // each item out of the shared background gives Sort and + a capsule of
+          // their own. (A fixed spacer between two custom items only widens the
+          // shared capsule — it does not split it — and `hidesSharedBackground`
+          // drops the glass entirely, so neither is the fix.)
+          unstable_headerRightItems: () => [
+            {
+              type: 'menu',
+              label: 'Sort',
+              accessibilityLabel: 'Sort patterns',
+              icon: { type: 'sfSymbol', name: 'arrow.up.arrow.down' },
+              tintColor: color.label,
+              sharesBackground: false,
+              menu: {
+                title: 'Sort by',
+                items: SORT_OPTIONS.map((o) => ({
+                  type: 'action',
+                  label: o.title,
+                  icon: { type: 'sfSymbol', name: o.image },
+                  state: o.id === sort ? 'on' : 'off',
+                  onPress: () => {
+                    haptics.selection();
+                    setPatternSort(o.id);
+                  },
+                })),
+              },
+            },
+            {
+              type: 'button',
+              label: 'New',
+              accessibilityLabel: 'New pattern',
+              icon: { type: 'sfSymbol', name: 'plus' },
+              tintColor: color.label,
+              sharesBackground: false,
+              onPress: () => {
+                haptics.impact('light');
+                router.push('/new-pattern');
+              },
+            },
+          ],
+          // Non-iOS has no header items API; keep the plain row there.
           headerRight: () => (
             <View style={styles.headerActions}>
               <SortMenuButton sort={sort} onChange={setPatternSort} />
@@ -266,6 +309,7 @@ function NoMatches({ query }: { query: string }) {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   // Sort menu then +, the iOS order for a large-title header's trailing group.
+  // Only used off iOS, where the header items API is unavailable.
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   root: { flex: 1, backgroundColor: color.ground },
   content: { paddingHorizontal: space.lg, paddingBottom: space.xxl },

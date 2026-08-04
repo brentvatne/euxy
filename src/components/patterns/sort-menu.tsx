@@ -3,6 +3,9 @@
  * same native SwiftUI menu the sequencer header uses), so the checkmark and
  * the "Sort by" section header are the system's, not a hand-drawn sheet.
  *
+ * iOS drives the header from native bar items instead (see patterns.tsx), so
+ * `SortMenuButton` is the off-iOS path; `SORT_OPTIONS` is shared by both.
+ *
  * Two orders: Date Added (newest first — the default) and BPM (slowest first).
  */
 import { MenuView, type MenuAction } from '@expo/ui/community/menu';
@@ -13,10 +16,11 @@ import { haptics } from '@/lib/shims';
 import type { Pattern, PatternSort } from '@/state/types';
 import { color, space } from '@/theme/tokens';
 
-const OPTIONS: { id: PatternSort; title: string; image: MenuAction['image'] }[] = [
+/** Shared with the iOS header's native Sort menu, so both list the same orders. */
+export const SORT_OPTIONS = [
   { id: 'created', title: 'Date Added', image: 'clock' },
   { id: 'bpm', title: 'BPM', image: 'metronome' },
-];
+] as const satisfies readonly { id: PatternSort; title: string; image: MenuAction['image'] }[];
 
 /** Creation stamp; `updatedAt` covers the window before the store backfills. */
 const bornAt = (p: Pattern) => p.createdAt ?? p.updatedAt;
@@ -38,7 +42,7 @@ export function SortMenuButton({
   sort: PatternSort;
   onChange: (sort: PatternSort) => void;
 }) {
-  const actions: MenuAction[] = OPTIONS.map((o) => ({
+  const actions: MenuAction[] = SORT_OPTIONS.map((o) => ({
     ...o,
     state: o.id === sort ? 'on' : 'off',
   }));
