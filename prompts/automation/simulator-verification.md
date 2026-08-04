@@ -84,6 +84,15 @@ new interactive snapshot.
 
   `eas simulator:exec agent-device screenshot "$SIMULATOR_ARTIFACT_DIR/final.png"`
 
+  **If the change adds or alters UI that only exists inside a transient
+  container** — a menu item, sheet, popover, context menu, tooltip — the
+  transient state IS the state under test: take `final.png` with that
+  container held open so the new or changed control is visible in the still.
+  A settled end state that looks identical to `before.png` proves nothing to
+  a reviewer; the settled outcome is already covered by `verification.mp4`.
+  (Example: a new pattern-menu item must be photographed with the menu open,
+  not after it closes.)
+
 - Write one public-safe plain-text sentence of at most 280 characters to
   `$SIMULATOR_ARTIFACT_DIR/final.txt`. Describe the expected corrected behavior
   and the visual signal that confirms it. Follow the same privacy restrictions
