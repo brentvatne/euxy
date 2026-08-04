@@ -20,7 +20,7 @@ jobs:
     env:
       # The published engine is trusted workflow code. Keep the guard and review
       # on the same exact version; bump only in a reviewed change.
-      ECR_VERSION: '0.5.2'
+      ECR_VERSION: '0.9.2'
     # Trigger policy lives in .expo-code-review/config.jsonc (review.trigger); `ecr ci`
     # self-gates on it (and honors the ai-review:skip label). This coarse gate just
     # avoids spinning up a runner for a PR that explicitly opted out. Uses the array
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Load prompts, models, auth routing, and policy only from the trusted
-          # base commit. ECR v0.5.2 separately fetches the PR diff and materializes
+          # base commit. ECR separately fetches the PR diff and materializes
           # its head in a temporary worktree for source reads.
           ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 1
@@ -50,11 +50,18 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
+      # The anthropic/… models in .expo-code-review/config.jsonc run through the
+      # Claude Code CLI (the claude-code engine). Pinned exactly — an unpinned
+      # CLI would silently drift on every CI run; bump it deliberately (mirrors
+      # expo/code-review-cli's own workflow).
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code@2.1.212
+
       # Defense in depth: parse every trusted-base ECR config using the same
       # published engine that will run the review. The PR's config is never loaded.
       - name: Guard trusted-base review config
         env:
-          ECR_EXPECTED_TOKEN_ENV: ${{ vars.ECR_EXPECTED_TOKEN_ENV || 'CODEX_OAUTH_ACCESS_TOKEN' }}
+          ECR_EXPECTED_TOKEN_ENV: ${{ vars.ECR_EXPECTED_TOKEN_ENV || 'CLAUDE_CODE_REVIEW_SHARED_API_TOKEN' }}
         run: npx --yes -p "@expo/code-review-cli@$ECR_VERSION" ecr verify-config
 
       - name: Run AI review
@@ -64,20 +71,20 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # ChatGPT/Codex subscription ACCESS token (auth.mode "oauth" in
-          # .expo-code-review/config.jsonc reads this env var) — used as-is, no
-          # rotation involvement; re-mint before its ~10-day expiry (the token-
-          # rotator job, once it exists, keeps it fresh). All reviews run on the
-          # subscription.
-          CODEX_OAUTH_ACCESS_TOKEN: ${{ secrets.CODEX_OAUTH_ACCESS_TOKEN }}
+          # Shared Anthropic review credential (auth.providers.anthropic in
+          # .expo-code-review/config.jsonc reads this env var). The claude-code
+          # engine forwards it to the Claude Code CLI as the only credential —
+          # an `sk-ant-oat…` setup-token or an `sk-ant-api…` Console key both work.
+          CLAUDE_CODE_REVIEW_SHARED_API_TOKEN: ${{ secrets.CLAUDE_CODE_REVIEW_SHARED_API_TOKEN }}
           # Layer-1 runtime auth lock (mirrors the guard step above).
-          ECR_EXPECTED_TOKEN_ENV: ${{ vars.ECR_EXPECTED_TOKEN_ENV || 'CODEX_OAUTH_ACCESS_TOKEN' }}
-          # Optional: override the model for every agent (uses your OpenCode login).
+          ECR_EXPECTED_TOKEN_ENV: ${{ vars.ECR_EXPECTED_TOKEN_ENV || 'CLAUDE_CODE_REVIEW_SHARED_API_TOKEN' }}
+          # Optional: override the model for every agent.
           REVIEWER_MODEL: ${{ vars.REVIEWER_MODEL }}
 
-      # ECR 0.5.2 can place the next Markdown finding immediately after a raw
-      # </details> block. GitHub then displays that finding's Markdown literally.
-      # Normalize only that boundary and independently verify the updated body.
+      # Workaround kept from ECR 0.5.2, which could place the next Markdown
+      # finding immediately after a raw </details> block (GitHub then displays
+      # that finding's Markdown literally). Harmless no-op when the boundary is
+      # already fine; drop it once confirmed unnecessary on the current version.
       - name: Normalize review comment Markdown
         if: ${{ always() }}
         run: node --experimental-strip-types .github/scripts/normalize-code-review-comment.ts
