@@ -289,6 +289,27 @@ if (!trustedTester) {
 }
 console.log(`▸ Tester ${testerEmail} is allowlisted → starting remediation.`);
 
+// ---- dispatch baseline (archive uploads only) ----
+// `eas workflow:run` uploads the dispatcher's working directory filtered through
+// .easignore — not a git checkout. That archive differs from origin/<base> in two
+// ways a plain `git add -A` against a fetched index cannot see: tracked files
+// .easignore excludes are MISSING (they stage as deletions — PR #97 removed 92
+// files this way), and the dispatcher's uncommitted local edits are PRESENT (they
+// stage as if the agent wrote them). Committing the archive as a baseline BEFORE
+// the agent runs lets stage 3 isolate exactly the agent's diff. Triggered runs
+// arrive as a git checkout and skip this entirely.
+const isRepo = (await sh([GIT, "rev-parse", "--is-inside-work-tree"], { allowFail: true })).out === "true";
+let dispatchBaseline: string | null = null;
+if (!isRepo) {
+  console.log("▸ No .git (archive upload) — committing the archive as the agent's baseline.");
+  await sh([GIT, "init", "-q"]);
+  await sh([GIT, "config", "user.name", "notbrent"]);
+  await sh([GIT, "config", "user.email", "16714793+notbrent@users.noreply.github.com"]);
+  await sh([GIT, "add", "-A"]);
+  await sh([GIT, "commit", "-q", "-m", "dispatch archive baseline (never pushed)"]);
+  dispatchBaseline = (await sh([GIT, "rev-parse", "HEAD"])).out;
+}
+
 // ---- 2. run the agent (simulator shell only after the trusted tester gate) ----
 const simValidation = await prepareAgentSimulator({ env });
 if (simValidation) {
@@ -342,21 +363,19 @@ if (!(await Bun.file(ANALYSIS).exists())) {
 // away every minute of simulator-verified work with no way to get it back.
 const branch = `feedback-triage/${shortId}`;
 const base = env.PR_BASE || "main";
-// `eas workflow:run` uploads a bare archive (no .git). Reconstruct a repo pointed
-// at origin/<base> with a --mixed reset so the working tree (archive + the agent's
-// edits) is preserved and `git add -A` stages exactly the agent's diff vs base.
-const isRepo = (await sh([GIT, "rev-parse", "--is-inside-work-tree"], { allowFail: true })).out === "true";
-if (!isRepo) {
-  console.log(`▸ No .git (archive upload) — reconstructing from origin/${base} to branch + push.`);
-  await sh([GIT, "init", "-q"]);
-  await sh([GIT, "remote", "add", "origin", `https://x-access-token:${GH_TOKEN}@github.com/${owner}/${repo}.git`]);
-  await sh([GIT, "fetch", "-q", "--depth=1", "origin", base]);
-  await sh([GIT, "reset", "--mixed", "FETCH_HEAD"]);
-}
 await sh([GIT, "config", "user.name", "notbrent"]);
 await sh([GIT, "config", "user.email", "16714793+notbrent@users.noreply.github.com"]);
-await sh([GIT, "checkout", "-B", branch]);
-await sh([GIT, "add", "-A"]);
+if (dispatchBaseline) {
+  // Archive upload: the index is the pre-agent baseline, so `git add -A` stages
+  // exactly the agent's edits. Everything below (protected-path gates, rescue,
+  // the diff-safety assertion) therefore judges the agent's work — not the
+  // dispatcher's uncommitted files, not .easignore's exclusions. The branch is
+  // created later, on a real origin/<base> tip, in the publish section.
+  await sh([GIT, "add", "-A"]);
+} else {
+  await sh([GIT, "checkout", "-B", branch]);
+  await sh([GIT, "add", "-A"]);
+}
 const staged = await sh([GIT, "diff", "--cached", "--name-only"]);
 const stagedPaths = staged.out.split("\n").filter(Boolean);
 const maintainerRequest = isMaintainerRequest({ email: testerEmail, env });
@@ -475,6 +494,30 @@ console.log(`▸ Updated issue #${summarizedIssue.number}.`);
 if ((await sh([GIT, "diff", "--cached", "--quiet"], { allowFail: true })).code === 0) {
   console.log("▸ Nothing staged; nothing to open a PR for.");
   process.exit(0);
+}
+
+if (dispatchBaseline) {
+  // The archive tree is not pushable: it lacks every tracked file .easignore
+  // excludes and may carry the dispatcher's uncommitted edits. Commit the agent's
+  // staged diff on the baseline, check the branch out at the real fetched base,
+  // and cherry-pick that one commit — its parent is the baseline, so exactly the
+  // agent's diff lands, with a 3-way merge absorbing unrelated drift on <base>.
+  // A conflict fails loudly, and only AFTER the rescue artifact was written.
+  await sh([GIT, "commit", "-q", "-m", "agent work on dispatch baseline (never pushed)"]);
+  const agentTip = (await sh([GIT, "rev-parse", "HEAD"])).out;
+  await sh([GIT, "remote", "add", "origin", `https://x-access-token:${GH_TOKEN}@github.com/${owner}/${repo}.git`]);
+  await sh([GIT, "fetch", "-q", "--depth=1", "origin", base]);
+  await sh([GIT, "checkout", "-q", "-B", branch, "FETCH_HEAD"]);
+  const pick = await sh([GIT, "cherry-pick", "--no-commit", agentTip], { allowFail: true });
+  if (pick.code !== 0) {
+    console.error(`✗ The agent's diff does not apply cleanly onto origin/${base}: ${redact(pick.err)}`);
+    console.error(`▸ The work is preserved in the ${DIR} artifact — see RESCUED_WORK.md.`);
+    process.exit(1);
+  }
+  if ((await sh([GIT, "diff", "--cached", "--quiet"], { allowFail: true })).code === 0) {
+    console.log(`▸ The agent's diff is already contained in origin/${base}; nothing to open a PR for.`);
+    process.exit(0);
+  }
 }
 
 await sh([
