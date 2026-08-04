@@ -1,4 +1,0 @@
-interface:
-  display_name: "Set up agentic EAS workflows"
-  short_description: "Build complete secure EAS agent workflows"
-  default_prompt: "Use $setup-agentic-eas-workflows to set up the complete secure agent work, simulator verification, PR review, and Update publication flow for this Expo project."

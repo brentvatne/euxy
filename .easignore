@@ -59,12 +59,17 @@ example
 # Agent tooling and scratch dirs. In .gitignore but had drifted out of here,
 # so they were being uploaded — verified with `eas build:inspect --stage
 # archive`.
+#
+# NOT prompts/ — it is git-tracked runtime input, not scratch: the triage jobs
+# read prompts/automation/*.md on the worker, and `eas workflow:run` packages
+# the local directory through THIS file. Excluding it makes every dispatched
+# run die with ENOENT on the prompt files (triggered runs clone from git and
+# never noticed).
 .agents/
 .argent/
 .codex/
 .claude/
 .expo-code-review/
-prompts/
 SETUP-TRACING.md
 
 # Triage artifacts the automation generates at runtime. These can carry

@@ -1,12 +1,12 @@
 /**
  * Sequencer header (Paper 7L-0): pattern name + chevron on the left — tapping
- * it opens the native pattern menu (new / rename / change icon / share / revert
- * to loaded / restore preset / clear) — and the connection pill on the right.
+ * it opens the native pattern menu (new / rename / change icon / revert to
+ * loaded / restore preset / clear) — and the connection pill on the right.
  * While no device is connected the pill is a button: it drops a popover saying
- * how to connect.
- * Lane actions live in the floating action bar (floating-actions.tsx), not here.
+ * how to connect. Lane actions live in the floating action bar
+ * (floating-actions.tsx), not here.
  */
-import { MenuView } from '@expo/ui/community/menu';
+import { MenuView, type MenuAction } from '@expo/ui/community/menu';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
@@ -32,7 +32,7 @@ export function SequencerNav({
   patternChip,
   connected,
   deviceName,
-  canRestorePreset,
+  isPreset,
   onMenuAction,
 }: {
   patternName: string;
@@ -41,9 +41,9 @@ export function SequencerNav({
   patternChip: string;
   connected: boolean;
   deviceName: string;
-  /** True while the loaded pattern is a factory preset — only then does
-   * "Restore preset" have a shipped state to go back to. */
-  canRestorePreset: boolean;
+  /** Factory preset (state/presets.ts) — only those can be restored, so the
+   * menu carries "Restore preset" for them and nothing else. */
+  isPreset: boolean;
   onMenuAction: (action: PatternMenuAction) => void;
 }) {
   // With nothing connected the pill is the one thing on screen that knows why
@@ -69,6 +69,24 @@ export function SequencerNav({
     setTipOpen((open) => !open);
   };
 
+  const menuActions: MenuAction[] = [
+    { id: 'new', title: 'New pattern', image: 'plus' },
+    { id: 'rename', title: 'Rename', image: 'pencil' },
+    { id: 'icon', title: 'Change Icon…', image: 'square.grid.3x3' },
+    { id: 'share', title: 'Share…', image: 'square.and.arrow.up' },
+    // §15: reverting to what YOU loaded, not factory lanes — swap
+    // semantics, so picking it again undoes it.
+    { id: 'revert', title: 'Revert to loaded', image: 'arrow.counterclockwise' },
+    // The factory version, which "Revert to loaded" cannot reach — the loaded
+    // slot only holds this session's starting point, so a preset you edited
+    // and left had no way back from here (TestFlight, build 74). Presets only:
+    // there is nothing to restore a pattern of your own to.
+    ...(isPreset
+      ? [{ id: 'restore', title: 'Restore preset', image: 'arrow.counterclockwise.circle' } as const]
+      : []),
+    { id: 'clear', title: 'Clear all lanes', image: 'trash', attributes: { destructive: true } },
+  ];
+
   const pill = (
     <View style={styles.pill}>
       <View
@@ -85,28 +103,7 @@ export function SequencerNav({
       <View style={styles.nav}>
         <MenuView
           title={patternName}
-          actions={[
-            { id: 'new', title: 'New pattern', image: 'plus' },
-            { id: 'rename', title: 'Rename', image: 'pencil' },
-            { id: 'icon', title: 'Change Icon…', image: 'square.grid.3x3' },
-            { id: 'share', title: 'Share…', image: 'square.and.arrow.up' },
-            // §15: reverting to what YOU loaded, not factory lanes — swap
-            // semantics, so picking it again undoes it.
-            { id: 'revert', title: 'Revert to loaded', image: 'arrow.counterclockwise' },
-            // Factory presets only: back to the shipped lanes and tempo, the
-            // same restore the Patterns list offers per row. Dropped from the
-            // menu on your own patterns, which have no factory state.
-            ...(canRestorePreset
-              ? ([
-                  {
-                    id: 'restore',
-                    title: 'Restore preset',
-                    image: 'arrow.counterclockwise.circle',
-                  },
-                ] as const)
-              : []),
-            { id: 'clear', title: 'Clear all lanes', image: 'trash', attributes: { destructive: true } },
-          ]}
+          actions={menuActions}
           onPressAction={({ nativeEvent }) => onMenuAction(nativeEvent.event as PatternMenuAction)}
           style={styles.patternTrigger}
         >

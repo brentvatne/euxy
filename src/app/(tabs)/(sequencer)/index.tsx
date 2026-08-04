@@ -14,13 +14,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { engine } from '@/core/engine';
 import { midiNoteName } from '@/core/note';
-import { isPresetPattern } from '@/state/presets';
 import { laneAudible, useActivePattern, useAnySolo, useSettings } from '@/state/selectors';
+import { isPresetPattern } from '@/state/presets';
 import { useStore } from '@/state/store';
 import type { Lane } from '@/state/types';
 import { onBootOverlayGone, reportFirstScreenLayout } from '@/components/boot-signal';
 import { useMidiRuntime } from '@/components/midi/runtime';
-import { haptics, logObserveEvent } from '@/lib/shims';
+import { logObserveEvent } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { color } from '@/theme/tokens';
 import { LaneRow, TransportBar } from '@/components/ui';
@@ -167,15 +167,6 @@ export default function SequencerScreen() {
     );
   };
 
-  // Restores on the spot, no confirmation — the same terms as the Patterns
-  // list's per-row Restore Default (patterns.tsx). Only the restore-everything
-  // action there asks first, because that one reaches patterns you aren't
-  // looking at.
-  const restorePreset = () => {
-    haptics.impact('light');
-    resetPreset(pattern.id);
-  };
-
   const onMenuAction = (action: PatternMenuAction) => {
     switch (action) {
       case 'new':
@@ -195,8 +186,12 @@ export default function SequencerScreen() {
       case 'revert':
         revertToLoaded();
         break;
+      // Factory restore of the preset you're playing: lanes and tempo go back
+      // to the shipped version in place (same pattern id), so the sequencer
+      // keeps showing this pattern. Immediate, like the other menu actions —
+      // and "Revert to loaded" still holds this session's starting lanes.
       case 'restore':
-        restorePreset();
+        resetPreset(pattern.id);
         break;
       case 'clear':
         clearLanes();
@@ -216,7 +211,7 @@ export default function SequencerScreen() {
         patternChip={chipForPattern(pattern)}
         connected={connected}
         deviceName={outputDevice?.name ?? 'No device'}
-        canRestorePreset={isPresetPattern(pattern.id)}
+        isPreset={isPresetPattern(pattern.id)}
         onMenuAction={onMenuAction}
       />
       {/* The lane list with the floating action bar (Paper 7A-0) hovering
