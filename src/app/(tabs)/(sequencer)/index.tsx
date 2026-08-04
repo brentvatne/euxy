@@ -167,25 +167,13 @@ export default function SequencerScreen() {
     );
   };
 
-  // Unlike Revert to loaded (a swap, so it undoes itself) a factory restore
-  // discards edits for good — so it asks first, on the same terms as the
-  // Patterns list's Restore factory presets.
-  const confirmRestorePreset = () => {
-    Alert.alert(
-      'Restore preset?',
-      `“${pattern.name}” goes back to its shipped lanes and tempo. Your edits to it are replaced.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Restore',
-          style: 'destructive',
-          onPress: () => {
-            resetPreset(pattern.id);
-            haptics.success();
-          },
-        },
-      ],
-    );
+  // Restores on the spot, no confirmation — the same terms as the Patterns
+  // list's per-row Restore Default (patterns.tsx). Only the restore-everything
+  // action there asks first, because that one reaches patterns you aren't
+  // looking at.
+  const restorePreset = () => {
+    haptics.impact('light');
+    resetPreset(pattern.id);
   };
 
   const onMenuAction = (action: PatternMenuAction) => {
@@ -208,7 +196,7 @@ export default function SequencerScreen() {
         revertToLoaded();
         break;
       case 'restore':
-        confirmRestorePreset();
+        restorePreset();
         break;
       case 'clear':
         clearLanes();
