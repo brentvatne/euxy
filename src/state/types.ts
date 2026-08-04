@@ -83,6 +83,10 @@ export interface Transport {
 /** Patterns-library sort order (the library header's "Sort by" menu). */
 export type PatternSort = 'created' | 'bpm';
 
+/** Which way that order runs. Every key starts at 'desc' (newest / fastest
+ * first); re-picking the active key in the menu flips it. */
+export type PatternSortDir = 'desc' | 'asc';
+
 export interface Settings {
   /** Selected MIDI output/input device ids (null = none). */
   outputId: string | null;
@@ -102,6 +106,9 @@ export interface Settings {
   /** How the Patterns library is ordered. Absent on old blobs — the store
    * defaults it to 'created' (newest first). */
   patternSort: PatternSort;
+  /** Which way `patternSort` runs. Absent on old blobs — the store defaults it
+   * to 'desc'. */
+  patternSortDir: PatternSortDir;
 }
 
 export interface Selection {
