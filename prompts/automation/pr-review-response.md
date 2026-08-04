@@ -56,6 +56,12 @@ changes, and verify the result.
      do not copy those into `RESPONSE.md` or put them inside a `<details>` block.
      If there is no code change, keep the same shape and explain the concrete
      reason inside the block.
+   - **Hard budget: keep the whole file under 2,800 characters.** The posting
+     step truncates at 3,000 characters mid-word with no marker
+     (`pr-review-response.ts`, `summary.slice(0, 3000)`), and everything past
+     the cut is silently lost. If you are over, tighten the per-point blocks —
+     and never park an important caveat (which build you verified on, what
+     remains unverified) at the end of the file, where a cut would land first.
 5. Write `.eas/pr-review/ACTIONS.json` with exactly:
    ```json
    { "publishUpdate": false }
