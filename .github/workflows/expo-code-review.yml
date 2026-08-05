@@ -20,7 +20,7 @@ jobs:
     env:
       # The published engine is trusted workflow code. Keep the guard and review
       # on the same exact version; bump only in a reviewed change.
-      ECR_VERSION: '0.9.2'
+      ECR_VERSION: '0.10.0'
     # Trigger policy lives in .expo-code-review/config.jsonc (review.trigger); `ecr ci`
     # self-gates on it (and honors the ai-review:skip label). This coarse gate just
     # avoids spinning up a runner for a PR that explicitly opted out. Uses the array
