@@ -93,10 +93,17 @@ function Led({ ignite }: { ignite: boolean }) {
   return <LedBase ignite={ignite} style={styles.led} />;
 }
 
+/** Last width any strip measured. Every strip spans the same lane column, so
+ * one that mounts later can paint its blocks on its FIRST frame instead of
+ * waiting a layout pass — Restore preset rebuilds every lane at once, and
+ * without this the whole grid blanked for ~5 frames before the blocks came
+ * back. Re-measured on every onLayout, so a real width change still wins. */
+let lastStripWidth = 0;
+
 export function StepStrip({ lane, washDelay = 0, active = true }: StepStripProps) {
   const pattern = patternForLane(lane);
   const n = pattern.length;
-  const [width, setWidth] = useState(0);
+  const [width, setWidth] = useState(lastStripWidth);
   // LAYOUT CONTRACT: reserve the lane strip's final height before onLayout
   // measures its width. Keep this derived from the same sequencer-lane
   // geometry that renders the rows and Skia overlay; otherwise the lane
@@ -208,7 +215,10 @@ export function StepStrip({ lane, washDelay = 0, active = true }: StepStripProps
   return (
     <View
       style={[styles.root, { minHeight: reservedHeight }]}
-      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+      onLayout={(e) => {
+        lastStripWidth = e.nativeEvent.layout.width;
+        setWidth(lastStripWidth);
+      }}
     >
       {blockW > 0
         ? rows.map((row, r) => (

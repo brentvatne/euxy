@@ -5,11 +5,17 @@
  * playheads (all steps always visible, wrapped at 16 per row), and the pinned
  * transport above the tab bar.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useIsFirstRender } from '@/lib/use-is-first-render';
 import { router } from 'expo-router';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { FadeInDown, FadeOut, LinearTransition, ReduceMotion } from 'react-native-reanimated';
+import Animated, {
+  FadeInDown,
+  FadeOut,
+  LayoutAnimationConfig,
+  LinearTransition,
+  ReduceMotion,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { engine } from '@/core/engine';
@@ -82,6 +88,39 @@ export default function SequencerScreen() {
   // cold boot (found by the wave-2 ambient agent, reproduced on the merged
   // build), and design-wise lanes should only power on when ADDED anyway.
   const isFirstRender = useIsFirstRender();
+
+  // Revert to loaded / Restore preset swap the WHOLE lane set in one go, so
+  // the list animations fire on a change nobody asked to watch: rows fade out
+  // and back in, and every surviving row slides to its new position. The
+  // screen reads as jumping around rather than as the pattern snapping back
+  // (TestFlight, build 75). Those two actions therefore apply in a QUIET
+  // commit.
+  //
+  // It takes frames, not one flag: Reanimated hands each row's entering /
+  // exiting / layout config to the native side from componentDidUpdate, so a
+  // config dropped in the SAME commit as the swap lands too late to suppress
+  // that swap. So the rows go quiet first, the swap runs on the next frame,
+  // and the rows re-arm on the frame after that — by then there is no pending
+  // layout change left for them to animate. Same paint-boundary reasoning as
+  // the capsule reveal below.
+  const [quietLanes, setQuietLanes] = useState(false);
+  const quietFrame = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (quietFrame.current != null) cancelAnimationFrame(quietFrame.current);
+    },
+    [],
+  );
+  const applyQuietly = (run: () => void) => {
+    setQuietLanes(true);
+    quietFrame.current = requestAnimationFrame(() => {
+      run();
+      quietFrame.current = requestAnimationFrame(() => {
+        quietFrame.current = null;
+        setQuietLanes(false);
+      });
+    });
+  };
 
   // The capsule is the ONE thing that animates in on app open, and the whole
   // app renders behind the opaque boot overlay for ~900ms (components/
@@ -192,11 +231,13 @@ export default function SequencerScreen() {
       case 'share':
         router.push('/share-pattern');
         break;
+      // Both restore a state you already know — the LED wash is the feedback,
+      // the list itself just snaps (see applyQuietly).
       case 'revert':
-        revertToLoaded();
+        applyQuietly(revertToLoaded);
         break;
       case 'restore':
-        restorePreset();
+        applyQuietly(restorePreset);
         break;
       case 'clear':
         clearLanes();
@@ -231,15 +272,31 @@ export default function SequencerScreen() {
               // Lanes power on when added and decay out when removed, with
               // siblings sliding into place — Reanimated layout animations on
               // the UI thread (LED language: quick in, phosphor-tail out).
+              // All of it goes quiet for a revert / restore swap.
+              //
+              // Dropping the row's own `exiting` is not enough there: the
+              // accent bar inside is a Led with its own phosphor decay, so a
+              // removed lane left a lit bar hanging in empty space for ~300ms.
+              // skipExiting reaches those descendants, and it is read when
+              // this wrapper unmounts — the other reason the flag has to be
+              // set a commit early.
+              <LayoutAnimationConfig key={lane.id} skipExiting={quietLanes}>
               <Animated.View
-                key={lane.id}
                 entering={
-                  isFirstRender
+                  isFirstRender || quietLanes
                     ? undefined
                     : FadeInDown.duration(220).reduceMotion(ReduceMotion.System)
                 }
-                exiting={FadeOut.duration(180).reduceMotion(ReduceMotion.System)}
-                layout={LinearTransition.duration(220).reduceMotion(ReduceMotion.System)}
+                exiting={
+                  quietLanes
+                    ? undefined
+                    : FadeOut.duration(180).reduceMotion(ReduceMotion.System)
+                }
+                layout={
+                  quietLanes
+                    ? undefined
+                    : LinearTransition.duration(220).reduceMotion(ReduceMotion.System)
+                }
               >
               <LaneRow
                 title={lane.name ?? midiNoteName(lane.note)}
@@ -261,6 +318,7 @@ export default function SequencerScreen() {
                 />
               </LaneRow>
               </Animated.View>
+              </LayoutAnimationConfig>
             ))}
           </ScrollView>
         )}
