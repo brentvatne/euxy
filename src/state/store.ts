@@ -278,7 +278,9 @@ export interface AppState {
   setLatencyOffsetMs: (ms: number) => void;
   setCountInBeats: (beats: number) => void;
   setFloatBarCorner: (corner: 'left' | 'right') => void;
-  /** Order the Patterns library is listed in (library header "Sort by"). */
+  /** Pick the order the Patterns library is listed in (library header "Sort
+   * by"). Picking a new key starts it descending; picking the key that is
+   * already active flips its direction. */
   setPatternSort: (sort: PatternSort) => void;
 
   // Patterns -------------------------------------------------------------
@@ -386,6 +388,7 @@ export const useStore = create<AppState>((set, get) => {
       countInBeats: 4,
       floatBarCorner: 'right',
       patternSort: 'created',
+      patternSortDir: 'desc',
       ...persisted?.settings,
     },
 
@@ -603,7 +606,20 @@ export const useStore = create<AppState>((set, get) => {
     setCountInBeats: (countInBeats) => set((s) => ({ settings: { ...s.settings, countInBeats } })),
     setFloatBarCorner: (floatBarCorner) =>
       set((s) => ({ settings: { ...s.settings, floatBarCorner } })),
-    setPatternSort: (patternSort) => set((s) => ({ settings: { ...s.settings, patternSort } })),
+    // Same menu item does double duty, the way an iOS sort menu does: the first
+    // tap selects the key (always descending), each further tap on the selected
+    // key flips desc ⇄ asc.
+    setPatternSort: (patternSort) =>
+      set((s) => ({
+        settings: {
+          ...s.settings,
+          patternSort,
+          patternSortDir:
+            patternSort === s.settings.patternSort && s.settings.patternSortDir === 'desc'
+              ? 'asc'
+              : 'desc',
+        },
+      })),
 
     // Patterns
     newPattern: (opts) => {

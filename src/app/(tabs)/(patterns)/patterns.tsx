@@ -3,7 +3,8 @@
  * native header search bar and swipe-to-delete. Tapping a row loads it into the
  * sequencer and switches to the Sequencer tab. A + in the header opens the New
  * Pattern sheet, and a Sort by menu next to it orders the list (newest first by
- * default). Empty state (node 2NR-0) shows when there are no patterns.
+ * default; picking the selected order again reverses it). Empty state (node
+ * 2NR-0) shows when there are no patterns.
  */
 import { useMemo, useState } from 'react';
 import { ActionSheetIOS, Alert, Platform, StyleSheet, View } from 'react-native';
@@ -20,7 +21,12 @@ import { AppText, SFSymbol } from '@/components/ui';
 import { reportFirstScreenLayout } from '@/components/boot-signal';
 import { PatternGlyph } from '@/components/patterns/pattern-glyph';
 import { PatternRow } from '@/components/patterns/pattern-row';
-import { SORT_OPTIONS, SortMenuButton, sortPatterns } from '@/components/patterns/sort-menu';
+import {
+  SORT_OPTIONS,
+  SortMenuButton,
+  sortDirectionLabel,
+  sortPatterns,
+} from '@/components/patterns/sort-menu';
 import { isPresetPattern } from '@/state/presets';
 import { usePatterns } from '@/state/selectors';
 import { useStore } from '@/state/store';
@@ -57,6 +63,7 @@ export default function PatternsScreen() {
   const resetPreset = useStore((s) => s.resetPreset);
   const resetAllPresets = useStore((s) => s.resetAllPresets);
   const sort = useStore((s) => s.settings.patternSort);
+  const sortDir = useStore((s) => s.settings.patternSortDir);
   const setPatternSort = useStore((s) => s.setPatternSort);
   const [query, setQuery] = useState('');
 
@@ -143,11 +150,11 @@ export default function PatternsScreen() {
   useMarkInteractive();
 
   const filtered = useMemo(() => {
-    const ordered = sortPatterns(patterns, sort);
+    const ordered = sortPatterns(patterns, sort, sortDir);
     const q = query.trim().toLowerCase();
     if (!q) return ordered;
     return ordered.filter((p) => p.name.toLowerCase().includes(q));
-  }, [patterns, query, sort]);
+  }, [patterns, query, sort, sortDir]);
 
   const openPattern = (id: string) => {
     // Tapping a pattern swaps it in place (hardware-style, see loadPattern)
@@ -186,6 +193,10 @@ export default function PatternsScreen() {
                 items: SORT_OPTIONS.map((o) => ({
                   type: 'action',
                   label: o.title,
+                  // Every row keeps its own glyph. The selected one states its
+                  // direction in the secondary line (UIAction.subtitle), and
+                  // tapping it again flips desc ⇄ asc (setPatternSort).
+                  description: o.id === sort ? sortDirectionLabel(sort, sortDir) : undefined,
                   icon: { type: 'sfSymbol', name: o.image },
                   state: o.id === sort ? 'on' : 'off',
                   onPress: () => {
@@ -211,7 +222,7 @@ export default function PatternsScreen() {
           // Non-iOS has no header items API; keep the plain row there.
           headerRight: () => (
             <View style={styles.headerActions}>
-              <SortMenuButton sort={sort} onChange={setPatternSort} />
+              <SortMenuButton sort={sort} dir={sortDir} onChange={setPatternSort} />
               <HeaderAddButton />
             </View>
           ),
