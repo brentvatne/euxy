@@ -5,7 +5,7 @@ set -euo pipefail
 # in a reviewed change; never replace them with tags, ranges, or "latest".
 readonly CLAUDE_CODE_VERSION="2.1.220"
 readonly BUN_VERSION="1.3.14"
-readonly EAS_CLI_VERSION="21.3.0"
+readonly EAS_CLI_VERSION="21.5.0"
 # Which controller the WORKFLOWS drive the remote simulator with. This is the
 # single source of truth for the switch: `.eas/shared/simulator-controller.test.ts`
 # reads it and requires every workflow surface to match, so a half-finished switch
@@ -15,8 +15,8 @@ readonly SIMULATOR_CONTROLLER="argent"
 readonly ARGENT_VERSION="0.17.0"
 readonly FFMPEG_STATIC_VERSION="5.3.0"
 readonly FFPROBE_STATIC_VERSION="3.1.0"
-readonly EXPO_SKILLS_VERSION="1.8.5"
-readonly EXPO_SKILLS_SHA="09eb052410e7f609624cb161ea4cd9576c69cd5d"
+readonly EXPO_SKILLS_VERSION="1.9.0"
+readonly EXPO_SKILLS_SHA="994342f0e343f05b9b8cdd38a0e91356ceef00f6"
 readonly TOOLCHAIN_TEMP_BASE="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
 readonly TOOLCHAIN_ROOT="$(mktemp -d "${TOOLCHAIN_TEMP_BASE%/}/euxy-agent-toolchain.XXXXXX")"
 readonly EXPO_SKILLS_ROOT="${TOOLCHAIN_ROOT}/expo-skills"

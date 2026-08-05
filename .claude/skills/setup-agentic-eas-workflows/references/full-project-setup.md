@@ -146,12 +146,12 @@ The current euxy pins are a known-good baseline:
 | --- | --- |
 | Claude Code | `2.1.220` |
 | Bun | `1.3.14` |
-| EAS CLI | `21.3.0` |
+| EAS CLI | `21.5.0` |
 | `@swmansion/argent` | `0.17.0` |
 | `ffmpeg-static` | `5.3.0` |
 | `ffprobe-static` | `3.1.0` |
-| Expo skills plugin | `1.8.5` |
-| Expo skills commit | `09eb052410e7f609624cb161ea4cd9576c69cd5d` |
+| Expo skills plugin | `1.9.0` |
+| Expo skills commit | `994342f0e343f05b9b8cdd38a0e91356ceef00f6` |
 
 Use these exact values when reproducing the currently verified flow. Upgrade
 them only as one reviewed change with version assertions and tests.

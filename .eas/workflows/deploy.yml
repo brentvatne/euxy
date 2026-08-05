@@ -44,7 +44,7 @@ jobs:
       - id: check
         name: Read isPaused from eas channel:view
         run: |
-          PAUSED=$(npx --yes eas-cli@21.3.0 channel:view production --json --non-interactive \
+          PAUSED=$(npx --yes eas-cli@21.5.0 channel:view production --json --non-interactive \
             | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).currentPage.isPaused===true))")
           echo "production channel paused: $PAUSED"
           set-output paused "$PAUSED"
