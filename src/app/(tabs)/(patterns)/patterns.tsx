@@ -24,7 +24,7 @@ import { PatternRow } from '@/components/patterns/pattern-row';
 import {
   SORT_OPTIONS,
   SortMenuButton,
-  sortOptionImage,
+  sortDirectionLabel,
   sortPatterns,
 } from '@/components/patterns/sort-menu';
 import { isPresetPattern } from '@/state/presets';
@@ -193,9 +193,11 @@ export default function PatternsScreen() {
                 items: SORT_OPTIONS.map((o) => ({
                   type: 'action',
                   label: o.title,
-                  // Selected row's glyph becomes the direction arrow — tapping
-                  // it again flips desc ⇄ asc (setPatternSort).
-                  icon: { type: 'sfSymbol', name: sortOptionImage(o, sort, sortDir) },
+                  // Every row keeps its own glyph. The selected one states its
+                  // direction in the secondary line (UIAction.subtitle), and
+                  // tapping it again flips desc ⇄ asc (setPatternSort).
+                  description: o.id === sort ? sortDirectionLabel(sort, sortDir) : undefined,
+                  icon: { type: 'sfSymbol', name: o.image },
                   state: o.id === sort ? 'on' : 'off',
                   onPress: () => {
                     haptics.selection();

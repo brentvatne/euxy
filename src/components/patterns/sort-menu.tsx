@@ -8,6 +8,8 @@
  *
  * Two orders: Date Added (the default) and BPM. Each runs descending first —
  * newest / fastest at the top — and picking the selected order again flips it.
+ * The selected row spells its direction out ("Newest first"); both rows keep
+ * their own glyph.
  */
 import { MenuView, type MenuAction } from '@expo/ui/community/menu';
 import { StyleSheet, View } from 'react-native';
@@ -44,20 +46,19 @@ export function sortPatterns(
 }
 
 /**
- * Icon for one menu row: the selected order trades its key glyph for a
- * direction arrow, the rest keep theirs. The system checkmark says WHICH order
- * is on, so the arrow is what is left to say which way it runs.
+ * How the active order reads in words — "Newest first", "Slowest first". Every
+ * row keeps its own key glyph; the direction is said in text on the selected
+ * row (a subtitle on iOS, appended to the label elsewhere), so nothing has to
+ * borrow the icon slot to show it.
  */
-export const sortOptionImage = (
-  option: (typeof SORT_OPTIONS)[number],
-  sort: PatternSort,
-  dir: PatternSortDir,
-) =>
-  option.id !== sort
-    ? option.image
+export const sortDirectionLabel = (sort: PatternSort, dir: PatternSortDir) =>
+  sort === 'bpm'
+    ? dir === 'asc'
+      ? 'Slowest first'
+      : 'Fastest first'
     : dir === 'asc'
-      ? ('arrow.up' as const)
-      : ('arrow.down' as const);
+      ? 'Oldest first'
+      : 'Newest first';
 
 export function SortMenuButton({
   sort,
@@ -70,7 +71,10 @@ export function SortMenuButton({
 }) {
   const actions: MenuAction[] = SORT_OPTIONS.map((o) => ({
     ...o,
-    image: sortOptionImage(o, sort, dir),
+    // MenuAction has no subtitle field, so off iOS the direction rides in the
+    // label. `id` is explicit in SORT_OPTIONS, so onPressAction still reports
+    // the sort key and not this title.
+    title: o.id === sort ? `${o.title} — ${sortDirectionLabel(sort, dir)}` : o.title,
     state: o.id === sort ? 'on' : 'off',
   }));
   return (
