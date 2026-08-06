@@ -16,7 +16,9 @@
  *
  * Seeding: `PRESETS_VERSION` is recorded in the persisted blob after the
  * presets are appended once, so a user who deletes one never has it respawn.
- * Bump the version only when ADDING presets (append-only; ids are stable).
+ * Bump the version only when ADDING presets (append-only; ids are stable), and
+ * give the new id a place in PRESET_ORDER — that list, not this file's order,
+ * is what both the web page and the app library show.
  */
 import { drum } from '@/core/opxy';
 import { timing } from '@/theme/tokens';
@@ -29,12 +31,65 @@ export const PRESETS_VERSION = 3;
 export const isPresetPattern = (id: string) => id.startsWith('preset_');
 
 /**
- * Creation stamp every factory preset carries: shipped content dates from the
- * app, not from the moment it happened to be seeded. Fixed and shared, so the
- * library's newest-first sort keeps YOUR patterns on top and (stable sort) the
- * presets below them in the curated order of this file.
+ * Display order for the factory presets — a judgment call on what OP-XY owners
+ * reach for, electronic genres first (Brent, 2026-08-02). ONE order for both
+ * surfaces: euxy.expo.app lists its preset pills in it, and `presetPatterns()`
+ * turns it into the creation stamps below so the app library's default sort
+ * ("Date Added", newest first) reads the same top to bottom. Ids missing from
+ * this list fall after it in this file's order, so a new preset never vanishes.
  */
-export const PRESET_CREATED_AT = 0;
+export const PRESET_ORDER = [
+  'preset_lofi', // Lo-Fi Bounce — the confirmed opener
+  'preset_house', // Four on the Floor
+  'preset_twostep', // Two-Step
+  'preset_halftime', // Halftime
+  'preset_techno', // Warehouse
+  'preset_headnod', // Head Nod
+  // — the web page's collapsed fold sits here —
+  'preset_acid', // Acid Line
+  'preset_electro', // Electro
+  'preset_drunk', // Drunk Swing
+  'preset_triphop', // Trip-Hop
+  'preset_idm', // Broken Machine
+  'preset_phonk', // Phonk
+  'preset_dembow', // Dembow
+  'preset_motorik', // Motorik
+  'preset_moneybeat', // Money Beat
+  'preset_ambient', // Ambient Drift
+  'preset_tapeloop', // Tape Loop
+  'preset_footwork', // Footwork
+  'preset_stutter', // Stutter
+  'preset_shuffle', // Shuffle
+  'preset_purdie', // Half-Time Shuffle
+  'preset_bossa', // Bossa Nova
+  'preset_samba', // Samba
+  'preset_cinquillo', // Cinquillo
+  'preset_bembe', // Bembé
+  'preset_hemiola', // Three Over Four
+  'preset_aksak', // Aksak
+  'preset_dbeat', // D-Beat
+];
+
+/**
+ * Creation stamp of the FIRST preset in `PRESET_ORDER`; each one after it is a
+ * millisecond older. Shipped content dates from the app, not from the moment it
+ * happened to be seeded — and a 1970 stamp is far enough down that every
+ * pattern the user makes (`Date.now()`) sorts above the whole factory library.
+ */
+export const PRESET_CREATED_AT = 1000;
+
+/** Built once from `presetPatterns()`, which is where the stamps are assigned. */
+let stamps: Map<string, number> | null = null;
+
+/**
+ * The shipped stamp for a factory preset id, or undefined for an id this build
+ * no longer ships. The store re-applies it on launch so installs seeded under
+ * an older order get pulled into the current one.
+ */
+export function presetCreatedAt(id: string): number | undefined {
+  stamps ??= new Map(presetPatterns().map((p) => [p.id, p.createdAt!]));
+  return stamps.get(id);
+}
 
 type LaneSpec = Partial<Lane> & Pick<Lane, 'name' | 'note' | 'channel'>;
 
@@ -45,13 +100,27 @@ function pattern(id: string, name: string, bpm: number, lanes: LaneSpec[]): Patt
     bpm,
     baseResolutionTicks: timing.defaultResolutionTicks,
     updatedAt: Date.now(),
-    createdAt: PRESET_CREATED_AT,
+    // createdAt is stamped by presetPatterns() from the display order.
     lanes: lanes.map((spec) => makeLane(spec)),
   };
 }
 
-/** Fresh copies (new lane ids) of every factory preset. */
+/**
+ * Fresh copies (new lane ids) of every factory preset, in `PRESET_ORDER` and
+ * stamped one millisecond apart down from `PRESET_CREATED_AT` — so the app's
+ * newest-first library and the web page's pill list are the same sequence.
+ */
 export function presetPatterns(): Pattern[] {
+  const rank = new Map(PRESET_ORDER.map((id, i) => [id, i]));
+  // Stable sort: an id the order forgot shares one rank past the end, so it
+  // keeps its place in this file relative to the other unranked ones.
+  return factoryPatterns()
+    .sort((a, b) => (rank.get(a.id) ?? PRESET_ORDER.length) - (rank.get(b.id) ?? PRESET_ORDER.length))
+    .map((p, i) => ({ ...p, createdAt: PRESET_CREATED_AT - i }));
+}
+
+/** The presets as authored — curated order and stamps come from the caller. */
+function factoryPatterns(): Pattern[] {
   return [
     // Boom-bap kick E(3,16) lands 0·6·11 — the drag behind the beat is the
     // genre; hats are straight 8ths broken up by a XOR'd 3-necklace.

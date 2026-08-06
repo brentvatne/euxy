@@ -29,56 +29,12 @@ const subscribeNever = () => () => {};
 /** Pills shown before "See all presets" expands the list. */
 const VISIBLE_PILLS = 6;
 
-/**
- * Web-only display order: a judgment call on what OP-XY owners reach for,
- * electronic genres first (Brent, 2026-08-02). The first VISIBLE_PILLS are
- * the collapsed set. Ids missing from this list sort after it in presets.ts
- * order, so a new preset never vanishes. The app keeps the shared presets.ts
- * order — this is presentation, not data.
- */
-const WEB_ORDER = [
-  'preset_lofi', // Lo-Fi Bounce — the confirmed opener
-  'preset_house', // Four on the Floor
-  'preset_twostep', // Two-Step
-  'preset_halftime', // Halftime
-  'preset_techno', // Warehouse
-  'preset_headnod', // Head Nod
-  // — collapsed fold —
-  'preset_acid', // Acid Line
-  'preset_electro', // Electro
-  'preset_drunk', // Drunk Swing
-  'preset_triphop', // Trip-Hop
-  'preset_idm', // Broken Machine
-  'preset_phonk', // Phonk
-  'preset_dembow', // Dembow
-  'preset_motorik', // Motorik
-  'preset_moneybeat', // Money Beat
-  'preset_ambient', // Ambient Drift
-  'preset_tapeloop', // Tape Loop
-  'preset_footwork', // Footwork
-  'preset_stutter', // Stutter
-  'preset_shuffle', // Shuffle
-  'preset_purdie', // Half-Time Shuffle
-  'preset_bossa', // Bossa Nova
-  'preset_samba', // Samba
-  'preset_cinquillo', // Cinquillo
-  'preset_bembe', // Bembé
-  'preset_hemiola', // Three Over Four
-  'preset_aksak', // Aksak
-  'preset_dbeat', // D-Beat
-];
-
 export default function Home() {
+  // Already in the shared display order (presets.ts PRESET_ORDER) — the same
+  // sequence the app's library shows, since that order IS the creation stamps
+  // its default "Date Added" sort runs on. The first VISIBLE_PILLS are the
+  // collapsed set.
   const presets = useMemo(() => presetPatterns(), []);
-  const ordered = useMemo(() => {
-    const rank = new Map(WEB_ORDER.map((id, i) => [id, i]));
-    // Stable sort: unranked ids share one rank past the end, so they keep
-    // their presets.ts order after the ranked ones.
-    return [...presets].sort(
-      (a, b) =>
-        (rank.get(a.id) ?? WEB_ORDER.length) - (rank.get(b.id) ?? WEB_ORDER.length),
-    );
-  }, [presets]);
   // Encode the EFFECTIVE glyph — preset glyphs come from the id-keyed curated
   // map, and ids don't travel in the payload.
   const examplePayload = useMemo(() => {
@@ -111,8 +67,8 @@ export default function Home() {
   // front so the active pill is never invisible.
   const [showAll, setShowAll] = useState(false);
   const expanded =
-    showAll || ordered.findIndex((p) => p.id === selected.id) >= VISIBLE_PILLS;
-  const visiblePresets = expanded ? ordered : ordered.slice(0, VISIBLE_PILLS);
+    showAll || presets.findIndex((p) => p.id === selected.id) >= VISIBLE_PILLS;
+  const visiblePresets = expanded ? presets : presets.slice(0, VISIBLE_PILLS);
 
   const selectPreset = (id: string) => {
     setTappedId(id);
@@ -191,7 +147,7 @@ export default function Home() {
               <Pressable
                 onPress={() => setShowAll(true)}
                 accessibilityRole="button"
-                accessibilityLabel={`See all ${ordered.length} presets`}
+                accessibilityLabel={`See all ${presets.length} presets`}
                 {...webAttrs({ anim: '', pill: '' })}
                 style={({ pressed }) => [
                   styles.pill,
@@ -200,7 +156,7 @@ export default function Home() {
                 ]}
               >
                 <Text style={styles.pillLabel}>
-                  See all presets ({ordered.length})
+                  See all presets ({presets.length})
                 </Text>
               </Pressable>
             )}

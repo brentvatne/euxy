@@ -15,7 +15,7 @@ import type { SharedPattern } from '@/core/share-codec';
 import { timing } from '@/theme/tokens';
 import { makeLane, uid } from './lane';
 import { attachPersistence, loadPersisted } from './persistence';
-import { PRESET_CREATED_AT, PRESETS_VERSION, isPresetPattern, presetPatterns } from './presets';
+import { PRESETS_VERSION, isPresetPattern, presetCreatedAt, presetPatterns } from './presets';
 import type { CombineOp, Lane, Pattern, PatternSort, Settings, Transport } from './types';
 
 const rint = (n: number) => Math.floor(Math.random() * n);
@@ -353,16 +353,21 @@ export const useStore = create<AppState>((set, get) => {
     const have = new Set(patterns.map((p) => p.id));
     patterns = [...patterns, ...presetPatterns().filter((p) => !have.has(p.id))];
   }
-  // Patterns saved before `createdAt` existed get it backfilled from their
-  // last-edit stamp — the closest birth date on record — FROZEN here, so
-  // editing an old pattern later doesn't reshuffle the creation-date sort.
-  // Presets seeded by an earlier build take the shared factory stamp instead,
-  // so they sit below the user's own patterns like a fresh install's do.
-  patterns = patterns.map((p) =>
-    p.createdAt == null
-      ? { ...p, createdAt: isPresetPattern(p.id) ? PRESET_CREATED_AT : p.updatedAt }
-      : p,
-  );
+  // Creation stamps, settled on every launch:
+  //
+  // A factory preset takes the stamp this build ships (presets.ts PRESET_ORDER)
+  // whatever it had before, so an install seeded under an older order — or
+  // under the one flat stamp every preset used to share — gets pulled into the
+  // current display order. It's factory data; only the lanes are the user's.
+  //
+  // A user's own pattern saved before `createdAt` existed gets it backfilled
+  // from its last-edit stamp — the closest birth date on record — and FROZEN
+  // here, so editing an old pattern later doesn't reshuffle the sort.
+  patterns = patterns.map((p) => {
+    const factory = isPresetPattern(p.id) ? presetCreatedAt(p.id) : undefined;
+    if (factory != null) return p.createdAt === factory ? p : { ...p, createdAt: factory };
+    return p.createdAt == null ? { ...p, createdAt: p.updatedAt } : p;
+  });
 
   return {
     patterns,
