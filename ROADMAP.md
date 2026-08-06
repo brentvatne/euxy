@@ -16,8 +16,10 @@ like hardware rather than adding surface area. Ahead of everything under
    the whole app outward from the dice when a charge fires.
    → [Ripple shader from the dice pop](#ripple-shader-from-the-dice-pop-2026-07-28)
 2. **Continuous haptics that ramp in strength** — replace the faked
-   fire-them-faster ladder with a real intensity envelope; Pulsar looks like
-   a direct hit. → [Haptic language](#haptic-language-2026-07-25)
+   fire-them-faster ladder with a real intensity envelope. Pulsar is IN and the
+   temp key's keep-hold is on a real ramp (2026-08-06); the dice charge — the
+   case that actually motivated this — is still on the rate ladder.
+   → [Haptic language](#haptic-language-2026-07-25)
 
 ---
 
@@ -1280,16 +1282,62 @@ worklet exactly the way `RingLed` derives its opacity — one source of truth
 for the ring, the tremor and the feel — with `playDiscrete` left for the tier
 accents and the heavy hit at the close.
 
-Open questions before adopting:
+**ADOPTED 2026-08-06 — `react-native-pulsar` 1.6.1 is in**, piloted on the TEMP
+KEY (not the dice; see below). What landed:
 
-- Docs say "worklet-compatible" generally but do not explicitly cover
-  `useAnimatedReaction`; confirm the composer can be driven from the fill
-  ramp's reaction, not only from a gesture callback.
-- No documented minimum iOS/Android version or simulator behaviour. Android
-  goes through a fallback `RealtimeComposerStrategy`, so expect the ramp to
-  degrade there — check what it actually does before designing to it.
+- `src/lib/shims.ts` now prefers Pulsar and keeps `expo-haptics` as the
+  fallback, so the discrete feel is unchanged on every build that predates the
+  dep. Safe because Pulsar's `Presets.System.*` wrap the SAME UIKit generators
+  expo-haptics calls (`UIImpactFeedbackGenerator` etc., verified in
+  `iOS/.../SystemPresetsImpl.swift` upstream) — so the system haptics toggle
+  still applies and nothing about the existing clicks changed.
+- New `useHapticRamp()` + `hapticRampAvailable` on the shim: worklet-safe
+  `set` / `playDiscrete` / `stop`, no-ops on a build without the module.
+- The temp key's keep-hold swells instead of ticking. Its three quarter
+  `setTimeout`s are gone; a `useAnimatedReaction` over a `holdFill` shared
+  value drives the swell AND the quarter accents AND the brightness blip, so
+  they cannot drift from the bar. An abandoned hold now leaks the swell away
+  rather than cutting it. `fireKeep` stays on its timer — that path carries
+  documented race fixes and was left alone.
+- `HAPTIC_AUDIO_PREVIEW` in `flags.ts` exposes Pulsar's audio simulation. NOT
+  left on Pulsar's own "on in debug" default: a debug build is also what runs
+  on a device with an OP-XY attached, and a tone per key press is intolerable
+  in a music app.
+
+Open questions, answered:
+
+- **Worklet from `useAnimatedReaction`, not just a gesture?** Yes. The composer
+  methods are plain `'worklet'` closures making a synchronous TurboModule call
+  — nothing gesture-specific. The temp key now drives one from a reaction.
+  Still wants a confirming feel on hardware.
+- **Simulator behaviour?** Better than hoped: Pulsar SYNTHESISES AUDIO from a
+  pattern's amplitude/frequency when the hardware can't vibrate, so haptic
+  design is finally reviewable on a simulator — the thing `expo-haptics` never
+  allowed. Whether an EAS Simulator session captures that audio is untested.
+- **Android?** Continuous is simulated via `RealtimeComposerStrategy`
+  (default `ENVELOPE_WITH_DISCRETE_PRIMITIVES`; the pure `ENVELOPE` path wants
+  API 36+). The ramp will not feel the same there. iOS-first, so accepted.
+- Still undocumented: minimum iOS version.
 - iOS/Android SDKs are 1.2.0 and the RN package ~1.6.x; the KMP/Flutter/Web
   targets are far earlier (0.0.3 / 0.2.0) but are irrelevant to us.
+
+Next on this thread: the DICE CHARGE, which is the case the research was opened
+for. `chargeTicks` still builds a `setTimeout` ladder that fakes intensity with
+rate; with the ramp primitive now shimmed in, the haptic can become a pure
+function of `charge.fill` in the same worklet `RingLed` already derives from.
+Keep `playDiscrete` for the tier accents and the heavy hit at the close.
+
+A second idea surfaced while exploring (2026-08-06): euxy's presets are
+explicitly rhythm-only ("NO preset depends on tonality" — `state/presets.ts`),
+and `usePatternComposer` takes exactly `{time, amplitude, frequency}` events,
+so a preset could be AUDITIONED AS VIBRATION with no OP-XY attached — long-press
+a row in the Patterns list, feel one bar. Onsets come from `patternForLane`,
+amplitude from `lane.velocity`, sharpness from the drum SLOT (not the note
+number — a role table reads correctly, a linear pitch map does not). Limits: one
+actuator, so simultaneous onsets must be merged rather than stacked; dense
+presets smear; polymeter means picking a window rather than the true LCM loop.
+It must be gated on `!transport.playing` or it becomes exactly the per-beat
+pulse the "never clock-synced" rule above forbids.
 
 If Pulsar does not work out, the manual path is Core Haptics
 (`CHHapticEngine` intensity/sharpness parameter curves) behind a small Expo

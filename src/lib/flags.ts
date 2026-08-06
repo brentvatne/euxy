@@ -30,3 +30,17 @@ export const EASE_TRANSPORT_PLAY = false;
  * since a stranded corner would be unmovable.
  */
 export const CAPSULE_DRAG = false;
+
+/**
+ * Pulsar's audio simulation of haptics (`Settings.enableSound`). Pulsar
+ * synthesises a tone from each haptic's amplitude/frequency and plays it when
+ * the hardware can't vibrate, which finally makes the haptic design REVIEWABLE
+ * on a simulator — the one thing `expo-haptics` could never be.
+ *
+ * OFF by default, and deliberately not left on Pulsar's own default (which is
+ * "on in debug builds"): a debug build is also what runs on a real device with
+ * an OP-XY plugged in, and a tone on every key press is intolerable in a music
+ * app. Flip this on for a simulator session where the haptics are what you are
+ * checking.
+ */
+export const HAPTIC_AUDIO_PREVIEW = false;

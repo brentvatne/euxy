@@ -74,7 +74,13 @@ import Svg, { Path } from "react-native-svg";
 import { playheadPlaying, playheadTick } from "@/core/playhead";
 import { useStore } from "@/state/store";
 import { CAPSULE_DRAG } from "@/lib/flags";
-import { GlassView, haptics, liquidGlassAvailable } from "@/lib/shims";
+import {
+  GlassView,
+  hapticRampAvailable,
+  haptics,
+  liquidGlassAvailable,
+  useHapticRamp,
+} from "@/lib/shims";
 import { color, ramp, timing } from "@/theme/tokens";
 import { Key } from "@/components/ui/key";
 
@@ -184,6 +190,25 @@ const ALL_CELLS: readonly (readonly [number, number])[] = [
 const HOLD_MS = 500;
 const TAP_MS = 250;
 const RING_DELAY_MS = 150;
+/**
+ * Keep-hold ramp (Pulsar). The hold is a door closing, so the haptic SWELLS
+ * with the bar instead of marking it with equal taps: amplitude climbs from
+ * AMP_FLOOR to AMP_FLOOR+AMP_SPAN and sharpness from SHARP_FLOOR up, so the
+ * feel gets both stronger AND crisper as the fill lands. The exponent puts the
+ * bite in the last third — a linear climb reads as "already loud" halfway
+ * through, which is precisely the "rate is not intensity" complaint the ramp
+ * exists to answer (ROADMAP §"Haptic language").
+ */
+const RAMP_AMP_FLOOR = 0.12;
+const RAMP_AMP_SPAN = 0.78;
+const RAMP_CURVE = 1.6;
+const RAMP_SHARP_FLOOR = 0.25;
+const RAMP_SHARP_SPAN = 0.55;
+/** Quarter accents ride ON TOP of the swell, so they climb with it too. */
+const RAMP_ACCENT_AMP = 0.45;
+const RAMP_ACCENT_AMP_STEP = 0.12;
+const RAMP_ACCENT_SHARP = 0.5;
+const RAMP_ACCENT_SHARP_STEP = 0.12;
 // Full bar height — the keep trace and armed rim wrap the whole capsule
 // (temp variant A, Brent's pick 2026-07-25).
 const BAR_H = KEY_SIZE + PAD * 2;
@@ -1642,6 +1667,61 @@ function TempKey({
 }) {
   const flash = useSharedValue(0);
   const dotPulse = useSharedValue(0);
+  /**
+   * The keep hold's HAPTIC clock — deliberately its own value rather than a
+   * second reader of `keepProgress`, because `keepProgress` is pinned at 0
+   * under Reduced Motion (no trace) and Reduced Motion is not Reduced Haptics
+   * (same rule the charge follows). Both are Reanimated timings started in the
+   * same call with the same durations on the same thread, so they are
+   * frame-locked: this is not the two-clocks problem it replaces, which was a
+   * JS timer racing a UI-thread animation.
+   */
+  const holdFill = useSharedValue(0);
+  // Destructured, not held as an object: the methods are stable, the object is
+  // not (see useHapticRamp).
+  const {
+    set: rampSet,
+    playDiscrete: rampAccent,
+    stop: rampStop,
+  } = useHapticRamp();
+
+  // The swell IS the fill. One value drives the bar you see and the haptic you
+  // feel, so the quarter accents cannot slip off the quarters they mark — the
+  // three JS `setTimeout`s this replaces drifted under exactly the load this
+  // bar generates (a dice roll churning every lane), the same starvation that
+  // once put the charge ring ~1.4s behind the finger.
+  useAnimatedReaction(
+    () => holdFill.value,
+    (fill, prev) => {
+      if (!hapticRampAvailable) return;
+      const was = prev ?? 0;
+      // Both ends are silent. 0 = no hold; 1 = the door is shut, and from
+      // there fireKeep's success notification is the resolution.
+      if (fill <= 0.001 || fill >= 0.999) {
+        if (was > 0.001 && was < 0.999) rampStop();
+        return;
+      }
+      rampSet(
+        RAMP_AMP_FLOOR + RAMP_AMP_SPAN * Math.pow(fill, RAMP_CURVE),
+        RAMP_SHARP_FLOOR + RAMP_SHARP_SPAN * fill,
+      );
+      // Accents ride on top of the swell — and only while FILLING, so the
+      // release drain fades out quietly instead of ticking backwards.
+      const quarter = Math.floor(fill * 4);
+      if (fill > was && quarter > Math.floor(was * 4) && quarter <= 3) {
+        rampAccent(
+          RAMP_ACCENT_AMP + RAMP_ACCENT_AMP_STEP * quarter,
+          RAMP_ACCENT_SHARP + RAMP_ACCENT_SHARP_STEP * quarter,
+        );
+        // The brightness blip now shares the accent's clock rather than
+        // running off its own timer.
+        keepTick.value = withSequence(
+          withTiming(1, { duration: 0 }),
+          withTiming(0, { duration: 150 }),
+        );
+      }
+    },
+  );
 
   const pressStart = useRef(0);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -1661,12 +1741,18 @@ function TempKey({
     if (!engaged) {
       keepProgress.value = 0;
       keepDrain.value = 0;
+      holdFill.value = 0;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engaged]);
 
   const fireKeep = () => {
     completed.current = true;
+    // Hard zero, not a drain: the swell has already been stopped by the
+    // reaction's 0.999 branch, and this leaves the clock clean for the next
+    // hold. (Belt and braces — this timer can land a few ms after the
+    // animation, and the guard makes the silence deterministic either way.)
+    holdFill.value = 0;
     haptics.success();
     if (reducedMotion) {
       onKeep();
@@ -1710,19 +1796,33 @@ function TempKey({
           }),
           withTiming(1, { duration: HOLD_MS, easing: Easing.linear }),
         );
-    // Faint tick at each trace quarter (selection haptic + a brightness blip).
-    [0.25, 0.5, 0.75].forEach((q) => {
-      timers.current.push(
-        setTimeout(
-          () => {
-            haptics.selection();
-            keepTick.value = 1;
-            keepTick.value = withTiming(0, { duration: 150 });
-          },
-          RING_DELAY_MS + HOLD_MS * q,
-        ),
+    if (hapticRampAvailable) {
+      // Hard zero first (unlike the trace above, which decays THROUGH zero for
+      // its own visual reasons): a re-press must cut the previous swell dead
+      // rather than let it ramp down while a new one ramps up.
+      holdFill.value = 0;
+      holdFill.value = withSequence(
+        withTiming(0, { duration: RING_DELAY_MS }),
+        withTiming(1, { duration: HOLD_MS, easing: Easing.linear }),
       );
-    });
+    } else {
+      // No Pulsar in this build — the original discrete schedule, unchanged:
+      // a faint tick at each trace quarter (selection haptic + brightness
+      // blip). Rate instead of intensity, but it is what every dev build that
+      // predates the dep already feels.
+      [0.25, 0.5, 0.75].forEach((q) => {
+        timers.current.push(
+          setTimeout(
+            () => {
+              haptics.selection();
+              keepTick.value = 1;
+              keepTick.value = withTiming(0, { duration: 150 });
+            },
+            RING_DELAY_MS + HOLD_MS * q,
+          ),
+        );
+      });
+    }
     timers.current.push(setTimeout(fireKeep, RING_DELAY_MS + HOLD_MS));
   };
 
@@ -1752,8 +1852,14 @@ function TempKey({
       completed.current = false;
       return;
     }
-    // Drain the trace back regardless — only a completed fill keeps.
+    // Drain the trace back regardless — only a completed fill keeps. The
+    // haptic clock drains with it, so an abandoned hold RELEASES: the swell
+    // leaks away under the finger instead of being cut off mid-vibration.
     keepProgress.value = withTiming(0, {
+      duration: 180,
+      easing: Easing.out(Easing.quad),
+    });
+    holdFill.value = withTiming(0, {
       duration: 180,
       easing: Easing.out(Easing.quad),
     });
@@ -1797,7 +1903,8 @@ function TempKey({
       onPressIn={onPressIn}
       onPressOut={onPressOut}
       // Press-in stays silent: this key's haptics ARE its resolutions
-      // (light = arm/jump-back, selection = ring quarters, success = keep).
+      // (light = arm/jump-back, a rising swell + quarter accents through the
+      // hold, success = keep).
       haptic="none"
       style={styles.btn}
       accessibilityRole="button"

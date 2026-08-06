@@ -1,9 +1,9 @@
 /**
  * Soft fallbacks for native modules that newer JS references but older dev
- * builds don't contain (expo-updates, expo-observe). Importing either package
- * throws "Cannot find native module …" on a build that predates it, which
- * would take down the whole bundle over Fast Refresh. These shims degrade to
- * no-ops with a console.warn instead — the same pattern as
+ * builds don't contain (expo-updates, expo-observe, react-native-pulsar).
+ * Importing any of them throws "Cannot find native module …" on a build that
+ * predates it, which would take down the whole bundle over Fast Refresh. These
+ * shims degrade to no-ops with a console.warn instead — the same pattern as
  * components/ui/keyboard.ts (react-native-keyboard-controller) and
  * state/persistence.ts (expo-sqlite).
  *
@@ -13,6 +13,7 @@
 import type { ComponentType } from 'react';
 
 import { clearPendingBootReload, markPendingBootReload } from '@/components/boot-signal';
+import { HAPTIC_AUDIO_PREVIEW } from '@/lib/flags';
 
 type UseUpdates = () => { isUpdatePending: boolean };
 type ReloadOptions = {
@@ -141,6 +142,22 @@ export const activateKeepAwake = (tag: string) => activateKeepAwakeImpl(tag);
 /** Release `tag`'s hold on the screen (idempotent, never throws). */
 export const deactivateKeepAwake = (tag: string) => deactivateKeepAwakeImpl(tag);
 
+// --- Haptics -------------------------------------------------------------
+// TWO engines, one API. `react-native-pulsar` is preferred and `expo-haptics`
+// is the fallback, because Pulsar is the newer native dep and every dev build
+// that predates it still has expo-haptics — so the discrete feel below is
+// IDENTICAL on both paths and nothing degrades on an older build.
+//
+// Identical is not a hope: Pulsar's `Presets.System.*` are thin wrappers over
+// the very same UIKit generators expo-haptics calls (`UIImpactFeedbackGenerator`,
+// `UINotificationFeedbackGenerator`, `UISelectionFeedbackGenerator` — see
+// iOS/Pulsar/Sources/Pulsar/Presets/SystemPresetsImpl.swift upstream), so the
+// system haptics toggle keeps working the way ROADMAP §"Haptic language"
+// assumes. What Pulsar ADDS is `useHapticRamp` below.
+//
+// Never run both at once: two engines bidding for one actuator is how you get
+// an inconsistent click. The try-order here is what guarantees only one wins.
+
 type ImpactStyle = 'light' | 'medium' | 'heavy' | 'soft' | 'rigid';
 type HapticsApi = {
   /** Key-press weight feedback (defaults to light). */
@@ -151,27 +168,87 @@ type HapticsApi = {
   warning: () => void;
 };
 
+/**
+ * A haptic you can STEER while it plays — the primitive `expo-haptics` has no
+ * expression for. `set` retargets an ongoing vibration; the engine starts on
+ * the first `set` and runs until `stop`.
+ *
+ * Every method is a worklet, and that is the entire point: the ramps this
+ * drives are Reanimated shared values on the UI thread, so putting the haptic
+ * back on a JS schedule would reintroduce exactly the drift it exists to fix.
+ * Call them from `useAnimatedReaction` / gesture callbacks, not from JS.
+ *
+ * `amplitude` is strength and `frequency` is SHARPNESS (not pitch) — both 0…1.
+ */
+export type HapticRamp = {
+  set: (amplitude: number, frequency: number) => void;
+  /** One transient accent on top of the ongoing ramp. */
+  playDiscrete: (amplitude: number, frequency: number) => void;
+  stop: () => void;
+};
+
 const noHaptics: HapticsApi = { impact: () => {}, selection: () => {}, success: () => {}, warning: () => {} };
+// The fallback ramp must be worklet-callable too — a caller in a worklet cannot
+// branch to a plain JS no-op. Module-level so the identity is stable.
+const noRamp: HapticRamp = {
+  set: () => {
+    'worklet';
+  },
+  playDiscrete: () => {
+    'worklet';
+  },
+  stop: () => {
+    'worklet';
+  },
+};
+
 let hapticsImpl = noHaptics;
+let useRampImpl: () => HapticRamp = () => noRamp;
+let rampAvailable = false;
+
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const h = require('expo-haptics');
-  const impactStyles: Record<ImpactStyle, unknown> = {
-    light: h.ImpactFeedbackStyle.Light,
-    medium: h.ImpactFeedbackStyle.Medium,
-    heavy: h.ImpactFeedbackStyle.Heavy,
-    soft: h.ImpactFeedbackStyle.Soft,
-    rigid: h.ImpactFeedbackStyle.Rigid,
+  const pulsar = require('react-native-pulsar');
+  const sys = pulsar.Presets.System;
+  const impacts: Record<ImpactStyle, () => void> = {
+    light: sys.impactLight,
+    medium: sys.impactMedium,
+    heavy: sys.impactHeavy,
+    soft: sys.impactSoft,
+    rigid: sys.impactRigid,
   };
-  // Fire-and-forget: feedback must never throw into a press handler.
   hapticsImpl = {
-    impact: (style = 'light') => void h.impactAsync(impactStyles[style]).catch(() => {}),
-    selection: () => void h.selectionAsync().catch(() => {}),
-    success: () => void h.notificationAsync(h.NotificationFeedbackType.Success).catch(() => {}),
-    warning: () => void h.notificationAsync(h.NotificationFeedbackType.Warning).catch(() => {}),
+    impact: (style = 'light') => impacts[style](),
+    selection: () => sys.selection(),
+    success: () => sys.notificationSuccess(),
+    warning: () => sys.notificationWarning(),
   };
+  // See flags.ts — NOT Pulsar's own "on in debug" default.
+  pulsar.Settings.enableSound(HAPTIC_AUDIO_PREVIEW);
+  useRampImpl = pulsar.useRealtimeComposer;
+  rampAvailable = true;
 } catch {
-  console.warn('[euxy] expo-haptics native module missing — haptics disabled on this build.');
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const h = require('expo-haptics');
+    const impactStyles: Record<ImpactStyle, unknown> = {
+      light: h.ImpactFeedbackStyle.Light,
+      medium: h.ImpactFeedbackStyle.Medium,
+      heavy: h.ImpactFeedbackStyle.Heavy,
+      soft: h.ImpactFeedbackStyle.Soft,
+      rigid: h.ImpactFeedbackStyle.Rigid,
+    };
+    // Fire-and-forget: feedback must never throw into a press handler.
+    hapticsImpl = {
+      impact: (style = 'light') => void h.impactAsync(impactStyles[style]).catch(() => {}),
+      selection: () => void h.selectionAsync().catch(() => {}),
+      success: () => void h.notificationAsync(h.NotificationFeedbackType.Success).catch(() => {}),
+      warning: () => void h.notificationAsync(h.NotificationFeedbackType.Warning).catch(() => {}),
+    };
+    console.warn('[euxy] react-native-pulsar missing — discrete haptics via expo-haptics, no ramps on this build.');
+  } catch {
+    console.warn('[euxy] no haptics native module — haptics disabled on this build.');
+  }
 }
 
 export const haptics: HapticsApi = {
@@ -180,6 +257,25 @@ export const haptics: HapticsApi = {
   success: () => hapticsImpl.success(),
   warning: () => hapticsImpl.warning(),
 };
+
+/**
+ * True when continuous haptics are available. Callers that own a ramp keep
+ * their old discrete schedule behind this so a build without Pulsar still
+ * feels the way it does today (ROADMAP: "today's rate-based escalation stays
+ * as the fallback for builds without the module").
+ */
+export const hapticRampAvailable = rampAvailable;
+
+/**
+ * Ongoing-haptic handle for this component. Safe to call unconditionally: on a
+ * build without Pulsar it returns worklet no-ops. Whether it does anything is
+ * `hapticRampAvailable`.
+ *
+ * Destructure the methods rather than holding the object — the returned
+ * methods are referentially stable but the object is not, and a reaction that
+ * closes over the object would be rebuilt on every render.
+ */
+export const useHapticRamp = (): HapticRamp => useRampImpl();
 
 let GlassViewImpl: ComponentType<Record<string, unknown>> | null = null;
 let liquidGlass = false;
