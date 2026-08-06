@@ -89,12 +89,12 @@ export default function SequencerScreen() {
   // build), and design-wise lanes should only power on when ADDED anyway.
   const isFirstRender = useIsFirstRender();
 
-  // Revert to loaded / Restore preset swap the WHOLE lane set in one go, so
-  // the list animations fire on a change nobody asked to watch: rows fade out
-  // and back in, and every surviving row slides to its new position. The
-  // screen reads as jumping around rather than as the pattern snapping back
-  // (TestFlight, build 75). Those two actions therefore apply in a QUIET
-  // commit.
+  // Revert to loaded / Restore preset / the temp key's revert swap the WHOLE
+  // lane set in one go, so the list animations fire on a change nobody asked
+  // to watch: rows fade out and back in, and every surviving row slides to
+  // its new position. The screen reads as jumping around rather than as the
+  // pattern snapping back (TestFlight, build 75). Those actions therefore
+  // apply in a QUIET commit.
   //
   // It takes frames, not one flag: Reanimated hands each row's entering /
   // exiting / layout config to the native side from componentDidUpdate, so a
@@ -343,7 +343,9 @@ export default function SequencerScreen() {
               commitChargeRoll();
             }}
             onArm={armSnapshot}
-            onRevert={revertSnapshot}
+            // Restores a state you already know, same as revert / restore
+            // above — the swap snaps instead of animating.
+            onRevert={() => applyQuietly(revertSnapshot)}
             onKeep={keepSnapshot}
           />
         ) : null}
