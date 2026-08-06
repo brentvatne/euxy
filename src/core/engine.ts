@@ -14,7 +14,11 @@
  *  - Jam: the app is clock master. It advances the global tick from its own
  *    tempo and sends 0xF8 clock + Start/Stop + lane notes.
  *  - Record: the app is a slave. It advances the tick from inbound 0xF8, resets
- *    to 0 on inbound Start, and halts on Stop. No app-side transport.
+ *    to 0 on inbound Start, and halts on Stop. No app-side transport. Record
+ *    mode is ONE TAKE: a Stop that ends a take that actually recorded switches
+ *    back to Jam, because the device keeps streaming clock afterwards and a
+ *    second Start would otherwise layer another take on the first. A Stop
+ *    before recording begins is an abort and stays in Record.
  *
  * Panic: CC120 (All Sound Off) + CC123 (All Notes Off) on active channels, plus
  * explicit note-offs for every outstanding note.
@@ -408,14 +412,43 @@ class Engine {
         useStore.getState().setRecordPhase('recording');
         setPlayhead(this.currentTick, true);
         break;
-      case 'stop':
+      case 'stop': {
+        // Did this take get past the count-in? A Stop while still 'armed' or
+        // counting in is an ABORT, not a finished take, and dropping out of
+        // record mode there would fight the user re-triggering it on the
+        // device. Only a take that actually recorded hands the clock back.
+        const recorded = useStore.getState().transport.recordPhase === 'recording';
         this.running = false;
         this.panic();
-        useStore.getState().setRecordPhase('armed');
-        // Hold the position (device may Continue) and keep it visible.
-        setPlayhead(this.currentTick, this.currentTick > 0);
-        log('rec stop', '');
+        if (!recorded) {
+          useStore.getState().setRecordPhase('armed');
+          // Hold the position (device may Continue) and keep it visible.
+          setPlayhead(this.currentTick, this.currentTick > 0);
+          log('rec stop', 'aborted before recording');
+          break;
+        }
+        // A finished take returns the clock to us (Brent, 2026-08-06). Staying
+        // in record leaves us slaved to a device that streams 0xF8 CONTINUOUSLY
+        // — see the clock case below — so the next Start or Continue from the
+        // OP-XY would run the sequencer again and layer another take on top of
+        // the one just captured. Jam mode is also where you audition it.
+        //
+        // Both calls in this order: `stop()` first so the app transport cannot
+        // be left reading "playing" with no scheduler behind it (the mode
+        // branch of subscribeStore only restarts a run that is still live, and
+        // `running` is already false above). `setClockMode` then resets
+        // recordPhase / countInBeat itself.
+        const s = useStore.getState();
+        s.stop();
+        s.setClockMode('jam');
+        // Not the held position: Continue is no longer honoured once we are out
+        // of record mode, so there is nothing left for it to resume. Rewinding
+        // matches what a mode switch does while running, and leaves Play ready
+        // to audition the take from the top.
+        this.resetToStart();
+        log('rec stop', 'take finished — clock handed back, jam mode');
         break;
+      }
       case 'clock': {
         // Measure the device tempo even while stopped — many devices stream
         // clock continuously. 24 ticks per quarter. See clockStamps for why
