@@ -22,7 +22,7 @@
  *   • `Dark`  — the black dot, shown only while the current step is a HIT
  * Blocks render once; NOTHING re-renders on the tick.
  */
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { useIsFirstRender } from '@/lib/use-is-first-render';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useDerivedValue, useReducedMotion } from 'react-native-reanimated';
@@ -100,7 +100,41 @@ function Led({ ignite }: { ignite: boolean }) {
  * back. Re-measured on every onLayout, so a real width change still wins. */
 let lastStripWidth = 0;
 
-export function StepStrip({ lane, washDelay = 0, active = true }: StepStripProps) {
+/**
+ * The lane fields this strip actually draws from: `patternForLane`'s inputs
+ * plus the two the playhead overlay reads (`resolutionTicks`, `length`).
+ * Velocity, gate, note, channel, name, mute and solo are all invisible here.
+ */
+function sameRhythm(a: Lane, b: Lane): boolean {
+  return (
+    a.length === b.length &&
+    a.trackRot === b.trackRot &&
+    a.op === b.op &&
+    a.resolutionTicks === b.resolutionTicks &&
+    a.genA.pulses === b.genA.pulses &&
+    a.genA.rotation === b.genA.rotation &&
+    a.genB.pulses === b.genB.pulses &&
+    a.genB.rotation === b.genB.rotation
+  );
+}
+
+/**
+ * Memoized on the RHYTHM, not on the lane object. Every store write clones the
+ * active pattern, so a plain `memo` would never hit — and dragging Velocity or
+ * Gate in the Lane Editor would repaint every Skia canvas in the sequencer
+ * behind the sheet for a change that cannot alter a single pixel here. The
+ * engine's MIDI buffer is 100ms deep and refilled from the JS thread, so that
+ * work came straight out of playback (Brent, 2026-08-06).
+ */
+export const StepStrip = memo(StepStripBase, (prev, next) => {
+  return (
+    prev.washDelay === next.washDelay &&
+    prev.active === next.active &&
+    sameRhythm(prev.lane, next.lane)
+  );
+});
+
+function StepStripBase({ lane, washDelay = 0, active = true }: StepStripProps) {
   const pattern = patternForLane(lane);
   const n = pattern.length;
   const [width, setWidth] = useState(lastStripWidth);
