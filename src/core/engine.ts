@@ -19,8 +19,11 @@
  * Panic: CC120 (All Sound Off) + CC123 (All Notes Off) on active channels, plus
  * explicit note-offs for every outstanding note.
  */
+import { AppState } from 'react-native';
+
 import { laneStepAt } from '@/core/euclid';
 import { midiOut } from '@/components/midi/runtime';
+import { logObserveEvent } from '@/lib/shims';
 import type { InboundEvent, MidiPort } from '@/midi/types';
 import { laneAudible, patternForLane, selectActivePattern } from '@/state/selectors';
 import { useStore } from '@/state/store';
@@ -64,6 +67,7 @@ class Engine {
 
   private unsubscribeInbound: (() => void) | null = null;
   private storeSubscribed = false;
+  private appStateSubscribed = false;
   private lastPlaying = false;
   private lastMode: 'jam' | 'record' = 'jam';
 
@@ -105,6 +109,7 @@ class Engine {
     this.port.init().catch(() => {});
     this.unsubscribeInbound = this.port.onInbound((e) => this.onInbound(e));
     this.subscribeStore();
+    this.subscribeAppState();
   }
 
   getPort(): MidiPort {
@@ -149,6 +154,48 @@ class Engine {
         if (playing) this.start();
         else this.pause();
       }
+    });
+  }
+
+  /**
+   * Stop cleanly before iOS suspends us — the fix for "play does nothing after
+   * the phone sleeps, and only power-cycling the OP-XY brings it back".
+   *
+   * In jam mode this app is the clock master. The app has no UIBackgroundModes,
+   * so the screen locking suspends the process and the 24 PPQN stream simply
+   * STOPS mid-bar with no 0xFC ever sent. A follower left waiting on an
+   * external clock that never ticks again is wedged, and nothing the app does
+   * on the way back in un-wedges it: relaunching rebuilds the CoreMIDI client
+   * but the device's own transport state survives it. Sending Stop while we
+   * still have a run loop is the whole fix.
+   *
+   * Position is dropped as well (`resetToStart`): after a suspend the device
+   * has lost the beat, so the next play must be a Start (0xFA) from zero, not
+   * the Continue (0xFB) that `start()` sends from a held `resumeTick` — a
+   * "resume where you were" to a device that no longer knows where that is.
+   *
+   * 'background' ONLY, never 'inactive': a Control Centre swipe, a notification
+   * banner or the app switcher all fire 'inactive' without suspending anything,
+   * and stopping the jam for those would be its own bug.
+   */
+  private subscribeAppState(): void {
+    if (this.appStateSubscribed) return;
+    this.appStateSubscribed = true;
+    AppState.addEventListener('change', (state) => {
+      if (state !== 'background' || !this.running) return;
+      // Through the store, so the transport button comes back showing stopped
+      // rather than a Play that silently pauses on the first press. The
+      // subscription above turns this into pause() — 0xFC plus a panic —
+      // synchronously, while the process is still alive to send it.
+      const mode = useStore.getState().transport.clockMode;
+      useStore.getState().stop();
+      this.resetToStart();
+      // The one part of this fix that cannot be verified without hardware is
+      // whether iOS reliably delivers 'background' BEFORE suspending us. If it
+      // does not, this event simply will not appear on the sessions where the
+      // device still ends up wedged — which is the measurement.
+      logObserveEvent('transport.background_stop', { attributes: { mode } });
+      log('background stop', 'suspending — sent Stop and rewound');
     });
   }
 

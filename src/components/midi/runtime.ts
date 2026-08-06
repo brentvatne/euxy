@@ -23,6 +23,7 @@ import { AppState } from 'react-native';
 import { logObserveEvent } from '@/lib/shims';
 import { createMidiPort } from '@/midi/port';
 import type { MidiDevice, MidiPort } from '@/midi/types';
+import { selectActivePattern } from '@/state/selectors';
 import { useStore } from '@/state/store';
 
 const MAX_LOG = 100;
@@ -199,6 +200,39 @@ export function refreshDevices() {
   update({ outputs, inputs });
 }
 
+/** The endpoint currently bound NATIVELY, which is not the same thing as the
+ * stored selection: `reconcileSelection` re-binds the same id on every
+ * foreground and on every watchdog drift check. `undefined` until the first
+ * bind, so a launch that restores a persisted device still counts as new. */
+let boundOutputId: string | null | undefined = undefined;
+
+/**
+ * Bind an output and, when the binding is genuinely NEW, put the device into a
+ * known transport state: Stop, then All Notes Off on every channel the pattern
+ * uses (the same channel set `engine.panic()` derives).
+ *
+ * This is the RECOVERY half of the background-stop fix in core/engine.ts. If a
+ * follower was left wedged — waiting on an external clock that stopped without
+ * a 0xFC, which is what a suspend used to do — relaunching the app previously
+ * did nothing for it, because connecting re-binds the endpoint and sends no
+ * transport message at all. Only power-cycling the device helped (Brent,
+ * 2026-08-06). A Stop on a fresh bind makes restarting the app a real fix.
+ *
+ * Guarded twice, because this must never interrupt a live jam: only on an
+ * actual change of endpoint, and never while the transport is playing.
+ */
+function bindOutput(id: string | null) {
+  midi.selectOutput(id);
+  const isNewBinding = id !== boundOutputId;
+  boundOutputId = id;
+  if (!isNewBinding || id == null) return;
+  if (useStore.getState().transport.playing) return;
+  midiOut.sendStop();
+  const channels = new Set(selectActivePattern(useStore.getState()).lanes.map((l) => l.channel & 0x0f));
+  if (channels.size === 0) channels.add(0);
+  channels.forEach((ch) => midiOut.allNotesOff(ch));
+}
+
 /**
  * Re-apply the selection after the device set changes. Endpoint ids change
  * when a device is replugged, so a stored id can go stale even though "the
@@ -214,7 +248,7 @@ function reconcileSelection() {
 
   const curOut = s.settings.outputId;
   if (curOut && outputs.some((d) => d.id === curOut)) {
-    midi.selectOutput(curOut);
+    bindOutput(curOut);
   } else {
     const pick = outputs.find((d) => isOpXy(d.name))?.id ?? null;
     if (pick !== curOut) selectOutput(pick);
@@ -270,7 +304,7 @@ export async function enableMidi(): Promise<boolean> {
 let loggedOutputId: string | null | undefined;
 
 export function selectOutput(id: string | null) {
-  midi.selectOutput(id);
+  bindOutput(id);
   useStore.getState().setOutput(id);
   if (id === loggedOutputId) return;
   const hadDevice = typeof loggedOutputId === 'string';
