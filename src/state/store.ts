@@ -38,6 +38,37 @@ let snapshotPatternId: string | null = null;
 const cloneLanes = (lanes: Lane[]): Lane[] =>
   lanes.map((l) => ({ ...l, genA: { ...l.genA }, genB: { ...l.genB } }));
 
+/** Every lane field that makes a lane sound the way it does. */
+const LANE_FIELDS = [
+  'name',
+  'length',
+  'op',
+  'trackRot',
+  'note',
+  'channel',
+  'velocity',
+  'gateMs',
+  'resolutionTicks',
+  'muted',
+  'solo',
+] as const;
+
+/** Field-by-field, not JSON: lane objects are rebuilt by spreads all over the
+ * store, so key order is not something to compare on. */
+const lanesEqual = (a: Lane[], b: Lane[]): boolean =>
+  a.length === b.length &&
+  a.every((l, i) => {
+    const o = b[i];
+    return (
+      l.id === o.id &&
+      LANE_FIELDS.every((k) => l[k] === o[k]) &&
+      l.genA.pulses === o.genA.pulses &&
+      l.genA.rotation === o.genA.rotation &&
+      l.genB.pulses === o.genB.pulses &&
+      l.genB.rotation === o.genB.rotation
+    );
+  });
+
 /** Pattern switch/load/delete keeps whatever is live — the snapshot goes. */
 const discardSnapshot = () => {
   snapshotLanes = null;
@@ -58,6 +89,18 @@ let loadedPatternId: string | null = null;
 const noteLoaded = (p: Pattern) => {
   loadedLanes = cloneLanes(p.lanes);
   loadedPatternId = p.id;
+};
+
+/**
+ * True while the active pattern's lanes differ from the state it was loaded in
+ * — i.e. there is something for "Save copy & revert" to keep. Reads the same
+ * module-level slot revertToLoaded uses, which only ever moves alongside a
+ * store change, so a plain selector re-evaluates at the right moments.
+ */
+export const selectHasLaneEdits = (s: AppState): boolean => {
+  const p = s.patterns.find((x) => x.id === s.activePatternId);
+  if (!p || loadedPatternId !== p.id || !loadedLanes) return false;
+  return !lanesEqual(p.lanes, loadedLanes);
 };
 
 /** One small musical nudge: rotate/±pulse a generator, or rotate the track. */
@@ -255,6 +298,13 @@ export interface AppState {
   /** Swap the active pattern's lanes with the state it had when it became
    * active this session (§15 pattern menu; swap = a second use undoes it). */
   revertToLoaded: () => void;
+  /**
+   * Keep BOTH sides of a session's edits: the lanes as they stand now are
+   * saved as a new pattern in the library, and the active pattern goes back to
+   * the state it was loaded in. Returns the new pattern's id, or null when
+   * there is nothing to keep (no edits since load).
+   */
+  saveCopyAndRevert: () => string | null;
   /** Re-roll one lane's generative params (pulses/rotation/genB/op). */
   randomizeLane: (id: string) => void;
   /** Nudge the active pattern slightly (KeyStep-style mutate). */
@@ -482,6 +532,30 @@ export const useStore = create<AppState>((set, get) => {
         selection: { laneId: null },
         gridFx: { nonce: (st.gridFx?.nonce ?? 0) + 1, kind: 'revert' },
       }));
+    },
+    saveCopyAndRevert: () => {
+      const s = get();
+      const p = s.patterns.find((x) => x.id === s.activePatternId);
+      // Same guard as revertToLoaded, plus: with no edits the copy would be a
+      // plain duplicate and the revert a no-op, so there is nothing to do.
+      if (!p || loadedPatternId !== p.id || !loadedLanes) return null;
+      if (lanesEqual(p.lanes, loadedLanes)) return null;
+      // The clone reads live state, so it carries the EDITED lanes — and it
+      // lands at the top of the library rather than becoming active, because
+      // what stays under your hands is the pattern you were already on.
+      const copyId = get().duplicatePattern(p.id);
+      const restored = loadedLanes;
+      // NOT revertToLoaded's swap: the edited lanes are a saved pattern now,
+      // so the slot has nothing left to hold and "no edits since load" is
+      // true again — which is what hides this action until you edit again.
+      loadedLanes = cloneLanes(restored);
+      mutateActive((pp) => ({ ...pp, lanes: restored }));
+      set((st) => ({
+        mutateVersion: st.mutateVersion + 1,
+        selection: { laneId: null },
+        gridFx: { nonce: (st.gridFx?.nonce ?? 0) + 1, kind: 'revert' },
+      }));
+      return copyId;
     },
     randomizeLane: (id) =>
       mutateLane(id, (l) => {
