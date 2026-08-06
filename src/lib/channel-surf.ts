@@ -7,6 +7,9 @@
  * for display (same guarded-require pattern as lib/shot-rig.ts). The same
  * store keeps the recently surfed-to channels behind the sheet's quick picks.
  */
+import { router } from 'expo-router';
+
+import { postNotice } from './notice';
 import {
   checkForUpdateAsync,
   fetchUpdateAsync,
@@ -139,6 +142,68 @@ export const surfedIntoChannel: string | null = (() => {
 export type SurfPhase = 'checking' | 'downloading' | 'reloading';
 
 /**
+ * How long to let a sheet's dismissal finish before reloading. The dismissal
+ * has to be OFF SCREEN, not merely dispatched — see `dismissPresentedSheets`.
+ * iOS's form-sheet dismissal is ~350ms; the margin is cheap next to a reload.
+ */
+const SHEET_DISMISS_MS = 500;
+
+/**
+ * Take down any presented form sheet BEFORE the reload — the single most
+ * important line in this file.
+ *
+ * reloadUpdateAsync rebuilds the React root under UIKit. If a form sheet is
+ * presented when that happens, react-native-screens' `setModalViewControllers`
+ * can return through one of three paths that never reach `afterTransitions()`
+ * (RNSScreenStack.mm:446-494 — a `presentViewController:` whose completion
+ * never runs, `previous.beingDismissed`, or a nil transitionCoordinator), and
+ * its `_updatingModals` re-entrancy latch (`:376-380`) is then stuck YES for
+ * the life of the stack. Every later form sheet — Lane Editor, Tempo, Share —
+ * mounts in JS and silently never presents.
+ *
+ * EAS Observe caught this in the field: a surf from this sheet on 2026-07-30
+ * was followed by a lane_editor.opened that stayed mounted 29 minutes without
+ * ever being seen, while a reload with nothing presented, six seconds earlier
+ * in the same session, left sheets working normally.
+ */
+async function dismissPresentedSheets(): Promise<void> {
+  try {
+    if (!router.canDismiss()) return;
+    router.dismissAll();
+  } catch {
+    // Never let navigation bookkeeping block a switch the user asked for.
+    return;
+  }
+  await new Promise((resolve) => setTimeout(resolve, SHEET_DISMISS_MS));
+}
+
+/**
+ * Follow a channel link: apply the override and reload, reporting through the
+ * notice banner. Fire-and-forget at module level ON PURPOSE — the route that
+ * starts this navigates away to the tabs on the same frame, so the work must
+ * not be tied to a component's lifetime the way the sheet's effect was.
+ *
+ * Idempotent per channel because iOS replays the launch URL after a reload.
+ */
+const linkSurfsStarted = new Set<string>();
+
+export function startChannelLinkSurf(channel: string): void {
+  if (linkSurfsStarted.has(channel)) return;
+  linkSurfsStarted.add(channel);
+  void (async () => {
+    try {
+      const applied = await surfToChannelAsync(channel, () => {});
+      // The applied path reloads the JS out from under us; only the
+      // no-compatible-update outcome gets here.
+      if (!applied) postNotice(`NO UPDATE ON ${channel.toUpperCase()} · OVERRIDE SAVED`);
+    } catch (e) {
+      const reason = e instanceof Error ? e.message : String(e);
+      postNotice(`CHANNEL SWITCH FAILED · ${reason.toUpperCase()}`);
+    }
+  })();
+}
+
+/**
  * Override the channel (null = back to the build channel), then
  * check → fetch → reload. Returns false when the target channel has no
  * compatible update: the override is still saved (future checks use it)
@@ -159,6 +224,8 @@ export async function surfToChannelAsync(
   onPhase('downloading');
   await fetchUpdateAsync();
   onPhase('reloading');
+  // Off screen BEFORE the reload, or every form sheet in the app dies with it.
+  await dismissPresentedSheets();
   // The launch URL comes back after the reload, so the link that started this
   // switch runs again on the bundle it switched into. Leave the target behind
   // for that launch to find (`surfedIntoChannel`) instead of re-surfing.

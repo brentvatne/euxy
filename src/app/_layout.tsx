@@ -14,6 +14,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BootSplash } from '@/components/boot-splash';
 import { enableMidi } from '@/components/midi/runtime';
 import { KeyboardProvider } from '@/components/ui/keyboard';
+import { NoticeBanner } from '@/components/ui/notice-banner';
 import { configureObserve, wrapWithObserveRoot } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { useShotRig } from '@/lib/shot-rig';
@@ -100,18 +101,21 @@ function RootLayout() {
             name="channel-surf"
             options={{ ...sheetOptions, sheetAllowedDetents: [0.6] }}
           />
-          {/* Same sheet, reached by a channel link (euxy://c/<channel>) that
-              carries the channel to switch to — see c/[channel].tsx. It belongs
-              in THIS Stack, not the MIDI tab's: the anchor declared above keeps
-              the tabs mounted under it however the link arrives. */}
-          <Stack.Screen
-            name="c/[channel]"
-            options={{ ...sheetOptions, sheetAllowedDetents: [0.6] }}
-          />
+          {/* The channel link (euxy://c/<channel>). Deliberately NOT a sheet:
+              a form sheet presented across an expo-updates reload latches
+              react-native-screens' _updatingModals flag and no sheet in the app
+              can ever present again (see c/[channel].tsx). This route applies
+              the override and pops straight back to the tabs, so nothing is
+              presented when the reload lands. It stays in THIS Stack because
+              the anchor declared above guarantees a screen to pop back to. */}
+          <Stack.Screen name="c/[channel]" options={{ animation: 'none' }} />
           {/* NOTE: the shared-pattern sheet (/p) is NOT here — it lives in the
               Patterns tab's stack so an incoming link opens the library it is
               about. See app/(tabs)/(patterns)/_layout.tsx. */}
         </Stack>
+        {/* Transient status line (channel switches today). Above the Stack,
+            below the boot overlay, pointerEvents 'none' always. */}
+        <NoticeBanner />
         {/* LED power-on: a pure LAYER over the live app — the Stack above
             always renders (never conditionally hidden behind the boot), so
             the fade reveals UI that was already there. BootSplash holds the

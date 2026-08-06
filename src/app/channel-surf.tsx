@@ -1,37 +1,35 @@
 /**
  * Channel surf sheet (Paper C3Y-0) — hidden debug UI for switching the EAS
  * Update channel at runtime. Opened by long-pressing the Diagnostics section
- * header on the MIDI tab, or by a channel deep link (`euxy://c/<channel>`,
- * registered at app/c/[channel].tsx) which arrives with its target
- * channel and starts the switch on open. A switch reloads the app and iOS
- * replays the launch URL, so that same link opens this sheet once more on the
- * bundle it switched into; that arrival is reported (`SWITCHED TO …`) rather
- * than surfed a second time — see `surfedIntoChannel`.
- * Device-screen panel shows the running update
- * (channel · runtime · id) plus a terminal-style input for the target
- * channel; quick-pick chips offer the channels surfed to most recently on this
- * install, backfilled with the defaults. Fetch & reload runs
- * set-override → check → fetch → reload; the no-update and error outcomes
- * land in the panel's status line. Real surfing needs a release build —
- * dev clients show UPDATES DISABLED and the button stays off.
+ * header on the MIDI tab, and ONLY that way: the channel deep link
+ * (`euxy://c/<channel>`) used to render this same sheet, but a form sheet that
+ * is still presented when expo-updates reloads kills every later sheet
+ * presentation in the app, so the link is headless now and reports through the
+ * notice banner instead (app/c/[channel].tsx).
+ *
+ * Device-screen panel shows the running update (channel · runtime · id) plus a
+ * terminal-style input for the target channel; quick-pick chips offer the
+ * channels surfed to most recently on this install, backfilled with the
+ * defaults. Fetch & reload runs set-override → check → fetch → reload; the
+ * no-update and error outcomes land in the panel's status line. The reload path
+ * dismisses this sheet first — see `dismissPresentedSheets` in
+ * lib/channel-surf.ts, which is load-bearing, not tidiness. Real surfing needs
+ * a release build — dev clients show UPDATES DISABLED and the button stays off.
  */
 import Constants from 'expo-constants';
-import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
 import { AppText } from '@/components/ui';
 import { KeyboardAwareScrollView } from '@/components/ui/keyboard';
-import { parseChannelLink } from '@/lib/channel-link';
 import {
   getChannelOverrideRecord,
   getQuickPickChannels,
-  surfedIntoChannel,
   surfToChannelAsync,
   type SurfPhase,
 } from '@/lib/channel-surf';
-import { haptics, logObserveEvent, updatesInfo } from '@/lib/shims';
+import { haptics, updatesInfo } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { color, radius, space } from '@/theme/tokens';
 
@@ -63,37 +61,17 @@ const placeholder = {
 
 export default function ChannelSurfSheet() {
   useMarkInteractive();
-  // Present only on the deep-link route (/c/<channel>); undefined when the
-  // sheet was opened from Diagnostics. `linked` is null for a damaged link.
-  const { channel: linkParam } = useLocalSearchParams<{ channel?: string }>();
-  const linked = parseChannelLink(linkParam);
-  // This launch IS the result of following this link: the switch ran, reloaded,
-  // and iOS handed the same URL back. Nothing left to do but say so.
-  const arrived = linked != null && linked === surfedIntoChannel;
   const [override, setOverride] = useState(getChannelOverrideRecord);
   const [quickPicks, setQuickPicks] = useState(getQuickPickChannels);
-  // Null until the prompt is edited (or a chip tapped), so the field follows
-  // the link's channel — including a second link that reuses this sheet —
-  // without an effect writing state back into it.
+  // Null until the prompt is edited (or a chip tapped), so the field starts on
+  // the saved override without an effect writing state back into it.
   const [typed, setTyped] = useState<string | null>(null);
   const [phase, setPhase] = useState<SurfPhase | 'idle'>('idle');
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const busy = phase !== 'idle';
-  const value = typed ?? linked ?? override ?? '';
+  const value = typed ?? override ?? '';
   const target = value.trim();
-
-  /** What became of a link — the link param is its only input. */
-  const linkNotice =
-    linkParam === undefined
-      ? null
-      : !linked
-        ? 'LINK CHANNEL INVALID'
-        : arrived
-          ? `SWITCHED TO ${linked.toUpperCase()}`
-          : !surfable
-            ? `LINK ${linked.toUpperCase()} · ${updatesInfo.isEnabled ? 'DEV CLIENT' : 'UPDATES UNAVAILABLE'}`
-            : null;
 
   const surf = async (channel: string | null) => {
     setError(null);
@@ -121,41 +99,11 @@ export default function ChannelSurfSheet() {
     }
   };
 
-  // Following a channel link IS the request to switch, so there is no confirm
-  // step — same reasoning as the shared-pattern receipt (/p). Keyed on the
-  // channel, not on the mount, because Expo Router can reuse this sheet when a
-  // second link arrives; the applied path reloads the JS, so a successful switch
-  // never comes back here. `linkNotice` covers the outcomes this skips (damaged
-  // link, nothing to surf on this build, a switch this launch already applied).
-  useEffect(() => {
-    if (linkParam === undefined) return;
-    if (!linked) {
-      logObserveEvent('channel_surf.link_invalid', { severity: 'warn' });
-      return;
-    }
-    // The replayed link of a switch that already landed: surfing again would
-    // set the same override and check the channel the app is now running, so
-    // the panel just reports the result.
-    if (arrived) {
-      logObserveEvent('channel_surf.link_arrived', { attributes: { channel: linked } });
-      return;
-    }
-    // Run from a frame callback, not straight out of the effect: the panel
-    // paints its target channel before check → fetch → reload takes over, and
-    // the cleanup cancels a switch the sheet was dismissed before starting.
-    const frame = requestAnimationFrame(() => {
-      logObserveEvent('channel_surf.link_opened');
-      if (surfable) void surf(linked);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [arrived, linked, linkParam]);
-
   const status = error
     ? `ERR ${error}`
     : phase !== 'idle'
       ? PHASE_TEXT[phase]
       : (notice ??
-        linkNotice ??
         (!surfable
           ? updatesInfo.isEnabled
             ? 'DEV CLIENT · PLACEHOLDER DATA'
