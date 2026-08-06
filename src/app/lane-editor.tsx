@@ -11,6 +11,8 @@
  * Section headers use the current-iOS style (title case 17/22 semibold), like
  * the MIDI screen; the leading Sound group is headerless (its rows name
  * themselves). No Steps|Graph toggle — the combined card is the only view.
+ * Edits apply live so you hear them against the running pattern; Done keeps
+ * them and Cancel puts the lane back the way it opened (see `cancel`).
  */
 import { useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
@@ -147,6 +149,7 @@ export default function LaneEditorSheet() {
   const laneId = useStore((s) => s.selection.laneId);
   const lane = useLane(laneId);
   const updateLane = useStore((s) => s.updateLane);
+  const restoreLane = useStore((s) => s.restoreLane);
   const updateGenerator = useStore((s) => s.updateGenerator);
   const setLaneOp = useStore((s) => s.setLaneOp);
   const removeLane = useStore((s) => s.removeLane);
@@ -182,10 +185,14 @@ export default function LaneEditorSheet() {
   const firstLane = useRef<Lane | null>(null);
   const lastLane = useRef<Lane | null>(null);
   const deletedLane = useRef(false);
+  const cancelled = useRef(false);
   useEffect(() => {
     if (!lane) return;
     if (firstLane.current == null) firstLane.current = lane;
-    lastLane.current = lane;
+    // After a Cancel the lane goes back to `firstLane`, which would read as an
+    // untouched session — keep the pre-revert lane so the diff below still
+    // reports what the session actually moved.
+    if (!cancelled.current) lastLane.current = lane;
   }, [lane]);
   useEffect(() => {
     openedAt.current = Date.now();
@@ -202,6 +209,10 @@ export default function LaneEditorSheet() {
           fields: touched.map((f) => f.key).join(',') || 'none',
           field_count: touched.length,
           deleted: deletedLane.current,
+          // Those fields were moved and then thrown away — a session that
+          // ends in Cancel says something different about the edit than one
+          // that ends in Done.
+          cancelled: cancelled.current,
         },
       });
     };
@@ -232,6 +243,27 @@ export default function LaneEditorSheet() {
       clearTimeout(timeout);
     };
   }, [listening, laneId, updateLane]);
+
+  /**
+   * Cancel undoes the whole session. Every control on this sheet applies LIVE
+   * (sliders have to be heard against the running pattern), so the only way
+   * Cancel can mean anything is to put the lane back the way it opened —
+   * sliders, note, track, Randomize, Listen and all. Same contract the Tempo
+   * and Change Icon sheets already keep; this sheet was the one that just
+   * dismissed. Done keeps the edits.
+   *
+   * Reference inequality IS the dirty check: every store write replaces the
+   * lane object, and a session that touched nothing never wrote one.
+   * Deleting the lane closes the sheet itself, so Cancel never runs after it.
+   */
+  const cancel = () => {
+    const opened = firstLane.current;
+    if (opened && lastLane.current !== opened) {
+      cancelled.current = true;
+      restoreLane(opened.id, opened);
+    }
+    router.back();
+  };
 
   if (!lane) {
     return (
@@ -290,7 +322,7 @@ export default function LaneEditorSheet() {
     <View style={styles.root}>
       {/* Paper 16Z-0: 13px "sheet top" band the native grabber floats over. */}
       <View style={styles.grabberSpace} />
-      <SheetHeader title="Edit Lane" onCancel={() => router.back()} onDone={() => router.back()} />
+      <SheetHeader title="Edit Lane" onCancel={cancel} onDone={() => router.back()} />
 
       {/* The pinned card is an absolute OVERLAY above the scroll view (not a
           flex sibling), so the scroll viewport's frame never changes when the

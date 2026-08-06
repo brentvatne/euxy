@@ -238,6 +238,13 @@ export interface AppState {
   addLane: (overrides?: Partial<Lane>) => string;
   removeLane: (id: string) => void;
   updateLane: (id: string, patch: Partial<Lane>) => void;
+  /**
+   * Put one lane back to a snapshot taken earlier (the Lane Editor's Cancel).
+   * A whole-lane REPLACE, not a patch: `updateLane` merges, so a field the
+   * snapshot doesn't carry as a key — `name` on an unnamed lane — would
+   * survive the restore. No-op if the lane is gone (deleted while open).
+   */
+  restoreLane: (id: string, lane: Lane) => void;
   updateGenerator: (id: string, gen: 'genA' | 'genB', patch: Partial<Lane['genA']>) => void;
   setLaneOp: (id: string, op: CombineOp) => void;
   toggleMute: (id: string) => void;
@@ -424,6 +431,7 @@ export const useStore = create<AppState>((set, get) => {
     },
     removeLane: (id) => mutateActive((p) => ({ ...p, lanes: p.lanes.filter((l) => l.id !== id) })),
     updateLane: (id, patch) => mutateLane(id, (l) => ({ ...l, ...patch })),
+    restoreLane: (id, lane) => mutateLane(id, () => ({ ...lane, id })),
     updateGenerator: (id, gen, patch) => mutateLane(id, (l) => ({ ...l, [gen]: { ...l[gen], ...patch } })),
     setLaneOp: (id, op) => mutateLane(id, (l) => ({ ...l, op })),
     // Mute edits the EFFECTIVE mix. With no solo it's a plain flag flip. While
