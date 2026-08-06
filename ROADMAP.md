@@ -1399,16 +1399,18 @@ and `bindOutput` in `components/midi/runtime.ts`). Those two make the app
 recover from a suspend; they do not stop the suspend from happening, and they
 patch the problem in JS where a chunk of it belongs in the native module.
 
-**1. Keep-awake while the transport is live.** The app has no
-`expo-keep-awake` dependency, so a jam left running puts the phone to sleep on
-its own — which is precisely how the wedged-OP-XY bug is reached in normal use.
-Activate keep-awake while playback is running, and while Record clock mode is
-engaged (there the app is a follower waiting on the device's clock, so it must
-stay awake even with its own transport stopped). Release it the moment both
-conditions clear, so a stopped app on the Patterns tab still sleeps normally.
-Note this is explicitly NOT background audio: playback surviving a locked screen
-is not wanted (Brent, 2026-08-06) — the goal is only that the screen stops
-turning itself off mid-jam.
+**1. Keep-awake while the transport is live. — DONE (2026-08-06)** A jam left
+running used to put the phone to sleep on its own, which is precisely how the
+wedged-OP-XY bug is reached in normal use. `expo-keep-awake` now holds the
+screen under the `euxy.transport` tag whenever playback is running OR Record
+clock mode is engaged — Record counts even with our own transport stopped,
+because there the app is a follower waiting on the device's clock. The hold is
+released the moment both clear, so a stopped app on the Patterns tab still
+sleeps normally. See `applyKeepAwake` in `core/engine.ts`, driven off the same
+store subscription as start/stop and edge-guarded so a slider drag does not
+cross the bridge. Explicitly NOT background audio: playback surviving a locked
+screen is not wanted (Brent, 2026-08-06) — the goal was only that the screen
+stops turning itself off mid-jam. **Needs a new build** (native module).
 
 **2. Make the native MIDI module robust to lifecycle events.** Today
 `modules/midi/ios/MidiManager.swift` is a thin CoreMIDI wrapper and every piece

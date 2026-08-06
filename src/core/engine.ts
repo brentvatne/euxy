@@ -23,7 +23,7 @@ import { AppState } from 'react-native';
 
 import { laneStepAt } from '@/core/euclid';
 import { midiOut } from '@/components/midi/runtime';
-import { logObserveEvent } from '@/lib/shims';
+import { activateKeepAwake, deactivateKeepAwake, logObserveEvent } from '@/lib/shims';
 import type { InboundEvent, MidiPort } from '@/midi/types';
 import { laneAudible, patternForLane, selectActivePattern } from '@/state/selectors';
 import { useStore } from '@/state/store';
@@ -31,6 +31,9 @@ import { timing } from '@/theme/tokens';
 import { setPlayhead } from './playhead';
 
 const PPQN = timing.ppqn; // 24
+
+/** Tagged so our hold is independent of anything else that takes one. */
+const KEEP_AWAKE_TAG = 'euxy.transport';
 
 /** Tempo window: 48 ticks = 2 beats (~1s at 120 BPM) — steady but responsive. */
 const TEMPO_WINDOW_TICKS = 48;
@@ -68,6 +71,9 @@ class Engine {
   private unsubscribeInbound: (() => void) | null = null;
   private storeSubscribed = false;
   private appStateSubscribed = false;
+  /** Mirrors the OS hold so the store subscription (which fires on EVERY set,
+   * including a slider drag) only calls across the bridge on a real edge. */
+  private keepAwakeHeld = false;
   private lastPlaying = false;
   private lastMode: 'jam' | 'record' = 'jam';
 
@@ -135,8 +141,10 @@ class Engine {
     const t0 = useStore.getState().transport;
     this.lastPlaying = t0.playing;
     this.lastMode = t0.clockMode;
+    this.applyKeepAwake(t0.playing, t0.clockMode);
     useStore.subscribe((state) => {
       const { playing, clockMode } = state.transport;
+      this.applyKeepAwake(playing, clockMode);
       if (clockMode !== this.lastMode) {
         this.lastMode = clockMode;
         // Switching modes must never hang a note; it also restarts from 0.
@@ -155,6 +163,29 @@ class Engine {
         else this.pause();
       }
     });
+  }
+
+  /**
+   * Hold the screen awake while the transport is live (ROADMAP "Keep the screen
+   * awake while playing").
+   *
+   * Two conditions, not one. Playing is the obvious case. RECORD mode counts
+   * even with our own transport stopped, because there the device is the clock
+   * master and we are the follower — the app sits waiting on inbound 0xF8 with
+   * `playing` false, and a screen that sleeps in that state suspends us exactly
+   * as if we had been playing.
+   *
+   * This is deliberately NOT background audio: playback is meant to stop when
+   * the screen locks (Brent, 2026-08-06). Keeping the screen ON is what stops
+   * the phone from locking itself out from under a running jam — which is how
+   * the wedged-device bug in `subscribeAppState` was reached in the first place.
+   */
+  private applyKeepAwake(playing: boolean, clockMode: 'jam' | 'record'): void {
+    const wanted = playing || clockMode === 'record';
+    if (wanted === this.keepAwakeHeld) return;
+    this.keepAwakeHeld = wanted;
+    if (wanted) activateKeepAwake(KEEP_AWAKE_TAG);
+    else deactivateKeepAwake(KEEP_AWAKE_TAG);
   }
 
   /**

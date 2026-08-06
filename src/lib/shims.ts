@@ -116,6 +116,31 @@ export const useObserve: UseObserve = (...args) => useObserveImpl(...args);
 export const logObserveEvent = (name: string, options?: LogEventOptions) =>
   logEventImpl(name, options);
 
+/**
+ * Screen sleep. Guarded like every other native module here: expo-keep-awake
+ * ships in a BUILD, and Fast Refresh against a dev client that predates it
+ * would otherwise red-screen (see docs/feedback/lessons-learned.md — this has
+ * cost live sessions four times now).
+ */
+let activateKeepAwakeImpl: (tag: string) => void = () => {};
+let deactivateKeepAwakeImpl: (tag: string) => void = () => {};
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const ka = require('expo-keep-awake');
+  // Both reject if the tag is already in/out of the requested state, which is
+  // not an error worth surfacing — the callers are edge-triggered but the OS
+  // is the source of truth.
+  activateKeepAwakeImpl = (tag) => void ka.activateKeepAwakeAsync(tag).catch(() => {});
+  deactivateKeepAwakeImpl = (tag) => void ka.deactivateKeepAwake(tag).catch(() => {});
+} catch {
+  console.warn('[euxy] expo-keep-awake native module missing — the screen will sleep on this build.');
+}
+
+/** Hold the screen awake under `tag` (idempotent, never throws). */
+export const activateKeepAwake = (tag: string) => activateKeepAwakeImpl(tag);
+/** Release `tag`'s hold on the screen (idempotent, never throws). */
+export const deactivateKeepAwake = (tag: string) => deactivateKeepAwakeImpl(tag);
+
 type ImpactStyle = 'light' | 'medium' | 'heavy' | 'soft' | 'rigid';
 type HapticsApi = {
   /** Key-press weight feedback (defaults to light). */
