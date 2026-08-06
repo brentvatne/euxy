@@ -1391,3 +1391,49 @@ NON-OBVIOUS. Current inventory of non-obvious things:
   Randomize re-rolls the rhythm only — note & track stay.
 - Track · Channel maps a lane to an OP-XY track (channel n = track n).
 - Panic lives on the MIDI tab.
+
+### Keep the screen awake while playing, and harden MIDI natively (Brent, 2026-08-06)
+
+Follow-up to the background-stop fix (`subscribeAppState` in `core/engine.ts`
+and `bindOutput` in `components/midi/runtime.ts`). Those two make the app
+recover from a suspend; they do not stop the suspend from happening, and they
+patch the problem in JS where a chunk of it belongs in the native module.
+
+**1. Keep-awake while the transport is live.** The app has no
+`expo-keep-awake` dependency, so a jam left running puts the phone to sleep on
+its own — which is precisely how the wedged-OP-XY bug is reached in normal use.
+Activate keep-awake while playback is running, and while Record clock mode is
+engaged (there the app is a follower waiting on the device's clock, so it must
+stay awake even with its own transport stopped). Release it the moment both
+conditions clear, so a stopped app on the Patterns tab still sleeps normally.
+Note this is explicitly NOT background audio: playback surviving a locked screen
+is not wanted (Brent, 2026-08-06) — the goal is only that the screen stops
+turning itself off mid-jam.
+
+**2. Make the native MIDI module robust to lifecycle events.** Today
+`modules/midi/ios/MidiManager.swift` is a thin CoreMIDI wrapper and every piece
+of recovery logic lives in JS, which is the wrong side of the boundary for
+anything that has to survive the JS thread being frozen:
+
+- Send the transport Stop from native on `UIApplicationDidEnterBackground`
+  rather than relying on an `AppState` listener reaching a live JS run loop.
+  The JS path is a best-effort fix; the OS gives the native side a more
+  dependable hook, and `transport.background_stop` in EAS Observe will show
+  how often the JS one actually lands.
+- Flush or cancel packets already scheduled into the future with `MIDISend`
+  host timestamps when the app suspends, so a resume does not emit notes and
+  clock ticks the user stopped expecting up to `timing.lookaheadMs` earlier.
+- Detect a dead or stale destination endpoint. `send()` guards only on
+  `connectedDestination != 0`, so an endpoint that has gone invalid fails
+  silently and looks exactly like a wedged device from the app's side.
+  Surface a real connection state instead of inferring one.
+- Re-establish the CoreMIDI client after an audio/MIDI session interruption
+  (phone call, another app taking the device) — the client is created once in
+  `ensureSetup()` and never rebuilt.
+- Consider MIDI 2.0 / UMP (`MIDIUniversalMessage`) and the newer
+  `MIDIEventList` API; `MIDIPacketList` is deprecated as of iOS 14, and the
+  event-list path has better handling of coalescing, which already cost us
+  once (packet coalescing eating Start — see docs/feedback/lessons-learned.md).
+
+Hardware validation required for all of it: the three MIDI bugs this project
+has hit were all invisible in the simulator.
