@@ -26,7 +26,7 @@ const env = process.env;
 const EAS = env.EAS_CLI_BIN || "eas";
 const FFPROBE = env.FFPROBE_BIN || "ffprobe";
 const FFMPEG = env.FFMPEG_BIN || "ffmpeg";
-const ARGENT_VERSION = env.ARGENT_VERSION || "0.17.0";
+const ARGENT_VERSION = env.ARGENT_VERSION || "0.19.0";
 const OUT = env.SMOKE_ARTIFACT_DIR || ".eas/argent-smoke/out";
 const RECORD_SECONDS = 25;
 
@@ -92,6 +92,11 @@ try {
     "ios",
     "--type",
     "argent",
+    // Without this the host runs the tool-server at "latest" while this worker
+    // holds an exact pin, so the smoke test would verify a pairing that no real
+    // run uses.
+    "--package-version",
+    ARGENT_VERSION,
     "--max-duration-minutes",
     "20",
     "--non-interactive",

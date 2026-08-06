@@ -22,7 +22,13 @@ Record why you skipped it in the workflow's analysis/response file.
   starting a session. A static/release build cannot show live edits.
 - Start at most one session, only when ready to install and drive the app:
 
-  `eas simulator:start --platform ios --type argent --max-duration-minutes 30 --non-interactive`
+  `eas simulator:start --platform ios --type argent --package-version "$ARGENT_VERSION" --max-duration-minutes 30 --non-interactive`
+
+  `--package-version` is required, not optional. It pins the argent tool-server
+  on the session host to the same version as the `argent` CLI on this worker.
+  Omit it and the host silently runs `@swmansion/argent@latest`, which drifts
+  from the pinned client the moment a new version is published. `$ARGENT_VERSION`
+  is exported by the toolchain setup; never hardcode a version here.
 
 - Use Mode C from the skill: install the dev client, start Metro with tunnel v2,
   connect the client, then exercise the changed behavior with `argent`. The

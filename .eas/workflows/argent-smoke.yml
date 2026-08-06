@@ -22,7 +22,7 @@ on:
       argent_version:
         description: Exact argent version to pin and verify
         type: string
-        default: 0.17.0
+        default: 0.19.0
 
 jobs:
   smoke:

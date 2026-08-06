@@ -61,13 +61,17 @@ const CONTROLLERS = {
     other: "agent-device",
     otherEnvPrefix: "AGENT_DEVICE",
     toolchainPins: [
-      'readonly ARGENT_VERSION="0.17.0"',
+      'readonly ARGENT_VERSION="0.19.0"',
       '"@swmansion/argent@${ARGENT_VERSION}"',
       'set-env ARGENT_BIN "argent"',
       'argent_version="$(argent --version)"',
+      // The pin has to reach the prompt, or only the client half is pinned.
+      'set-env ARGENT_VERSION "${ARGENT_VERSION}"',
     ],
     promptUses: [
       "--type argent",
+      // Pins the tool-server on the session host to the client's version.
+      '--package-version "$ARGENT_VERSION"',
       "argent run reinstall-app",
       "argent run native-describe-screen",
       "argent run gesture-tap",
@@ -113,6 +117,20 @@ describe("simulator controller", () => {
         mentionsInactiveEnv: text.includes(spec.otherEnvPrefix),
       }).toEqual({ path, mentionsInactiveEnv: false });
     }
+  });
+
+  test("the session host runs the same controller version as the worker", () => {
+    // A session started without --package-version runs the tool-server at
+    // "latest" while the worker holds an exact pin. That skew is invisible: both
+    // halves work, they are just not the versions anyone reviewed. Requiring the
+    // env var rather than a literal keeps one pin authoritative for both.
+    const start = prompt
+      .split("\n")
+      .find((line) => line.includes("eas simulator:start"));
+    expect(start).toBeDefined();
+    expect(start).toContain('--package-version "$ARGENT_VERSION"');
+    expect({ line: start, hardcodesAVersion: /--package-version\s+"?\d/.test(start!) })
+      .toEqual({ line: start, hardcodesAVersion: false });
   });
 
   test("frame decoders stay pinned whichever controller is active", () => {

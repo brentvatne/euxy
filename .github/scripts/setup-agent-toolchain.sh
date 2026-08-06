@@ -3,6 +3,7 @@ set -euo pipefail
 
 # Security-sensitive CI dependencies are intentionally exact. Bump these values
 # in a reviewed change; never replace them with tags, ranges, or "latest".
+# The Expo skills are the deliberate exception — see EXPO_SKILLS_REF below.
 readonly CLAUDE_CODE_VERSION="2.1.220"
 readonly BUN_VERSION="1.3.14"
 readonly EAS_CLI_VERSION="21.5.0"
@@ -12,11 +13,19 @@ readonly EAS_CLI_VERSION="21.5.0"
 # fails a test instead of reaching a run. Local worktree development is a separate
 # choice and is not bound by this value.
 readonly SIMULATOR_CONTROLLER="argent"
-readonly ARGENT_VERSION="0.17.0"
+# Pins BOTH sides of the controller. The CLI installed here is the client; the
+# tool-server runs on the session host and defaults to "latest", so the prompt
+# must pass `--package-version "$ARGENT_VERSION"` to `eas simulator:start` or the
+# two silently drift apart. Exported below for exactly that.
+readonly ARGENT_VERSION="0.19.0"
 readonly FFMPEG_STATIC_VERSION="5.3.0"
 readonly FFPROBE_STATIC_VERSION="3.1.0"
-readonly EXPO_SKILLS_VERSION="1.9.0"
-readonly EXPO_SKILLS_SHA="994342f0e343f05b9b8cdd38a0e91356ceef00f6"
+# Deliberately NOT pinned: the Expo skills track upstream HEAD so runs always get
+# the current eas-simulator/expo-* guidance without a bump commit. The trade is
+# reproducibility — a run's behavior depends on when it ran, not on this repo — so
+# the resolved commit and plugin version are printed in the toolchain output and
+# must be read from there when reproducing a past run.
+readonly EXPO_SKILLS_REF="main"
 readonly TOOLCHAIN_TEMP_BASE="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
 readonly TOOLCHAIN_ROOT="$(mktemp -d "${TOOLCHAIN_TEMP_BASE%/}/euxy-agent-toolchain.XXXXXX")"
 readonly EXPO_SKILLS_ROOT="${TOOLCHAIN_ROOT}/expo-skills"
@@ -41,21 +50,19 @@ fi
 git init --quiet "${EXPO_SKILLS_ROOT}"
 git -C "${EXPO_SKILLS_ROOT}" remote add origin https://github.com/expo/skills.git
 git -C "${EXPO_SKILLS_ROOT}" sparse-checkout set plugins/expo
-git -C "${EXPO_SKILLS_ROOT}" fetch --quiet --depth=1 origin "${EXPO_SKILLS_SHA}"
+git -C "${EXPO_SKILLS_ROOT}" fetch --quiet --depth=1 origin "${EXPO_SKILLS_REF}"
 git -C "${EXPO_SKILLS_ROOT}" checkout --quiet --detach FETCH_HEAD
 
-actual_sha="$(git -C "${EXPO_SKILLS_ROOT}" rev-parse HEAD)"
-if [[ "${actual_sha}" != "${EXPO_SKILLS_SHA}" ]]; then
-  echo "Expo skills checkout mismatch: expected ${EXPO_SKILLS_SHA}, got ${actual_sha}" >&2
-  exit 1
-fi
+# Resolved, not asserted: these describe what this run actually got. They are the
+# only record of it, so they are printed in the toolchain summary below.
+expo_skills_sha="$(git -C "${EXPO_SKILLS_ROOT}" rev-parse HEAD)"
+expo_skills_version="$(node -e 'process.stdout.write(require(process.argv[1]).version ?? "unknown")' \
+  "${EXPO_PLUGIN_DIR}/.claude-plugin/plugin.json")"
 
-if ! grep -Fq "\"version\": \"${EXPO_SKILLS_VERSION}\"" "${EXPO_PLUGIN_DIR}/.claude-plugin/plugin.json"; then
-  echo "Expo plugin version mismatch at pinned commit ${EXPO_SKILLS_SHA}" >&2
-  exit 1
-fi
+# The version floats, but the plugin still has to be usable: an upstream refactor
+# that moves or renames the simulator skill must fail here, not halfway into a run.
 if [[ ! -s "${EXPO_PLUGIN_DIR}/skills/eas-simulator/SKILL.md" ]]; then
-  echo "Pinned Expo plugin is missing the eas-simulator skill" >&2
+  echo "Expo plugin at ${EXPO_SKILLS_REF} (${expo_skills_sha}) is missing the eas-simulator skill" >&2
   exit 1
 fi
 
@@ -66,12 +73,14 @@ if command -v set-env >/dev/null 2>&1; then
   set-env EAS_CLI_BIN "eas"
   set-env SIMULATOR_CONTROLLER "${SIMULATOR_CONTROLLER}"
   set-env ARGENT_BIN "argent"
+  set-env ARGENT_VERSION "${ARGENT_VERSION}"
   set-env FFMPEG_BIN "${ffmpeg_bin}"
   set-env FFPROBE_BIN "${ffprobe_bin}"
 fi
 if [[ -n "${GITHUB_ENV:-}" ]]; then
   printf 'CLAUDE_PLUGIN_DIR=%s\n' "${EXPO_PLUGIN_DIR}" >> "${GITHUB_ENV}"
   printf 'EAS_CLI_BIN=eas\nARGENT_BIN=argent\n' >> "${GITHUB_ENV}"
+  printf 'ARGENT_VERSION=%s\n' "${ARGENT_VERSION}" >> "${GITHUB_ENV}"
   printf 'FFMPEG_BIN=%s\nFFPROBE_BIN=%s\n' "${ffmpeg_bin}" "${ffprobe_bin}" >> "${GITHUB_ENV}"
 fi
 
@@ -95,6 +104,10 @@ if [[ "${argent_version}" != "${ARGENT_VERSION}" ]]; then
   echo "argent version mismatch: expected ${ARGENT_VERSION}, got ${argent_version}" >&2
   exit 1
 fi
-printf 'Claude Code %s\nBun %s\nEAS CLI %s\nargent %s\nPinned ffmpeg/ffprobe ready\nExpo skills %s (%s; eas-simulator present)\n' \
-  "${claude_version}" "${bun_version}" "${eas_version}" "${argent_version}" \
-  "${EXPO_SKILLS_VERSION}" "${EXPO_SKILLS_SHA}"
+printf 'Claude Code %s\nBun %s\nEAS CLI %s\nargent %s (client and session host)\nPinned ffmpeg/ffprobe ready\n' \
+  "${claude_version}" "${bun_version}" "${eas_version}" "${argent_version}"
+# Unpinned, so this is the run's only record of which skills it actually used.
+# Keep it loud and last: reproducing a past run means reading these two values
+# out of that run's log and checking them out explicitly.
+printf 'Expo skills %s — UNPINNED, resolved from %s at %s (eas-simulator present)\n' \
+  "${expo_skills_version}" "${EXPO_SKILLS_REF}" "${expo_skills_sha}"
