@@ -57,7 +57,8 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "review": "ecr review"
+    "review": "ecr review",
+    "design-agent": "bash scripts/design-agent.sh"
   },
   "private": true,
   "trustedDependencies": [

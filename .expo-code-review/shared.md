@@ -141,7 +141,18 @@ detailed reasoning inside a collapsed block. Use this exact Markdown shape:
 Explain the concrete failure or exploit path here.
 
 </details>
+
 ```
+
+End the rationale with a **trailing blank line after `</details>`**, exactly as
+shown. Without it, GitHub stops parsing Markdown at the closing tag and the next
+finding's bullet is emitted verbatim — visible `**` and backticks — for every
+finding after the first in a severity group.
+
+> Workaround for a renderer bug, not a style preference. Fixed upstream in
+> `expo-code-review-cli` (`renderFindingLines` now indents continuation lines and
+> separates findings); this line can go once the repo is on a release that
+> includes that fix.
 
 Keep both visible lines short and specific. The text inside `<details>` contains
 the fuller rationale that was previously shown inline. Specialist reviewers
@@ -207,7 +218,7 @@ Return **only** a single fenced ```json code block, an object of this shape:
       "file": "path/relative/to/repo/root.ts",
       "line": 142,
       "title": "short one-line summary",
-      "rationale": "**Confidence:** High — why certainty is high.<br>**Impact if shipped:** Medium — concrete expected consequence.\\n\\n<details>\\n<summary>Evidence and reasoning</summary>\\n\\nFull failure/exploit path.\\n\\n</details>",
+      "rationale": "**Confidence:** High — why certainty is high.<br>**Impact if shipped:** Medium — concrete expected consequence.\\n\\n<details>\\n<summary>Evidence and reasoning</summary>\\n\\nFull failure/exploit path.\\n\\n</details>\\n",
       "evidence": "one contiguous line of the flagged code, copied VERBATIM",
       "suggestion": "optional concrete fix, or omit"
     }

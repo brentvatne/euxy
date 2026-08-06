@@ -1,0 +1,150 @@
+# GitHub issue events are not EAS Workflow triggers, so this credential-minimal
+# workflow verifies the event envelope and dispatches an immutable issue number to
+# trusted workflow code on EAS. The agent, the Paper session, and the GitHub write
+# token all stay on EAS. Mirrors agent-work.yml deliberately — same trust model.
+#
+# Label an issue `design-agent` once. After that:
+#   - labeling starts the first run (the body is the brief)
+#   - any later comment from brentvatne starts another, so feedback alone drives
+#     a revision — no re-labeling. Comments that ask for no change ("nice",
+#     "lgtm") are classified on EAS and cost no design run.
+#
+# EAS decides fresh-vs-revision from the issue's own marker. Remove the label to
+# stop comments triggering runs.
+
+name: Dispatch design agent
+
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+concurrency:
+  # Not cancel-in-progress: a run draws on the shared Paper canvas, and killing it
+  # mid-edit would leave half-finished artboards behind.
+  group: design-agent-dispatch-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    # `github.sha` on these events is the default branch, so EAS runs trusted code
+    # rather than anything a contributor pushed. EAS re-fetches the issue and
+    # repeats these checks before spending a run.
+    #
+    # Comments are restricted to brentvatne alone, matching agent-work.yml. That
+    # also stops a feedback loop: this workflow's acknowledgement and the agent's
+    # own "Proposal opened" / "Revised in" comments come from bot identities, which
+    # can never satisfy that check.
+    #
+    # `@notbrent …` comments are excluded because agent-work.yml owns that prefix;
+    # an explicit command there should mean agent work, not a design revision.
+    if: >-
+      github.repository == 'brentvatne/euxy'
+      && !github.event.issue.pull_request
+      && (
+        (
+          github.event_name == 'issues'
+          && github.event.label.name == 'design-agent'
+          && contains(
+            fromJSON(vars.AGENT_WORK_ALLOWLIST || '["brentvatne"]'),
+            github.event.sender.login
+          )
+        )
+        || (
+          github.event_name == 'issue_comment'
+          && contains(github.event.issue.labels.*.name, 'design-agent')
+          && !startsWith(github.event.comment.body, '@notbrent')
+          && github.event.comment.user.login == 'brentvatne'
+        )
+      )
+    runs-on: ubuntu-latest
+    outputs:
+      run_url: ${{ steps.eas.outputs.run_url }}
+    steps:
+      - name: Dispatch trusted EAS workflow
+        id: eas
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EAS_PROJECT_ID: 2ee288d6-807b-4316-8331-d0f5cd5eebe8
+          TRUSTED_GIT_REF: ${{ github.sha }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_ID: ${{ github.event.issue.id }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          ACTOR: ${{ github.event.comment.user.login || github.event.sender.login }}
+        run: |
+          if [[ -z "$EXPO_TOKEN" ]]; then
+            echo "::error::Missing the EXPO_TOKEN repository secret used to dispatch EAS Workflows."
+            exit 1
+          fi
+
+          # Only immutable identifiers cross this boundary. The brief itself is
+          # issue text, so EAS fetches it with the machine token instead of
+          # trusting anything forwarded from here.
+          payload="$(
+            jq -n \
+              --arg app_id "$EAS_PROJECT_ID" \
+              --arg git_ref "$TRUSTED_GIT_REF" \
+              --arg issue_number "$ISSUE_NUMBER" \
+              --arg issue_id "$ISSUE_ID" \
+              --arg comment_id "$COMMENT_ID" \
+              --arg actor "$ACTOR" \
+              '{
+                appId: $app_id,
+                gitRef: $git_ref,
+                fileName: "design-agent.yml",
+                inputs: {
+                  issue_number: $issue_number,
+                  issue_id: $issue_id,
+                  comment_id: $comment_id,
+                  actor: $actor
+                }
+              }'
+          )"
+          response="$(
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --header "Authorization: Bearer $EXPO_TOKEN" \
+              --header "Content-Type: application/json" \
+              --data "$payload" \
+              https://api.expo.dev/v2/workflows/dispatch
+          )"
+          run_url="$(jq -r '.data.url // empty' <<<"$response")"
+          if [[ -z "$run_url" ]]; then
+            echo "::error::EAS accepted the request but returned no workflow URL."
+            exit 1
+          fi
+          echo "Dispatched EAS workflow: $run_url"
+          echo "run_url=$run_url" >> "$GITHUB_OUTPUT"
+
+  acknowledge:
+    name: Link the dispatched workflow
+    needs: dispatch
+    permissions:
+      issues: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reply with the EAS workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          RUN_URL: ${{ needs.dispatch.outputs.run_url }}
+        run: |
+          if [[ ! "$RUN_URL" =~ ^https://expo\.dev/accounts/brent-org/projects/euxy/workflows/[a-z0-9-]+$ ]]; then
+            echo "::error::EAS returned an unexpected workflow URL."
+            exit 1
+          fi
+          comment_url="$(
+            gh api \
+              --method POST \
+              "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/comments" \
+              --field body="🤖 Started the [design agent]($RUN_URL). It reads the Paper canvas, draws artboards, and opens an issue with the proposal and mockups." \
+              --jq '.html_url'
+          )"
+          if [[ -z "$comment_url" ]]; then
+            echo "::error::GitHub accepted no acknowledgement comment."
+            exit 1
+          fi
+          echo "Acknowledged dispatch: $comment_url"
