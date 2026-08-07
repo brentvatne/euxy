@@ -27,36 +27,6 @@ export type PatternMenuAction =
   | 'restore'
   | 'clear';
 
-/** Experimental haptic playback, as the pill needs to report it. */
-export interface HapticPlaybackChip {
-  on: boolean;
-  available: boolean;
-  events: number;
-  merged: number;
-}
-
-const CONNECT_TIP =
-  'Connect your OP‑XY over USB‑C and switch it on — euxy finds it and connects within a few seconds.';
-
-/**
- * What the popover says while haptic playback is armed. States the limits
- * plainly: this is an experiment, and a preview that oversells itself is worse
- * than one that says what it dropped.
- */
-function hapticTipText({ available, events, merged }: HapticPlaybackChip): string {
-  if (!available) {
-    return 'Haptic playback needs a newer build — this one does not ship the native module.';
-  }
-  if (events === 0) {
-    return 'Haptic playback on, but nothing sounds — every lane is muted or empty.';
-  }
-  const smear =
-    merged > 0
-      ? ` ${merged} landed too close together to play apart and were merged.`
-      : '';
-  return `Haptic playback on. Press play and the pattern drives the vibration motor — rhythm and accents, no pitch. ${events} hits per loop.${smear}`;
-}
-
 export function SequencerNav({
   patternName,
   patternChip,
@@ -64,8 +34,6 @@ export function SequencerNav({
   deviceName,
   canRestorePreset,
   onMenuAction,
-  haptic,
-  onToggleHaptic,
 }: {
   patternName: string;
   /** The pattern's glyph shades (chips.ts) — identity continuity with the
@@ -77,9 +45,6 @@ export function SequencerNav({
    * "Restore preset" have a shipped state to go back to. */
   canRestorePreset: boolean;
   onMenuAction: (action: PatternMenuAction) => void;
-  /** EXPERIMENTAL — see the long-press note below. */
-  haptic: HapticPlaybackChip;
-  onToggleHaptic: () => void;
 }) {
   // With nothing connected the pill is the one thing on screen that knows why
   // nothing plays, so it answers that question itself: tapping it drops the
@@ -104,36 +69,12 @@ export function SequencerNav({
     setTipOpen((open) => !open);
   };
 
-  // EXPERIMENTAL, hidden on the disconnected pill's LONG-PRESS: play the
-  // pattern through the vibration motor instead (lib/use-haptic-playback.ts).
-  // It lives here because this pill is the app's statement of where the notes
-  // are going, and while the mode is on the answer is "into your hand" — so
-  // the pill says so rather than the mode being invisible state. The popover
-  // opens with it either way: an experiment nobody can read is a bug report
-  // waiting to happen.
-  const toggleHaptic = () => {
-    if (haptic.on) haptics.impact('light');
-    else haptics.success();
-    onToggleHaptic();
-    setTipOpen(true);
-  };
-
-  const hapticOn = haptic.on && !connected;
   const pill = (
     <View style={styles.pill}>
       <View
-        style={[
-          styles.pillDot,
-          {
-            backgroundColor: connected
-              ? color.connected
-              : hapticOn
-                ? color.label
-                : color.label4,
-          },
-        ]}
+        style={[styles.pillDot, { backgroundColor: connected ? color.connected : color.label4 }]}
       />
-      <AppText style={styles.pillText}>{hapticOn ? 'Haptics' : deviceName}</AppText>
+      <AppText style={styles.pillText}>{deviceName}</AppText>
     </View>
   );
 
@@ -192,7 +133,6 @@ export function SequencerNav({
           ) : (
             <Pressable
               onPress={toggleTip}
-              onLongPress={toggleHaptic}
               // The pill is 26pt tall; the slop takes it to a comfortable target
               // without moving the paint (same intent as the Listen key's hit).
               hitSlop={10}
@@ -200,11 +140,8 @@ export function SequencerNav({
                 setPillX(e.nativeEvent.layout.x + e.nativeEvent.layout.width / 2)
               }
               accessibilityRole="button"
-              accessibilityLabel={
-                hapticOn ? 'Haptic playback on' : 'No device — how to connect'
-              }
-              accessibilityHint="Long press to play the pattern through the vibration motor"
-              accessibilityState={{ expanded: tipOpen, selected: hapticOn }}
+              accessibilityLabel="No device — how to connect"
+              accessibilityState={{ expanded: tipOpen }}
               style={({ pressed }) => pressed && styles.pillPressed}
             >
               {pill}
@@ -218,7 +155,8 @@ export function SequencerNav({
           answer, so the popover leaves the moment the pill goes green. */}
       {tipOpen && !connected ? (
         <Tip caretLeft={rightX + pillX} style={styles.navTip}>
-          {hapticOn ? hapticTipText(haptic) : CONNECT_TIP}
+          Connect your OP‑XY over USB‑C and switch it on — euxy finds it and connects within a few
+          seconds.
         </Tip>
       ) : null}
     </View>

@@ -1327,42 +1327,17 @@ rate; with the ramp primitive now shimmed in, the haptic can become a pure
 function of `charge.fill` in the same worklet `RingLed` already derives from.
 Keep `playDiscrete` for the tier accents and the heavy hit at the close.
 
-### Haptic playback — EXPERIMENTAL (2026-08-06)
-
-euxy's patterns are explicitly rhythm-only ("NO preset depends on tonality" —
-`state/presets.ts`) and `usePatternComposer` takes exactly
-`{time, amplitude, frequency}` events, so a pattern can be played THROUGH THE
-VIBRATION MOTOR with no OP-XY attached. Built and shipped behind a hidden
-gesture: **long-press the header's "No device" pill**. The pill then reads
-"Haptics" and the popover states what the rendering drops.
-
-- `core/haptic-pattern.ts` — pure compile, unit-tested. Onsets from
-  `patternForLane`, amplitude from `lane.velocity`, sharpness from the drum
-  SLOT ROLE via a hand-set table (a linear note→sharpness map is arbitrary; a
-  kick has to feel round and a hat crisp).
-- `lib/use-haptic-playback.ts` — compiles ONE loop, hands it to the haptic
-  engine, and re-arms it from a `useAnimatedReaction` over
-  `floor(playheadTick / loopTicks)`. No JS timer anywhere: the engine schedules
-  the hits inside a loop, and the playhead triggers the loop.
-- Retires itself the moment a device connects — the switch only exists on the
-  disconnected pill, so a stranded flag would be unreachable.
-
-This does not break "never clock-synced" above: our clock arms a loop, it does
-not fire individual hits, and the mode only exists for the case where there is
-no music to fight. Turn `HAPTIC_AUDIO_PREVIEW` on to hear it on a simulator.
-
-Honest limits, all the actuator's: ONE VOICE, so simultaneous onsets merge
-(louder amplitude wins, sharpness amplitude-weighted); hits under
-`HAPTIC_MIN_GAP_MS` blur and merge too; polymeter past `LOOP_TICKS_MAX` gets a
-window rather than the true LCM loop. Known rough edge: a rhythm change
-re-parses the native pattern, so a dice charge re-parses per roll —
-`rhythmSignature` keeps cosmetic edits out of it but the charge case is real,
-and should be fixed (re-parse at the loop boundary) before this is more than an
-experiment.
-
-Where it would earn a place as a real feature: the Patterns list (long-press a
-row, feel one bar before loading it) and the play-first onboarding flow, which
-is exactly where the "nothing connected" wall is worst.
+A second idea surfaced while exploring (2026-08-06): euxy's presets are
+explicitly rhythm-only ("NO preset depends on tonality" — `state/presets.ts`),
+and `usePatternComposer` takes exactly `{time, amplitude, frequency}` events,
+so a preset could be AUDITIONED AS VIBRATION with no OP-XY attached — long-press
+a row in the Patterns list, feel one bar. Onsets come from `patternForLane`,
+amplitude from `lane.velocity`, sharpness from the drum SLOT (not the note
+number — a role table reads correctly, a linear pitch map does not). Limits: one
+actuator, so simultaneous onsets must be merged rather than stacked; dense
+presets smear; polymeter means picking a window rather than the true LCM loop.
+It must be gated on `!transport.playing` or it becomes exactly the per-beat
+pulse the "never clock-synced" rule above forbids.
 
 If Pulsar does not work out, the manual path is Core Haptics
 (`CHHapticEngine` intensity/sharpness parameter curves) behind a small Expo

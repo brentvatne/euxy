@@ -33,7 +33,6 @@ import { LaneRow, TransportBar } from '@/components/ui';
 import { useScreenFocused } from '@/components/ui/use-screen-focused';
 import { chipForPattern } from '@/components/patterns/chips';
 import { SequencerNav, type PatternMenuAction } from '@/components/sequencer/header';
-import { useHapticPlayback } from '@/lib/use-haptic-playback';
 import { EmptyState } from '@/components/sequencer/empty-state';
 import { FloatingActions } from '@/components/sequencer/floating-actions';
 import { StepStrip } from '@/components/sequencer/step-strip';
@@ -166,12 +165,6 @@ export default function SequencerScreen() {
   const outputDevice = midi.outputs.find((d) => d.id === settings.outputId);
   const connected = midi.enabled && outputDevice != null;
 
-  // EXPERIMENTAL: with nothing connected, the pattern can play through the
-  // vibration motor instead. Armed by a long-press on the header pill; the
-  // hook owns the compile, the re-arm and the auto-retire on connect.
-  const hapticPlayback = useHapticPlayback(connected);
-  const setHapticPlayback = useStore((s) => s.setHapticPlayback);
-
   // The lane editor is the app's workhorse — EAS Observe recorded 95 opens vs
   // 9 for the next-busiest sheet — so how people get INTO it is worth knowing.
   const openEditor = (laneId: string, source: 'lane_row' | 'add_lane' = 'lane_row') => {
@@ -266,8 +259,6 @@ export default function SequencerScreen() {
         deviceName={outputDevice?.name ?? 'No device'}
         canRestorePreset={isPresetPattern(pattern.id)}
         onMenuAction={onMenuAction}
-        haptic={hapticPlayback}
-        onToggleHaptic={() => setHapticPlayback(!hapticPlayback.on)}
       />
       {/* The lane list with the floating action bar (Paper 7A-0) hovering
           above it — add lane / mutate / undo live there, not in a header row

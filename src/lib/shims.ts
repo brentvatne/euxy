@@ -187,20 +187,6 @@ export type HapticRamp = {
   stop: () => void;
 };
 
-/**
- * An AUTHORED haptic pattern — a list of timed events handed to the haptic
- * engine once, which then schedules them natively rather than us ticking a
- * timer per hit. `play` / `stop` are worklets, so a pattern can be armed ahead
- * of time and fired from the UI thread off the playhead.
- *
- * Shape of the pattern argument is `HapticPattern` in core/haptic-pattern.ts.
- */
-export type HapticPatternPlayer = {
-  play: () => void;
-  stop: () => void;
-  isParsed: () => boolean;
-};
-
 const noHaptics: HapticsApi = { impact: () => {}, selection: () => {}, success: () => {}, warning: () => {} };
 // The fallback ramp must be worklet-callable too — a caller in a worklet cannot
 // branch to a plain JS no-op. Module-level so the identity is stable.
@@ -215,19 +201,9 @@ const noRamp: HapticRamp = {
     'worklet';
   },
 };
-const noPatternPlayer: HapticPatternPlayer = {
-  play: () => {
-    'worklet';
-  },
-  stop: () => {
-    'worklet';
-  },
-  isParsed: () => false,
-};
 
 let hapticsImpl = noHaptics;
 let useRampImpl: () => HapticRamp = () => noRamp;
-let usePatternPlayerImpl: (pattern?: unknown) => HapticPatternPlayer = () => noPatternPlayer;
 let rampAvailable = false;
 
 try {
@@ -250,7 +226,6 @@ try {
   // See flags.ts — NOT Pulsar's own "on in debug" default.
   pulsar.Settings.enableSound(HAPTIC_AUDIO_PREVIEW);
   useRampImpl = pulsar.useRealtimeComposer;
-  usePatternPlayerImpl = pulsar.usePatternComposer;
   rampAvailable = true;
 } catch {
   try {
@@ -301,19 +276,6 @@ export const hapticRampAvailable = rampAvailable;
  * closes over the object would be rebuilt on every render.
  */
 export const useHapticRamp = (): HapticRamp => useRampImpl();
-
-/**
- * Authored-pattern handle for this component. Same contract as useHapticRamp:
- * safe to call unconditionally, gated by `hapticRampAvailable`.
- *
- * Pass the pattern as the ARGUMENT and let it re-parse on identity change —
- * do not reach for an imperative parse. Pulsar's own `parse` replaces the
- * stored pattern id without releasing the previous one, so re-parsing that way
- * leaks a native player per call; the argument path releases the old id in its
- * effect cleanup before parsing the new one. Memoize what you pass.
- */
-export const useHapticPatternPlayer = (pattern?: unknown): HapticPatternPlayer =>
-  usePatternPlayerImpl(pattern);
 
 let GlassViewImpl: ComponentType<Record<string, unknown>> | null = null;
 let liquidGlass = false;
