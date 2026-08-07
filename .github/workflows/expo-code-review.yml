@@ -17,10 +17,6 @@ concurrency:
 jobs:
   review:
     runs-on: ubuntu-latest
-    env:
-      # The published engine is trusted workflow code. Keep the guard and review
-      # on the same exact version; bump only in a reviewed change.
-      ECR_VERSION: '0.12.0'
     # Trigger policy lives in .expo-code-review/config.jsonc (review.trigger); `ecr ci`
     # self-gates on it (and honors the ai-review:skip label). This coarse gate just
     # avoids spinning up a runner for a PR that explicitly opted out. Uses the array
@@ -50,12 +46,6 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      # Runs from the trusted base checkout before any model credential is exposed.
-      # Failure disables only supporting documentation research.
-      - name: Build platform documentation index
-        run: npx --yes -p "@expo/code-review-cli@$ECR_VERSION" review-research-mcp update --output /tmp/ecr-platform-docs.json
-        continue-on-error: true
-
       # The anthropic/… models in .expo-code-review/config.jsonc run through the
       # Claude Code CLI (the claude-code engine). Pinned exactly — an unpinned
       # CLI would silently drift on every CI run; bump it deliberately (mirrors
@@ -68,12 +58,12 @@ jobs:
       - name: Guard trusted-base review config
         env:
           ECR_EXPECTED_TOKEN_ENV: ${{ vars.ECR_EXPECTED_TOKEN_ENV || 'CLAUDE_CODE_REVIEW_SHARED_API_TOKEN' }}
-        run: npx --yes -p "@expo/code-review-cli@$ECR_VERSION" ecr verify-config
+        run: ./scripts/expo-code-review ecr verify-config
 
       - name: Run AI review
         # The trusted-base config is loaded before ECR enters its temporary PR-head
         # worktree, so PR changes cannot redirect credentials or replace prompts.
-        run: npx --yes -p "@expo/code-review-cli@$ECR_VERSION" ecr ci
+        run: ./scripts/expo-code-review ecr ci
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -82,6 +72,8 @@ jobs:
           # engine forwards it to the Claude Code CLI as the only credential —
           # an `sk-ant-oat…` setup-token or an `sk-ant-api…` Console key both work.
           CLAUDE_CODE_REVIEW_SHARED_API_TOKEN: ${{ secrets.CLAUDE_CODE_REVIEW_SHARED_API_TOKEN }}
+          # Search-only credential used for fixed, site-scoped documentation discovery.
+          BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
           # Layer-1 runtime auth lock (mirrors the guard step above).
           ECR_EXPECTED_TOKEN_ENV: ${{ vars.ECR_EXPECTED_TOKEN_ENV || 'CLAUDE_CODE_REVIEW_SHARED_API_TOKEN' }}
           # Optional: override the model for every agent.

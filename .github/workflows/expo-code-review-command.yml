@@ -1,0 +1,116 @@
+name: AI code review (command)
+
+# Maintainer-only, one-shot review from a PR comment:
+#   /review (or /expo-review)                      router selects agents
+#   /review all (or /expo-review all)              run every agent
+#   /review correctness security                   run selected agents
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: ai-code-review-cmd-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  command:
+    # issue_comment workflows have base-repo secrets even for fork PRs, so only a
+    # maintainer may trigger this job and only the trusted base is checked out.
+    if: >-
+      github.event.issue.pull_request != null &&
+      (startsWith(github.event.comment.body, '/review') || startsWith(github.event.comment.body, '/expo-review')) &&
+      contains(fromJson('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    continue-on-error: true
+    steps:
+      - name: Parse command
+        id: cmd
+        env:
+          # Pass comment text through env, never interpolate it into the shell.
+          COMMENT: ${{ github.event.comment.body }}
+        run: |
+          line=$(printf '%s' "$COMMENT" | head -n1 | tr -d '\r')
+          verb=$(printf '%s' "$line" | awk '{print $1}')
+          rest=$(printf '%s' "$line" | cut -s -d' ' -f2-)
+          case "$verb" in
+            /review|/expo-review) ;;
+            *) echo "run=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+          esac
+          agents=""
+          route=false
+          if [ -z "$rest" ]; then
+            route=true
+          elif [ "$rest" != "all" ]; then
+            agents=$(printf '%s' "$rest" | tr ' ' ',' | tr -cd 'a-zA-Z0-9,_-')
+          fi
+          {
+            echo "run=true"
+            echo "agents=$agents"
+            echo "route=$route"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Acknowledge
+        if: steps.cmd.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh api -X POST "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" -f content=eyes
+
+      - name: Checkout trusted base only
+        if: steps.cmd.outputs.run == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Node
+        if: steps.cmd.outputs.run == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install Claude Code CLI
+        if: steps.cmd.outputs.run == 'true'
+        run: npm install -g @anthropic-ai/claude-code@2.1.212
+
+      - name: Guard trusted-base review config
+        if: steps.cmd.outputs.run == 'true'
+        env:
+          ECR_EXPECTED_TOKEN_ENV: ${{ vars.ECR_EXPECTED_TOKEN_ENV || 'CLAUDE_CODE_REVIEW_SHARED_API_TOKEN' }}
+        run: ./scripts/expo-code-review ecr verify-config
+
+      - name: Run AI review
+        if: steps.cmd.outputs.run == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ECR_EXPECTED_TOKEN_ENV: ${{ vars.ECR_EXPECTED_TOKEN_ENV || 'CLAUDE_CODE_REVIEW_SHARED_API_TOKEN' }}
+          CLAUDE_CODE_REVIEW_SHARED_API_TOKEN: ${{ secrets.CLAUDE_CODE_REVIEW_SHARED_API_TOKEN }}
+          # Search-only credential used for fixed, site-scoped documentation discovery.
+          BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
+          REVIEWER_MODEL: ${{ vars.REVIEWER_MODEL }}
+          AGENTS: ${{ steps.cmd.outputs.agents }}
+          ROUTE: ${{ steps.cmd.outputs.route }}
+        run: |
+          ARGS=()
+          if [ -n "$AGENTS" ]; then
+            ARGS=(--agents "$AGENTS")
+          elif [ "$ROUTE" = "true" ]; then
+            ARGS=(--route)
+          fi
+          ./scripts/expo-code-review ecr ci "${ARGS[@]}"
+
+      - name: Upload review run log
+        if: always() && steps.cmd.outputs.run == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: review-run-log-pr${{ github.event.issue.number }}
+          path: .expo-code-review/.runs/reviews.jsonl
+          if-no-files-found: ignore
+          retention-days: 14

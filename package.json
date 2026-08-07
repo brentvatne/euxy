@@ -59,7 +59,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "review": "npx --yes -p @expo/code-review-cli@0.12.0 ecr review"
+    "review": "./scripts/expo-code-review ecr review"
   },
   "private": true,
   "trustedDependencies": [

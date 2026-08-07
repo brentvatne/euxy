@@ -22,11 +22,11 @@
   // *.min.js, *.map, __snapshots__/*.snap, @generated markers).
   "noise": { "additionalIgnores": ["ios/**", "android/**", ".expo/**", "dist/**", "expo-env.d.ts"] },
 
-  // Trusted host-side documentation research. CI creates this index in a
-  // separate secretless step from the exact published reviewer version.
+  // Trusted host-side documentation research. Scoped searches receive only
+  // bounded API identifiers; official pages are independently allowlisted,
+  // fetched, and fenced as untrusted evidence.
   "research": {
     "enabled": true,
-    "indexPath": "/tmp/ecr-platform-docs.json",
     "maxQueries": 8,
     "resultsPerQuery": 2,
     "timeoutMs": 15000
