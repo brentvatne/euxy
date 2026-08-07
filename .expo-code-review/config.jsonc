@@ -22,9 +22,9 @@
   // *.min.js, *.map, __snapshots__/*.snap, @generated markers).
   "noise": { "additionalIgnores": ["ios/**", "android/**", ".expo/**", "dist/**", "expo-env.d.ts"] },
 
-  // Trusted host-side documentation research. Scoped searches receive only
-  // bounded API identifiers; official pages are independently allowlisted,
-  // fetched, and fenced as untrusted evidence.
+  // Bounded documentation research available directly to reviewer and cross-file
+  // passes. The built-in MCP sanitizes agent-authored API queries, restricts discovery
+  // and direct fetches to fixed official providers, and audits accepted results.
   "research": {
     "enabled": true,
     "maxQueries": 8,
