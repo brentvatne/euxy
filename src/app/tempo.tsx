@@ -15,13 +15,11 @@
  * never rewrites existing lanes (see store.setBaseResolution).
  */
 import { useRef } from 'react';
-import { ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 import { router } from 'expo-router';
 
-import { haptics } from '@/lib/shims';
-
-import { AppText, SFSymbol, SheetHeader } from '@/components/ui';
+import { AppText, Segmented, SFSymbol, SheetHeader } from '@/components/ui';
 import { useHoldRepeat } from '@/components/ui/use-hold-repeat';
 import { ValueFilm } from '@/components/ui/value-film';
 import { ResolutionPicker } from '@/components/patterns/resolution-picker';
@@ -80,9 +78,10 @@ export default function TempoSheet() {
   const toggleBeatHaptics = (on: boolean) => {
     opened.current.hapticsDirty = true;
     setBeatHaptics(on);
-    // Answer the switch with the thing it just turned on, so the setting is
-    // confirmed by an example of itself.
-    if (on) haptics.impact('medium');
+    // No haptic here: Segmented already ticks on change, and a second one
+    // fired in the same frame reads as one mushy buzz rather than two events
+    // (same rule as use-hold-repeat — the control owns its feedback, callers
+    // must not add their own).
   };
 
   const cancel = () => {
@@ -170,18 +169,27 @@ export default function TempoSheet() {
           </View>
         </View>
 
-        {/* Beat haptics. A real UISwitch (never a hand-rolled toggle), tinted
-            into the monoramp — the stock green would be a fourth functional
-            color, and tokens.ts allows exactly three. */}
-        <View style={[styles.tempoCell, styles.switchCell]}>
-          <AppText variant="body">Haptic beats</AppText>
-          <Switch
-            value={beatHaptics}
-            onValueChange={toggleBeatHaptics}
-            trackColor={{ true: color.label, false: color.surface3 }}
-            thumbColor={beatHaptics ? color.ground : undefined}
-            style={styles.switch}
-            accessibilityLabel="Haptic beats"
+        {/* Metronome. The shared Segmented at compact size — the SAME control
+            as Count-in on the MIDI screen, which is what this app uses for a
+            two-state setting inside a grouped cell. A UISwitch was wrong twice
+            over: its system chrome is the exact thing components/ui/
+            segmented.tsx exists to avoid, and tinting its track to the only
+            "active" color the palette has (white) turned 51×31pt into a slab
+            that read as broken rather than as on.
+
+            Named for what it IS, with the OUTPUT as the value — so adding a
+            "Sound" option later is a third label here, not a second setting
+            and a rename. */}
+        <View style={styles.tempoCell}>
+          <AppText variant="body">Metronome</AppText>
+          <Segmented<'off' | 'haptics'>
+            size="compact"
+            options={[
+              { label: 'Off', value: 'off' },
+              { label: 'Haptics', value: 'haptics' },
+            ]}
+            value={beatHaptics ? 'haptics' : 'off'}
+            onChange={(v) => toggleBeatHaptics(v === 'haptics')}
           />
         </View>
 
@@ -197,7 +205,7 @@ export default function TempoSheet() {
             Changes apply live while playing. Base resolution sets the step grid for new lanes.
           </AppText>
           <AppText style={styles.footnote}>
-            Haptic beats pulse the phone on every beat while the transport runs, the first of four
+            The metronome pulses the phone on every beat while the transport runs, the first of four
             harder. Off by default — a pulse on the beat can fight the music.
           </AppText>
           <AppText style={styles.footnoteDim}>
@@ -226,21 +234,6 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.surface },
   grabberSpace: { height: 13 },
   scroll: { flex: 1 },
-  /**
-   * A UISwitch is 51×31pt, and saying so is what keeps it centred. Left to
-   * measure itself the switch lands against the top of the row: the shadow
-   * node reports a box the real control overflows, so the CELL centres an
-   * undersized frame while UIKit draws the switch from that frame's top edge.
-   * Pinning the intrinsic size gives the layout the same box UIKit paints.
-   */
-  switch: { width: 51, height: 31, alignSelf: 'center' },
-  /**
-   * The BPM row can sit on space.md because its ± keys are 40pt boxes around
-   * an 18pt glyph — they carry ~11pt of optical inset of their own. A switch
-   * has none: its 51pt box IS the painted control, edge to edge, so on the
-   * same padding it reads as touching the cell wall. Matches paddingLeft.
-   */
-  switchCell: { paddingRight: space.lg },
   // xxl group gap — the sections need air between them (Brent).
   // paddingBottom, not just the group gap: as scroll content the footnotes
   // would otherwise end flush against the sheet's bottom edge.
