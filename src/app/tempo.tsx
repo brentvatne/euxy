@@ -182,15 +182,26 @@ export default function TempoSheet() {
             and a rename. */}
         <View style={styles.tempoCell}>
           <AppText variant="body">Metronome</AppText>
-          <Segmented<'off' | 'haptics'>
-            size="compact"
-            options={[
-              { label: 'Off', value: 'off' },
-              { label: 'Haptics', value: 'haptics' },
-            ]}
-            value={beatHaptics ? 'haptics' : 'off'}
-            onChange={(v) => toggleBeatHaptics(v === 'haptics')}
-          />
+          {/* Wrapped, and it has to be: Segmented's compact track carries
+              `alignSelf: 'flex-start'`, which overrides this row's
+              alignItems:center and pins the control to the top of the cell.
+              It never shows on the MIDI screen because that cell is
+              content-driven (paddingVertical + minHeight), so the control sets
+              the row height and there is no spare space to sit at the top of —
+              this row is a fixed 52 to match the BPM cell above it. The
+              wrapper hugs the control, gets centred itself, and turns the
+              stray alignSelf into a horizontal no-op. */}
+          <View>
+            <Segmented<'off' | 'haptics'>
+              size="compact"
+              options={[
+                { label: 'Off', value: 'off' },
+                { label: 'Haptics', value: 'haptics' },
+              ]}
+              value={beatHaptics ? 'haptics' : 'off'}
+              onChange={(v) => toggleBeatHaptics(v === 'haptics')}
+            />
+          </View>
         </View>
 
         <Field label="Base Resolution">
