@@ -27,6 +27,7 @@ import type { Lane } from '@/state/types';
 import { onBootOverlayGone, reportFirstScreenLayout } from '@/components/boot-signal';
 import { useMidiRuntime } from '@/components/midi/runtime';
 import { haptics, logObserveEvent } from '@/lib/shims';
+import { useBeatHaptics } from '@/lib/use-beat-haptics';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { color } from '@/theme/tokens';
 import { LaneRow, TransportBar } from '@/components/ui';
@@ -161,6 +162,9 @@ export default function SequencerScreen() {
 
   // Per-route TTI for EAS Observe.
   useMarkInteractive();
+
+  // Opt-in pulse on every beat (Tempo sheet). No-op unless switched on.
+  useBeatHaptics();
 
   const outputDevice = midi.outputs.find((d) => d.id === settings.outputId);
   const connected = midi.enabled && outputDevice != null;

@@ -284,6 +284,8 @@ export interface AppState {
   setInput: (id: string | null) => void;
   setLatencyOffsetMs: (ms: number) => void;
   setCountInBeats: (beats: number) => void;
+  /** Pulse on every beat while playing (Tempo sheet, off by default). */
+  setBeatHaptics: (on: boolean) => void;
   setFloatBarCorner: (corner: 'left' | 'right') => void;
   /** Pick the order the Patterns library is listed in (library header "Sort
    * by"). Picking a new key starts it descending; picking the key that is
@@ -401,6 +403,7 @@ export const useStore = create<AppState>((set, get) => {
       floatBarCorner: 'right',
       patternSort: 'created',
       patternSortDir: 'desc',
+      beatHaptics: false,
       ...persisted?.settings,
     },
 
@@ -617,6 +620,7 @@ export const useStore = create<AppState>((set, get) => {
     setInput: (inputId) => set((s) => ({ settings: { ...s.settings, inputId } })),
     setLatencyOffsetMs: (latencyOffsetMs) => set((s) => ({ settings: { ...s.settings, latencyOffsetMs } })),
     setCountInBeats: (countInBeats) => set((s) => ({ settings: { ...s.settings, countInBeats } })),
+    setBeatHaptics: (beatHaptics) => set((s) => ({ settings: { ...s.settings, beatHaptics } })),
     setFloatBarCorner: (floatBarCorner) =>
       set((s) => ({ settings: { ...s.settings, floatBarCorner } })),
     // Same menu item does double duty, the way an iOS sort menu does: the first

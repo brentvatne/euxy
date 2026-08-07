@@ -109,6 +109,15 @@ export interface Settings {
   /** Which way `patternSort` runs. Absent on old blobs — the store defaults it
    * to 'desc'. */
   patternSortDir: PatternSortDir;
+  /**
+   * Pulse the phone on every beat while the transport runs, downbeat accented
+   * (Tempo sheet). OFF by default and deliberately opt-in: ROADMAP
+   * §"Haptic language" rules that haptics are never clock-synced, because a
+   * per-beat pulse fights the music. This is the narrow exception a user can
+   * ask for — a count-in you can feel without looking. Absent on old blobs —
+   * the store defaults it to false.
+   */
+  beatHaptics: boolean;
 }
 
 export interface Selection {

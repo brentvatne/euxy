@@ -15,9 +15,11 @@
  * never rewrites existing lanes (see store.setBaseResolution).
  */
 import { useRef } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Switch, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 import { router } from 'expo-router';
+
+import { haptics } from '@/lib/shims';
 
 import { AppText, SFSymbol, SheetHeader } from '@/components/ui';
 import { useHoldRepeat } from '@/components/ui/use-hold-repeat';
@@ -36,6 +38,8 @@ export default function TempoSheet() {
   const setBpm = useStore((s) => s.setBpm);
   const setBaseResolution = useStore((s) => s.setBaseResolution);
   const ticks = useActivePattern().baseResolutionTicks;
+  const beatHaptics = useStore((s) => s.settings.beatHaptics);
+  const setBeatHaptics = useStore((s) => s.setBeatHaptics);
 
   // Open-time snapshot for Cancel. Dirty flags so Cancel reverts ONLY what
   // this sheet changed — in record mode the device moves BPM underneath us.
@@ -118,6 +122,25 @@ export default function TempoSheet() {
           </View>
         </View>
 
+        {/* Beat haptics. A real UISwitch (never a hand-rolled toggle), tinted
+            into the monoramp — the stock green would be a fourth functional
+            color, and tokens.ts allows exactly three. */}
+        <View style={styles.tempoCell}>
+          <AppText variant="body">Haptic beats</AppText>
+          <Switch
+            value={beatHaptics}
+            onValueChange={(on) => {
+              setBeatHaptics(on);
+              // Answer the switch with the thing it just turned on, so the
+              // setting is confirmed by an example of itself.
+              if (on) haptics.impact('medium');
+            }}
+            trackColor={{ true: color.label, false: color.surface3 }}
+            thumbColor={beatHaptics ? color.ground : undefined}
+            accessibilityLabel="Haptic beats"
+          />
+        </View>
+
         <Field label="Base Resolution">
           <ResolutionPicker value={ticks} onChange={changeResolution} />
         </Field>
@@ -128,6 +151,10 @@ export default function TempoSheet() {
         <View style={styles.footnotes}>
           <AppText style={styles.footnote}>
             Changes apply live while playing. Base resolution sets the step grid for new lanes.
+          </AppText>
+          <AppText style={styles.footnote}>
+            Haptic beats pulse the phone on every beat while the transport runs, the first of four
+            harder. Off by default — a pulse on the beat can fight the music.
           </AppText>
           <AppText style={styles.footnoteDim}>
             In Record mode the OP‑XY owns the clock — BPM follows the device and can&apos;t be
