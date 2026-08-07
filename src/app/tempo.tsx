@@ -15,7 +15,7 @@
  * never rewrites existing lanes (see store.setBaseResolution).
  */
 import { useRef } from 'react';
-import { StyleSheet, Switch, View } from 'react-native';
+import { ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 import { router } from 'expo-router';
 
@@ -43,7 +43,18 @@ export default function TempoSheet() {
 
   // Open-time snapshot for Cancel. Dirty flags so Cancel reverts ONLY what
   // this sheet changed — in record mode the device moves BPM underneath us.
-  const opened = useRef({ bpm, ticks, bpmDirty: false, ticksDirty: false });
+  //
+  // Cancel is the ONLY path that reverts. Done, the swipe-down and the
+  // hardware back all keep what you changed, because every control here edits
+  // live and dismissing a sheet you were happy with should not undo it.
+  const opened = useRef({
+    bpm,
+    ticks,
+    beatHaptics,
+    bpmDirty: false,
+    ticksDirty: false,
+    hapticsDirty: false,
+  });
 
   /** One ± press, or one tick of a hold. Reads the CURRENT bpm from the store
    * rather than this render's closure: a hold steps ~30×/second, faster than
@@ -66,9 +77,18 @@ export default function TempoSheet() {
     setBaseResolution(t);
   };
 
+  const toggleBeatHaptics = (on: boolean) => {
+    opened.current.hapticsDirty = true;
+    setBeatHaptics(on);
+    // Answer the switch with the thing it just turned on, so the setting is
+    // confirmed by an example of itself.
+    if (on) haptics.impact('medium');
+  };
+
   const cancel = () => {
     if (opened.current.bpmDirty) setBpm(opened.current.bpm);
     if (opened.current.ticksDirty) setBaseResolution(opened.current.ticks);
+    if (opened.current.hapticsDirty) setBeatHaptics(opened.current.beatHaptics);
     router.back();
   };
 
@@ -80,7 +100,35 @@ export default function TempoSheet() {
       <View style={styles.grabberSpace} />
       <SheetHeader onCancel={cancel} onDone={() => router.back()} />
 
-      <View style={styles.body}>
+      {/* The form must SCROLL — the beat-haptics row pushed the footnotes past
+          this sheet's 0.45 detent.
+
+          Both halves of docs/feedback/form-sheets.md "Bug 1" apply, and both
+          are load-bearing:
+
+          • collapsable={false} on the WRAPPER. React Native's view flattening
+            can hoist a ScrollView into direct-child position, where
+            react-native-screens' formSheet frame correction finds it and
+            assigns it the whole sheet frame at origin 0 — content painted over
+            the header, Cancel/Done swallowed. Unflattenable wrapper, no match.
+            (The bug appears and disappears with flattening, so this is not
+            optional just because it happens to look right once.)
+          • flex:1 on the SCROLL VIEW as well, not only the wrapper. Otherwise
+            the viewport is unbounded, the scroll view sizes to its content,
+            and nothing scrolls.
+
+          Detents stay SINGLE ([0.45] in _layout.tsx, like every other sheet
+          here) — "Bug 2" in the same doc is a mis-layout on detent resize that
+          never runs when there is nothing to resize between.
+
+          No keyboard on this sheet, so a plain ScrollView rather than the RNKC
+          one that new-pattern and lane-editor need. */}
+      <View style={styles.scroll} collapsable={false}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.body}
+        showsVerticalScrollIndicator={false}
+      >
         {/* No "Tempo" header — the sheet IS tempo (Brent: redundant). The
             cell leads the body directly; Base Resolution keeps its header. */}
         <View>
@@ -129,14 +177,10 @@ export default function TempoSheet() {
           <AppText variant="body">Haptic beats</AppText>
           <Switch
             value={beatHaptics}
-            onValueChange={(on) => {
-              setBeatHaptics(on);
-              // Answer the switch with the thing it just turned on, so the
-              // setting is confirmed by an example of itself.
-              if (on) haptics.impact('medium');
-            }}
+            onValueChange={toggleBeatHaptics}
             trackColor={{ true: color.label, false: color.surface3 }}
             thumbColor={beatHaptics ? color.ground : undefined}
+            style={styles.switch}
             accessibilityLabel="Haptic beats"
           />
         </View>
@@ -161,6 +205,7 @@ export default function TempoSheet() {
             edited here.
           </AppText>
         </View>
+      </ScrollView>
       </View>
     </View>
   );
@@ -180,8 +225,24 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.surface },
   grabberSpace: { height: 13 },
+  scroll: { flex: 1 },
+  /**
+   * A UISwitch is 51×31pt, and saying so is what keeps it centred. Left to
+   * measure itself the switch lands against the top of the row: the shadow
+   * node reports a box the real control overflows, so the CELL centres an
+   * undersized frame while UIKit draws the switch from that frame's top edge.
+   * Pinning the intrinsic size gives the layout the same box UIKit paints.
+   */
+  switch: { width: 51, height: 31, alignSelf: 'center' },
   // xxl group gap — the sections need air between them (Brent).
-  body: { paddingHorizontal: space.lg, paddingTop: space.sm, gap: space.xxl },
+  // paddingBottom, not just the group gap: as scroll content the footnotes
+  // would otherwise end flush against the sheet's bottom edge.
+  body: {
+    paddingHorizontal: space.lg,
+    paddingTop: space.sm,
+    paddingBottom: space.xxl,
+    gap: space.xxl,
+  },
   field: { gap: space.sm },
   fieldLabel: {
     fontFamily: font.text,
