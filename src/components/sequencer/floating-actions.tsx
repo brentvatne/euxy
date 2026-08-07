@@ -73,7 +73,7 @@ import Svg, { Path } from "react-native-svg";
 
 import { playheadPlaying, playheadTick } from "@/core/playhead";
 import { useStore } from "@/state/store";
-import { CAPSULE_DRAG } from "@/lib/flags";
+import { CAPSULE_DRAG, HAPTIC_RAMP } from "@/lib/flags";
 import {
   GlassView,
   hapticRampAvailable,
@@ -199,6 +199,14 @@ const RING_DELAY_MS = 150;
  * through, which is precisely the "rate is not intensity" complaint the ramp
  * exists to answer (ROADMAP §"Haptic language").
  */
+/**
+ * Whether the keep-hold swells. Both conditions, and the flag is the one you
+ * reach for: `hapticRampAvailable` answers "can this build", HAPTIC_RAMP
+ * answers "should it" — see flags.ts for why that is still a question.
+ * False on either side falls back to the original discrete quarter ticks.
+ */
+const RAMP_ON = HAPTIC_RAMP && hapticRampAvailable;
+
 const RAMP_AMP_FLOOR = 0.12;
 const RAMP_AMP_SPAN = 0.78;
 const RAMP_CURVE = 1.6;
@@ -1693,7 +1701,7 @@ function TempKey({
   useAnimatedReaction(
     () => holdFill.value,
     (fill, prev) => {
-      if (!hapticRampAvailable) return;
+      if (!RAMP_ON) return;
       const was = prev ?? 0;
       // Both ends are silent. 0 = no hold; 1 = the door is shut, and from
       // there fireKeep's success notification is the resolution.
@@ -1796,7 +1804,7 @@ function TempKey({
           }),
           withTiming(1, { duration: HOLD_MS, easing: Easing.linear }),
         );
-    if (hapticRampAvailable) {
+    if (RAMP_ON) {
       // Hard zero first (unlike the trace above, which decays THROUGH zero for
       // its own visual reasons): a re-press must cut the previous swell dead
       // rather than let it ramp down while a new one ramps up.

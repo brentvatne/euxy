@@ -1327,17 +1327,57 @@ rate; with the ramp primitive now shimmed in, the haptic can become a pure
 function of `charge.fill` in the same worklet `RingLed` already derives from.
 Keep `playDiscrete` for the tier accents and the heavy hit at the close.
 
-A second idea surfaced while exploring (2026-08-06): euxy's presets are
-explicitly rhythm-only ("NO preset depends on tonality" — `state/presets.ts`),
-and `usePatternComposer` takes exactly `{time, amplitude, frequency}` events,
-so a preset could be AUDITIONED AS VIBRATION with no OP-XY attached — long-press
-a row in the Patterns list, feel one bar. Onsets come from `patternForLane`,
-amplitude from `lane.velocity`, sharpness from the drum SLOT (not the note
-number — a role table reads correctly, a linear pitch map does not). Limits: one
-actuator, so simultaneous onsets must be merged rather than stacked; dense
-presets smear; polymeter means picking a window rather than the true LCM loop.
-It must be gated on `!transport.playing` or it becomes exactly the per-beat
-pulse the "never clock-synced" rule above forbids.
+**Build 78 crashed in the Hermes GC, and Pulsar is the prime suspect
+(2026-08-06).** TestFlight 1.2.0 (78), iPhone 17,3 / iOS 26.5.2, comment
+"crash when dice role pops": `EXC_BAD_ACCESS` on the background GC thread,
+`HadesGC::MarkAcceptor::acceptHeap` → `getCellMarkBit`, faulting on an address
+in no heap region. That is heap corruption found by the collector — JS cannot
+cause it, and the GC thread is the victim, not the culprit.
+
+Build 78 is the FIRST build containing `react-native-pulsar` (built from
+`a4ae79d`); build 77 (`fd73583`) has none, and Pulsar is the only native change
+in the delta. The dice pop is the app's peak allocation and peak worklet
+traffic in one instant, which is why it surfaced there.
+
+Identified defect, upstream: `useSharableState` calls `createSynchronizable`
+on EVERY render without memoizing, while its `get`/`set` are `useCallback([])`
+and capture only the first render's object. Every later render allocates a
+native cross-runtime object nothing tracks, while UI-thread worklets hold a
+reference to one specific instance — a use-after-free across runtimes, exactly
+the crash signature. It is reached only through `usePatternComposer`, which the
+haptic-playback hook below called on every render of the sequencer screen, and
+a dice charge re-renders that screen several times a second.
+
+Removed with that feature, so the identified path is gone. NOT proven clean:
+`useRealtimeComposer` (the temp key's ramp) never touches `useSharableState`,
+but it does call a TurboModule from the UI thread, and that route is unproven
+on device. It sits behind `HAPTIC_RAMP` in flags.ts so it can be switched off
+over OTA if another GC crash lands. Beat haptics deliberately do NOT use it.
+
+**Whole-pattern haptic playback — TRIED AND REMOVED (2026-08-06).** Since euxy's
+patterns are rhythm-only ("NO preset depends on tonality" — `state/presets.ts`)
+and `usePatternComposer` takes exactly `{time, amplitude, frequency}` events, a
+whole pattern could be played through the vibration motor with no OP-XY
+attached. It was built — compile in `core/haptic-pattern.ts`, loop re-armed off
+the playhead, armed by a long-press on the header's "No device" pill — and cut
+the same day (Brent: "kinda sucks"). The compile was sound; the RESULT was not
+worth it. One actuator collapses a multi-lane pattern into a single smeared
+voice, and what you feel is closer to buzzing than to the rhythm on screen.
+
+Do not rebuild it without a new reason. The reusable finding is the mapping:
+`frequency` is SHARPNESS, not pitch, so instruments have to map through drum
+ROLE (kick round, hat crisp), never through note number — and even then the
+Taptic Engine resolves about three perceptual bands, not twenty-four. Any future
+"feel the pattern" idea inherits that ceiling.
+
+What replaced it (2026-08-06): **beat haptics**, an opt-in switch on the Tempo
+sheet (`settings.beatHaptics`, `lib/use-beat-haptics.ts`) that pulses once per
+beat with the downbeat accented. This is a sanctioned exception to
+"never clock-synced" above — Brent asked for it, it is off by default, and the
+sheet says plainly that a pulse on the beat can fight the music. The rule's
+other half is honoured properly: nothing schedules anything, a
+`useAnimatedReaction` derives the beat from the same playhead the grid draws
+from, and with Pulsar present the pulse never leaves the UI thread.
 
 If Pulsar does not work out, the manual path is Core Haptics
 (`CHHapticEngine` intensity/sharpness parameter curves) behind a small Expo

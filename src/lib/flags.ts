@@ -32,6 +32,20 @@ export const EASE_TRANSPORT_PLAY = false;
 export const CAPSULE_DRAG = false;
 
 /**
+ * The temp key's continuous keep-hold ramp (Pulsar `useRealtimeComposer`),
+ * driven from a worklet. ON — the defect behind build 78's dice crash was
+ * traced to `usePatternComposer`/`useSharableState`, which is gone, and this
+ * path never touched it.
+ *
+ * It stays a FLAG rather than plain code because it is the app's only remaining
+ * caller of a TurboModule from the UI thread, and that route is still unproven
+ * on device. If another Hermes GC crash lands on a build carrying this, flip it
+ * to false: the keep-hold falls back to its original discrete quarter ticks
+ * with no other behaviour change, and it ships over OTA.
+ */
+export const HAPTIC_RAMP = true;
+
+/**
  * Pulsar's audio simulation of haptics (`Settings.enableSound`). Pulsar
  * synthesises a tone from each haptic's amplitude/frequency and plays it when
  * the hardware can't vibrate, which finally makes the haptic design REVIEWABLE
