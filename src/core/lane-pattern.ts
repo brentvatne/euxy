@@ -17,3 +17,15 @@ export function patternForLane(lane: LaneRhythm): number[] {
       : a;
   return withRotation(combined, lane.trackRot);
 }
+
+/**
+ * Whether a lane should sound, honoring solo precedence: if any lane is soloed,
+ * only soloed lanes sound; otherwise all non-muted lanes sound.
+ *
+ * Here rather than in state/selectors for the same reason as patternForLane —
+ * it is pure, and core modules that need it must not drag the store (and with
+ * it React) in behind it. Re-exported from selectors so existing imports work.
+ */
+export function laneAudible(lane: Pick<Lane, 'muted' | 'solo'>, anySolo: boolean): boolean {
+  return anySolo ? lane.solo : !lane.muted;
+}

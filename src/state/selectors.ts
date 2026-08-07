@@ -2,11 +2,11 @@
  * Derived state + reusable selector hooks. Keep selectors narrow so components
  * only re-render on the slice they read.
  */
-import { patternForLane } from '@/core/lane-pattern';
+import { laneAudible, patternForLane } from '@/core/lane-pattern';
 import { useStore, type AppState } from './store';
-import type { Lane, Pattern } from './types';
+import type { Pattern } from './types';
 
-export { patternForLane };
+export { laneAudible, patternForLane };
 
 export const selectActivePattern = (s: AppState): Pattern =>
   s.patterns.find((p) => p.id === s.activePatternId) ?? s.patterns[0];
@@ -23,10 +23,5 @@ export const useAnySolo = () => useStore((s) => selectActivePattern(s).lanes.som
 // patternForLane moved to core/lane-pattern.ts (pure — shared with the web
 // app) and re-exported above so existing imports keep working.
 
-/**
- * Whether a lane should sound, honoring solo precedence: if any lane is soloed,
- * only soloed lanes sound; otherwise all non-muted lanes sound.
- */
-export function laneAudible(lane: Lane, anySolo: boolean): boolean {
-  return anySolo ? lane.solo : !lane.muted;
-}
+// laneAudible moved to core/lane-pattern.ts alongside patternForLane (both
+// pure) and is re-exported above so existing imports keep working.
