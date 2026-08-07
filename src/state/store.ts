@@ -226,6 +226,18 @@ export interface AppState {
   /** True while a dice snapshot exists for the active pattern (temp mode). */
   snapshotActive: boolean;
 
+  /**
+   * EXPERIMENTAL — play the pattern through the vibration motor (Pulsar), so
+   * the rhythm is audible-by-touch with no OP-XY attached. Hidden behind a
+   * long-press on the header's "No device" pill.
+   *
+   * Deliberately NOT persisted (it is absent from the slice in
+   * state/persistence.ts): an experimental output left switched on across a
+   * cold boot, discoverable only by a hidden gesture, is a trap.
+   */
+  hapticPlayback: boolean;
+  setHapticPlayback: (on: boolean) => void;
+
   /** Grid-wide one-shot FX signal (revert wash / keep stamp / charge reveal)
    * the step strips subscribe to — state-driven, never the clock. Nonce
    * dedupes triggers. */
@@ -389,6 +401,7 @@ export const useStore = create<AppState>((set, get) => {
     selection: { laneId: null },
     mutateVersion: 0,
     snapshotActive: false,
+    hapticPlayback: false,
     gridFx: null,
     presetSeedVersion: PRESETS_VERSION,
     // Merge over defaults so persisted blobs from before a settings field
@@ -420,6 +433,7 @@ export const useStore = create<AppState>((set, get) => {
       })),
     setRecordPhase: (recordPhase, countInBeat = 0) =>
       set((s) => ({ transport: { ...s.transport, recordPhase, countInBeat } })),
+    setHapticPlayback: (hapticPlayback) => set({ hapticPlayback }),
 
     // Lanes
     addLane: (overrides) => {
