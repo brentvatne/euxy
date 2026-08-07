@@ -20,7 +20,7 @@ jobs:
     env:
       # The published engine is trusted workflow code. Keep the guard and review
       # on the same exact version; bump only in a reviewed change.
-      ECR_VERSION: '0.10.0'
+      ECR_VERSION: '0.12.0'
     # Trigger policy lives in .expo-code-review/config.jsonc (review.trigger); `ecr ci`
     # self-gates on it (and honors the ai-review:skip label). This coarse gate just
     # avoids spinning up a runner for a PR that explicitly opted out. Uses the array
@@ -49,6 +49,12 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
+
+      # Runs from the trusted base checkout before any model credential is exposed.
+      # Failure disables only supporting documentation research.
+      - name: Build platform documentation index
+        run: npx --yes -p "@expo/code-review-cli@$ECR_VERSION" review-research-mcp update --output /tmp/ecr-platform-docs.json
+        continue-on-error: true
 
       # The anthropic/… models in .expo-code-review/config.jsonc run through the
       # Claude Code CLI (the claude-code engine). Pinned exactly — an unpinned

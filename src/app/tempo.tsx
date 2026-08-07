@@ -173,7 +173,7 @@ export default function TempoSheet() {
         {/* Beat haptics. A real UISwitch (never a hand-rolled toggle), tinted
             into the monoramp — the stock green would be a fourth functional
             color, and tokens.ts allows exactly three. */}
-        <View style={styles.tempoCell}>
+        <View style={[styles.tempoCell, styles.switchCell]}>
           <AppText variant="body">Haptic beats</AppText>
           <Switch
             value={beatHaptics}
@@ -234,6 +234,13 @@ const styles = StyleSheet.create({
    * Pinning the intrinsic size gives the layout the same box UIKit paints.
    */
   switch: { width: 51, height: 31, alignSelf: 'center' },
+  /**
+   * The BPM row can sit on space.md because its ± keys are 40pt boxes around
+   * an 18pt glyph — they carry ~11pt of optical inset of their own. A switch
+   * has none: its 51pt box IS the painted control, edge to edge, so on the
+   * same padding it reads as touching the cell wall. Matches paddingLeft.
+   */
+  switchCell: { paddingRight: space.lg },
   // xxl group gap — the sections need air between them (Brent).
   // paddingBottom, not just the group gap: as scroll content the footnotes
   // would otherwise end flush against the sheet's bottom edge.

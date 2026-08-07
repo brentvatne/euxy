@@ -32,7 +32,7 @@
  * Downbeat accent assumes 4/4, matching the transport's own BeatTicker, which
  * walks 1-2-3-4. euxy has no time signature to consult.
  */
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useAnimatedReaction, useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -56,6 +56,26 @@ export function useBeatHaptics(): void {
     runningSV.value = running ? 1 : 0;
   }, [running, runningSV]);
 
+  /**
+   * These MUST be declared above the reaction that captures them, and must be
+   * in scope here rather than at module level.
+   *
+   * A worklet captures each free identifier's VALUE when the worklet object is
+   * built, and the plugin builds it before a module-level `const` below it has
+   * initialised — so the closure captures `undefined` permanently. Handing that
+   * to `scheduleOnRN` is not a JS error you can debug: it is an unguarded
+   * property read in the worklets runtime, i.e. a native segfault the first
+   * time a beat lands. That is exactly how build 79 crashed
+   * (`toOptimizedObject` → `jsi::Object::getProperty` on garbage), and the same
+   * trap is documented on the charge reaction in
+   * components/sequencer/floating-actions.tsx.
+   *
+   * useCallback so the reference is stable and the reaction is not rebuilt on
+   * every render.
+   */
+  const fireDownbeat = useCallback(() => haptics.impact('medium'), []);
+  const fireOffbeat = useCallback(() => haptics.selection(), []);
+
   useAnimatedReaction(
     () => (runningSV.value === 1 ? Math.floor(playheadTick.value / PPQN) : -1),
     (beat, prev) => {
@@ -69,8 +89,3 @@ export function useBeatHaptics(): void {
     },
   );
 }
-
-// Module-level so the worklet captures a stable reference rather than a new
-// closure on every render.
-const fireDownbeat = () => haptics.impact('medium');
-const fireOffbeat = () => haptics.selection();
