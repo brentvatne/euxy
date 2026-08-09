@@ -1379,6 +1379,18 @@ other half is honoured properly: nothing schedules anything, a
 `useAnimatedReaction` derives the beat from the same playhead the grid draws
 from, and with Pulsar present the pulse never leaves the UI thread.
 
+Amended 2026-08-09 (Brent): with the metronome on, pressing PLAY fired twice —
+the key's own medium click, then the run's first pulse a fraction of a second
+later, which felt like one mushy hit rather than two events. The play key now
+CLAIMS that first pulse and the pulse is dropped, never delayed, so the press
+keeps its immediate click; a transport press and a downbeat are the same medium
+impact, so the click IS the downbeat. Deliberately a one-shot claim on the
+STARTING pulse rather than a rate limit over all haptics: a window wide enough
+to cover a press (measured ~290ms from press-in to first pulse on a simulator)
+would eat real beats at the top of the tempo range, where they are 200ms apart.
+Pausing is untouched — no pulse follows it, so its click is the only feedback
+there is.
+
 If Pulsar does not work out, the manual path is Core Haptics
 (`CHHapticEngine` intensity/sharpness parameter curves) behind a small Expo
 native module — we already own one for MIDI, so the pattern is established —
