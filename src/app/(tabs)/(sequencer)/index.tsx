@@ -22,10 +22,11 @@ import { engine } from '@/core/engine';
 import { midiNoteName } from '@/core/note';
 import { isPresetPattern } from '@/state/presets';
 import { laneAudible, useActivePattern, useAnySolo, useSettings } from '@/state/selectors';
-import { useStore } from '@/state/store';
+import { selectHasLaneEdits, useStore } from '@/state/store';
 import type { Lane } from '@/state/types';
 import { onBootOverlayGone, reportFirstScreenLayout } from '@/components/boot-signal';
 import { useMidiRuntime } from '@/components/midi/runtime';
+import { postNotice } from '@/lib/notice';
 import { haptics, logObserveEvent } from '@/lib/shims';
 import { useBeatHaptics } from '@/lib/use-beat-haptics';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
@@ -63,6 +64,10 @@ export default function SequencerScreen() {
   const renameActivePattern = useStore((s) => s.renameActivePattern);
   const clearLanes = useStore((s) => s.clearLanes);
   const revertToLoaded = useStore((s) => s.revertToLoaded);
+  const saveCopyAndRevert = useStore((s) => s.saveCopyAndRevert);
+  // Gates the "Save copy & revert" menu item: nothing changed since load =
+  // nothing to keep a copy of.
+  const hasLaneEdits = useStore(selectHasLaneEdits);
   const resetPreset = useStore((s) => s.resetPreset);
   const setClockMode = useStore((s) => s.setClockMode);
   const toggleMute = useStore((s) => s.toggleMute);
@@ -219,6 +224,17 @@ export default function SequencerScreen() {
     resetPreset(pattern.id);
   };
 
+  // The copy is saved into the Patterns library, which is another tab — so the
+  // grid's revert wash is only half the story. The banner names the pattern
+  // that was just written, which is also where you'd go to rename it.
+  const saveCopy = () => {
+    const copyId = saveCopyAndRevert();
+    if (copyId == null) return;
+    const copy = useStore.getState().patterns.find((p) => p.id === copyId);
+    haptics.success();
+    postNotice(`COPY SAVED · ${(copy?.name ?? pattern.name).toUpperCase()}`);
+  };
+
   const onMenuAction = (action: PatternMenuAction) => {
     switch (action) {
       case 'new':
@@ -234,6 +250,10 @@ export default function SequencerScreen() {
         break;
       case 'share':
         router.push('/share-pattern');
+        break;
+      // Reverts the lane set too, so it snaps like the two below.
+      case 'save-copy':
+        applyQuietly(saveCopy);
         break;
       // Both restore a state you already know — the LED wash is the feedback,
       // the list itself just snaps (see applyQuietly).
@@ -261,6 +281,7 @@ export default function SequencerScreen() {
         patternChip={chipForPattern(pattern)}
         connected={connected}
         deviceName={outputDevice?.name ?? 'No device'}
+        canSaveCopy={hasLaneEdits}
         canRestorePreset={isPresetPattern(pattern.id)}
         onMenuAction={onMenuAction}
       />

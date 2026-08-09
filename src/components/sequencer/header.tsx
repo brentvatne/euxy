@@ -1,7 +1,8 @@
 /**
  * Sequencer header (Paper 7L-0): pattern name + chevron on the left — tapping
- * it opens the native pattern menu (new / rename / change icon / share / revert
- * to loaded / restore preset / clear) — and the connection pill on the right.
+ * it opens the native pattern menu (new / rename / change icon / share / save
+ * copy & revert / revert to loaded / restore preset / clear) — and the
+ * connection pill on the right.
  * While no device is connected the pill is a button: it drops a popover saying
  * how to connect.
  * Lane actions live in the floating action bar (floating-actions.tsx), not here.
@@ -23,6 +24,7 @@ export type PatternMenuAction =
   | 'rename'
   | 'icon'
   | 'share'
+  | 'save-copy'
   | 'revert'
   | 'restore'
   | 'clear';
@@ -32,6 +34,7 @@ export function SequencerNav({
   patternChip,
   connected,
   deviceName,
+  canSaveCopy,
   canRestorePreset,
   onMenuAction,
 }: {
@@ -41,6 +44,9 @@ export function SequencerNav({
   patternChip: string;
   connected: boolean;
   deviceName: string;
+  /** True while this session's edits differ from the loaded state — only then
+   * is there a changed version for "Save copy & revert" to keep. */
+  canSaveCopy: boolean;
   /** True while the loaded pattern is a factory preset — only then does
    * "Restore preset" have a shipped state to go back to. */
   canRestorePreset: boolean;
@@ -90,6 +96,19 @@ export function SequencerNav({
             { id: 'rename', title: 'Rename', image: 'pencil' },
             { id: 'icon', title: 'Change Icon…', image: 'square.grid.3x3' },
             { id: 'share', title: 'Share…', image: 'square.and.arrow.up' },
+            // Keep both versions: this session's edits are saved to the
+            // library as a copy and the pattern in front of you goes back to
+            // the state it was loaded in. Only while the two actually differ —
+            // with no edits it would just be Duplicate wearing a longer name.
+            ...(canSaveCopy
+              ? ([
+                  {
+                    id: 'save-copy',
+                    title: 'Save copy & revert',
+                    image: 'plus.square.on.square',
+                  },
+                ] as const)
+              : []),
             // §15: reverting to what YOU loaded, not factory lanes — swap
             // semantics, so picking it again undoes it.
             { id: 'revert', title: 'Revert to loaded', image: 'arrow.counterclockwise' },
