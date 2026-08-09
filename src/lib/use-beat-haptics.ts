@@ -31,6 +31,20 @@
  *
  * Downbeat accent assumes 4/4, matching the transport's own BeatTicker, which
  * walks 1-2-3-4. euxy has no time signature to consult.
+ *
+ * STARTING the transport is the one case where two haptics want the same
+ * moment: the play key clicks on press-IN (medium impact), and the run's first
+ * pulse lands about a frame after the release. Fired as two events they read as
+ * one mushy double hit rather than as a click and a downbeat. So the play key
+ * CLAIMS the pulse it is about to start (`claimStartPulse`) and that pulse is
+ * DROPPED, never delayed — the press keeps its immediate click, and nothing is
+ * lost, because a transport press and a downbeat are the SAME medium impact:
+ * the click IS the downbeat.
+ *
+ * Only the pulse a run starts on is claimable, which is why this is a one-shot
+ * claim and not a rolling rate limit over all haptics. A limiter wide enough to
+ * cover a press (press-in to release is easily 100ms+) would start eating real
+ * beats — at 300bpm, euxy's ceiling, beats are only 200ms apart.
  */
 import { useCallback, useEffect } from 'react';
 import { useAnimatedReaction, useSharedValue } from 'react-native-reanimated';
@@ -43,6 +57,40 @@ import { timing } from '@/theme/tokens';
 
 const PPQN = timing.ppqn; // 24 ticks per beat
 const BEATS_PER_BAR = 4;
+
+/**
+ * How long a claim stands before it expires unused. A tap's press-in-to-release
+ * is well inside this and the pulse follows the release by a frame, so a real
+ * play press always lands its claim. Anything slower is a finger RESTING on the
+ * key, and by the time it lifts the click is long over — there is no double hit
+ * left to merge, so the claim must lapse rather than swallow a beat.
+ */
+const CLAIM_MS = 700;
+
+/** When the transport's play key last claimed a start pulse; 0 = no claim. */
+let startClaimedAt = 0;
+
+/**
+ * Called by the play key on press-IN, and ONLY when the press will START the
+ * clock — the key's own click stands in for the pulse that follows it. Cheap
+ * and stateless enough to call whether or not the metronome is on: an
+ * unconsumed claim just expires.
+ *
+ * Module state, not a store field, deliberately: it is a one-frame handoff
+ * between two haptics that nothing renders, and putting it in the store would
+ * re-render the sequencer on every play press.
+ */
+export function claimStartPulse(): void {
+  startClaimedAt = Date.now();
+}
+
+/** Takes the claim (one pulse only) and reports whether it was still live. */
+function consumeStartPulse(): boolean {
+  if (startClaimedAt === 0) return false;
+  const live = Date.now() - startClaimedAt < CLAIM_MS;
+  startClaimedAt = 0;
+  return live;
+}
 
 export function useBeatHaptics(): void {
   const enabled = useStore((s) => s.settings.beatHaptics);
@@ -57,8 +105,8 @@ export function useBeatHaptics(): void {
   }, [running, runningSV]);
 
   /**
-   * These MUST be declared above the reaction that captures them, and must be
-   * in scope here rather than at module level.
+   * This MUST be declared above the reaction that captures it, and must be in
+   * scope here rather than at module level.
    *
    * A worklet captures each free identifier's VALUE when the worklet object is
    * built, and the plugin builds it before a module-level `const` below it has
@@ -73,8 +121,14 @@ export function useBeatHaptics(): void {
    * useCallback so the reference is stable and the reaction is not rebuilt on
    * every render.
    */
-  const fireDownbeat = useCallback(() => haptics.impact('medium'), []);
-  const fireOffbeat = useCallback(() => haptics.selection(), []);
+  const firePulse = useCallback((downbeat: boolean, start: boolean) => {
+    // Dropped: the play key's click already served as this pulse.
+    if (start && consumeStartPulse()) return;
+    // Downbeat lands heavier — the first of four has to be tellable from the
+    // other three without looking.
+    if (downbeat) haptics.impact('medium');
+    else haptics.selection();
+  }, []);
 
   useAnimatedReaction(
     () => (runningSV.value === 1 ? Math.floor(playheadTick.value / PPQN) : -1),
@@ -83,9 +137,13 @@ export function useBeatHaptics(): void {
       // moves -1 → 0, which is a real downbeat and should be felt; stopping
       // moves n → -1, which must not.
       if (beat < 0 || beat === prev) return;
-      // Downbeat lands heavier — the first of four has to be tellable from the
-      // other three without looking.
-      scheduleOnRN(beat % BEATS_PER_BAR === 0 ? fireDownbeat : fireOffbeat);
+      // `prev` is null on the mapper's first run and -1 for as long as the
+      // transport is stopped, so either one means this is the pulse a run
+      // STARTS on — the only pulse the play key can have claimed. Resuming from
+      // a paused playhead counts: that is a start too, and it is the same
+      // press. Whether it is claimed is a JS-side question (Date.now, module
+      // state), so the worklet only reports WHICH pulse this is.
+      scheduleOnRN(firePulse, beat % BEATS_PER_BAR === 0, prev == null || prev < 0);
     },
   );
 }

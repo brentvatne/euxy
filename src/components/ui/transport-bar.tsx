@@ -32,6 +32,7 @@ import { BeatTicker } from './beat-ticker';
 import { Key } from './key';
 import { KeyEase } from './key-ease';
 import { EASE_TRANSPORT_PLAY } from '@/lib/flags';
+import { claimStartPulse } from '@/lib/use-beat-haptics';
 
 import { playheadPlaying, playheadTick } from '@/core/playhead';
 import type { ClockMode, RecordPhase } from '@/state/types';
@@ -105,6 +106,12 @@ export function TransportBar({
           </Key>
           <PlayKey
             onPress={onTogglePlay}
+            // A press that STARTS the clock claims the metronome's first pulse,
+            // which would otherwise land on top of this key's own click and
+            // read as one mushy double hit (see lib/use-beat-haptics.ts). Only
+            // on the way IN, and only when starting: pausing has no pulse
+            // coming after it, so its click is the only feedback there is.
+            onPressIn={playing ? undefined : claimStartPulse}
             disabled={playDisabled}
             ack
             // Transport-grade key — the heaviest click in the app (OP-XY
