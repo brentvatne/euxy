@@ -44,6 +44,9 @@ export interface Lane {
   resolutionTicks: number;
   muted: boolean;
   solo: boolean;
+  /** Locked lanes are skipped by pattern-wide randomization (mutate/dice).
+   * Absent on lanes persisted before this field existed — read as falsy. */
+  locked: boolean;
 }
 
 export interface Pattern {

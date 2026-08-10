@@ -23,7 +23,7 @@
  *     · trackRot u8 · note u8 · channel u8 · velocity u8 · gateMs u16
  *     · resolutionTicks u8 · nameLen u8 + utf8
  *
- * Mute/solo are deliberately NOT encoded — patterns share clean. Future
+ * Mute/solo/lock are deliberately NOT encoded — patterns share clean. Future
  * fields append after the v1 payload (bump version; old decoders reject
  * newer versions loudly rather than misread them).
  */
@@ -32,7 +32,7 @@ import type { CombineOp, Lane, Pattern } from '@/state/types';
 export const CODEC_VERSION = 1;
 
 /** A decoded shared pattern: everything but ids/timestamps/mix state. */
-export type SharedLane = Omit<Lane, 'id' | 'muted' | 'solo'>;
+export type SharedLane = Omit<Lane, 'id' | 'muted' | 'solo' | 'locked'>;
 export interface SharedPattern {
   name: string;
   bpm: number;

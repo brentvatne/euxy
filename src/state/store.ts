@@ -51,6 +51,7 @@ const LANE_FIELDS = [
   'resolutionTicks',
   'muted',
   'solo',
+  'locked',
 ] as const;
 
 /** Field-by-field, not JSON: lane objects are rebuilt by spreads all over the
@@ -292,6 +293,8 @@ export interface AppState {
   setLaneOp: (id: string, op: CombineOp) => void;
   toggleMute: (id: string) => void;
   toggleSolo: (id: string) => void;
+  /** Flip a lane's randomization lock (locked lanes skip mutate/dice rolls). */
+  toggleLock: (id: string) => void;
   reorderLanes: (from: number, to: number) => void;
   /** Remove every lane from the active pattern. */
   clearLanes: () => void;
@@ -515,6 +518,10 @@ export const useStore = create<AppState>((set, get) => {
           l.id === id ? { ...l, solo: !l.solo } : l.solo ? { ...l, solo: false } : l,
         ),
       })),
+    // Lock gates the PATTERN-WIDE randomizers only (mutate + dice roll). The
+    // Lane Editor's own Randomize stays live — you asked for THAT lane by
+    // name, so the lock has nothing to protect you from.
+    toggleLock: (id) => mutateLane(id, (l) => ({ ...l, locked: !l.locked })),
     clearLanes: () => {
       mutateActive((p) => ({ ...p, lanes: [] }));
       set({ selection: { laneId: null } });
@@ -580,7 +587,8 @@ export const useStore = create<AppState>((set, get) => {
       if (!p || p.lanes.length === 0) return;
       // Each press nudges ~60% of lanes by one small step — variations stay
       // recognizably related to the source pattern (the KeyStep model).
-      const eligible = (l: Lane) => l.length > 1;
+      // Locked lanes sit the roll out.
+      const eligible = (l: Lane) => l.length > 1 && !l.locked;
       let touched = 0;
       let lanes = p.lanes.map((l) => {
         if (!eligible(l) || Math.random() >= 0.6) return l;
@@ -604,7 +612,9 @@ export const useStore = create<AppState>((set, get) => {
       const s = get();
       const p = s.patterns.find((x) => x.id === s.activePatternId);
       if (!p || p.lanes.length === 0) return;
-      const eligible = p.lanes.map((l, i) => (l.length > 1 ? i : -1)).filter((i) => i >= 0);
+      const eligible = p.lanes
+        .map((l, i) => (l.length > 1 && !l.locked ? i : -1))
+        .filter((i) => i >= 0);
       if (eligible.length === 0) return;
       // Scope by tier: one lane, then two, then the whole pattern. Below tier 3
       // the point is that you can still SEE which lane moved.

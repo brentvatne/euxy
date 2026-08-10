@@ -1,7 +1,7 @@
 /**
  * Lane row — the repeated unit of the Sequencer. Values pulled from Paper node
  * WV-0 (2026-07-24 "MS" revision): white accent bar + title(15 semibold)/
- * subtitle(12 medium #95959A) on the left; M/S on the right as BARE LETTERS
+ * subtitle(12 medium #95959A) on the left; L/M/S on the right as BARE LETTERS
  * with a small light bar beneath — engaged = white letter + glowing bar,
  * matching the app-wide light language (no button chrome). Then a full-width
  * step strip (children) below. Presentational only — step sizing/playhead
@@ -22,10 +22,13 @@ export interface LaneRowProps {
   subtitle?: string;
   muted?: boolean;
   solo?: boolean;
+  /** Randomization lock — a locked lane sits out mutate/dice rolls. */
+  locked?: boolean;
   /** Lights the accent bar white; dimmed lanes get #606069 (Paper ZZ-0). */
   audible?: boolean;
   onToggleMute?: () => void;
   onToggleSolo?: () => void;
+  onToggleLock?: () => void;
   onPressTitle?: () => void;
   children?: React.ReactNode;
 }
@@ -35,9 +38,11 @@ export function LaneRow({
   subtitle,
   muted = false,
   solo = false,
+  locked = false,
   audible = !muted,
   onToggleMute,
   onToggleSolo,
+  onToggleLock,
   onPressTitle,
   children,
 }: LaneRowProps) {
@@ -70,6 +75,8 @@ export function LaneRow({
           </View>
         </Pressable>
         <View style={styles.msGroup}>
+          {/* L sits left of the M/S pair so mute/solo keep their positions. */}
+          <MSButton label="L" active={locked} onPress={onToggleLock} />
           <MSButton label="M" active={muted} onPress={onToggleMute} />
           <MSButton label="S" active={solo} onPress={onToggleSolo} />
         </View>
@@ -100,7 +107,7 @@ function MSButton({ label, active, onPress }: { label: string; active: boolean; 
       disabled={!onPress}
       style={styles.ms}
       accessibilityRole="button"
-      accessibilityLabel={label === 'M' ? 'Mute' : 'Solo'}
+      accessibilityLabel={label === 'M' ? 'Mute' : label === 'S' ? 'Solo' : 'Lock'}
       accessibilityState={{ selected: active }}
     >
       <AppText style={[styles.msLabel, active && styles.msLabelActive]}>{label}</AppText>
