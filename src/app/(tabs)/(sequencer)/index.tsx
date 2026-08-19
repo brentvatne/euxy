@@ -30,7 +30,7 @@ import { postNotice } from '@/lib/notice';
 import { haptics, logObserveEvent } from '@/lib/shims';
 import { useBeatHaptics } from '@/lib/use-beat-haptics';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
-import { color } from '@/theme/tokens';
+import { color, laneHue } from '@/theme/tokens';
 import { LaneRow, TransportBar } from '@/components/ui';
 import { useScreenFocused } from '@/components/ui/use-screen-focused';
 import { chipForPattern } from '@/components/patterns/chips';
@@ -331,6 +331,7 @@ export default function SequencerScreen() {
                 muted={lane.muted || (anySolo && !lane.solo)}
                 solo={lane.solo}
                 audible={laneAudible(lane, anySolo)}
+                accentColor={laneHue(laneIndex)}
                 onToggleMute={() => toggleMute(lane.id)}
                 onToggleSolo={() => toggleSolo(lane.id)}
                 onPressTitle={() => openEditor(lane.id)}

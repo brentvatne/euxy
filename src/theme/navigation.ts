@@ -1,8 +1,8 @@
 /**
- * React Navigation theme for the app — dark, monochrome, tint overridden to
- * white so no system blue leaks into headers, back buttons, or controls.
- * Consumed by the root ThemeProvider (see src/app/_layout.tsx). NativeTabs takes
- * its own `tintColor` prop separately.
+ * React Navigation theme for the app — dark indigo, tint overridden to the
+ * violet accent so no system blue leaks into headers, back buttons, or
+ * controls. Consumed by the root ThemeProvider (see src/app/_layout.tsx).
+ * NativeTabs takes its own `tintColor` prop separately.
  */
 import { DarkTheme, type Theme } from 'expo-router/react-navigation';
 
@@ -13,7 +13,7 @@ export const navTheme: Theme = {
   dark: true,
   colors: {
     ...DarkTheme.colors,
-    primary: color.label, // tint (back chevrons, active controls) → white
+    primary: color.accent, // tint (back chevrons, active controls) → violet
     background: color.ground,
     card: color.ground, // headers blend into the ground; no gray header bar
     text: color.label,
@@ -23,8 +23,8 @@ export const navTheme: Theme = {
   fonts: DarkTheme.fonts,
 };
 
-/** Tab bar + control tint. White = active/primary per the monochrome rule. */
-export const TINT = color.label;
+/** Tab bar + control tint. Violet accent = active/primary. */
+export const TINT = color.accent;
 
 /**
  * Shared form-sheet screen options. Lives here (not in the root layout) because

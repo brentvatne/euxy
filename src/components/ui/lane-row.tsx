@@ -22,8 +22,10 @@ export interface LaneRowProps {
   subtitle?: string;
   muted?: boolean;
   solo?: boolean;
-  /** Lights the accent bar white; dimmed lanes get #606069 (Paper ZZ-0). */
+  /** Lights the accent bar; dimmed lanes get the dim rail (Paper ZZ-0). */
   audible?: boolean;
+  /** The lane's hue (see theme laneHue) — colors the lit accent bar. */
+  accentColor?: string;
   onToggleMute?: () => void;
   onToggleSolo?: () => void;
   onPressTitle?: () => void;
@@ -36,6 +38,7 @@ export function LaneRow({
   muted = false,
   solo = false,
   audible = !muted,
+  accentColor,
   onToggleMute,
   onToggleSolo,
   onPressTitle,
@@ -61,7 +64,14 @@ export function LaneRow({
               at once, and that used to be a silent full-list colour teleport. */}
           <View style={styles.accent}>
             {audible ? (
-              <Led ignite={!isFirstRender} style={[StyleSheet.absoluteFill, styles.accentLit]} />
+              <Led
+                ignite={!isFirstRender}
+                style={[
+                  StyleSheet.absoluteFill,
+                  styles.accentLit,
+                  accentColor ? { backgroundColor: accentColor } : null,
+                ]}
+              />
             ) : null}
           </View>
           <View style={styles.textBlock}>

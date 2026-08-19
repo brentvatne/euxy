@@ -1,7 +1,7 @@
 /**
  * Bottom tabs (native). Three tabs: Sequencer (home) · Patterns · MIDI. Each is
- * its own Stack (see the group _layout files). Tint is white per the monochrome
- * rule — no system blue. Tabs are static (never added/removed at runtime).
+ * its own Stack (see the group _layout files). Tint is the violet accent — no
+ * system blue. Tabs are static (never added/removed at runtime).
  */
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 

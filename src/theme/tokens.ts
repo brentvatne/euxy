@@ -1,57 +1,59 @@
 /**
- * euxy design tokens — derived from the OP-XY grayscale monoramp.
+ * euxy design tokens — the colorized palette (2026-08 "add color" revision).
  *
  * Source of truth: Paper file "euxy"
  *   https://app.paper.design/file/01KY80MDKPNF9GAKHVF36TY2GJ/1-0
  * See docs/design/README.md for the screen/node index and behavior redlines.
  *
- * Rule: the app is monochrome. `white` is the only "interactive / active" color.
- * The ONLY non-gray colors are the three functional exceptions below
- * (playhead cyan, connected green, record/destructive red). Do not introduce
- * hues for lane differentiation, accents, or decoration.
+ * Rule: the app is a dark indigo ground with vivid hues on top. The step
+ * ramps sweep indigo → violet → magenta → coral → amber; lanes take accent
+ * hues from `laneHue`; the violet `accent` is the interactive tint. The
+ * three functional colors keep their meanings (playhead cyan, connected
+ * green, record/destructive red).
  *
  * Styling: consume these tokens directly with React Native `StyleSheet`
  * (and `Color` from expo-router for native semantic colors where relevant).
  * Do NOT use NativeWind / Tailwind — this module is the single style source.
  */
 
-/** OP-XY packaging monoramp, light → dark (lospec: teenageengineering-op-xy). */
+/** Structural ramp, light → dark — the old OP-XY monoramp shifted toward
+ * indigo so borders, rails, and dim chrome sit in the same hue family as the
+ * surfaces. Same lightness stops as before. */
 export const ramp = {
-  0: '#f6f4f4', // brightest (primary label / active / play)
-  1: '#afafb3',
-  2: '#95959a',
-  3: '#797982',
-  4: '#606069',
-  5: '#484850',
-  6: '#2f2f36',
-  7: '#16161d',
+  0: '#f7f3fc', // brightest (primary label / active / play)
+  1: '#b3aec4',
+  2: '#9791ad',
+  3: '#7b7594',
+  4: '#615c7a',
+  5: '#49445f',
+  6: '#302c42',
+  7: '#171425',
   8: '#000000', // ground
 } as const;
 
 /**
- * OP-XY sequencer-key ramp — the exact fills of the 16 sequencer keys in
- * Teenage Engineering's own product artwork (assets.teenage.engineering
- * 6734baca…_opt.svg): 8 shades, each spanning a PAIR of adjacent keys, so a
- * 16-step row sweeps the full ramp dark → light. The artwork's first pair is
- * pure #000; we lift it to #16161D so those cells stay visible on the app's
- * black ground. These 8 are the ANCHORS; step grids fill from `stepFill`.
+ * Sequencer-key ramp — the colorized sweep: 8 hue anchors running deep
+ * indigo → violet → magenta → hot pink → coral → amber, each spanning a PAIR
+ * of adjacent keys, so a 16-step row sweeps the full spectrum dark → hot.
+ * Slot 1 stays dark enough to sit on the ground but visible. These 8 are the
+ * ANCHORS; step grids fill from `stepFill`.
  */
 export const keyRamp = [
-  '#16161D', // pair 1-2 (#000 in the TE artwork)
-  '#20242A',
-  '#42444A',
-  '#5B5D63',
-  '#73757A',
-  '#83858B',
-  '#A4A5AC',
-  '#C5C6CD', // pair 15-16 — tops out below the keyboard-key gray, never white
+  '#221148', // pair 1-2 — deep indigo, visible on the ground
+  '#3A1D7A',
+  '#5B2BA8',
+  '#8A36C9',
+  '#C13FD1',
+  '#E8559E',
+  '#F87A6A',
+  '#FFB25A', // pair 15-16 — amber, never white
 ] as const;
 
 /**
  * Step-grid fills — `keyRamp` resampled to 16 shades, ONE PER SLOT, so a
- * 16-step row reads as a continuous gray sweep instead of eight visible
- * two-cell plateaus. Same tonal range as the artwork ramp (slot 1 is still
- * #16161D, slot 16 still #C5C6CD, still never white): only the sampling gets
+ * 16-step row reads as a continuous hue sweep instead of eight visible
+ * two-cell plateaus. Same range as the anchor ramp (slot 1 is still
+ * #221148, slot 16 still #FFB25A, still never white): only the sampling gets
  * finer, so the grid looks like the same gradient with twice the steps.
  *
  * Derivation — `keyRamp` sampled at `slot * 7 / 15`, linear per channel:
@@ -59,22 +61,22 @@ export const keyRamp = [
  * the odd slots are the newly interpolated shades between them.
  */
 export const stepRamp = [
-  '#16161D',
-  '#1B1D23',
-  '#1F2329',
-  '#2E3137',
-  '#3D4046',
-  '#4A4C52',
-  '#56585E',
-  '#616369',
-  '#6D6F74',
-  '#76787D',
-  '#7E8085',
-  '#87898F',
-  '#97989F',
-  '#A6A7AE',
-  '#B6B7BE',
-  '#C5C6CD',
+  '#221148',
+  '#2D175F',
+  '#381C77',
+  '#47238C',
+  '#5729A2',
+  '#6B2FB3',
+  '#8134C2',
+  '#9938CB',
+  '#B23DCF',
+  '#C943C7',
+  '#DB4EAF',
+  '#EA5A97',
+  '#F26B7F',
+  '#F87E69',
+  '#FC9861',
+  '#FFB25A',
 ] as const;
 
 /** Fill for a step at `slot`, wrapped into its 16-slot row. */
@@ -83,37 +85,61 @@ export function stepFill(slot: number): string {
 }
 
 export const color = {
-  // Surfaces
-  ground: '#000000', // app background (also OLED-friendly)
-  surface: '#1C1C1E', // grouped cell / bars
-  surface2: '#2C2C2E', // controls, empty step blocks
+  // Surfaces — deep indigo family, dark → light
+  ground: '#0B0716', // app background (near-black indigo, still OLED-friendly)
+  surface: '#1D1633', // grouped cell / bars
+  surface2: '#2B2148', // controls, empty step blocks
   // Also the panel a grouped row expands into: one step ABOVE the cell's
   // surface2, never below it. Dropping that panel to the ground punched a black
   // hole in the group (Brent 2026-07-29); a step up separates it from the cell
   // and still reads as content the row revealed.
-  surface3: '#3A3A3C', // disclosure panel, segmented track fill
-  surface4: '#48484A', // grabber, active segment, controls inside a surface3 panel
-  separator: '#1C1C1E',
-  displayBg: '#08080a', // dot-matrix "device screen" panel (Graph view)
+  surface3: '#3A2D5E', // disclosure panel, segmented track fill
+  surface4: '#4A3A75', // grabber, active segment, controls inside a surface3 panel
+  separator: '#1D1633',
+  displayBg: '#0A0618', // dot-matrix "device screen" panel (Graph view)
 
-  // Labels (text)
-  label: '#f6f4f4', // primary + active/interactive
-  label2: '#afafb3',
-  label25: '#98989F', // section headers / secondary values (exact Paper gray between label2 and label3)
-  label3: '#95959a', // secondary
-  label4: '#797982', // tertiary
-  labelDisabled: '#5A5A5E',
+  // Labels (text) — cool lavender-tinted ramp
+  label: '#F7F3FF', // primary + active/interactive
+  label2: '#B7AECE',
+  label25: '#A197BE', // section headers / secondary values (between label2 and label3)
+  label3: '#9890B4', // secondary
+  label4: '#7C7399', // tertiary
+  labelDisabled: '#5D5578',
+
+  // Accent — the interactive tint (tab bar, back chevrons, active controls)
+  accent: '#B18CFF', // vivid violet
 
   // Step blocks
-  stepHit: '#afafb3',
-  stepEmpty: '#2f2f36',
-  stepEmptyDim: '#232325', // gen sub-rows
+  stepHit: '#E8559E', // hot pink — pulled from the key ramp
+  stepEmpty: '#2B2148',
+  stepEmptyDim: '#221A39', // gen sub-rows
 
-  // Functional-semantic exceptions — the ONLY non-gray colors allowed
-  playhead: '#7fd4c8', // faint desaturated cyan, echoes the OP-XY display
+  // Functional-semantic colors — meanings unchanged
+  playhead: '#5EEAD4', // cyan, echoes the OP-XY display
   connected: '#30D158', // success / device connected
   danger: '#FF453A', // record LED + destructive (Panic, swipe-delete)
 } as const;
+
+/**
+ * Per-lane accent hues — vivid, evenly spread around the wheel so adjacent
+ * lanes always read as different instruments. A lane keeps its hue by INDEX
+ * (wrapping past 8 lanes), so colors are stable across a session.
+ */
+export const laneHues = [
+  '#FF6B6B', // red-coral
+  '#FFA94D', // orange
+  '#FFD43B', // yellow
+  '#69DB7C', // green
+  '#38D9A9', // teal
+  '#4DABF7', // blue
+  '#9775FA', // violet
+  '#F783AC', // pink
+] as const;
+
+/** Accent hue for the lane at `index`, wrapped into the 8-hue palette. */
+export function laneHue(index: number): string {
+  return laneHues[((index % laneHues.length) + laneHues.length) % laneHues.length];
+}
 
 /** Fonts. SF Pro Display for large/headers, SF Pro Text for body/controls. */
 export const font = {
