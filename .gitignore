@@ -100,3 +100,7 @@ SETUP-TRACING.md
 # Nothing here belongs in a commit, and a wrapper's `git add -A` would otherwise
 # stage recordings onto the branch it is about to push.
 .argent/
+# @generated expo skills start
+.agents/skills/react-native-ease-refactor
+.claude/skills/react-native-ease-refactor
+# @generated expo skills end

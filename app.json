@@ -51,7 +51,8 @@
         {
           "disableLibdav1d": true
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,
