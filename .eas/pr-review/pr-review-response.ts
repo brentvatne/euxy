@@ -31,8 +31,8 @@ import { runClaudeAgent } from "../shared/claude-agent";
 import { fetchAllGitHubPages } from "../shared/github-pagination";
 import { publishPullRequestUpdate } from "../shared/pr-update-preview";
 import {
-  publishPublicSimulatorEvidence,
-  renderPublicSimulatorEvidence,
+  postPublicSimulatorEvidence,
+  selectPublicSimulatorEvidence,
 } from "../shared/public-simulator-evidence";
 import { rescueAgentWork } from "../shared/rescue-patch";
 import {
@@ -569,7 +569,9 @@ if (env.DRY_RUN === "1") {
   console.log("▸ DRY_RUN=1 → not pushing.");
   process.exit(0);
 }
-const publicEvidence = await publishPublicSimulatorEvidence({
+// Validated now, so bad evidence fails before anything is pushed; posted after
+// the response comment, as its own comment on the pull request.
+const selectedEvidence = await selectPublicSimulatorEvidence({
   enabled: simValidation && env.PUBLIC_SIMULATOR_EVIDENCE === "1",
   artifactDir: resolve(
     WORK,
@@ -578,14 +580,22 @@ const publicEvidence = await publishPublicSimulatorEvidence({
   env,
   sessionUrl: simulatorSession?.url ?? null,
 });
-if (publicEvidence) {
+if (selectedEvidence) {
+  console.log("▸ Selected simulator evidence for a public comment.");
+}
+async function postSelectedEvidence(): Promise<void> {
+  if (!selectedEvidence) return;
+  const evidence = await postPublicSimulatorEvidence({
+    selected: selectedEvidence,
+    owner,
+    repo,
+    target: { kind: "pull-request", number: Number(prNumber) },
+    env,
+  });
   console.log(
-    `▸ Published and independently verified simulator evidence: ${publicEvidence.pageUrl}`,
+    `▸ Posted and publicly verified simulator evidence: ${evidence.commentUrl}`,
   );
 }
-const evidenceSection = publicEvidence
-  ? `\n\n${renderPublicSimulatorEvidence(publicEvidence)}`
-  : "";
 
 // ---- commit + push to the PR branch (feedback/RESPONSE are under a gitignored path) ----
 try {
@@ -629,9 +639,10 @@ if (
   await gh(`/issues/${prNumber}/comments`, {
     method: "POST",
     body: JSON.stringify({
-      body: `${MARKER}: no code change.\n\n${summary.slice(0, 3000)}${evidenceSection}${previewSection}\n\n${responseIterationMarker}`,
+      body: `${MARKER}: no code change.\n\n${summary.slice(0, 3000)}${previewSection}\n\n${responseIterationMarker}`,
     }),
   });
+  await postSelectedEvidence();
   process.exit(0);
 }
 await sh([
@@ -659,7 +670,8 @@ console.log(`▸ ${preview.summary}`);
 await gh(`/issues/${prNumber}/comments`, {
   method: "POST",
   body: JSON.stringify({
-    body: `${MARKER} — pushed a fix.\n\n${summary.slice(0, 3000)}${evidenceSection}\n\n${preview.summary}\n\n${responseIterationMarker}`,
+    body: `${MARKER} — pushed a fix.\n\n${summary.slice(0, 3000)}\n\n${preview.summary}\n\n${responseIterationMarker}`,
   }),
 });
 console.log("▸ Commented the response summary on the PR.");
+await postSelectedEvidence();

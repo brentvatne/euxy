@@ -41,8 +41,8 @@ import {
 import { createOrFindPullRequest } from "../shared/github-pull-request";
 import { ensureTriageIssue } from "../shared/github-triage-issue";
 import {
-  publishPublicSimulatorEvidence,
-  renderPublicSimulatorEvidence,
+  postPublicSimulatorEvidence,
+  selectPublicSimulatorEvidence,
 } from "../shared/public-simulator-evidence";
 import { runClaudeAgent } from "../shared/claude-agent";
 import { publishPullRequestUpdate } from "../shared/pr-update-preview";
@@ -454,7 +454,9 @@ try {
 }
 const codeChanged = stagedPaths
   .some((f) => !f.startsWith(`${TRIAGE_DIR}/crash.json`) && !f.startsWith(`${TRIAGE_DIR}/ANALYSIS.md`));
-const publicEvidence = await publishPublicSimulatorEvidence({
+// Validated now, so bad evidence fails before anything is committed; posted
+// later, as a comment on the pull request once it exists.
+const selectedEvidence = await selectPublicSimulatorEvidence({
   enabled:
     simValidation &&
     env.PUBLIC_SIMULATOR_EVIDENCE === "1",
@@ -462,8 +464,8 @@ const publicEvidence = await publishPublicSimulatorEvidence({
   env,
   sessionUrl: simulatorSession?.url ?? null,
 });
-if (publicEvidence) {
-  console.log(`▸ Published and independently verified simulator evidence: ${publicEvidence.pageUrl}`);
+if (selectedEvidence) {
+  console.log("▸ Selected simulator evidence for a public comment.");
 }
 
 const nothing = (await sh([GIT, "diff", "--cached", "--quiet"], { allowFail: true })).code === 0;
@@ -479,15 +481,14 @@ console.log(`▸ Pushed ${branch}.`);
 // ---- open PR via REST ----
 const title = codeChanged ? `Crash triage + proposed fix: ${feedbackId || shortId}` : `Crash triage: ${feedbackId || shortId}`;
 const linkLine = codeChanged ? `Closes #${triageIssue!.number}` : `Re: #${triageIssue!.number}`;
-const evidenceSection = publicEvidence
-  ? `\n\n${renderPublicSimulatorEvidence(publicEvidence)}`
+const evidenceNote = selectedEvidence
+  ? "\n\nSimulator verification evidence follows in a comment on this pull request; it was captured during before/after verification in a clean simulator and intentionally published."
   : "";
 const body =
   `${linkLine}\n\n` +
   `Automated triage of private TestFlight crash feedback \`${feedbackId || shortId}\`.\n\n` +
   `Tester identity, App Store Connect URLs, crash logs, device details, simulator session URLs, and the analysis are intentionally omitted from this public PR. Review the private \`crash-triage-summary\` workflow artifact for those details.` +
-  evidenceSection +
-  `${publicEvidence ? "\n\nThe evidence above was captured during before/after verification in a clean simulator and intentionally published." : ""}`;
+  evidenceNote;
 
 const pullRequest = await createOrFindPullRequest({
   gh,
@@ -503,6 +504,16 @@ console.log(
     ? `▸ Opened and publicly verified PR: ${pullRequest.htmlUrl}`
     : `▸ PR already open and publicly verified (branch refreshed): ${pullRequest.htmlUrl}`
 );
+if (selectedEvidence) {
+  const evidence = await postPublicSimulatorEvidence({
+    selected: selectedEvidence,
+    owner,
+    repo,
+    target: { kind: "pull-request", number: pullRequest.number },
+    env,
+  });
+  console.log(`▸ Posted and publicly verified simulator evidence: ${evidence.commentUrl}`);
+}
 if (codeChanged) {
   const preview = await publishPullRequestUpdate({
     gh,

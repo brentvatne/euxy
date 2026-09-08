@@ -29,8 +29,8 @@ import { createVerifiedIssueComment } from "../shared/github-issue-comment";
 import { createOrFindPullRequest } from "../shared/github-pull-request";
 import { updateTriageIssueStatus } from "../shared/github-triage-issue";
 import {
-  publishPublicSimulatorEvidence,
-  renderPublicSimulatorEvidence,
+  postPublicSimulatorEvidence,
+  selectPublicSimulatorEvidence,
 } from "../shared/public-simulator-evidence";
 import { runClaudeAgent } from "../shared/claude-agent";
 import { publishPullRequestUpdate } from "../shared/pr-update-preview";
@@ -322,14 +322,17 @@ try {
   process.exit(1);
 }
 const codeChanged = stagedPaths.some((f) => !f.startsWith(`${DIR}/`));
-const publicEvidence = await publishPublicSimulatorEvidence({
+// Validated now, so bad evidence fails before anything is committed; posted
+// later, as a comment, once there is a pull request or issue update to attach
+// it to.
+const selectedEvidence = await selectPublicSimulatorEvidence({
   enabled: simValidation && env.PUBLIC_SIMULATOR_EVIDENCE === "1",
   artifactDir: env.SIMULATOR_ARTIFACT_DIR || `${DIR}/sim`,
   env,
   sessionUrl: simulatorSession?.url ?? null,
 });
-if (publicEvidence) {
-  console.log(`▸ Published and independently verified simulator evidence: ${publicEvidence.pageUrl}`);
+if (selectedEvidence) {
+  console.log("▸ Selected simulator evidence for a public comment.");
 }
 if ((await sh([GIT, "diff", "--cached", "--quiet"], { allowFail: true })).code === 0) {
   console.log("▸ Nothing staged; nothing to open a PR for.");
@@ -373,14 +376,15 @@ if ((await sh([GIT, "diff", "--cached", "--quiet"], { allowFail: true })).code =
     workflowUrl,
   });
   console.log(`▸ Marked agent work on #${issue.number} as complete.`);
-  if (publicEvidence) {
-    await gh(`/issues/${issue.number}/comments`, {
-      method: "POST",
-      body: JSON.stringify({
-        body: `🤖 Simulator verification completed.\n\n${renderPublicSimulatorEvidence(publicEvidence)}`,
-      }),
+  if (selectedEvidence) {
+    const evidence = await postPublicSimulatorEvidence({
+      selected: selectedEvidence,
+      owner,
+      repo,
+      target: { kind: "issue", number: issue.number },
+      env,
     });
-    console.log("▸ Linked simulator evidence from the issue.");
+    console.log(`▸ Posted and publicly verified simulator evidence: ${evidence.commentUrl}`);
   }
   process.exit(0);
 }
@@ -391,10 +395,10 @@ console.log(`▸ Pushed ${branch}.`);
 // ---- open PR + comment on the issue ----
 const title = codeChanged ? `Address #${issue.number}: ${issue.title}` : `Investigate #${issue.number}: ${issue.title}`;
 const linkLine = codeChanged ? `Closes #${issue.number}` : `Re: #${issue.number}`;
-const evidenceSection = publicEvidence
-  ? `\n\n${renderPublicSimulatorEvidence(publicEvidence)}`
+const evidenceNote = selectedEvidence
+  ? "\n\nSimulator verification evidence follows in a comment on this pull request."
   : "";
-const body = `${linkLine}\n_Triggered: ${issue.triggeredBy}._${issue.acceptContext ? `\n_Maintainer context: ${issue.acceptContext}_` : ""}\n\n${await Bun.file(ANALYSIS).text()}${evidenceSection}`;
+const body = `${linkLine}\n_Triggered: ${issue.triggeredBy}._${issue.acceptContext ? `\n_Maintainer context: ${issue.acceptContext}_` : ""}\n\n${await Bun.file(ANALYSIS).text()}${evidenceNote}`;
 
 const pullRequest = await createOrFindPullRequest({
   gh,
@@ -411,6 +415,16 @@ console.log(
     ? `▸ Opened and publicly verified PR: ${prUrl}`
     : `▸ PR already open and publicly verified (branch refreshed): ${prUrl}`
 );
+if (selectedEvidence) {
+  const evidence = await postPublicSimulatorEvidence({
+    selected: selectedEvidence,
+    owner,
+    repo,
+    target: { kind: "pull-request", number: pullRequest.number },
+    env,
+  });
+  console.log(`▸ Posted and publicly verified simulator evidence: ${evidence.commentUrl}`);
+}
 const preview = codeChanged
   ? await publishPullRequestUpdate({
       gh,

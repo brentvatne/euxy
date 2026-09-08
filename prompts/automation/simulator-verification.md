@@ -201,9 +201,15 @@ a trusted evidence publisher explicitly validates and selects individual files.
 
 - The public evidence publisher recognizes these fixed evidence files:
   `before.png`, `before.txt`, `before.mp4`, `final.png`, `final.txt`, and
-  `verification.mp4`. The text files become escaped captions beneath their
-  corresponding screenshots. `final.png` is required to publish a page; the
-  other files are optional.
+  `verification.mp4`. It attaches them to one comment on the pull request (or
+  the issue, when no pull request is opened) through the GitHub CLI; the text
+  files become escaped captions beneath their corresponding screenshots.
+  `final.png` is required to publish anything; the other files are optional.
+  GitHub caps attached videos at 10 MB. The publisher re-encodes the public
+  copy of a larger recording to fit (frame timing passed through, lower
+  bitrate) and leaves your original untouched in the private workflow
+  artifact. Shorter recordings keep more detail, so stop recording once the
+  behavior under test has been shown.
 - In the workflow's analysis/response file, record the interaction performed,
   expected and observed results, artifact paths, motion frame milestones when
   applicable, and whether verification passed.

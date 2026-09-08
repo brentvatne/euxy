@@ -404,31 +404,39 @@ details out of them. For apps whose simulator contains no sensitive data,
 publish every available before/after capture whenever simulator testing
 occurred, including analysis-only outcomes. A trusted wrapper should:
 
-1. reject symlinks, unknown formats, oversized media, and unexpected image
-   dimensions;
-2. build a minimal static bundle that contains no agent-authored application
-   code or local `.env` files;
-3. create an immutable EAS Hosting preview deployment without an alias or
-   `--prod`;
-4. require same-origin `https://*.expo.app` URLs;
-5. fetch the page and media without credentials and compare the public bytes to
-   the selected local files; and
-6. place only those verified URLs in PR bodies or PR follow-up comments.
+1. reject symlinks, unknown formats, oversized images, and unexpected image
+   dimensions; re-encode the public copy of a video over GitHub's 10 MB
+   free-plan bound with the pinned ffmpeg (two-pass x264 at the bitrate the
+   bound allows for its duration, frame timing passed through), stepping the
+   target down if the first encode still comes out over, and leave the video
+   out only when no encode fits — the original stays in the private artifact;
+2. write one comment body that references each selected file by its local
+   absolute path (`![alt](<path>)`), with recordings alone in their own
+   paragraphs so GitHub renders players;
+3. post it with `gh pr comment <n> --body-file <file> --attach <path>...`
+   (GitHub CLI 2.99.0 or later, pinned by checksum), which uploads the files as
+   repository user attachments and rewrites the references;
+4. parse the comment URL gh prints and read the comment back without
+   credentials;
+5. require the public body to equal the expected rewrite and download every
+   `https://github.com/user-attachments/assets/...` URL, comparing the public
+   bytes to the selected local files; and
+6. treat any mismatch as a failed run rather than editing the comment.
 
 Link the simulator session that produced the captures, under the comparison. It
-is the one link in that block that is NOT a public hosted file but a dashboard
-URL, so give it its own validation instead of adding it to the same-origin
-comparison in step 4, and label it as needing project access so nobody reads it
+is the one link in that block that is NOT an uploaded attachment but a dashboard
+URL, so give it its own validation instead of adding it to the attachment
+readback in step 5, and label it as needing project access so nobody reads it
 as public. Drop an unresolved or malformed link at the source rather than letting
-it fail a render after the deployment already succeeded.
+it fail the comment after the evidence is already selected.
 
-Embed the initial evidence and a clear full-page link in an automation-created
-PR body. Put verified Before and After stills in a two-column GitHub Markdown
-table whenever both exist; use the same compact comparison in PR comments. Do
-not put simulator evidence in the tracking issue body. If no PR is created, an
-issue findings comment may link the evidence instead. For follow-up
-review-response runs, preserve the original description and add a new concise
-PR comment with that run's table and evidence-page link.
+Post the evidence as its own comment on the automation-created PR, and say so in
+the PR body. Put verified Before and After stills in a two-column GitHub
+Markdown table whenever both exist, with recordings in their own paragraphs. Do
+not put simulator evidence in the tracking issue body. If no PR is created, post
+the evidence as a comment on the issue instead. For follow-up review-response
+runs, preserve the original description and add a new evidence comment for that
+run.
 
 Record bounded before/after passes immediately around the reproduction and
 expected result. Exclude idle build/debugging time so the complete recordings

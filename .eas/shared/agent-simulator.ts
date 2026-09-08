@@ -127,7 +127,7 @@ export async function prepareAgentSimulator(options: {
 /**
  * Stops the session and reports which one it was, so the wrapper can link it
  * from the pull request beside the evidence it produced. Matching an evidence
- * page to a session by run window is guesswork; the id is not.
+ * comment to a session by run window is guesswork; the id is not.
  *
  * Returns null when there was no session to stop. The id is read before the
  * stop, because stopping clears the file.

@@ -34,7 +34,7 @@ on:
         type: string
         default: '1'
       public_simulator_evidence:
-        description: Publish selected post-change simulator evidence to EAS Hosting ('1' to enable)
+        description: Attach selected post-change simulator evidence to the pull request with the GitHub CLI ('1' to enable)
         type: string
         default: '1'
 

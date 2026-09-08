@@ -78,7 +78,6 @@ SETUP-TRACING.md
 .eas/feedback-triage/PUBLIC_REPORT.json
 .eas/feedback-triage/PUBLIC_PR.json
 .eas/feedback-triage/sim/
-.eas/public-evidence-site/dist/
 .eas/agent-work/issue.json
 .eas/agent-work/ANALYSIS.md
 .eas/agent-work/PUBLIC_FINDINGS.json

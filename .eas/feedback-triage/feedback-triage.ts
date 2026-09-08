@@ -45,8 +45,8 @@ import {
 import { createOrFindPullRequest } from "../shared/github-pull-request";
 import { ensureTriageIssue } from "../shared/github-triage-issue";
 import {
-  publishPublicSimulatorEvidence,
-  renderPublicSimulatorEvidence,
+  postPublicSimulatorEvidence,
+  selectPublicSimulatorEvidence,
 } from "../shared/public-simulator-evidence";
 import { runClaudeAgent } from "../shared/claude-agent";
 import { publishPullRequestUpdate } from "../shared/pr-update-preview";
@@ -461,7 +461,9 @@ try {
   process.exit(1);
 }
 const codeChanged = stagedPaths.some((f) => !f.startsWith(`${DIR}/`));
-const publicEvidence = await publishPublicSimulatorEvidence({
+// Validated now, so bad evidence fails before anything is committed; posted
+// later, as a comment on the pull request once it exists.
+const selectedEvidence = await selectPublicSimulatorEvidence({
   enabled:
     simValidation &&
     env.PUBLIC_SIMULATOR_EVIDENCE === "1",
@@ -469,8 +471,8 @@ const publicEvidence = await publishPublicSimulatorEvidence({
   env,
   sessionUrl: simulatorSession?.url ?? null,
 });
-if (publicEvidence) {
-  console.log(`▸ Published and independently verified simulator evidence: ${publicEvidence.pageUrl}`);
+if (selectedEvidence) {
+  console.log("▸ Selected simulator evidence for a public comment.");
 }
 
 const summarizedIssue = await ensureTriageIssue({
@@ -535,8 +537,8 @@ console.log(`▸ Pushed ${branch}.`);
 const title = publicPr.title;
 const verification = publicPr.howToVerify.map((step, index) => `${index + 1}. ${step}`).join("\n");
 const linkLine = codeChanged ? `Closes #${triageIssue!.number}` : `Re: #${triageIssue!.number}`;
-const evidenceSection = publicEvidence
-  ? `\n\n${renderPublicSimulatorEvidence(publicEvidence)}`
+const evidenceNote = selectedEvidence
+  ? " Simulator verification evidence follows in a comment on this pull request; it was captured during before/after verification in a clean simulator and intentionally published."
   : "";
 const body =
   `${linkLine}\n\n` +
@@ -544,8 +546,7 @@ const body =
   `## What changed\n\n${publicPr.whatChanged}\n\n` +
   `## Why\n\n${publicPr.why}\n\n` +
   `## How to verify\n\n${verification}\n\n` +
-  evidenceSection +
-  `\n\nTester identity, the original report and screenshot, device details, private analysis, and raw simulator artifacts remain in the access-controlled \`feedback-triage-summary\` workflow artifact. Any evidence above was captured during before/after verification in a clean simulator and intentionally published.`;
+  `Tester identity, the original report and screenshot, device details, private analysis, and raw simulator artifacts remain in the access-controlled \`feedback-triage-summary\` workflow artifact.${evidenceNote}`;
 
 const pullRequest = await createOrFindPullRequest({
   gh,
@@ -561,6 +562,16 @@ console.log(
     ? `▸ Opened and publicly verified PR: ${pullRequest.htmlUrl}`
     : `▸ PR already open and publicly verified (branch refreshed): ${pullRequest.htmlUrl}`
 );
+if (selectedEvidence) {
+  const evidence = await postPublicSimulatorEvidence({
+    selected: selectedEvidence,
+    owner,
+    repo,
+    target: { kind: "pull-request", number: pullRequest.number },
+    env,
+  });
+  console.log(`▸ Posted and publicly verified simulator evidence: ${evidence.commentUrl}`);
+}
 if (codeChanged) {
   const preview = await publishPullRequestUpdate({
     gh,

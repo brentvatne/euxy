@@ -227,22 +227,27 @@ Use this lifecycle for crash, feedback, and agent work automation:
     precede publication by several minutes, so do not diagnose a still-running
     workflow as a missing Update.
 
-When publishing simulator evidence, use a separate immutable EAS Hosting
-preview deployment rather than the workflow artifact URL. Accept only fixed
-filenames, regular files, known media signatures, bounded dimensions/sizes,
-bounded plain-text captions, and same-origin `https://*.expo.app` results.
-Normalize and HTML-escape captions before embedding them. Independently
-download the public files and compare them to the selected local bytes before
-adding their links to a PR. Never put simulator evidence in a tracking issue
-body; keep that body focused on intake, source, workflow, and status. Never
-promote evidence deployments to the production alias. Include the initial
-evidence and a clear full-page link in every automation-created PR body. When
-both stills exist, render them in a two-column GitHub Markdown table so Before
-and After remain visually paired in PR bodies and comments. For later
-review-response runs, preserve the original description and prior comments;
-add a new concise PR comment with the comparison table and a link to that run's
-evidence page. If investigation produces no PR, an issue findings comment may
-link the evidence instead.
+When publishing simulator evidence, attach the files to one comment on the
+pull request with the GitHub CLI (`gh pr comment --attach`, 2.99.0 or later,
+pinned in the toolchain) rather than linking the workflow artifact URL or
+hosting a page. Accept only fixed filenames, regular files, known media
+signatures, bounded dimensions/sizes, and bounded plain-text captions. GitHub
+caps attached videos at 10 MB on a free plan, so re-encode the public copy of a
+larger recording with the pinned ffmpeg (two-pass x264 at the bitrate the bound
+allows, frame timing passed through) and keep the original in the private
+workflow artifact. Write the comment body with the
+local file paths referenced in markdown so gh rewrites them to
+`https://github.com/user-attachments/assets/...` URLs, then read the comment
+back without credentials, require the body to equal the expected rewrite, and
+download every attachment and compare it to the selected local bytes.
+Markdown-escape captions before embedding them. Never put simulator evidence
+in a tracking issue body; keep that body focused on intake, source, workflow,
+and status. When both stills exist, render them in a two-column GitHub Markdown
+table so Before and After remain visually paired; recordings go in their own
+paragraphs so GitHub renders players. For later review-response runs, preserve
+the original description and prior comments; post that run's evidence as a new
+comment. If investigation produces no PR, post the evidence as a comment on the
+issue instead.
 
 When an AI reviewer's findings trigger the review-response agent, that reviewer's
 shared context decides what the agent spends paid runs on. State the project's
@@ -322,7 +327,7 @@ Treat the diff as evidence, not as a byproduct:
    session file, so reading it afterwards gets nothing. Redact the Expo token
    from subprocess output.
 9. Link the returned session from the pull request, beside the evidence it
-   produced. Without the id, matching an evidence page to a session means lining
+   produced. Without the id, matching an evidence comment to a session means lining
    up a comment against the run window and guessing. Resolve the dashboard URL
    from the CLI listing rather than assembling the path, validate it against that
    exact session, and treat resolution as best effort: never fail a run whose

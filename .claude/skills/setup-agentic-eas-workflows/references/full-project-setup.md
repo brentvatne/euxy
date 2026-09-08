@@ -348,13 +348,16 @@ branch and never merge or approve automatically.
 
 Keep the raw artifact tree private. A deterministic publisher may select fixed
 public-safe files, validate regular-file type, media signatures, dimensions,
-sizes, captions, and symlink absence, then create an immutable EAS Hosting
-preview.
+sizes, captions, and symlink absence, then post them as attachments of one
+pull-request comment with `gh pr comment --attach` (GitHub CLI 2.99.0 or
+later, pinned by checksum in the toolchain).
 
-Require `https://*.expo.app`, fetch every page/media file without credentials,
-and compare public bytes to local bytes. Put initial Before/After evidence in
-the PR body and later runs in new PR comments. Never place evidence in the
-tracking issue body. Require `final.png` before deploying an evidence page.
+Reference the local files from the comment body so gh rewrites them to
+`https://github.com/user-attachments/assets/...` URLs. Read the comment back
+without credentials, require its body to equal the expected rewrite, and
+compare every attachment's public bytes to the local bytes. Post each run's
+evidence as its own PR comment. Never place evidence in the tracking issue
+body. Require `final.png` before posting anything.
 
 ## 12. Test and roll out
 
