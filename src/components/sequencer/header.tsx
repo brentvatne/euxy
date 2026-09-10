@@ -19,6 +19,11 @@ import { AppText, Tip } from '@/components/ui';
 import { LedChip } from '@/components/patterns/led-chip';
 import { UpdateMarker } from '@/components/update-marker';
 
+// Paper 7L-0 nav metrics, shared by the styles and by the trigger-width math
+// below — the two must not drift.
+const NAV_PAD = 16;
+const TRIGGER_GAP = 12;
+
 export type PatternMenuAction =
   | 'new'
   | 'rename'
@@ -70,6 +75,25 @@ export function SequencerNav({
   const [rightX, setRightX] = useState(0);
   const [pillX, setPillX] = useState(0);
 
+  // The menu trigger's own width, measured off the row instead of read from
+  // the host: SwiftUI centers a Menu label narrower than its frame, and
+  // `alignSelf: 'stretch'` cannot beat that — RNHostView measures the RN child
+  // with an unconstrained width (`matchContents`), so 'stretch' resolves to the
+  // content's own width and the chip + title + chevron drift toward the middle
+  // of the row (TestFlight, build 84; the same centering ROADMAP §4 first hit,
+  // which grew back when the chip was added). Sizing the label to the trigger
+  // leaves SwiftUI nothing to center, so the row left-aligns on the same 16pt
+  // margin the lanes below it use.
+  //
+  // Measured from the ROW, not from the MenuView: the host reports its
+  // content-matched size, so feeding that back into its own child would chase
+  // itself. The row and the right-hand group are plain RN views, and neither
+  // depends on what the trigger holds.
+  const [navWidth, setNavWidth] = useState(0);
+  const [rightWidth, setRightWidth] = useState(0);
+  const triggerWidth =
+    navWidth > 0 && rightWidth > 0 ? navWidth - NAV_PAD * 2 - TRIGGER_GAP - rightWidth : 0;
+
   const toggleTip = () => {
     haptics.impact('light');
     setTipOpen((open) => !open);
@@ -88,7 +112,7 @@ export function SequencerNav({
     // The nav row is wrapped so the popover can hang off its bottom edge in an
     // unpadded coordinate space, and paints over the lane list below.
     <View style={styles.navWrap}>
-      <View style={styles.nav}>
+      <View style={styles.nav} onLayout={(e) => setNavWidth(e.nativeEvent.layout.width)}>
         <MenuView
           title={patternName}
           actions={[
@@ -129,7 +153,11 @@ export function SequencerNav({
           onPressAction={({ nativeEvent }) => onMenuAction(nativeEvent.event as PatternMenuAction)}
           style={styles.patternTrigger}
         >
-          <View style={styles.pattern} accessibilityRole="button" accessibilityLabel={`Pattern ${patternName} — menu`}>
+          <View
+            style={[styles.pattern, triggerWidth > 0 && { width: triggerWidth }]}
+            accessibilityRole="button"
+            accessibilityLabel={`Pattern ${patternName} — menu`}
+          >
             <LedChip shades={patternChip} size={28} relightOnBoot />
             <AppText style={styles.patternName} numberOfLines={1}>
               {patternName}
@@ -146,7 +174,13 @@ export function SequencerNav({
             </Svg>
           </View>
         </MenuView>
-        <View style={styles.right} onLayout={(e) => setRightX(e.nativeEvent.layout.x)}>
+        <View
+          style={styles.right}
+          onLayout={(e) => {
+            setRightX(e.nativeEvent.layout.x);
+            setRightWidth(e.nativeEvent.layout.width);
+          }}
+        >
           {connected ? (
             pill
           ) : (
@@ -197,17 +231,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: 4,
     paddingBottom: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: NAV_PAD,
   },
   // flex:1 (not just flexShrink) — the MenuView native host otherwise caps
   // the title at its own measured width and truncates long pattern names even
   // with free row space (TestFlight feedback 2026-07-24: "the title is
   // truncated too aggressively").
-  patternTrigger: { flex: 1, marginRight: 12 },
-  // alignSelf STRETCH, not flex-start: the SwiftUI menu host centers a child
-  // smaller than itself and RN's flex-start never wins — stretching the label
-  // to fill the host leaves SwiftUI nothing to center, so text left-aligns.
-  // (Side effect, intended: the whole strip left of the pill opens the menu.)
+  patternTrigger: { flex: 1, marginRight: TRIGGER_GAP },
+  // The measured `triggerWidth` above is what actually pins this row to the
+  // left; alignSelf stretch is the fallback for the first frame, before the
+  // row has laid out. (Side effect, intended: the whole strip left of the pill
+  // opens the menu.)
   pattern: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch' },
   patternName: {
     flexShrink: 1,
