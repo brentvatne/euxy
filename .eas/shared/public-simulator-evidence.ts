@@ -55,7 +55,12 @@ const DEFAULT_CAPTION = "Final state captured after verification.";
 /** The URL gh reports for an uploaded user attachment. */
 const ASSET_URL_PATTERN =
   /https:\/\/github\.com\/user-attachments\/assets\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
-const PUBLIC_READ_ATTEMPTS = 3;
+/**
+ * Waits between unauthenticated read-backs of what gh just wrote. A comment is
+ * visible almost at once, but a `user-attachments` asset can answer 404 for
+ * several seconds after the upload is accepted, so the schedule spans ~30s.
+ */
+const PUBLIC_READ_DELAYS_MS = [500, 1_000, 2_000, 4_000, 8_000, 15_000] as const;
 
 type EvidenceFile = {
   /**
@@ -575,7 +580,7 @@ async function readPublicComment(
   wait: (milliseconds: number) => Promise<void>
 ): Promise<string> {
   let lastStatus = 0;
-  for (let attempt = 0; attempt < PUBLIC_READ_ATTEMPTS; attempt += 1) {
+  for (let attempt = 0; attempt <= PUBLIC_READ_DELAYS_MS.length; attempt += 1) {
     const response = await publicFetch(apiUrl, {
       headers: { Accept: "application/vnd.github+json" },
     });
@@ -587,7 +592,7 @@ async function readPublicComment(
       }
       return typeof comment.body === "string" ? comment.body : "";
     }
-    if (attempt < PUBLIC_READ_ATTEMPTS - 1) await wait(500 * (attempt + 1));
+    if (attempt < PUBLIC_READ_DELAYS_MS.length) await wait(PUBLIC_READ_DELAYS_MS[attempt]);
   }
   throw new Error(
     `GitHub accepted the evidence comment, but it is not publicly visible (last HTTP ${lastStatus}). ` +
@@ -602,10 +607,10 @@ async function assertPublicAttachment(
   wait: (milliseconds: number) => Promise<void>
 ): Promise<void> {
   let response: Response | null = null;
-  for (let attempt = 0; attempt < PUBLIC_READ_ATTEMPTS; attempt += 1) {
+  for (let attempt = 0; attempt <= PUBLIC_READ_DELAYS_MS.length; attempt += 1) {
     response = await publicFetch(url);
     if (response.ok) break;
-    if (attempt < PUBLIC_READ_ATTEMPTS - 1) await wait(500 * (attempt + 1));
+    if (attempt < PUBLIC_READ_DELAYS_MS.length) await wait(PUBLIC_READ_DELAYS_MS[attempt]);
   }
   if (!response || !response.ok) {
     throw new Error(`Public ${file.alt.toLowerCase()} is unavailable (HTTP ${response?.status ?? 0}).`);

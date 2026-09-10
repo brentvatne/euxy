@@ -562,16 +562,8 @@ console.log(
     ? `▸ Opened and publicly verified PR: ${pullRequest.htmlUrl}`
     : `▸ PR already open and publicly verified (branch refreshed): ${pullRequest.htmlUrl}`
 );
-if (selectedEvidence) {
-  const evidence = await postPublicSimulatorEvidence({
-    selected: selectedEvidence,
-    owner,
-    repo,
-    target: { kind: "pull-request", number: pullRequest.number },
-    env,
-  });
-  console.log(`▸ Posted and publicly verified simulator evidence: ${evidence.commentUrl}`);
-}
+// The preview update ships before the evidence comment: the comment's public
+// read-back can still fail on GitHub's side, and that must not cost the update.
 if (codeChanged) {
   const preview = await publishPullRequestUpdate({
     gh,
@@ -583,4 +575,14 @@ if (codeChanged) {
     run: (command) => sh(command, { allowFail: true }),
   });
   console.log(`▸ ${preview.summary}`);
+}
+if (selectedEvidence) {
+  const evidence = await postPublicSimulatorEvidence({
+    selected: selectedEvidence,
+    owner,
+    repo,
+    target: { kind: "pull-request", number: pullRequest.number },
+    env,
+  });
+  console.log(`▸ Posted and publicly verified simulator evidence: ${evidence.commentUrl}`);
 }
