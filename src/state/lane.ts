@@ -25,6 +25,7 @@ export function makeLane(overrides: Partial<Lane> = {}): Lane {
     resolutionTicks: timing.defaultResolutionTicks,
     muted: false,
     solo: false,
+    locked: false,
     ...overrides,
   };
 }
