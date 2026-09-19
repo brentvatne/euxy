@@ -259,11 +259,9 @@ const SNAP = { damping: 34, stiffness: 340, reduceMotion: ReduceMotion.System };
 // landing corner — a real throw goes where it was headed.
 const THROW_PROJECTION_S = 0.18;
 
-// An occasional entrance can afford to be legible, but it should arrive
-// immediately under the finger: strong ease-out, opacity-led, and only 8pt of
-// travel. The old 140ms curve produced too few painted frames on a cold boot;
-// 200ms stays inside the small-popover budget while preserving the first-frame
-// response. Exit is deliberately faster and drops movement entirely.
+// Shared ease-out for the capsule's exit (the entrance is all springs now).
+// The exit is deliberately fast and drops movement entirely; it fades the
+// capsule out, which is safe because the glass is on its way off screen.
 const CAPSULE_EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 /**
  * The capsule ARRIVES; it does not blink on. The old entrance was a 200ms
@@ -271,13 +269,30 @@ const CAPSULE_EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
  * overshoot to sell any weight, so it read as a cut with a fade stapled to it.
  *
  * This is a real spring instead: it rises further, scales up from just under
- * full size, and settles through one soft overshoot. The opacity still runs on
- * a timing and finishes EARLY — a spring on alpha reads as a flicker when it
- * overshoots, and the object should be solid well before it stops moving.
+ * full size, and settles through one soft overshoot.
+ *
+ * NO ALPHA, and that is the load-bearing part. The entrance used to lead with a
+ * 200ms opacity ramp, and the ramp is what broke the capsule's Liquid Glass on
+ * app open. A UIVisualEffectView — which is what `GlassView` mounts — cannot
+ * sample its backdrop while it or ANY ancestor sits below alpha 1: UIKit
+ * composites the group offscreen and the material comes out flat, with the lane
+ * grid reading straight through the capsule at full brightness. It snaps to
+ * real glass the instant alpha lands on exactly 1, so the bar visibly changed
+ * material a fraction of a second after arriving. Worse, the native view
+ * attaches its UIGlassEffect in the FIRST layout pass after mount and latches
+ * that pass (see expo-glass-effect's GlassView.swift) — an attach that lands
+ * inside the alpha window leaves the capsule with no material at all for the
+ * rest of the launch, which is why it only misbehaved on some launches.
+ *
+ * Scale and travel already carry the entrance ("the capsule ARRIVES"), so the
+ * ramp cost the glass more than it bought the motion. Keep alpha off any NEW
+ * animation that wraps the shell. `breatheStyle` is the one that is left: its
+ * dim to 60% while playing flattens the material the same way, and undoing that
+ * is a motion decision rather than a bug fix, so it is deliberately untouched.
  *
  * A custom entering worklet rather than `FadeInDown.springify()` because the
- * scale is what does most of the work here, and the builders only animate the
- * properties they own (opacity + one translate).
+ * scale is what does most of the work here, and the stock builders animate
+ * opacity as well — which is exactly what must not happen over the glass.
  */
 const CAPSULE_ENTER = () => {
   'worklet';
@@ -287,13 +302,8 @@ const CAPSULE_ENTER = () => {
     reduceMotion: ReduceMotion.System,
   });
   return {
-    initialValues: { opacity: 0, transform: [{ translateY: 18 }, { scale: 0.88 }] },
+    initialValues: { transform: [{ translateY: 18 }, { scale: 0.88 }] },
     animations: {
-      opacity: withTiming(1, {
-        duration: 200,
-        easing: CAPSULE_EASE_OUT,
-        reduceMotion: ReduceMotion.System,
-      }),
       transform: [
         { translateY: withSpring(0, spring(0.62, 480)) },
         { scale: withSpring(1, spring(0.58, 520)) },
