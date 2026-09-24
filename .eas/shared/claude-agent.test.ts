@@ -32,14 +32,14 @@ describe("Claude agent live progress", () => {
       "-p",
       "Do the task",
       "--model",
-      "claude-opus-5",
+      "claude-opus-5-5",
       "--permission-mode",
       "acceptEdits",
       "--output-format",
       "stream-json",
       "--verbose",
     ]);
-    expect(CLAUDE_AGENT_MODEL).toBe("claude-opus-5");
+    expect(CLAUDE_AGENT_MODEL).toBe("claude-opus-5-5");
     expect(command).not.toContain("--include-partial-messages");
   });
 

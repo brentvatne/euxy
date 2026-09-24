@@ -31,7 +31,7 @@ describe("Claude PR command intent preflight", () => {
       "--json-schema",
       JSON.stringify(PR_COMMAND_INTENT_SCHEMA),
     ]);
-    expect(CLAUDE_AGENT_MODEL).toBe("claude-opus-5");
+    expect(CLAUDE_AGENT_MODEL).toBe("claude-opus-5-5");
   });
 
   test("treats the command as quoted data and documents the narrow decision", () => {

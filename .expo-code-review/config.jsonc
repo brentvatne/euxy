@@ -10,7 +10,7 @@
   // Add or remove files to change the roster — no list needed here.
   // shared.md (prepended to every agent + coordinator) and coordinator.md are
   // reserved filenames. Per-agent overrides go in each file's YAML frontmatter,
-  // e.g. `---\nmodel: anthropic/claude-opus-5\n---`.
+  // e.g. `---\nmodel: anthropic/claude-opus-5-5\n---`.
 
   "policy": {
     // Phase 1: keep signal high by surfacing only critical/warning.

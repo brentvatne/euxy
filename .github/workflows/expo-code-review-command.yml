@@ -77,7 +77,7 @@ jobs:
 
       - name: Install Claude Code CLI
         if: steps.cmd.outputs.run == 'true'
-        run: npm install -g @anthropic-ai/claude-code@2.1.212
+        run: npm install -g @anthropic-ai/claude-code@2.1.280
 
       - name: Guard trusted-base review config
         if: steps.cmd.outputs.run == 'true'

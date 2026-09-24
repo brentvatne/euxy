@@ -147,7 +147,7 @@ The current euxy pins are a known-good baseline:
 
 | Component | Pin |
 | --- | --- |
-| Claude Code | `2.1.220` |
+| Claude Code | `2.1.280` |
 | Bun | `1.3.14` |
 | EAS CLI | `21.5.0` |
 | `@swmansion/argent` | `0.19.0` (client **and** `--package-version` on the session) |
@@ -171,7 +171,7 @@ Do not use `latest`, ranges, or unpinned `npx`.
 Centralize construction of the Claude command:
 
 ```ts
-export const CLAUDE_AGENT_MODEL = "claude-opus-5";
+export const CLAUDE_AGENT_MODEL = "claude-opus-5-5";
 
 return [
   ...claudeCommand,

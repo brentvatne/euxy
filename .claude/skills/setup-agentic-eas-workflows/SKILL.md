@@ -34,7 +34,7 @@ TestFlight feedback intake systems.
 
 Pin the code-writing model explicitly in the shared runner rather than relying
 on the Claude CLI default. The current implementation uses
-`claude-opus-5`, streams sanitized JSON progress, and emits a periodic heartbeat.
+`claude-opus-5-5`, streams sanitized JSON progress, and emits a periodic heartbeat.
 
 ## Set up the complete flow in another project
 

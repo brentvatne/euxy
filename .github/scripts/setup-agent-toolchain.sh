@@ -4,7 +4,7 @@ set -euo pipefail
 # Security-sensitive CI dependencies are intentionally exact. Bump these values
 # in a reviewed change; never replace them with tags, ranges, or "latest".
 # The Expo skills are the deliberate exception — see EXPO_SKILLS_REF below.
-readonly CLAUDE_CODE_VERSION="2.1.220"
+readonly CLAUDE_CODE_VERSION="2.1.280"
 readonly BUN_VERSION="1.3.14"
 readonly EAS_CLI_VERSION="21.5.0"
 # Which controller the WORKFLOWS drive the remote simulator with. This is the

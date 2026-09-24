@@ -51,7 +51,7 @@ jobs:
       # CLI would silently drift on every CI run; bump it deliberately (mirrors
       # expo/code-review-cli's own workflow).
       - name: Install Claude Code CLI
-        run: npm install -g @anthropic-ai/claude-code@2.1.212
+        run: npm install -g @anthropic-ai/claude-code@2.1.280
 
       # Defense in depth: parse every trusted-base ECR config using the same
       # published engine that will run the review. The PR's config is never loaded.

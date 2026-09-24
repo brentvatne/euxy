@@ -121,7 +121,7 @@ Do not spread `process.env`. Add `EXPO_TOKEN` only after the event is trusted an
 Build the Claude command in one shared helper and pin the model explicitly:
 
 ```ts
-const CLAUDE_AGENT_MODEL = "claude-opus-5";
+const CLAUDE_AGENT_MODEL = "claude-opus-5-5";
 
 const command = [
   ...claudeCommand,

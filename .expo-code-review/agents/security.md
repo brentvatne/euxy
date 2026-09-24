@@ -3,7 +3,7 @@ description: Security and secrets. Injection, credential or secret leakage, unsa
 alwaysRun: true
 # Security is the highest-stakes agent, so it runs on the Opus tier (mirrors
 # the expo/code-review-cli repo's own roster).
-model: anthropic/claude-opus-5
+model: anthropic/claude-opus-5-5
 ---
 
 # Security & secrets

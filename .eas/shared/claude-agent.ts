@@ -6,7 +6,7 @@ type ClaudePermissionMode =
   | "manual"
   | "plan";
 
-export const CLAUDE_AGENT_MODEL = "claude-opus-5";
+export const CLAUDE_AGENT_MODEL = "claude-opus-5-5";
 
 // Progress output is verbose on purpose: a CI reader needs to know which file
 // is being edited and which command failed, not just that "a tool" ran. Every
