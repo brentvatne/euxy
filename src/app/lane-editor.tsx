@@ -166,6 +166,11 @@ export default function LaneEditorSheet() {
   // inside the row's right-hand group + that group's offset inside the cell.
   const [listenGroupX, setListenGroupX] = useState(0);
   const [listenKeyX, setListenKeyX] = useState(0);
+  // The More group's own width, used to size the Resolution row inside its
+  // MenuView — see `resTrigger` and the row itself. Measured from the GROUP, a
+  // plain RN view, not from the host, whose reported size is the thing being
+  // corrected.
+  const [moreWidth, setMoreWidth] = useState(0);
   // The pinned card's drop shadow appears only once content scrolls under it.
   const [scrolled, setScrolled] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
@@ -583,7 +588,10 @@ export default function LaneEditorSheet() {
         </Section>
 
         <Section title="More">
-          <View style={styles.cells}>
+          <View
+            style={styles.cells}
+            onLayout={(e) => setMoreWidth(e.nativeEvent.layout.width)}
+          >
             <View style={[styles.cell, styles.cellFirst]}>
               <AppText style={styles.cellTitle}>Name</AppText>
               <TextInput
@@ -603,8 +611,12 @@ export default function LaneEditorSheet() {
               onPressAction={({ nativeEvent }) =>
                 updateLane(id, { resolutionTicks: Number(nativeEvent.event) })
               }
+              style={styles.resTrigger}
             >
-              <View style={[styles.cell, styles.cellMid]} accessibilityRole="button">
+              <View
+                style={[styles.cell, styles.cellMid, moreWidth > 0 && { width: moreWidth }]}
+                accessibilityRole="button"
+              >
                 <AppText style={styles.cellTitle}>Resolution</AppText>
                 <View style={styles.cellRightTight}>
                   <AppText style={styles.cellValue}>{resLabel}</AppText>
@@ -738,6 +750,15 @@ const styles = StyleSheet.create({
   cellLast: { borderBottomLeftRadius: radius.cell, borderBottomRightRadius: radius.cell, borderTopLeftRadius: 2, borderTopRightRadius: 2 },
   // Block cell hosting a SliderRow (its own label/value head — no cellTitle).
   cellBlock: { backgroundColor: color.surface2, paddingVertical: 10, paddingHorizontal: 16 },
+  // The Resolution row's MenuView host. `matchContents` makes the host write its
+  // SwiftUI content size back as the shadow node's STYLE width, which beats
+  // `alignSelf: 'stretch'` — so the row shrank to "Resolution1/16⌄" with its
+  // space-between collapsed and the rest of the group's width left empty
+  // (TestFlight feedback). The measured `moreWidth` on the row's own child is
+  // what makes the host's content the group's width; stretch is only the
+  // first-frame fallback, before the group has laid out. Same fix, and the same
+  // reason, as the pattern menu trigger in sequencer/header.tsx.
+  resTrigger: { alignSelf: 'stretch' },
   cellTitle: { fontFamily: font.text, fontSize: 16, lineHeight: 20, color: color.label },
   cellRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   cellRightTight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
