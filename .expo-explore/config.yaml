@@ -11,6 +11,10 @@ device:
   name: iPhone 17
 exploration:
   scope: changes
+  # Headless: applies the channel override and returns to the tabs on its first
+  # frame, so its landing can never be verified (ROUTE_LANDING_MISMATCH).
+  exclude:
+    - /c/[channel]
 capture:
   maxMinutes: 30
   maxActions: 500
