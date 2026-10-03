@@ -181,7 +181,7 @@ export default function TempoSheet() {
             "Sound" option later is a third label here, not a second setting
             and a rename. */}
         <View style={styles.tempoCell}>
-          <AppText variant="body">Metronome</AppText>
+          <AppText variant="body">Metronome click</AppText>
           {/* Wrapped, and it has to be: Segmented's compact track carries
               `alignSelf: 'flex-start'`, which overrides this row's
               alignItems:center and pins the control to the top of the cell.
