@@ -1,0 +1,347 @@
+# Install on the default branch. pull_request_target runs the default branch's copy of this file,
+# so a pull request cannot change the Explore version that captures and publishes its review.
+name: Expo Explore review
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr: { description: Open same-repository pull request number, required: true }
+permissions: {}
+# The exact @expo/explore release CI installs. expo-explore setup --workflows sets it.
+env:
+  EXPLORE_VERSION: 0.1.0
+concurrency:
+  group: explore-review-${{ github.event.pull_request.number || inputs.pr }}
+  cancel-in-progress: false
+jobs:
+  capture:
+    if: >-
+      github.event_name != 'pull_request_target' ||
+      (github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: read
+      # The capture job keeps the sticky comment current while the run is still working.
+      pull-requests: write
+    outputs:
+      pr_number: ${{ steps.pr.outputs.pr_number }}
+      base: ${{ steps.pr.outputs.base }}
+      head: ${{ steps.pr.outputs.head }}
+    env:
+      TOOLS_PREFIX: explore-tools
+      TOOLS: explore-tools/package
+      APP_PROJECT_DIR: .
+      APP_INSTALL_DIR: .
+    steps:
+      - name: Resolve the live pull request and authorize its source
+        id: pr
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr }}
+        with:
+          script: |
+            const number = Number(process.env.PR_NUMBER);
+            if (!Number.isSafeInteger(number) || number <= 0) throw new Error('PR_NUMBER_INVALID: Provide an open pull request number.');
+            const { data: pr } = await github.rest.pulls.get({ ...context.repo, pull_number: number });
+            if (pr.state !== 'open' || pr.draft || pr.head.repo?.full_name !== `${context.repo.owner}/${context.repo.repo}`) {
+              throw new Error('SOURCE_NOT_TRUSTED: Capture requires an open, non-draft same-repository pull request.');
+            }
+            const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({ ...context.repo, username: pr.user.login });
+            if (!['admin', 'maintain', 'write'].includes(permission.permission)) {
+              throw new Error('SOURCE_NOT_TRUSTED: The PR author must have current repository write access.');
+            }
+            for (const side of [pr.base, pr.head]) if (!/^[0-9a-f]{40}$/.test(side.sha)) throw new Error('PR_COMMIT_INVALID: Refresh the PR and rerun Explore.');
+            require('node:fs').writeFileSync(`${process.env.RUNNER_TEMP}/explore-pr.json`, JSON.stringify({
+              repositoryId: String(pr.base.repo.id), repository: pr.base.repo.full_name, number: pr.number,
+              title: pr.title, url: pr.html_url, base: { ref: pr.base.ref, sha: pr.base.sha }, head: { ref: pr.head.ref, sha: pr.head.sha }
+            }));
+            core.setOutput('pr_number', pr.number); core.setOutput('base', pr.base.sha); core.setOutput('head', pr.head.sha);
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { ref: '${{ steps.pr.outputs.base }}', path: app-base, fetch-depth: 0, persist-credentials: false }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { ref: '${{ steps.pr.outputs.head }}', path: app-head, fetch-depth: 0, persist-credentials: false }
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with: { node-version: 24, package-manager-cache: false }
+      - name: Install Explore
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXPLORE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo '::error title=EXPLORE_VERSION_INVALID::Set EXPLORE_VERSION to an exact @expo/explore version. Run expo-explore setup --workflows.'; exit 1
+          fi
+          # npm ci against the release's npm-shrinkwrap.json installs the exact dependency tree it was tested with.
+          mkdir -p "$TOOLS_PREFIX"
+          npm pack "@expo/explore@$EXPLORE_VERSION" --pack-destination "$TOOLS_PREFIX" --silent > /dev/null
+          tar -xzf "$TOOLS_PREFIX"/expo-explore-*.tgz -C "$TOOLS_PREFIX"
+          cd "$TOOLS"
+          npm ci --omit=dev --include=optional --ignore-scripts --no-audit --no-fund
+      - name: Verify deterministic source planning
+        env:
+          BASE_SHA: ${{ steps.pr.outputs.base }}
+          HEAD_SHA: ${{ steps.pr.outputs.head }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node "$TOOLS/dist/cli.js" source:verify \
+            --base-project "$GITHUB_WORKSPACE/app-base/$APP_PROJECT_DIR" --head-project "$GITHUB_WORKSPACE/app-head/$APP_PROJECT_DIR" \
+            --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA" --config .expo-explore/config.yaml --output "$RUNNER_TEMP/explore-consistency"
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with: { bun-version: 1.4.0 }
+      - name: Install app dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd "app-base/$APP_INSTALL_DIR" && bun install --frozen-lockfile --ignore-scripts)
+          (cd "app-head/$APP_INSTALL_DIR" && bun install --frozen-lockfile --ignore-scripts)
+      - name: Find optional exact-base evidence
+        id: cache
+        continue-on-error: true
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          BASE_SHA: ${{ steps.pr.outputs.base }}
+        with:
+          script: |
+            const { data: repository } = await github.rest.repos.get(context.repo);
+            const { data: baseline } = await github.rest.actions.getWorkflow({ ...context.repo, workflow_id: 'explore-baseline.yml' });
+            const records = await github.paginate(github.rest.actions.listArtifactsForRepo, { ...context.repo, name: `explore-baseline-${process.env.BASE_SHA}`, per_page: 100 });
+            for (const artifact of records.filter(a => !a.expired).sort((a, b) => b.id - a.id)) {
+              if (!artifact.workflow_run?.id) continue;
+              const { data: run } = await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: artifact.workflow_run.id });
+              if (run.conclusion !== 'success' || run.workflow_id !== baseline.id || run.head_sha !== process.env.BASE_SHA
+                || run.head_branch !== repository.default_branch || !['push', 'workflow_dispatch'].includes(run.event)
+                || run.head_repository?.full_name !== `${context.repo.owner}/${context.repo.repo}`) continue;
+              core.setOutput('id', artifact.id); core.setOutput('run', run.id); break;
+            }
+      - name: Download optional exact-base evidence
+        if: steps.cache.outputs.id != ''
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          artifact-ids: ${{ steps.cache.outputs.id }}
+          path: ${{ runner.temp }}/explore-cache
+          merge-multiple: true
+          run-id: ${{ steps.cache.outputs.run }}
+          github-token: ${{ github.token }}
+      - name: Capture review
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_WORKSPACE_ID: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
+          # App-test secrets: one NAME: line per {{secret:NAME}} input in .expo-explore (expo-explore setup adds them).
+          EXPLORE_CAPTURE_CACHE: ${{ runner.temp }}/explore-cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          node "$TOOLS/dist/cli.js" capture:review \
+            --base-project "$GITHUB_WORKSPACE/app-base/$APP_PROJECT_DIR" --head-project "$GITHUB_WORKSPACE/app-head/$APP_PROJECT_DIR" \
+            --pull-request "$RUNNER_TEMP/explore-pr.json" --output "$RUNNER_TEMP/explore-review" --config .expo-explore/config.yaml
+      - name: Stop retained capture sessions
+        if: always()
+        timeout-minutes: 5
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -e "$RUNNER_TEMP/explore-review/head-session" && ! -L "$RUNNER_TEMP/explore-review/head-session" && ! -e "$RUNNER_TEMP/explore-review/base-session" && ! -L "$RUNNER_TEMP/explore-review/base-session" ]]; then exit 0; fi
+          node "$TOOLS/scripts/cleanup-ci-sessions.mjs" --eas "$GITHUB_WORKSPACE/$TOOLS/node_modules/.bin/eas" \
+            --session-file "$RUNNER_TEMP/explore-review/head-session" --session-file "$RUNNER_TEMP/explore-review/base-session"
+      - name: Verify application checkouts remain clean
+        if: always() && steps.pr.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for directory in app-base app-head; do
+            if [[ -d "$directory/.git" || -f "$directory/.git" ]]; then
+              if [[ -n "$(git -C "$directory" status --porcelain --untracked-files=all)" ]]; then
+                echo "::error title=CHECKOUT_MODIFIED::Capture modified $directory. Keep generated files outside source checkouts."; exit 1
+              fi
+            fi
+          done
+      - name: Upload captured review for packaging
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: explore-capture-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/explore-review/report-input.json
+            ${{ runner.temp }}/explore-review/plan.json
+            ${{ runner.temp }}/explore-review/bundle.json
+            ${{ runner.temp }}/explore-review/review.json
+            ${{ runner.temp }}/explore-review/execution.json
+            ${{ runner.temp }}/explore-review/base-export
+            ${{ runner.temp }}/explore-review/head-export
+          retention-days: 7
+          if-no-files-found: error
+      - name: Upload planning and failure diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: explore-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/explore-consistency
+            ${{ runner.temp }}/explore-diagnostics
+            ${{ runner.temp }}/explore-review/execution.json
+            ${{ runner.temp }}/explore-review/diagnostics.json
+            ${{ runner.temp }}/explore-review/base-export
+            ${{ runner.temp }}/explore-review/head-export
+            ${{ runner.temp }}/explore-review/base-map/capture-diagnostics
+            ${{ runner.temp }}/explore-review/head-map/capture-diagnostics
+            ${{ runner.temp }}/explore-review/agent-notes-diagnostics.json
+            ${{ runner.temp }}/explore-review/agent-usage.jsonl
+          retention-days: 7
+          if-no-files-found: ignore
+  report:
+    needs: capture
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    env:
+      TOOLS_PREFIX: explore-tools
+      TOOLS: explore-tools/package
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with: { node-version: 24, package-manager-cache: false }
+      - name: Install Explore
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXPLORE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo '::error title=EXPLORE_VERSION_INVALID::Set EXPLORE_VERSION to an exact @expo/explore version. Run expo-explore setup --workflows.'; exit 1
+          fi
+          # npm ci against the release's npm-shrinkwrap.json installs the exact dependency tree it was tested with.
+          mkdir -p "$TOOLS_PREFIX"
+          npm pack "@expo/explore@$EXPLORE_VERSION" --pack-destination "$TOOLS_PREFIX" --silent > /dev/null
+          tar -xzf "$TOOLS_PREFIX"/expo-explore-*.tgz -C "$TOOLS_PREFIX"
+          cd "$TOOLS"
+          npm ci --omit=dev --include=optional --ignore-scripts --no-audit --no-fund
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: explore-capture-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/explore-review
+      - name: Package hosted review bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          node "$TOOLS/dist/cli.js" ci:report --input "$RUNNER_TEMP/explore-review/report-input.json" --output "$RUNNER_TEMP/explore-report"
+      - name: Upload hosted review bundle
+        id: viewer
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: explore-review-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/explore-report
+          retention-days: 30
+          if-no-files-found: error
+      - name: Publish current PR hosted links
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ARTIFACT_URL: ${{ steps.viewer.outputs.artifact-url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node "$TOOLS/dist/cli.js" ci:publish --input "$RUNNER_TEMP/explore-review/report-input.json" --artifact-url "$ARTIFACT_URL"
+      - name: Upload report failure diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: explore-report-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/explore-diagnostics
+          retention-days: 7
+          if-no-files-found: ignore
+  failure:
+    needs: [capture, report]
+    if: always() && (needs.capture.result == 'failure' || needs.report.result == 'failure')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      pull-requests: write
+    steps:
+      - name: Download capture failure diagnostic
+        if: needs.capture.result == 'failure'
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: explore-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/explore-failure/capture
+      - name: Download report failure diagnostic
+        if: needs.report.result == 'failure'
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: explore-report-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/explore-failure/report
+      - name: Report failure only on the current PR
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER: ${{ needs.capture.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.capture.outputs.head }}
+          BASE_SHA: ${{ needs.capture.outputs.base }}
+          CAPTURE_RESULT: ${{ needs.capture.result }}
+          REPORT_RESULT: ${{ needs.report.result }}
+        with:
+          script: |
+            const number = Number(process.env.PR_NUMBER);
+            if (!Number.isSafeInteger(number) || number <= 0) return;
+            const current = async () => {
+              const { data: pr } = await github.rest.pulls.get({ ...context.repo, pull_number: number });
+              return pr.state === 'open' && !pr.draft
+                && pr.head.repo?.full_name === `${context.repo.owner}/${context.repo.repo}`
+                && pr.base.repo?.full_name === `${context.repo.owner}/${context.repo.repo}`
+                && pr.head.sha === process.env.HEAD_SHA && pr.base.sha === process.env.BASE_SHA;
+            };
+            if (!await current()) return;
+            // These are data files from this run and attempt, never executable report code.
+            const readDiagnostic = async () => {
+              const fs = require('node:fs/promises');
+              const path = require('node:path');
+              const relative = process.env.REPORT_RESULT === 'failure' ? 'report/error.json'
+                : process.env.CAPTURE_RESULT === 'failure' ? 'capture/explore-diagnostics/error.json' : null;
+              if (!relative || !process.env.RUNNER_TEMP) return null;
+              try {
+                const root = path.join(process.env.RUNNER_TEMP, 'explore-failure');
+                const file = path.join(root, relative);
+                const resolvedRoot = await fs.realpath(root);
+                const resolvedFile = await fs.realpath(file);
+                if (!resolvedFile.startsWith(`${resolvedRoot}${path.sep}`)) return null;
+                const handle = await fs.open(file, require('node:fs').constants.O_RDONLY | require('node:fs').constants.O_NOFOLLOW);
+                try {
+                  const stat = await handle.stat();
+                  if (!stat.isFile() || stat.size > 32768) return null;
+                  const diagnostic = JSON.parse(await handle.readFile('utf8'));
+                  if (!diagnostic || Array.isArray(diagnostic) || typeof diagnostic !== 'object'
+                    || typeof diagnostic.code !== 'string' || !/^[A-Z][A-Z0-9_]{0,79}$/.test(diagnostic.code)
+                    || typeof diagnostic.stage !== 'string' || !/^[a-zA-Z][a-zA-Z0-9:_-]{0,79}$/.test(diagnostic.stage)
+                    || typeof diagnostic.message !== 'string' || !diagnostic.message.trim() || diagnostic.message.length > 4000
+                    || typeof diagnostic.nextAction !== 'string' || !diagnostic.nextAction.trim() || diagnostic.nextAction.length > 4000
+                    || typeof diagnostic.retryable !== 'boolean') return null;
+                  return diagnostic;
+                } finally { await handle.close(); }
+              } catch { return null; }
+            };
+            const escape = value => value
+              .replace(/\bBearer\s+[^\s,;]+/gi, 'Bearer [REDACTED]')
+              .replace(/\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|sk-(?:ant-)?[A-Za-z0-9_-]{12,})\b/g, '[REDACTED]')
+              .replace(/([?&](?:access_token|token|api_key|key|signature|sig)=)[^&#\s]*/gi, '$1[REDACTED]')
+              .replace(/(https?:\/\/)[^\s/@]+:[^\s/@]+@/gi, '$1[REDACTED]@')
+              .replace(/[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g, ' ')
+              .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+              .replace(/([\\`*_{}\[\]()#+.!|~-])/g, '\\$1').replace(/@/g, '&#64;');
+            const diagnostic = await readDiagnostic();
+            const marker = '<!-- expo-explore-ci -->';
+            const detail = diagnostic
+              ? `**${escape(diagnostic.code)}** (${escape(diagnostic.stage)}): ${escape(diagnostic.message)} Next action: ${escape(diagnostic.nextAction)}`
+              : 'Explore could not finish this review. See the run for the error code, cause, and next action. Fix the reported issue and rerun Explore.';
+            const body = `${marker}\n### Expo Explore · review failed\n\n${detail} [Open the failed run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`;
+            const comments = await github.paginate(github.rest.issues.listComments, { ...context.repo, issue_number: number, per_page: 100 });
+            const existing = comments.find(comment => comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker));
+            if (!await current()) return;
+            if (existing) await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
+            else await github.rest.issues.createComment({ ...context.repo, issue_number: number, body });

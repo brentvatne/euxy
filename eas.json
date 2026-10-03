@@ -26,6 +26,13 @@
       },
       "channel": "sim"
     },
+    "explore": {
+      "ios": {
+        "simulator": true
+      },
+      "channel": "explore",
+      "environment": "development"
+    },
     "development-simulator": {
       "developmentClient": true,
       "distribution": "internal",

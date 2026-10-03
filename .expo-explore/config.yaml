@@ -1,0 +1,37 @@
+mode: deterministic
+app:
+  name: euxy
+  platform: ios
+  bundleId: dev.brent.euxy
+  easProfile: explore
+  scheme: euxy
+navigation:
+  provider: expo-router
+device:
+  name: iPhone 17
+exploration:
+  scope: changes
+capture:
+  maxMinutes: 30
+  maxActions: 500
+parameters:
+  # Headless route: a valid channel name makes a release build switch its EAS
+  # Update channel and reload. `_explore` fails parseChannelLink, so the app only
+  # posts the "LINK CHANNEL INVALID" notice and returns to the tabs.
+  /c/[channel]:
+    channel: _explore
+  # Opening a share link imports it as the new active pattern, so pin these
+  # sheets to the preset instead of whichever pattern is active at that moment.
+  /change-icon:
+    patternId: preset_lofi
+  /device-picker:
+    kind: output
+  # Share payloads: the Lo-Fi Bounce preset (the default active pattern) with its
+  # effective icon, encoded by src/core/share-codec.ts. A payload without an icon
+  # gets a random glyph on import, which would differ between captures.
+  /p:
+    d: AQAC-AYHb25lRHJvcAxMby1GaSBCb3VuY2UEEAMAAAAAADUAaQAZBgRLaWNrEAIEAAAAADcAXAAZBgVTbmFyZRAIAAMBAgA9AEQADwYDSGF0EAEOAAAAADkANwAZBgRTbmFw
+  /p/[d]:
+    d: AQAC-AYHb25lRHJvcAxMby1GaSBCb3VuY2UEEAMAAAAAADUAaQAZBgRLaWNrEAIEAAAAADcAXAAZBgVTbmFyZRAIAAMBAgA9AEQADwYDSGF0EAEOAAAAADkANwAZBgRTbmFw
+  /share-pattern:
+    patternId: preset_lofi
