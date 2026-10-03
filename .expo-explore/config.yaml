@@ -30,12 +30,26 @@ parameters:
     patternId: preset_lofi
   /device-picker:
     kind: output
-  # Share payloads: the Lo-Fi Bounce preset (the default active pattern) with its
-  # effective icon, encoded by src/core/share-codec.ts. A payload without an icon
-  # gets a random glyph on import, which would differ between captures.
+  # Share payloads: the Lo-Fi Bounce preset with its effective icon, encoded by
+  # src/core/share-codec.ts. A payload without an icon gets a random glyph on
+  # import, which would differ between captures. Each import adds a copy to the
+  # library and makes it the active pattern (a fresh install starts on the
+  # "Untitled" seed pattern).
   /p:
     d: AQAC-AYHb25lRHJvcAxMby1GaSBCb3VuY2UEEAMAAAAAADUAaQAZBgRLaWNrEAIEAAAAADcAXAAZBgVTbmFyZRAIAAMBAgA9AEQADwYDSGF0EAEOAAAAADkANwAZBgRTbmFw
   /p/[d]:
     d: AQAC-AYHb25lRHJvcAxMby1GaSBCb3VuY2UEEAMAAAAAADUAaQAZBgRLaWNrEAIEAAAAADcAXAAZBgVTbmFyZRAIAAMBAgA9AEQADwYDSGF0EAEOAAAAADkANwAZBgRTbmFw
   /share-pattern:
     patternId: preset_lofi
+setup:
+  # Opened by link, the lane editor shows "No lane selected." Open it from the
+  # first lane row instead, so it is captured with a lane, then close it.
+  - action: open
+    url: euxy://
+    ready: { identifier: lane-row-title-0 }
+  - action: tap
+    identifier: lane-row-title-0
+    ready: { label: Edit Lane }
+  - action: tap
+    label: Done
+    ready: { identifier: lane-row-title-0 }

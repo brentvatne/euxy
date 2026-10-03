@@ -334,6 +334,8 @@ export default function SequencerScreen() {
                 onToggleMute={() => toggleMute(lane.id)}
                 onToggleSolo={() => toggleSolo(lane.id)}
                 onPressTitle={() => openEditor(lane.id)}
+                // Lane ids are random per install; position is what automation can name.
+                titleTestID={`lane-row-title-${laneIndex}`}
               >
                 {/* Washes sweep FROM the capsule: lower lanes fire first. */}
                 <StepStrip

@@ -27,6 +27,8 @@ export interface LaneRowProps {
   onToggleMute?: () => void;
   onToggleSolo?: () => void;
   onPressTitle?: () => void;
+  /** Identifies the title button for UI automation (Expo Explore's capture setup). */
+  titleTestID?: string;
   children?: React.ReactNode;
 }
 
@@ -39,6 +41,7 @@ export function LaneRow({
   onToggleMute,
   onToggleSolo,
   onPressTitle,
+  titleTestID,
   children,
 }: LaneRowProps) {
   // An accent lit in the row's FIRST render (an already-audible lane on boot)
@@ -53,6 +56,7 @@ export function LaneRow({
             onPressTitle?.();
           }}
           disabled={!onPressTitle}
+          testID={titleTestID}
           style={({ pressed }) => [styles.titleGroup, pressed && styles.pressedDim]}
         >
           {/* The accent is a LIGHT, so it goes out like one: the white bar is
