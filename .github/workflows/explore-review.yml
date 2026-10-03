@@ -10,7 +10,7 @@ on:
 permissions: {}
 # The exact @expo/explore release CI installs. expo-explore setup --workflows sets it.
 env:
-  EXPLORE_VERSION: 0.1.0
+  EXPLORE_VERSION: 0.2.0
 concurrency:
   group: explore-review-${{ github.event.pull_request.number || inputs.pr }}
   cancel-in-progress: false
