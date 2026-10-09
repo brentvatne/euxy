@@ -33,6 +33,14 @@
       "channel": "explore",
       "environment": "development"
     },
+    "e2e": {
+      "withoutCredentials": true,
+      "ios": {
+        "simulator": true
+      },
+      "channel": "e2e",
+      "environment": "development"
+    },
     "development-simulator": {
       "developmentClient": true,
       "distribution": "internal",

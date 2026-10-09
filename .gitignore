@@ -104,3 +104,6 @@ SETUP-TRACING.md
 .agents/skills/react-native-ease-refactor
 .claude/skills/react-native-ease-refactor
 # @generated expo skills end
+
+# e2e run output (reports, screenshots, videos) and replay cache
+.e2e/

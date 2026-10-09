@@ -194,6 +194,8 @@ export function BootSplash() {
     <Animated.View
       style={[styles.overlay, { opacity }]}
       pointerEvents={done ? 'none' : 'auto'}
+      // UI tests wait for this to leave before they touch the app.
+      testID="boot-splash"
       onLayout={() => {
         // Gate 1: the overlay itself has rendered and laid out (it lays out
         // in the same native pass as the root tree it's a sibling layer of).
