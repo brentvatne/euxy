@@ -1,8 +1,9 @@
 /**
- * Rename sheet. iOS renames through `Alert.prompt`, which Android and web do
- * not have — there the Patterns list, its long-press menu and the Sequencer's
- * pattern menu open this form sheet instead. One field, Done commits via
- * `renamePattern`; a blank name is a no-op (the store keeps the old one).
+ * Rename sheet (web). iOS renames through `Alert.prompt` and Android through a
+ * Material AlertDialog (components/patterns/rename-prompt*); web has neither,
+ * so the Patterns list, its long-press menu and the Sequencer's pattern menu
+ * open this form sheet there. One field, Done commits via `renamePattern`; a
+ * blank name is a no-op (the store keeps the old one).
  *
  * Route params: `patternId` — the pattern to rename.
  */

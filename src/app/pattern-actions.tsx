@@ -1,10 +1,10 @@
 /**
- * Pattern actions sheet — the Patterns list's long-press menu on Android and
- * web. iOS gets a native ActionSheetIOS; `Alert.alert` was the stand-in here,
- * but Android caps alerts at three buttons, so Delete, Restore Default and
- * Cancel silently fell off. Same actions as the iOS sheet: Rename…, Change
- * Icon…, Clone, Restore Default (factory presets only), Delete. Actions that
- * open another sheet `replace` this one so the list underneath never flashes.
+ * Pattern actions sheet — the Patterns list's long-press menu on web. iOS gets
+ * a native ActionSheetIOS and Android a Material ModalBottomSheet
+ * (components/patterns/pattern-menu*); this route is the fallback where
+ * neither exists. Same actions: Rename…, Change Icon…, Clone, Restore Default
+ * (factory presets only), Delete. Actions that open another sheet `replace`
+ * this one so the list underneath never flashes.
  *
  * Route params: `patternId` — the pattern the menu was opened on.
  */

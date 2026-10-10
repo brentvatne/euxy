@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useIsFirstRender } from '@/lib/use-is-first-render';
 import { router } from 'expo-router';
-import { Alert, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, {
   FadeInDown,
   FadeOut,
@@ -34,6 +34,7 @@ import { color } from '@/theme/tokens';
 import { LaneRow, TransportBar } from '@/components/ui';
 import { useScreenFocused } from '@/components/ui/use-screen-focused';
 import { chipForPattern } from '@/components/patterns/chips';
+import { useRenamePrompt } from '@/components/patterns/rename-prompt';
 import { SequencerNav, type PatternMenuAction } from '@/components/sequencer/header';
 import { EmptyState } from '@/components/sequencer/empty-state';
 import { FloatingActions } from '@/components/sequencer/floating-actions';
@@ -61,7 +62,6 @@ export default function SequencerScreen() {
   const togglePlay = useStore((s) => s.togglePlay);
   const stop = useStore((s) => s.stop);
   const addLane = useStore((s) => s.addLane);
-  const renameActivePattern = useStore((s) => s.renameActivePattern);
   const clearLanes = useStore((s) => s.clearLanes);
   const revertToLoaded = useStore((s) => s.revertToLoaded);
   const saveCopyAndRevert = useStore((s) => s.saveCopyAndRevert);
@@ -69,6 +69,7 @@ export default function SequencerScreen() {
   // nothing to keep a copy of.
   const hasLaneEdits = useStore(selectHasLaneEdits);
   const resetPreset = useStore((s) => s.resetPreset);
+  const { promptRename, renamePrompt } = useRenamePrompt();
   const setClockMode = useStore((s) => s.setClockMode);
   const toggleMute = useStore((s) => s.toggleMute);
   const toggleSolo = useStore((s) => s.toggleSolo);
@@ -202,22 +203,6 @@ export default function SequencerScreen() {
     togglePlay();
   };
 
-  const renamePattern = () => {
-    if (Platform.OS !== 'ios') {
-      router.push({ pathname: '/rename-pattern', params: { patternId: pattern.id } });
-      return;
-    }
-    Alert.prompt(
-      'Rename pattern',
-      undefined,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Rename', onPress: (name?: string) => name?.trim() && renameActivePattern(name) },
-      ],
-      'plain-text',
-      pattern.name,
-    );
-  };
 
   // Restores on the spot, no confirmation — the same terms as the Patterns
   // list's per-row Restore Default (patterns.tsx). Only the restore-everything
@@ -247,7 +232,7 @@ export default function SequencerScreen() {
         router.push({ pathname: '/new-pattern', params: { from: 'sequencer' } });
         break;
       case 'rename':
-        renamePattern();
+        promptRename(pattern);
         break;
       case 'icon':
         router.push({ pathname: '/change-icon', params: { from: 'sequencer' } });
@@ -405,6 +390,7 @@ export default function SequencerScreen() {
           onPressBpm={() => router.push('/tempo')}
         />
       </View>
+      {renamePrompt}
     </View>
   );
 }
