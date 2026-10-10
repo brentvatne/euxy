@@ -180,7 +180,7 @@ export default function NewPatternSheet() {
           </View>
         </Field>
 
-        <Field label="Tempo">
+        <Field label="Tempo, BPM">
           <View style={styles.tempoCell}>
             <AppText variant="body">BPM</AppText>
             <View style={styles.tempoControls}>
