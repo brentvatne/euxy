@@ -10,15 +10,73 @@ on:
 permissions: {}
 # The exact @expo/explore release CI installs. expo-explore setup --workflows sets it.
 env:
-  EXPLORE_VERSION: 0.3.1
+  EXPLORE_VERSION: 0.5.0
 concurrency:
   group: explore-review-${{ github.event.pull_request.number || inputs.pr }}
   cancel-in-progress: false
 jobs:
-  capture:
+  # The platforms .expo-explore/config.yaml captures (ios, android, or both): one capture and report job each.
+  platforms:
     if: >-
       github.event_name != 'pull_request_target' ||
       (github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      platforms: ${{ steps.platforms.outputs.platforms }}
+    env:
+      TOOLS_PREFIX: explore-tools
+      TOOLS: explore-tools/package
+      APP_PROJECT_DIR: .
+    steps:
+      - name: Resolve the live pull request head
+        id: pr
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr }}
+        with:
+          script: |
+            const number = Number(process.env.PR_NUMBER);
+            if (!Number.isSafeInteger(number) || number <= 0) throw new Error('PR_NUMBER_INVALID: Provide an open pull request number.');
+            const { data: pr } = await github.rest.pulls.get({ ...context.repo, pull_number: number });
+            if (pr.state !== 'open' || pr.draft || pr.head.repo?.full_name !== `${context.repo.owner}/${context.repo.repo}`) {
+              throw new Error('SOURCE_NOT_TRUSTED: Capture requires an open, non-draft same-repository pull request.');
+            }
+            if (!/^[0-9a-f]{40}$/.test(pr.head.sha)) throw new Error('PR_COMMIT_INVALID: Refresh the PR and rerun Explore.');
+            core.setOutput('head', pr.head.sha);
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { ref: '${{ steps.pr.outputs.head }}', path: app-head, persist-credentials: false }
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with: { node-version: 24, package-manager-cache: false }
+      - name: Install Explore
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXPLORE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo '::error title=EXPLORE_VERSION_INVALID::Set EXPLORE_VERSION to an exact @expo/explore version. Run expo-explore setup --workflows.'; exit 1
+          fi
+          # npm ci against the release's npm-shrinkwrap.json installs the exact dependency tree it was tested with.
+          mkdir -p "$TOOLS_PREFIX"
+          npm pack "@expo/explore@$EXPLORE_VERSION" --pack-destination "$TOOLS_PREFIX" --silent > /dev/null
+          tar -xzf "$TOOLS_PREFIX"/expo-explore-*.tgz -C "$TOOLS_PREFIX"
+          cd "$TOOLS"
+          npm ci --omit=dev --include=optional --ignore-scripts --no-audit --no-fund
+      - name: List the configured platforms
+        id: platforms
+        shell: bash
+        run: |
+          set -euo pipefail
+          platforms="$(node "$TOOLS/dist/cli.js" config:platforms --project "$GITHUB_WORKSPACE/app-head/$APP_PROJECT_DIR" --config .expo-explore/config.yaml | jq -c '.platforms')"
+          echo "platforms=$platforms" >> "$GITHUB_OUTPUT"
+  capture:
+    needs: platforms
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON(needs.platforms.outputs.platforms) }}
     runs-on: ubuntu-22.04
     timeout-minutes: 120
     permissions:
@@ -37,6 +95,7 @@ jobs:
       TOOLS: explore-tools/package
       APP_PROJECT_DIR: .
       APP_INSTALL_DIR: .
+      PLATFORM: ${{ matrix.platform }}
     steps:
       - name: Resolve the live pull request and authorize its source
         id: pr
@@ -89,7 +148,8 @@ jobs:
           set -euo pipefail
           node "$TOOLS/dist/cli.js" source:verify \
             --base-project "$GITHUB_WORKSPACE/app-base/$APP_PROJECT_DIR" --head-project "$GITHUB_WORKSPACE/app-head/$APP_PROJECT_DIR" \
-            --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA" --config .expo-explore/config.yaml --output "$RUNNER_TEMP/explore-consistency"
+            --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA" --config .expo-explore/config.yaml --output "$RUNNER_TEMP/explore-consistency" \
+            --platform "$PLATFORM"
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       - name: Install app dependencies
         shell: bash
@@ -107,7 +167,9 @@ jobs:
           script: |
             const { data: repository } = await github.rest.repos.get(context.repo);
             const { data: baseline } = await github.rest.actions.getWorkflow({ ...context.repo, workflow_id: 'explore-baseline.yml' });
-            const records = await github.paginate(github.rest.actions.listArtifactsForRepo, { ...context.repo, name: `explore-baseline-${process.env.BASE_SHA}`, per_page: 100 });
+            // Baselines carry the platform suffix; iOS also accepts the unsuffixed name older baseline workflows uploaded.
+            const names = [`explore-baseline-${process.env.BASE_SHA}-${process.env.PLATFORM}`, ...(process.env.PLATFORM === 'ios' ? [`explore-baseline-${process.env.BASE_SHA}`] : [])];
+            const records = (await Promise.all(names.map(name => github.paginate(github.rest.actions.listArtifactsForRepo, { ...context.repo, name, per_page: 100 })))).flat();
             for (const artifact of records.filter(a => !a.expired).sort((a, b) => b.id - a.id)) {
               if (!artifact.workflow_run?.id) continue;
               const { data: run } = await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: artifact.workflow_run.id });
@@ -140,7 +202,8 @@ jobs:
           set -euo pipefail
           node "$TOOLS/dist/cli.js" capture:review \
             --base-project "$GITHUB_WORKSPACE/app-base/$APP_PROJECT_DIR" --head-project "$GITHUB_WORKSPACE/app-head/$APP_PROJECT_DIR" \
-            --pull-request "$RUNNER_TEMP/explore-pr.json" --output "$RUNNER_TEMP/explore-review" --config .expo-explore/config.yaml
+            --pull-request "$RUNNER_TEMP/explore-pr.json" --output "$RUNNER_TEMP/explore-review" --config .expo-explore/config.yaml \
+            --platform "$PLATFORM"
       - name: Stop retained capture sessions
         if: always()
         timeout-minutes: 5
@@ -173,7 +236,7 @@ jobs:
       - name: Upload captured review for packaging
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: explore-capture-${{ github.run_id }}-${{ github.run_attempt }}
+          name: explore-capture-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}
           path: |
             ${{ runner.temp }}/explore-review/report-input.json
             ${{ runner.temp }}/explore-review/plan.json
@@ -188,7 +251,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: explore-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          name: explore-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}
           path: |
             ${{ runner.temp }}/explore-consistency
             ${{ runner.temp }}/explore-diagnostics
@@ -203,18 +266,21 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
   report:
-    needs: capture
+    needs: [platforms, capture]
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON(needs.platforms.outputs.platforms) }}
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:
       contents: read
       actions: read
       pull-requests: write
-    outputs:
-      artifact_url: ${{ steps.viewer.outputs.artifact-url }}
     env:
       TOOLS_PREFIX: explore-tools
       TOOLS: explore-tools/package
+      PLATFORM: ${{ matrix.platform }}
     steps:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with: { node-version: 24, package-manager-cache: false }
@@ -233,18 +299,18 @@ jobs:
           npm ci --omit=dev --include=optional --ignore-scripts --no-audit --no-fund
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: explore-capture-${{ github.run_id }}-${{ github.run_attempt }}
+          name: explore-capture-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}
           path: ${{ runner.temp }}/explore-review
       - name: Package hosted review bundle
         shell: bash
         run: |
           set -euo pipefail
-          node "$TOOLS/dist/cli.js" ci:report --input "$RUNNER_TEMP/explore-review/report-input.json" --output "$RUNNER_TEMP/explore-report"
+          node "$TOOLS/dist/cli.js" ci:report --input "$RUNNER_TEMP/explore-review/report-input.json" --output "$RUNNER_TEMP/explore-report" --platform "$PLATFORM"
       - name: Upload hosted review bundle
         id: viewer
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: explore-review-${{ github.run_id }}-${{ github.run_attempt }}
+          name: explore-review-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}
           path: ${{ runner.temp }}/explore-report
           retention-days: 30
           if-no-files-found: error
@@ -255,20 +321,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node "$TOOLS/dist/cli.js" ci:publish --input "$RUNNER_TEMP/explore-review/report-input.json" --artifact-url "$ARTIFACT_URL"
+          node "$TOOLS/dist/cli.js" ci:publish --input "$RUNNER_TEMP/explore-review/report-input.json" --artifact-url "$ARTIFACT_URL" --platform "$PLATFORM"
       - name: Upload report failure diagnostics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: explore-report-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          name: explore-report-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}
           path: ${{ runner.temp }}/explore-diagnostics
           retention-days: 7
           if-no-files-found: ignore
-  # Hosted preview (opt-in, report.preview in config.yaml): one token-gated EAS Hosting deployment per review.
+  # Hosted preview (opt-in, report.preview in config.yaml): one token-gated EAS Hosting deployment per review, serving every platform's report.
   # This is the only job after capture that holds EXPO_TOKEN; the report job stays credential-free and has already
   # published the Download report link, so a failed deployment leaves the comment on the download-and-drop flow.
   deploy:
-    needs: [capture, report]
+    needs: [platforms, capture, report]
     if: needs.capture.outputs.preview == 'eas'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
@@ -294,27 +360,27 @@ jobs:
           tar -xzf "$TOOLS_PREFIX"/expo-explore-*.tgz -C "$TOOLS_PREFIX"
           cd "$TOOLS"
           npm ci --omit=dev --include=optional --ignore-scripts --no-audit --no-fund
+      # One directory per platform artifact (explore-capture-<run>-<attempt>-<platform>, explore-review-<run>-<attempt>-<platform>).
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: explore-capture-${{ github.run_id }}-${{ github.run_attempt }}
+          pattern: explore-capture-${{ github.run_id }}-${{ github.run_attempt }}-*
           path: ${{ runner.temp }}/explore-review
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         id: report
         with:
-          name: explore-review-${{ github.run_id }}-${{ github.run_attempt }}
+          pattern: explore-review-${{ github.run_id }}-${{ github.run_attempt }}-*
           path: ${{ runner.temp }}/explore-report
-      - name: Deploy the hosted preview and publish its Explore report link
+      - name: Deploy the hosted preview and publish its Explore report links
         env:
           GITHUB_TOKEN: ${{ github.token }}
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-          ARTIFACT_URL: ${{ needs.report.outputs.artifact_url }}
         shell: bash
         run: |
           set -euo pipefail
-          node "$TOOLS/dist/cli.js" ci:deploy --input "$RUNNER_TEMP/explore-review/report-input.json" --report "$RUNNER_TEMP/explore-report" --artifact-url "$ARTIFACT_URL"
+          node "$TOOLS/dist/cli.js" ci:deploy --inputs "$RUNNER_TEMP/explore-review" --reports "$RUNNER_TEMP/explore-report"
   failure:
-    needs: [capture, report, deploy]
-    if: always() && (needs.capture.result == 'failure' || needs.report.result == 'failure' || needs.deploy.result == 'failure')
+    needs: [platforms, capture, report, deploy]
+    if: always() && (needs.platforms.result == 'failure' || needs.capture.result == 'failure' || needs.report.result == 'failure' || needs.deploy.result == 'failure')
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     permissions:
@@ -326,14 +392,14 @@ jobs:
         continue-on-error: true
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: explore-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          pattern: explore-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}-*
           path: ${{ runner.temp }}/explore-failure/capture
       - name: Download report failure diagnostic
         if: needs.report.result == 'failure'
         continue-on-error: true
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: explore-report-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          pattern: explore-report-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}-*
           path: ${{ runner.temp }}/explore-failure/report
       - name: Report failure only on the current PR
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -355,12 +421,28 @@ jobs:
                 && pr.head.sha === process.env.HEAD_SHA && pr.base.sha === process.env.BASE_SHA;
             };
             if (!await current()) return;
-            // These are data files from this run and attempt, never executable report code.
+            // These are data files from this run and attempt, never executable report code. Each platform's
+            // diagnostics artifact lands in its own directory; the first error.json names the failed platform.
+            const fs = require('node:fs/promises');
+            const path = require('node:path');
+            const platformOf = name => /-(ios|android)$/.exec(name)?.[1] ?? null;
+            const locateDiagnostic = async () => {
+              if (!process.env.RUNNER_TEMP) return null;
+              const root = path.join(process.env.RUNNER_TEMP, 'explore-failure');
+              const stages = process.env.REPORT_RESULT === 'failure' ? [['report', 'error.json']] : [];
+              if (process.env.CAPTURE_RESULT === 'failure') stages.push(['capture', 'explore-diagnostics/error.json']);
+              for (const [stage, file] of stages) {
+                const entries = await fs.readdir(path.join(root, stage), { withFileTypes: true }).catch(() => []);
+                for (const entry of entries.filter(entry => entry.isDirectory() && /^explore-[a-z-]+-\d+-\d+-(ios|android)$/.test(entry.name)).sort((a, b) => a.name.localeCompare(b.name))) {
+                  const relative = path.join(stage, entry.name, file);
+                  if (await fs.stat(path.join(root, relative)).then(stat => stat.isFile(), () => false)) return { relative, platform: platformOf(entry.name) };
+                }
+              }
+              return null;
+            };
+            const located = await locateDiagnostic();
             const readDiagnostic = async () => {
-              const fs = require('node:fs/promises');
-              const path = require('node:path');
-              const relative = process.env.REPORT_RESULT === 'failure' ? 'report/error.json'
-                : process.env.CAPTURE_RESULT === 'failure' ? 'capture/explore-diagnostics/error.json' : null;
+              const relative = located?.relative ?? null;
               if (!relative || !process.env.RUNNER_TEMP) return null;
               try {
                 const root = path.join(process.env.RUNNER_TEMP, 'explore-failure');
@@ -396,9 +478,17 @@ jobs:
             const detail = diagnostic
               ? `**${escape(diagnostic.code)}** (${escape(diagnostic.stage)}): ${escape(diagnostic.message)} Next action: ${escape(diagnostic.nextAction)}`
               : 'Explore could not finish this review. See the run for the error code, cause, and next action. Fix the reported issue and rerun Explore.';
-            const body = `${marker}\n### Expo Explore · review failed\n\n${detail} [Open the failed run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`;
+            const failed = `### Expo Explore · review failed\n\n${detail} [Open the failed run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`;
             const comments = await github.paginate(github.rest.issues.listComments, { ...context.repo, issue_number: number, per_page: 100 });
             const existing = comments.find(comment => comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker));
+            // A multi-platform comment keeps the other platform's section; only the failed platform's section is replaced.
+            const open = platform => `<!-- expo-explore-platform:${platform} -->`, close = platform => `<!-- /expo-explore-platform:${platform} -->`;
+            const section = located?.platform && existing?.body?.includes(`${open(located.platform)}\n`) && existing.body.includes(`\n${close(located.platform)}`)
+              ? { start: existing.body.indexOf(`${open(located.platform)}\n`) + open(located.platform).length + 1, end: existing.body.indexOf(`\n${close(located.platform)}`) } : null;
+            const label = located?.platform === 'ios' ? 'iOS' : located?.platform === 'android' ? 'Android' : null;
+            const body = section && section.end > section.start
+              ? `${existing.body.slice(0, section.start)}## ${label} · failed\n\n${failed}${existing.body.slice(section.end)}`
+              : `${marker}\n${failed}`;
             if (!await current()) return;
             if (existing) await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
             else await github.rest.issues.createComment({ ...context.repo, issue_number: number, body });

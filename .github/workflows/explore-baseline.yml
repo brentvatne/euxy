@@ -6,13 +6,55 @@ on:
 permissions: {}
 # The exact @expo/explore release CI installs. expo-explore setup --workflows sets it.
 env:
-  EXPLORE_VERSION: 0.3.1
+  EXPLORE_VERSION: 0.5.0
 concurrency:
   group: explore-baseline-${{ github.sha }}
   cancel-in-progress: false
 jobs:
-  baseline:
+  # The platforms .expo-explore/config.yaml captures (ios, android, or both): one baseline job each.
+  platforms:
     if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      platforms: ${{ steps.platforms.outputs.platforms }}
+    env:
+      TOOLS_PREFIX: explore-tools
+      TOOLS: explore-tools/package
+      APP_PROJECT_DIR: .
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { ref: '${{ github.sha }}', path: app, persist-credentials: false }
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with: { node-version: 24, package-manager-cache: false }
+      - name: Install Explore
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXPLORE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo '::error title=EXPLORE_VERSION_INVALID::Set EXPLORE_VERSION to an exact @expo/explore version. Run expo-explore setup --workflows.'; exit 1
+          fi
+          # npm ci against the release's npm-shrinkwrap.json installs the exact dependency tree it was tested with.
+          mkdir -p "$TOOLS_PREFIX"
+          npm pack "@expo/explore@$EXPLORE_VERSION" --pack-destination "$TOOLS_PREFIX" --silent > /dev/null
+          tar -xzf "$TOOLS_PREFIX"/expo-explore-*.tgz -C "$TOOLS_PREFIX"
+          cd "$TOOLS"
+          npm ci --omit=dev --include=optional --ignore-scripts --no-audit --no-fund
+      - name: List the configured platforms
+        id: platforms
+        shell: bash
+        run: |
+          set -euo pipefail
+          platforms="$(node "$TOOLS/dist/cli.js" config:platforms --project "$GITHUB_WORKSPACE/app/$APP_PROJECT_DIR" --config .expo-explore/config.yaml | jq -c '.platforms')"
+          echo "platforms=$platforms" >> "$GITHUB_OUTPUT"
+  baseline:
+    needs: platforms
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON(needs.platforms.outputs.platforms) }}
     runs-on: ubuntu-22.04
     timeout-minutes: 90
     permissions:
@@ -22,6 +64,7 @@ jobs:
       TOOLS: explore-tools/package
       APP_PROJECT_DIR: .
       APP_INSTALL_DIR: .
+      PLATFORM: ${{ matrix.platform }}
     steps:
       - name: Validate baseline source
         shell: bash
@@ -56,7 +99,7 @@ jobs:
           node "$TOOLS/dist/cli.js" source:verify \
             --base-project "$GITHUB_WORKSPACE/app/$APP_PROJECT_DIR" --head-project "$GITHUB_WORKSPACE/app/$APP_PROJECT_DIR" \
             --base-sha "$GITHUB_SHA" --head-sha "$GITHUB_SHA" --scope all \
-            --config .expo-explore/config.yaml --output "$RUNNER_TEMP/explore-consistency"
+            --config .expo-explore/config.yaml --output "$RUNNER_TEMP/explore-consistency" --platform "$PLATFORM"
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       - name: Install app dependencies
         shell: bash
@@ -72,7 +115,7 @@ jobs:
         run: |
           set -euo pipefail
           node "$TOOLS/dist/cli.js" capture:baseline --project "$GITHUB_WORKSPACE/app/$APP_PROJECT_DIR" \
-            --sha "$GITHUB_SHA" --config .expo-explore/config.yaml --output "$RUNNER_TEMP/explore-baseline"
+            --sha "$GITHUB_SHA" --config .expo-explore/config.yaml --output "$RUNNER_TEMP/explore-baseline" --platform "$PLATFORM"
       - name: Stop retained baseline session
         if: always()
         timeout-minutes: 3
@@ -97,7 +140,7 @@ jobs:
       - name: Upload exact-commit baseline evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: explore-baseline-${{ github.sha }}
+          name: explore-baseline-${{ github.sha }}-${{ matrix.platform }}
           path: ${{ runner.temp }}/explore-baseline/baseline-export
           retention-days: 30
           if-no-files-found: error
@@ -105,7 +148,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: explore-baseline-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          name: explore-baseline-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}
           path: |
             ${{ runner.temp }}/explore-consistency
             ${{ runner.temp }}/explore-diagnostics
