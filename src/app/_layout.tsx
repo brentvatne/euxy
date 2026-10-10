@@ -13,7 +13,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { BootSplash } from '@/components/boot-splash';
 import { enableMidi } from '@/components/midi/runtime';
-import { KeyboardProvider } from '@/components/ui/keyboard';
+import { KeyboardProvider, preloadKeyboard } from '@/components/ui/keyboard';
+import { onBootOverlayGone } from '@/components/boot-signal';
 import { NoticeBanner } from '@/components/ui/notice-banner';
 import { configureObserve, wrapWithObserveRoot } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
@@ -55,6 +56,11 @@ function RootLayout() {
   // readiness underneath is the `boot.ready` event instead.
   useMarkInteractive();
 
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    return onBootOverlayGone(preloadKeyboard);
+  }, []);
+
   return (
     // Every touch target now goes through gesture-handler's Pressable, whose
     // GestureDetector requires a GestureHandlerRootView ancestor somewhere in
@@ -62,7 +68,7 @@ function RootLayout() {
     // under one of the older screen-local wrappers).
     <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaProvider>
-      <KeyboardProvider>
+      <KeyboardProvider preload={false}>
       <ThemeProvider value={navTheme}>
         <StatusBar style="light" />
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.ground } }}>
