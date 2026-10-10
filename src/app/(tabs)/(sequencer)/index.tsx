@@ -72,6 +72,7 @@ export default function SequencerScreen() {
   const setClockMode = useStore((s) => s.setClockMode);
   const toggleMute = useStore((s) => s.toggleMute);
   const toggleSolo = useStore((s) => s.toggleSolo);
+  const toggleLock = useStore((s) => s.toggleLock);
   const selectLane = useStore((s) => s.selectLane);
   const mutatePattern = useStore((s) => s.mutateActivePattern);
   // Dice HOLD: a charged roll (one preview roll per schedule tick, escalating
@@ -334,9 +335,12 @@ export default function SequencerScreen() {
                 // lane just as surely as its own flag.
                 muted={lane.muted || (anySolo && !lane.solo)}
                 solo={lane.solo}
+                // L: this lane sits out the dice (mutate/roll).
+                locked={!!lane.locked}
                 audible={laneAudible(lane, anySolo)}
                 onToggleMute={() => toggleMute(lane.id)}
                 onToggleSolo={() => toggleSolo(lane.id)}
+                onToggleLock={() => toggleLock(lane.id)}
                 onPressTitle={() => openEditor(lane.id)}
                 // Lane ids are random per install; position is what automation can name.
                 titleTestID={`lane-row-title-${laneIndex}`}

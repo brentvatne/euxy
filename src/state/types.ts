@@ -44,6 +44,11 @@ export interface Lane {
   resolutionTicks: number;
   muted: boolean;
   solo: boolean;
+  /** Locked lanes are skipped by pattern-wide randomization (dice tap/hold).
+   * The Lane Editor's own Randomize still works — that one is aimed at this
+   * lane deliberately. Absent on lanes saved before this field existed;
+   * treated as false. */
+  locked?: boolean;
 }
 
 export interface Pattern {
