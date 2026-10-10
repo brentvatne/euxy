@@ -51,8 +51,6 @@ import {
 } from "react-native-gesture-handler";
 import Animated, {
   Easing,
-  FadeIn,
-  FadeOut,
   ReduceMotion,
   cancelAnimation,
   interpolateColor,
@@ -260,55 +258,29 @@ const SNAP = { damping: 34, stiffness: 340, reduceMotion: ReduceMotion.System };
 // landing corner — a real throw goes where it was headed.
 const THROW_PROJECTION_S = 0.18;
 
-// An occasional entrance can afford to be legible, but it should arrive
-// immediately under the finger: strong ease-out, opacity-led, and only 8pt of
-// travel. The old 140ms curve produced too few painted frames on a cold boot;
-// 200ms stays inside the small-popover budget while preserving the first-frame
-// response. Exit is deliberately faster and drops movement entirely.
-const CAPSULE_EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 /**
- * The capsule ARRIVES; it does not blink on. The old entrance was a 200ms
- * ease-out across 8pt — too little travel to register as movement and with no
- * overshoot to sell any weight, so it read as a cut with a fade stapled to it.
- *
- * This is a real spring instead: it rises further, scales up from just under
- * full size, and settles through one soft overshoot. The opacity still runs on
- * a timing and finishes EARLY — a spring on alpha reads as a flicker when it
- * overshoots, and the object should be solid well before it stops moving.
- *
- * A custom entering worklet rather than `FadeInDown.springify()` because the
- * scale is what does most of the work here, and the builders only animate the
- * properties they own (opacity + one translate).
+ * No entrance animation, on purpose — Liquid Glass has two rules:
+ *  - UIKit switches a UIVisualEffectView's effect OFF while it or any
+ *    superview has alpha < 1 ("many effects look incorrect or not show at
+ *    all"), so an opacity fade on the capsule renders a flat semi-opaque pill
+ *    that snaps to glass when the fade hits 1. Nothing above the GlassView
+ *    ever carries opacity; the key row (its child) does the breathing dim.
+ *  - UIGlassEffect paints an opaque black pill on the frame it is created,
+ *    and a freshly created one that nothing touches can sit black/invisible
+ *    until its next transform update. So the capsule is mounted for the
+ *    whole life of the screen: at boot it is created under the opaque boot
+ *    overlay and nudged for a few frames there (sub-pixel, invisible), and
+ *    the overlay's fade reveals it with the rest of the screen. With no lanes
+ *    it is parked below the screen edge and springs up when the first lane
+ *    lands — transform only, which the glass is fine with.
  */
-const CAPSULE_ENTER = () => {
-  'worklet';
-  const spring = (dampingRatio: number, duration: number) => ({
-    duration,
-    dampingRatio,
-    reduceMotion: ReduceMotion.System,
-  });
-  return {
-    // Transform only — no opacity. UIKit switches a UIVisualEffectView's
-    // effect OFF while it or any superview has alpha < 1 ("many effects look
-    // incorrect or not show at all"), so fading the shell in rendered a flat
-    // semi-opaque capsule for 200 ms that snapped to glass when the fade hit
-    // 1. The keys fade in on their own below (they're the glass's children,
-    // which is fine).
-    initialValues: { transform: [{ translateY: 18 }, { scale: 0.88 }] },
-    animations: {
-      transform: [
-        { translateY: withSpring(0, spring(0.62, 480)) },
-        { scale: withSpring(1, spring(0.58, 520)) },
-      ],
-    },
-  };
+const CAPSULE_SPRING = {
+  duration: 520,
+  dampingRatio: 0.7,
+  reduceMotion: ReduceMotion.System,
 };
-const KEYS_ENTER = FadeIn.duration(200)
-  .easing(CAPSULE_EASE_OUT)
-  .reduceMotion(ReduceMotion.System);
-const CAPSULE_EXIT = FadeOut.duration(120)
-  .easing(CAPSULE_EASE_OUT)
-  .reduceMotion(ReduceMotion.System);
+const PARKED_Y = 240;
+const WAKE_FRAMES = 20;
 
 // --- Dice charge (issue #48) --------------------------------------------
 // The gesture: hold the dice and the capsule becomes one encoder with a ring
@@ -526,6 +498,7 @@ function rollScatterFrames(): number[][][] {
 }
 
 export function FloatingActions({
+  visible,
   canMutate,
   snapshotActive,
   onAddLane,
@@ -536,6 +509,8 @@ export function FloatingActions({
   onRevert,
   onKeep,
 }: {
+  /** Lanes exist. False parks the capsule below the screen edge. */
+  visible: boolean;
   canMutate: boolean;
   /** Temp mode armed — the resident temp key renders lit. */
   snapshotActive: boolean;
@@ -550,6 +525,19 @@ export function FloatingActions({
 }) {
   const reducedMotion = useReducedMotion();
   const { width: screenW } = useWindowDimensions();
+
+  // See the note above CAPSULE_SPRING: transform only, and a short sub-pixel
+  // nudge after mount so the glass materialises while still covered.
+  const wake = useSharedValue(0);
+  useEffect(() => {
+    wake.value = withRepeat(withTiming(1, { duration: 16 }), WAKE_FRAMES, true);
+  }, [wake]);
+  const park = useDerivedValue(() =>
+    visible ? withSpring(0, CAPSULE_SPRING) : PARKED_Y,
+  );
+  const anchorStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: park.value + wake.value * 0.5 }],
+  }));
   const corner = useStore((s) => s.settings.floatBarCorner);
   const setFloatBarCorner = useStore((s) => s.setFloatBarCorner);
 
@@ -805,9 +793,9 @@ export function FloatingActions({
   }));
 
   // Opacity lives on the key row, never on the glass shell or its ancestors
-  // (see CAPSULE_ENTER): the breathing dim and the entrance fade both go here.
+  // (see CAPSULE_SPRING).
   const keys = (
-    <Animated.View entering={KEYS_ENTER} style={[styles.row, breatheStyle]}>
+    <Animated.View style={[styles.row, breatheStyle]}>
       {/* Temp is a RESIDENT key (Brent's corrected semantics): tap to hold
           the current state away, tap again to jump back, long-press to keep. */}
       <SideKey charge={charge} side="left">
@@ -847,16 +835,9 @@ export function FloatingActions({
       style={StyleSheet.absoluteFill}
     >
       <GestureDetector gesture={pan}>
-        {/* Outer view owns mount animation; the inner one owns the drag
-            transform + breathing opacity. The anchor is absolute and fixed,
-            so a layout transition only adds a competing tail. */}
-        <Animated.View
-          // Mounted only while lanes exist (and never during boot) — so this
-          // entrance covers both app open and easing out of the empty state.
-          entering={CAPSULE_ENTER}
-          exiting={CAPSULE_EXIT}
-          style={styles.barAnchor}
-        >
+        {/* Outer view owns parking (and the mount nudge); the inner one owns
+            the drag transform. */}
+        <Animated.View style={[styles.barAnchor, anchorStyle]}>
           <Animated.View style={dragStyle} onTouchStart={relight}>
             {liquidGlassAvailable && AnimatedGlassView ? (
               // Real material refracts the playhead LEDs sweeping beneath
