@@ -6,7 +6,7 @@ on:
 permissions: {}
 # The exact @expo/explore release CI installs. expo-explore setup --workflows sets it.
 env:
-  EXPLORE_VERSION: 0.2.1
+  EXPLORE_VERSION: 0.3.0
 concurrency:
   group: explore-baseline-${{ github.sha }}
   cancel-in-progress: false
@@ -58,11 +58,9 @@ jobs:
             --base-sha "$GITHUB_SHA" --head-sha "$GITHUB_SHA" --scope all \
             --config .expo-explore/config.yaml --output "$RUNNER_TEMP/explore-consistency"
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with: { bun-version: 1.4.0 }
       - name: Install app dependencies
         shell: bash
-        working-directory: app/${{ env.APP_INSTALL_DIR }}
-        run: bun install --frozen-lockfile --ignore-scripts
+        run: (cd "app/$APP_INSTALL_DIR" && bun install --frozen-lockfile --ignore-scripts)
       - name: Capture complete single-commit baseline
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}

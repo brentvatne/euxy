@@ -9,15 +9,19 @@ navigation:
   provider: expo-router
 device:
   name: iPhone 17
+capture:
+  maxMinutes: 30
+  maxActions: 500
+report:
+  preview:
+    hosting: eas
+    expiresAfter: 7d
 exploration:
   scope: changes
   # Headless: applies the channel override and returns to the tabs on its first
   # frame, so its landing can never be verified (ROUTE_LANDING_MISMATCH).
   exclude:
     - /c/[channel]
-capture:
-  maxMinutes: 30
-  maxActions: 500
 parameters:
   # Headless route: a valid channel name makes a release build switch its EAS
   # Update channel and reload. `_explore` fails parseChannelLink, so the app only
@@ -31,10 +35,8 @@ parameters:
   /device-picker:
     kind: output
   # Share payloads: the Lo-Fi Bounce preset with its effective icon, encoded by
-  # src/core/share-codec.ts. A payload without an icon gets a random glyph on
-  # import, which would differ between captures. Each import adds a copy to the
-  # library and makes it the active pattern (a fresh install starts on the
-  # "Untitled" seed pattern).
+  # src/core/share-codec.ts. Each import adds a copy to the library and makes it
+  # the active pattern (a fresh install starts on the "Untitled" seed pattern).
   /p:
     d: AQAC-AYHb25lRHJvcAxMby1GaSBCb3VuY2UEEAMAAAAAADUAaQAZBgRLaWNrEAIEAAAAADcAXAAZBgVTbmFyZRAIAAMBAgA9AEQADwYDSGF0EAEOAAAAADkANwAZBgRTbmFw
   /p/[d]:

@@ -10,7 +10,7 @@ on:
 permissions: {}
 # The exact @expo/explore release CI installs. expo-explore setup --workflows sets it.
 env:
-  EXPLORE_VERSION: 0.2.1
+  EXPLORE_VERSION: 0.3.0
 concurrency:
   group: explore-review-${{ github.event.pull_request.number || inputs.pr }}
   cancel-in-progress: false
@@ -30,6 +30,8 @@ jobs:
       pr_number: ${{ steps.pr.outputs.pr_number }}
       base: ${{ steps.pr.outputs.base }}
       head: ${{ steps.pr.outputs.head }}
+      # "eas" when .expo-explore/config.yaml sets report.preview.hosting; the deploy job runs only then.
+      preview: ${{ steps.preview.outputs.preview }}
     env:
       TOOLS_PREFIX: explore-tools
       TOOLS: explore-tools/package
@@ -89,7 +91,6 @@ jobs:
             --base-project "$GITHUB_WORKSPACE/app-base/$APP_PROJECT_DIR" --head-project "$GITHUB_WORKSPACE/app-head/$APP_PROJECT_DIR" \
             --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA" --config .expo-explore/config.yaml --output "$RUNNER_TEMP/explore-consistency"
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with: { bun-version: 1.4.0 }
       - name: Install app dependencies
         shell: bash
         run: |
@@ -163,6 +164,12 @@ jobs:
               fi
             fi
           done
+      - name: Read the hosted preview request
+        id: preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "preview=$(jq -r '.preview.hosting // ""' "$RUNNER_TEMP/explore-review/report-input.json")" >> "$GITHUB_OUTPUT"
       - name: Upload captured review for packaging
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -203,6 +210,8 @@ jobs:
       contents: read
       actions: read
       pull-requests: write
+    outputs:
+      artifact_url: ${{ steps.viewer.outputs.artifact-url }}
     env:
       TOOLS_PREFIX: explore-tools
       TOOLS: explore-tools/package
@@ -255,9 +264,57 @@ jobs:
           path: ${{ runner.temp }}/explore-diagnostics
           retention-days: 7
           if-no-files-found: ignore
-  failure:
+  # Hosted preview (opt-in, report.preview in config.yaml): one token-gated EAS Hosting deployment per review.
+  # This is the only job after capture that holds EXPO_TOKEN; the report job stays credential-free and has already
+  # published the Download report link, so a failed deployment leaves the comment on the download-and-drop flow.
+  deploy:
     needs: [capture, report]
-    if: always() && (needs.capture.result == 'failure' || needs.report.result == 'failure')
+    if: needs.capture.outputs.preview == 'eas'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    env:
+      TOOLS_PREFIX: explore-tools
+      TOOLS: explore-tools/package
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with: { node-version: 24, package-manager-cache: false }
+      - name: Install Explore
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXPLORE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo '::error title=EXPLORE_VERSION_INVALID::Set EXPLORE_VERSION to an exact @expo/explore version. Run expo-explore setup --workflows.'; exit 1
+          fi
+          mkdir -p "$TOOLS_PREFIX"
+          npm pack "@expo/explore@$EXPLORE_VERSION" --pack-destination "$TOOLS_PREFIX" --silent > /dev/null
+          tar -xzf "$TOOLS_PREFIX"/expo-explore-*.tgz -C "$TOOLS_PREFIX"
+          cd "$TOOLS"
+          npm ci --omit=dev --include=optional --ignore-scripts --no-audit --no-fund
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: explore-capture-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/explore-review
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        id: report
+        with:
+          name: explore-review-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/explore-report
+      - name: Deploy the hosted preview and publish its Explore report link
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          ARTIFACT_URL: ${{ needs.report.outputs.artifact_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node "$TOOLS/dist/cli.js" ci:deploy --input "$RUNNER_TEMP/explore-review/report-input.json" --report "$RUNNER_TEMP/explore-report" --artifact-url "$ARTIFACT_URL"
+  failure:
+    needs: [capture, report, deploy]
+    if: always() && (needs.capture.result == 'failure' || needs.report.result == 'failure' || needs.deploy.result == 'failure')
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     permissions:
