@@ -566,31 +566,16 @@ Detect and display the mismatch:
 
 ## Backlog — future features (2026-07-24)
 
-### Android MIDI is still the stub — the picker only looks live (2026-07-26)
+### Android MIDI — done (2026-10-10)
 
-`src/midi/port.ts` exports `createStubMidiPort` as `createMidiPort`, and
-Metro only overrides it on two platforms: `port.ios.ts` (CoreMIDI, backed
-by `modules/midi/ios`) and `port.web.ts` (Web MIDI). There is no
-`port.android.ts`, and `modules/midi` ships no `android/` source — so
-Android resolves to the stub, whose `selectInput` / `selectOutput` do
-nothing over a hardcoded three-device list ("OP–XY", "USB MIDI
-Interface", "IAC Driver · Bus 1").
-
-Nothing in the UI admits this. `runtime.selectOutput` writes the pick to
-`settings.outputId` regardless of what the port did, and settings are in
-the durable slice — so the picker draws its checkmark, the MIDI screen
-names the "connected" device, and the choice survives a relaunch with no
-port behind any of it. The stub's `isSupported: () => true` means the
-Connection row reads as available too.
-
-Also stale: `port.ts`'s own comment says native is the stub "until the
-iOS CoreMIDI module lands". It has landed — the comment predates
-`port.ios.ts`.
-
-Two decisions here. Whether Android gets a real port (`android.media.midi`
-through the existing Expo module), and what the stub should do meanwhile —
-either report an empty device list so the screen honestly reads as
-unavailable, or keep the fake devices and mark the screen as a simulation.
+Was: `src/midi/port.ts` exported the stub for every non-iOS native platform,
+so Android showed three fake devices ("OP–XY", "USB MIDI Interface",
+"IAC Driver · Bus 1") and drew a checkmark against a selection no port was
+behind. Now `modules/midi/android` implements the same `Midi` module API over
+`android.media.midi` (device enumeration, hot-plug notifications, scheduled
+sends on the device clock, inbound bytes), and `port.ios.ts` became
+`port.native.ts` so one JS port serves both platforms. `port.ts` is reached
+only outside Metro (Jest), where the stub still stands in for hardware.
 
 ### Animation audit via the improve-animations skill (2026-07-25)
 
