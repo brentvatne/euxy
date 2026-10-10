@@ -27,7 +27,7 @@ import { allChipNames, randomChipName, type ChipName } from '@/components/patter
 import { IconPicker } from '@/components/patterns/icon-picker';
 import { ResolutionPicker } from '@/components/patterns/resolution-picker';
 import { useStore } from '@/state/store';
-import { color, font, HIT_SLOP, radius, space, timing } from '@/theme/tokens';
+import { color, font, HIT_SLOP, radius, space, timing, selection } from '@/theme/tokens';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
 /** Tempo bounds — shared with the Tempo sheet (app/tempo.tsx). */
@@ -125,7 +125,8 @@ export default function NewPatternSheet() {
               onChangeText={setName}
               placeholder={suggestion}
               placeholderTextColor={color.label4}
-              selectionColor={color.label}
+              selectionColor={selection}
+              cursorColor={color.label}
               style={styles.input}
               returnKeyType="done"
               autoCapitalize="words"
@@ -276,7 +277,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: color.label,
     fontSize: 16,
-    fontFamily: 'SF Pro Text',
+    fontFamily: font.text,
     padding: 0,
   },
   fieldKey: {

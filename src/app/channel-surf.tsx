@@ -31,7 +31,7 @@ import {
 } from '@/lib/channel-surf';
 import { haptics, updatesInfo } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
-import { color, radius, space } from '@/theme/tokens';
+import { color, font, radius, space, selection } from '@/theme/tokens';
 
 const fmtDate = (d: Date | null) => {
   if (!d) return '—';
@@ -174,7 +174,8 @@ export default function ChannelSurfSheet() {
                 onChangeText={setTyped}
                 placeholder="channel-name"
                 placeholderTextColor={color.label4}
-                selectionColor={color.label}
+                selectionColor={selection}
+                cursorColor={color.label}
                 style={styles.promptInput}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -291,7 +292,7 @@ const styles = StyleSheet.create({
   specValue: { fontSize: 12, lineHeight: 18, color: color.label2 },
   promptRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   promptMark: { fontSize: 14, lineHeight: 20, color: color.label4 },
-  promptInput: { flex: 1, color: color.label, fontSize: 14, fontFamily: 'Menlo', padding: 0 },
+  promptInput: { flex: 1, color: color.label, fontSize: 14, fontFamily: font.mono, padding: 0 },
 
   // Wraps because a recent channel name can be arbitrarily long — the row is
   // no longer three known-short names.

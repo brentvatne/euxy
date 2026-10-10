@@ -21,6 +21,7 @@ import {
   type CanvasRef,
 } from '@shopify/react-native-skia';
 import { useMemo, type RefObject } from 'react';
+import { Platform } from 'react-native';
 import QRCode from 'qrcode/lib/core/qrcode';
 
 import { chipForPattern, CHIP_SHADE_COLORS, effectiveChipName } from '@/components/patterns/chips';
@@ -40,10 +41,15 @@ const QR_PANEL = 268;
 const QR_PANEL_PAD = 14;
 const CARVE_MODULES = 15;
 
+// Skia resolves families through the platform font manager, so these are
+// system names: Helvetica Neue / Menlo on iOS, Roboto / Droid Sans Mono on
+// Android (unknown names there fall back to a proportional sans).
+const NAME_FAMILY = Platform.select({ android: 'sans-serif', default: 'Helvetica Neue' });
+const MONO_FAMILY = Platform.select({ android: 'monospace', default: 'Menlo' });
 const fonts = {
-  name: matchFont({ fontFamily: 'Helvetica Neue', fontSize: 17, fontWeight: '600' }),
-  mono: matchFont({ fontFamily: 'Menlo', fontSize: 11 }),
-  label: matchFont({ fontFamily: 'Menlo', fontSize: 9 }),
+  name: matchFont({ fontFamily: NAME_FAMILY, fontSize: 17, fontWeight: '600' }),
+  mono: matchFont({ fontFamily: MONO_FAMILY, fontSize: 11 }),
+  label: matchFont({ fontFamily: MONO_FAMILY, fontSize: 9 }),
 };
 
 /** Chip glyph cells at led-chip.tsx geometry, as Skia rects. */

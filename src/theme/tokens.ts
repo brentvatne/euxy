@@ -14,6 +14,8 @@
  * (and `Color` from expo-router for native semantic colors where relevant).
  * Do NOT use NativeWind / Tailwind — this module is the single style source.
  */
+import { Platform } from 'react-native';
+
 
 /** OP-XY packaging monoramp, light → dark (lospec: teenageengineering-op-xy). */
 export const ramp = {
@@ -115,13 +117,28 @@ export const color = {
   danger: '#FF453A', // record LED + destructive (Panic, swipe-delete)
 } as const;
 
-/** Fonts. SF Pro Display for large/headers, SF Pro Text for body/controls. */
+/**
+ * TextInput selection highlight. iOS draws it translucent, so the primary label
+ * works; Android paints it solid (hiding the selected text) and also uses it
+ * for the cursor, so it gets a translucent label there (cursorColor stays solid).
+ */
+export const selection = Platform.select({
+  android: 'rgba(246, 244, 244, 0.35)',
+  default: color.label,
+});
+
+/**
+ * Fonts. SF Pro Display for large/headers, SF Pro Text for body/controls on
+ * iOS; Android has neither, so it names the system families instead (an
+ * unknown family there silently falls back to sans-serif — which would turn
+ * every monospace readout proportional).
+ */
 export const font = {
-  display: 'SF Pro Display',
-  text: 'SF Pro Text',
+  display: Platform.select({ android: 'sans-serif', default: 'SF Pro Display' }),
+  text: Platform.select({ android: 'sans-serif', default: 'SF Pro Text' }),
   // Byte/hex readouts, dot-matrix labels, step rulers. In-app use a system
   // monospace ("ui-monospace" / "Menlo" / SF Mono); mockups used Space Mono.
-  mono: 'Menlo',
+  mono: Platform.select({ android: 'monospace', default: 'Menlo' }),
 } as const;
 
 /** Type scale — { size / lineHeight / weight }. px. */

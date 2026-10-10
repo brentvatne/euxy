@@ -14,13 +14,13 @@
  * 2026-08-06. `local` keeps the number under the finger honest at frame rate
  * while the store hears from us at most every COMMIT_MS.
  */
-import { Slider } from '@expo/ui/community/slider';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { haptics } from '@/lib/shims';
 import { color, font, space } from '@/theme/tokens';
 import { AppText } from '@/components/ui';
+import { NativeSlider } from '@/components/ui/native-slider';
 
 export interface SliderRowProps {
   label: string;
@@ -127,7 +127,7 @@ export function SliderRow({
         <AppText style={styles.label}>{label}</AppText>
         <AppText style={styles.value}>{formatValue ? formatValue(shown) : String(shown)}</AppText>
       </View>
-      <Slider
+      <NativeSlider
         value={shown}
         minimumValue={min}
         maximumValue={safeMax}

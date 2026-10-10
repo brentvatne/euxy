@@ -1,20 +1,42 @@
 /**
- * SF Symbol wrapper (iOS). Thin layer over expo-symbols so icon color/size are
+ * Symbol wrapper. Thin layer over expo-symbols so icon color/size are
  * token-driven and consistent. Defaults to the primary label color (white).
+ *
+ * Callers name icons with SF Symbol names; on Android expo-symbols renders
+ * Material Symbols instead, so every SF name used in the app maps to its
+ * Material equivalent here. An unmapped name renders nothing on Android — add
+ * it to `MATERIAL` rather than passing a per-call `fallback`.
  *
  * Named `SFSymbol`, NOT `Symbol` — a component called `Symbol` shadows the JS
  * global `Symbol` in importing modules and breaks `Symbol.iterator` (iteration,
  * spread) with "undefined is not a function".
  */
-import { SymbolView, type SymbolViewProps } from 'expo-symbols';
+import { SymbolView, type AndroidSymbol, type SFSymbol as SFSymbolName, type SymbolViewProps } from 'expo-symbols';
 
 import { color } from '@/theme/tokens';
 
-export interface SFSymbolProps extends Omit<SymbolViewProps, 'tintColor'> {
+const MATERIAL: Partial<Record<SFSymbolName, AndroidSymbol>> = {
+  plus: 'add',
+  minus: 'remove',
+  'arrow.up.arrow.down': 'swap_vert',
+  'chevron.right': 'chevron_right',
+  'chevron.up.chevron.down': 'unfold_more',
+  dice: 'casino',
+};
+
+export interface SFSymbolProps extends Omit<SymbolViewProps, 'tintColor' | 'name'> {
+  name: SFSymbolName;
   size?: number;
   tint?: string;
 }
 
-export function SFSymbol({ size = 20, tint = color.label, style, ...rest }: SFSymbolProps) {
-  return <SymbolView tintColor={tint} style={[{ width: size, height: size }, style]} {...rest} />;
+export function SFSymbol({ name, size = 20, tint = color.label, style, ...rest }: SFSymbolProps) {
+  return (
+    <SymbolView
+      name={{ ios: name, android: MATERIAL[name] }}
+      tintColor={tint}
+      style={[{ width: size, height: size }, style]}
+      {...rest}
+    />
+  );
 }

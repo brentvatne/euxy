@@ -5,11 +5,11 @@
  * with 1px separators and position-aware corner radii, a white-active compact
  * clock toggle, and a draggable latency slider — is specific to this screen.
  */
-import { Slider } from '@expo/ui/community/slider';
 import { StyleSheet, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
 import { AppText, Segmented } from '@/components/ui';
+import { NativeSlider } from '@/components/ui/native-slider';
 import { color, radius, space } from '@/theme/tokens';
 import { IconChevronRight, IconChevronUpDown } from './icons';
 
@@ -157,7 +157,7 @@ export function LatencySlider({
   onChange: (v: number) => void;
 }) {
   return (
-    <Slider
+    <NativeSlider
       value={value}
       minimumValue={min}
       maximumValue={max}
