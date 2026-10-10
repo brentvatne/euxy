@@ -57,8 +57,13 @@ private final class MidiThread: Thread {
 public class MidiModule: Module {
   private lazy var midi = MidiManager()
   private lazy var thread = MidiThread()
-  /// Only read/written on the MIDI thread.
-  private var isSetup = false
+  /// Written on the MIDI thread, read from the JS thread by the sync getters.
+  private let stateLock = NSLock()
+  private var isSetupStorage = false
+  private var isSetup: Bool {
+    get { stateLock.withLock { isSetupStorage } }
+    set { stateLock.withLock { isSetupStorage = newValue } }
+  }
 
   /// Runs on the MIDI thread. The first call pays the MIDIServer connection.
   private func setupIfNeeded() {
@@ -72,6 +77,8 @@ public class MidiModule: Module {
       midi.onDevicesChanged = { [weak self] in
         self?.sendEvent("onDevicesChanged", [:])
       }
+      // Lists handed out before this point were empty; have JS re-enumerate.
+      sendEvent("onDevicesChanged", [:])
     } catch {
       print("euxy MIDI setup failed: \(error)")
     }
@@ -81,31 +88,38 @@ public class MidiModule: Module {
     Name("Midi")
     Events("onMidiMessage", "onDevicesChanged")
 
-    // Kick the (possibly slow) MIDIServer connection off early but off every
-    // thread the UI needs; the sync functions below wait for it if they land first.
+    // Kick the (possibly slow) MIDIServer connection off early, off every thread
+    // the UI needs. Nothing below may wait for it: a sync getter blocking the JS
+    // thread on a cold MIDIServer held back React's first commit (and with it
+    // the boot fade) by the whole client-creation time.
     OnStartObserving { self.thread.async { self.setupIfNeeded() } }
     OnDestroy { self.midi.disconnect() }
 
+    // Sync by contract (screens enumerate during render); before setup they
+    // report no devices and setup's onDevicesChanged triggers the re-read.
     Function("getOutputs") { () -> [[String: Any]] in
-      self.thread.sync {
-        self.setupIfNeeded()
-        return self.midi.outputs()
+      guard self.isSetup else {
+        self.thread.async { self.setupIfNeeded() }
+        return []
       }
+      return self.thread.sync { self.midi.outputs() }
     }
     Function("getInputs") { () -> [[String: Any]] in
-      self.thread.sync {
-        self.setupIfNeeded()
-        return self.midi.inputs()
+      guard self.isSetup else {
+        self.thread.async { self.setupIfNeeded() }
+        return []
       }
+      return self.thread.sync { self.midi.inputs() }
     }
+    // Selection is ordered behind setup on the MIDI thread; the caller never waits.
     Function("selectOutput") { (id: String) in
-      self.thread.sync {
+      self.thread.async {
         self.setupIfNeeded()
         self.midi.selectOutput(id)
       }
     }
     Function("selectInput") { (id: String) in
-      self.thread.sync {
+      self.thread.async {
         self.setupIfNeeded()
         self.midi.selectInput(id)
       }
