@@ -138,6 +138,7 @@ export default function ChannelSurfSheet() {
           frame-correction path (docs/feedback/form-sheets.md). */}
       <View style={styles.scroll} collapsable={false}>
         <KeyboardAwareScrollView
+          nestedScrollEnabled
           bottomOffset={24}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.body, { paddingBottom: space.xxl + bottomInset }]}

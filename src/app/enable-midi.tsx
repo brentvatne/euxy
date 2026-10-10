@@ -32,7 +32,7 @@ export default function EnableMidiSheet() {
   };
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={[styles.scroll, { paddingBottom: space.xxl + bottomInset }]}>
+    <ScrollView nestedScrollEnabled style={styles.root} contentContainerStyle={[styles.scroll, { paddingBottom: space.xxl + bottomInset }]}>
       <View style={styles.hero}>
         <View style={styles.iconTile}>
           <IconMidiDin />

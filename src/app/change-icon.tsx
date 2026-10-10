@@ -53,7 +53,7 @@ export default function ChangeIconSheet() {
           formSheet frame correction otherwise paints it over the header
           (same workaround as lane-editor). */}
       <View style={styles.flex} collapsable={false}>
-        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: space.xxl + bottomInset }]} showsVerticalScrollIndicator={false}>
+        <ScrollView nestedScrollEnabled contentContainerStyle={[styles.content, { paddingBottom: space.xxl + bottomInset }]} showsVerticalScrollIndicator={false}>
           <IconPicker
             selected={selected}
             onSelect={(name) => {

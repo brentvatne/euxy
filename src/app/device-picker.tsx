@@ -64,7 +64,7 @@ export default function DevicePickerSheet() {
   };
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={[styles.scroll, { paddingBottom: space.xxl + bottomInset }]}>
+    <ScrollView nestedScrollEnabled style={styles.root} contentContainerStyle={[styles.scroll, { paddingBottom: space.xxl + bottomInset }]}>
       <View style={styles.header}>
         <AppText style={styles.title}>{isInput ? 'Input device' : 'Output device'}</AppText>
         <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Close" style={styles.closeBtn} hitSlop={space.sm}>

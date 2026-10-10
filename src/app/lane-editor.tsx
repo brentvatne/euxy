@@ -357,6 +357,7 @@ export default function LaneEditorSheet() {
           of letting the keyboard cover it. ONE keyboard owner per screen. */}
       <KeyboardAwareScrollView
         ref={scrollRef}
+        nestedScrollEnabled
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: space.xxl + bottomInset }]}
         showsVerticalScrollIndicator={false}

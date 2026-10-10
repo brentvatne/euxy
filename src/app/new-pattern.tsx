@@ -114,6 +114,7 @@ export default function NewPatternSheet() {
           the screen's ONE keyboard owner (Name field). */}
       <View style={styles.scroll} collapsable={false}>
       <KeyboardAwareScrollView
+        nestedScrollEnabled
         bottomOffset={24}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.body, { paddingBottom: space.xxl + bottomInset }]}
