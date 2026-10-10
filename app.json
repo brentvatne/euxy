@@ -52,7 +52,15 @@
           "disableLibdav1d": true
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "usePrecompiledModules": false
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

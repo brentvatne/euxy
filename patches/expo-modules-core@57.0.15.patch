@@ -1,0 +1,601 @@
+diff --git a/ios/Api/Factories/ClassFactories.swift b/ios/Api/Factories/ClassFactories.swift
+index b1203111543bfe949ee1b1e981459f6efacebfcb..ba2fed65c9bcd832257c90f65328e0935cd191ae 100644
+--- a/ios/Api/Factories/ClassFactories.swift
++++ b/ios/Api/Factories/ClassFactories.swift
+@@ -34,7 +34,7 @@ public func Class(
+  Creates the definition describing a JavaScript class with an associated native shared object class.
+  */
+ public func Class<SharedObjectType: SharedObject>(
+-  _ name: String = String(describing: SharedObjectType.self),
++  _ name: String = _typeName(SharedObjectType.self, qualified: false),
+   _ sharedObjectType: SharedObjectType.Type,
+   @ClassDefinitionBuilder<SharedObjectType> @_implicitSelfCapture _ elements: () -> [AnyClassDefinitionElement]
+ ) -> ClassDefinition {
+diff --git a/ios/Core/Classes/ClassDefinition.swift b/ios/Core/Classes/ClassDefinition.swift
+index ee9c729a2ab4a13043879d66124bcd961c051e41..aba8fde1a0246aac279bf9bf06052c24ce0f9483 100644
+--- a/ios/Core/Classes/ClassDefinition.swift
++++ b/ios/Core/Classes/ClassDefinition.swift
+@@ -26,6 +26,10 @@ public final class ClassDefinition: ObjectDefinition {
+    */
+   let isSharedRef: Bool
+ 
++  public override func __collect(into buckets: inout DefinitionBuckets) {
++    buckets.classes.append(self)
++  }
++
+   private init(_ name: String, associatedType: AnyDynamicType, isSharedRef: Bool, elements: [AnyClassDefinitionElement] = []) {
+     self.name = name
+     self.constructor = elements.first(where: isConstructor) as? AnySyncFunctionDefinition
+@@ -172,5 +176,5 @@ extension SharedObject: ClassAssociatedObject {}
+    needs to be filtered out when decorating the prototype.
+  */
+ private func isConstructor(_ item: AnyDefinition) -> Bool {
+-  return (item as? AnySyncFunctionDefinition)?.name == "constructor"
++  return item.__isConstructor
+ }
+diff --git a/ios/Core/DynamicTypes/DynamicType.swift b/ios/Core/DynamicTypes/DynamicType.swift
+index e1a56a7a8700d276aaeb80beaa8bd32b2907e183..09ab89231078e2d95b46ffb310f72b733f7ceef4 100644
+--- a/ios/Core/DynamicTypes/DynamicType.swift
++++ b/ios/Core/DynamicTypes/DynamicType.swift
+@@ -4,33 +4,75 @@
+ // we want it to be uppercase as we treat it more like a generic class.
+ // swiftlint:disable identifier_name
+ 
+-/**
+- Factory creating an instance of the dynamic type wrapper conforming to `AnyDynamicType`.
+- Depending on the given type, it may return one of `DynamicArrayType`, `DynamicOptionalType`, `DynamicConvertibleType`, etc.
+- It does some type checks in runtime when the type's conformance/inheritance is unknown for the compiler.
+- See the `~` prefix operator overloads that are used for types known for the compiler.
+- You can add more type checks for types that don't conform to `AnyArgument`, but are allowed to be used as return types.
+- `Void` is a good example as it cannot conform to anything or language protocols that cannot be extended to implement `AnyArgument`.
+- */
++import Foundation
++
++private enum DynamicTypeKind {
++  case anyArgument(AnyArgument.Type)
++  case void
++  case codable
++  case raw
++}
++
++private final class DynamicTypeKindCache: @unchecked Sendable {
++  static let shared = DynamicTypeKindCache()
++  private var kinds = [ObjectIdentifier: DynamicTypeKind]()
++  private let lock = NSLock()
++
++  func kind<T>(of type: T.Type) -> DynamicTypeKind {
++    let key = ObjectIdentifier(T.self)
++    lock.lock()
++    if let kind = kinds[key] {
++      lock.unlock()
++      return kind
++    }
++    lock.unlock()
++
++    let kind: DynamicTypeKind
++    if let AnyArgumentType = T.self as? AnyArgument.Type {
++      kind = .anyArgument(AnyArgumentType)
++    } else if T.self == Void.self {
++      kind = .void
++    } else if T.self is Encodable.Type || T.self is Decodable.Type {
++      kind = .codable
++    } else {
++      kind = .raw
++    }
++    lock.lock()
++    kinds[key] = kind
++    lock.unlock()
++    return kind
++  }
++}
++
+ private func DynamicType<T>(_ type: T.Type) -> AnyDynamicType {
+-  if let AnyArgumentType = T.self as? AnyArgument.Type {
++  // The protocol-conformance checks below are full conformance-table scans per (type, protocol);
++  // the answer is a property of the type, so remember it and keep creating fresh instances.
++  switch DynamicTypeKindCache.shared.kind(of: type) {
++  case .anyArgument(let AnyArgumentType):
+     return AnyArgumentType.getDynamicType()
+-  }
+-  if T.self == Void.self {
++  case .void:
+     return DynamicVoidType.shared
+-  }
+-  if T.self is Encodable.Type || T.self is Decodable.Type {
++  case .codable:
+     // There is no dedicated `~` operator overload for Codable types to avoid ambiguity
+     // when the type is both `AnyArgument` and `Encodable`/`Decodable` (e.g. strings, numeric types).
+     return DynamicCodableType<T>()
++  case .raw:
++    return DynamicRawType(innerType: T.self)
+   }
+-  return DynamicRawType(innerType: T.self)
+ }
+ 
+ /**
+  Handy prefix operator that makes the dynamic type from the static type.
+  */
+ prefix operator ~
++/**
++ Factory creating an instance of the dynamic type wrapper conforming to `AnyDynamicType`.
++ Depending on the given type, it may return one of `DynamicArrayType`, `DynamicOptionalType`, `DynamicConvertibleType`, etc.
++ It does some type checks in runtime when the type's conformance/inheritance is unknown for the compiler.
++ See the `~` prefix operator overloads that are used for types known for the compiler.
++ You can add more type checks for types that don't conform to `AnyArgument`, but are allowed to be used as return types.
++ `Void` is a good example as it cannot conform to anything or language protocols that cannot be extended to implement `AnyArgument`.
++ */
+ internal prefix func ~ <T>(type: T.Type) -> AnyDynamicType {
+   return DynamicType(type)
+ }
+diff --git a/ios/Core/EventListener.swift b/ios/Core/EventListener.swift
+index 234f7d01122849e21856ad36205eb0b0b233f889..04db18a994bd9f24356116ca7076b860398ac328 100644
+--- a/ios/Core/EventListener.swift
++++ b/ios/Core/EventListener.swift
+@@ -61,3 +61,9 @@ public enum EventName: Equatable, Sendable {
+   case appBecomesActive
+   case appEntersBackground
+ }
++
++extension EventListener {
++  public func __collect(into buckets: inout DefinitionBuckets) {
++    buckets.eventListeners.append(self)
++  }
++}
+diff --git a/ios/Core/Events/EventObservingDefinition.swift b/ios/Core/Events/EventObservingDefinition.swift
+index 7cfc6cff268a4ad90abe7f75d726fe550447cabe..f4f11845a94671172d2408d67d19e697c170b6fa 100644
+--- a/ios/Core/Events/EventObservingDefinition.swift
++++ b/ios/Core/Events/EventObservingDefinition.swift
+@@ -80,3 +80,9 @@ public struct EventObservingDecorator: JavaScriptObjectDecorator {
+     object.setProperty(stopObserving.name, value: try stopObserving.build(appContext: appContext))
+   }
+ }
++
++extension EventObservingDefinition {
++  public func __collect(into buckets: inout DefinitionBuckets) {
++    buckets.eventObservers.append(self)
++  }
++}
+diff --git a/ios/Core/Functions/AsyncFunctionDefinition.swift b/ios/Core/Functions/AsyncFunctionDefinition.swift
+index 20ea9e4baa9e7c3ecf61bf8be55b2edbe9f82b55..1868ed5d5f476309ef495db1b53358a1b65812a5 100644
+--- a/ios/Core/Functions/AsyncFunctionDefinition.swift
++++ b/ios/Core/Functions/AsyncFunctionDefinition.swift
+@@ -23,6 +23,10 @@ private let defaultQueue = DispatchQueue(label: "expo.modules.AsyncFunctionQueue
+  Represents a function that can only be called asynchronously, thus its JavaScript equivalent returns a Promise.
+  */
+ public class AsyncFunctionDefinition<Args, FirstArgType, ReturnType>: AnyAsyncFunctionDefinition, @unchecked Sendable {
++  public func __collect(into buckets: inout DefinitionBuckets) {
++    buckets.functions.append(self)
++  }
++
+   typealias ClosureType = (Args) throws -> ReturnType
+ 
+   /**
+diff --git a/ios/Core/Functions/ConcurrentFunctionDefinition.swift b/ios/Core/Functions/ConcurrentFunctionDefinition.swift
+index 74d3e9b1ea7e1d0997c0aa66c893fde326497681..4d12e5fd9ba356cc4ffd82d10023f4dc4debab2a 100644
+--- a/ios/Core/Functions/ConcurrentFunctionDefinition.swift
++++ b/ios/Core/Functions/ConcurrentFunctionDefinition.swift
+@@ -17,6 +17,10 @@ internal protocol AnyConcurrentFunctionDefinition: AnyFunctionDefinition {
+  As opposed to `AsyncFunctionDefinition`, it can leverage the new Swift's concurrency model and take the async/await closure.
+  */
+ public class ConcurrentFunctionDefinition<Args, FirstArgType, ReturnType>: AnyConcurrentFunctionDefinition, @unchecked Sendable {
++  public func __collect(into buckets: inout DefinitionBuckets) {
++    buckets.functions.append(self)
++  }
++
+   typealias ClosureType = @Sendable (Args) async throws -> sending ReturnType
+ 
+   let body: ClosureType
+diff --git a/ios/Core/Functions/OptimizedAsyncFunctionDefinition.swift b/ios/Core/Functions/OptimizedAsyncFunctionDefinition.swift
+index d6d187f0908da2fc8d78e104deba5289e950dff2..f3af491db1fad96f8a09457bc946839e7b516d00 100644
+--- a/ios/Core/Functions/OptimizedAsyncFunctionDefinition.swift
++++ b/ios/Core/Functions/OptimizedAsyncFunctionDefinition.swift
+@@ -75,3 +75,9 @@ public struct OptimizedAsyncFunctionDefinition: AnyAsyncFunctionDefinition, @unc
+     return self
+   }
+ }
++
++extension OptimizedAsyncFunctionDefinition {
++  public func __collect(into buckets: inout DefinitionBuckets) {
++    buckets.functions.append(self)
++  }
++}
+diff --git a/ios/Core/Functions/OptimizedSyncFunctionDefinition.swift b/ios/Core/Functions/OptimizedSyncFunctionDefinition.swift
+index 70c943e31628514c410a630dfbae1e83c6a544b8..fd96990bc91782898e0d1dfd6c2bd882120e82c4 100644
+--- a/ios/Core/Functions/OptimizedSyncFunctionDefinition.swift
++++ b/ios/Core/Functions/OptimizedSyncFunctionDefinition.swift
+@@ -44,6 +44,8 @@ public struct OptimizedSyncFunctionDefinition: AnySyncFunctionDefinition, @unche
+     callback(.failure(GenericException("OptimizedSyncFunctionDefinition cannot be called from native code")))
+   }
+ 
++  public var __isConstructor: Bool { name == "constructor" }
++
+   // MARK: - AnySyncFunctionDefinition
+ 
+   public func call(_ appContext: AppContext, in runtime: JavaScriptRuntime, this: JavaScriptValue, arguments: consuming JavaScriptValuesBuffer) throws(Exception) -> ExpoModulesJSI.JavaScriptValue {
+@@ -126,3 +128,9 @@ public func _createOptimizedFunctionDescriptor(
+     block: block
+   )
+ }
++
++extension OptimizedSyncFunctionDefinition {
++  public func __collect(into buckets: inout DefinitionBuckets) {
++    buckets.functions.append(self)
++  }
++}
+diff --git a/ios/Core/Functions/StaticFunctionDefinition.swift b/ios/Core/Functions/StaticFunctionDefinition.swift
+index f1a9b61016987f680637734ce22371bb29a60039..6734ad04a33cfc6478f80846d5b43c4d434269a9 100644
+--- a/ios/Core/Functions/StaticFunctionDefinition.swift
++++ b/ios/Core/Functions/StaticFunctionDefinition.swift
+@@ -15,6 +15,10 @@ internal protocol AnyStaticFunctionDefinition: AnyFunctionDefinition {
+  */
+ public final class StaticSyncFunctionDefinition<Args, FirstArgType, ReturnType>:
+   SyncFunctionDefinition<Args, FirstArgType, ReturnType>, AnyStaticFunctionDefinition, @unchecked Sendable {
++  public override func __collect(into buckets: inout DefinitionBuckets) {
++    buckets.staticFunctions.append(self)
++  }
++
+   let isStatic = true
+ }
+ 
+@@ -23,6 +27,10 @@ public final class StaticSyncFunctionDefinition<Args, FirstArgType, ReturnType>:
+  */
+ public final class StaticAsyncFunctionDefinition<Args, FirstArgType, ReturnType>:
+   AsyncFunctionDefinition<Args, FirstArgType, ReturnType>, AnyStaticFunctionDefinition, @unchecked Sendable {
++  public override func __collect(into buckets: inout DefinitionBuckets) {
++    buckets.staticFunctions.append(self)
++  }
++
+   let isStatic = true
+ }
+ 
+@@ -31,5 +39,9 @@ public final class StaticAsyncFunctionDefinition<Args, FirstArgType, ReturnType>
+  */
+ public final class StaticConcurrentFunctionDefinition<Args, FirstArgType, ReturnType>:
+   ConcurrentFunctionDefinition<Args, FirstArgType, ReturnType>, AnyStaticFunctionDefinition, @unchecked Sendable {
++  public override func __collect(into buckets: inout DefinitionBuckets) {
++    buckets.staticFunctions.append(self)
++  }
++
+   let isStatic = true
+ }
+diff --git a/ios/Core/Functions/SyncFunctionDefinition.swift b/ios/Core/Functions/SyncFunctionDefinition.swift
+index bd9c6a25908bf745cf517adec361bd35733d2a37..0653fca4b7d84231a5f6cf505a9a0d9a0f599732 100644
+--- a/ios/Core/Functions/SyncFunctionDefinition.swift
++++ b/ios/Core/Functions/SyncFunctionDefinition.swift
+@@ -34,6 +34,12 @@ internal protocol AnySyncFunctionDefinition: AnyFunctionDefinition, ~Copyable {
+  Represents a function that can only be called synchronously.
+  */
+ public class SyncFunctionDefinition<Args, FirstArgType, ReturnType>: AnySyncFunctionDefinition, @unchecked Sendable {
++  public func __collect(into buckets: inout DefinitionBuckets) {
++    buckets.functions.append(self)
++  }
++
++  public var __isConstructor: Bool { name == "constructor" }
++
+   typealias ClosureType = (Args) throws -> ReturnType
+ 
+   /**
+diff --git a/ios/Core/Modules/ModuleDefinition.swift b/ios/Core/Modules/ModuleDefinition.swift
+index 740d7f1096fffca1b1473674e4a704529006db66..4ab3984db86e7c0c4a34abe316e4ba73d2487a9b 100644
+--- a/ios/Core/Modules/ModuleDefinition.swift
++++ b/ios/Core/Modules/ModuleDefinition.swift
+@@ -40,26 +40,28 @@ public final class ModuleDefinition: ObjectDefinition {
+   override init(definitions: [AnyDefinition]) {
+     self.rawDefinitions = definitions
+ 
+-    self.name = definitions
+-      .compactMap { $0 as? ModuleNameDefinition }
++    var buckets = DefinitionBuckets()
++    for definition in definitions {
++      definition.__collect(into: &buckets)
++    }
++
++    self.name = buckets.moduleNames
+       .last?
+       .name ?? ""
+ 
+-    self.eventListeners = definitions.compactMap { $0 as? EventListener }
++    self.eventListeners = buckets.eventListeners
+ 
+-    let viewDefinitions: [AnyViewDefinition] = definitions
+-      .compactMap { $0 as? AnyViewDefinition }
++    let viewDefinitions: [AnyViewDefinition] = buckets.views
+     var viewsDict = Dictionary(uniqueKeysWithValues: viewDefinitions.map { ($0.name, $0) })
+     viewsDict[DEFAULT_MODULE_VIEW] = viewDefinitions.first
+     self.views = viewsDict
+     self.eventNames = Array(
+-      definitions
+-        .compactMap { ($0 as? EventsDefinition)?.names }
++      buckets.events
++        .map { $0.names }
+         .joined()
+     )
+ 
+-    self.eventObservers = definitions
+-      .compactMap { $0 as? AnyEventObservingDefinition }
++    self.eventObservers = buckets.eventObservers
+ 
+     super.init(definitions: definitions)
+   }
+@@ -73,7 +75,7 @@ public final class ModuleDefinition: ObjectDefinition {
+ 
+     // Use the type name if the name is not in the definition or was defined empty.
+     if name.isEmpty {
+-      name = String(describing: type)
++      name = _typeName(type, qualified: false)
+     }
+     return self
+   }
+@@ -125,3 +127,21 @@ internal struct ConstantsDefinition: AnyDefinition {
+ public struct EventsDefinition: AnyDefinition {
+   let names: [String]
+ }
++
++extension ModuleNameDefinition {
++  public func __collect(into buckets: inout DefinitionBuckets) {
++    buckets.moduleNames.append(self)
++  }
++}
++
++extension ConstantsDefinition {
++  public func __collect(into buckets: inout DefinitionBuckets) {
++    buckets.legacyConstants.append(self)
++  }
++}
++
++extension EventsDefinition {
++  public func __collect(into buckets: inout DefinitionBuckets) {
++    buckets.events.append(self)
++  }
++}
+diff --git a/ios/Core/Objects/ConstantDefinition.swift b/ios/Core/Objects/ConstantDefinition.swift
+index 07a3acb2439cb2ddae57c6b24ad1bd9a6d9865fa..20b7c0d7904209225f2b71d112563599237146a2 100644
+--- a/ios/Core/Objects/ConstantDefinition.swift
++++ b/ios/Core/Objects/ConstantDefinition.swift
+@@ -125,3 +125,9 @@ internal final class NativeConstantWithoutGetterException: GenericException<Stri
+     return "Native constant '\(param)' doesn't have a getter"
+   }
+ }
++
++extension ConstantDefinition {
++  public func __collect(into buckets: inout DefinitionBuckets) {
++    buckets.constants.append(self)
++  }
++}
+diff --git a/ios/Core/Objects/ObjectDefinition.swift b/ios/Core/Objects/ObjectDefinition.swift
+index 7fa7d92e30b3eabb870af88cdda4dc06933ef4e1..61f835d32ccbb69e2f5faca682e964ddeb9d871d 100644
+--- a/ios/Core/Objects/ObjectDefinition.swift
++++ b/ios/Core/Objects/ObjectDefinition.swift
+@@ -40,41 +40,42 @@ public class ObjectDefinition: AnyDefinition, JavaScriptObjectBuilder {
+    Default initializer receiving children definitions from the result builder.
+    */
+   init(definitions: [AnyDefinition]) {
+-    self.functions = definitions
+-      .compactMap { $0 as? AnyFunctionDefinition }
+-      .filter { !($0 is AnyStaticFunctionDefinition) }
++    var buckets = DefinitionBuckets()
++    for definition in definitions {
++      definition.__collect(into: &buckets)
++    }
++
++    self.functions = buckets.functions
+       .reduce(into: [String: AnyFunctionDefinition]()) { dict, function in
+         dict[function.name] = function
+       }
+ 
+-    self.staticFunctions = definitions
+-      .compactMap { $0 as? AnyStaticFunctionDefinition }
++    self.staticFunctions = buckets.staticFunctions
+       .reduce(into: [String: AnyFunctionDefinition]()) { dict, function in
+         dict[function.name] = function
+       }
+ 
+-    self.legacyConstants = definitions
+-      .compactMap { $0 as? ConstantsDefinition }
++    self.legacyConstants = buckets.legacyConstants
+ 
+-    self.constants = definitions
+-      .compactMap { $0 as? AnyConstantDefinition }
++    self.constants = buckets.constants
+       .reduce(into: [String: AnyConstantDefinition]()) { dict, constant in
+         dict[constant.name] = constant
+       }
+ 
+-    self.properties = definitions
+-      .compactMap { $0 as? AnyPropertyDefinition }
++    self.properties = buckets.properties
+       .reduce(into: [String: AnyPropertyDefinition]()) { dict, property in
+         dict[property.name] = property
+       }
+ 
+-    self.classes = definitions
+-      .compactMap { $0 as? ClassDefinition }
++    self.classes = buckets.classes
+       .reduce(into: [String: ClassDefinition]()) { dict, klass in
+         dict[klass.name] = klass
+       }
+   }
+ 
++  /// Subclasses that are themselves definition elements (`ClassDefinition`, `ViewDefinition`) override this.
++  public func __collect(into buckets: inout DefinitionBuckets) {}
++
+   /**
+    Merges all `constants` definitions into one dictionary.
+    */
+diff --git a/ios/Core/Objects/PropertyDefinition.swift b/ios/Core/Objects/PropertyDefinition.swift
+index 19c3cc348be9040fe63fad60672d93fff58a3489..75997a8cc844949654335f75267970b641e05658 100644
+--- a/ios/Core/Objects/PropertyDefinition.swift
++++ b/ios/Core/Objects/PropertyDefinition.swift
+@@ -202,3 +202,9 @@ internal final class NativePropertyUnavailableException: GenericException<String
+     return "Native property '\(param)' is no longer available in memory"
+   }
+ }
++
++extension PropertyDefinition {
++  public func __collect(into buckets: inout DefinitionBuckets) {
++    buckets.properties.append(self)
++  }
++}
+diff --git a/ios/Core/Protocols/AnyDefinition.swift b/ios/Core/Protocols/AnyDefinition.swift
+index e37bbd3c73b2e99b44afc86452b34b4ca666346d..e9ce99be65eef96a911333c364ee07f7d8ab3d8e 100644
+--- a/ios/Core/Protocols/AnyDefinition.swift
++++ b/ios/Core/Protocols/AnyDefinition.swift
+@@ -1,4 +1,42 @@
+ /**
+  A protocol that must be implemented to be a part of module's definition and the module definition itself.
+  */
+-public protocol AnyDefinition: ~Copyable {}
++public protocol AnyDefinition: ~Copyable {
++  /**
++   Sorts the definition into the bucket matching its concrete kind. Each concrete definition type appends
++   itself to the matching array, which is a static upcast resolved at compile time. This replaces the chain
++   of `compactMap { $0 as? SomeProtocol }` casts that `ObjectDefinition`/`ModuleDefinition`/`ViewDefinition`
++   used to run on every element: with hundreds of distinct generic `Function<...>` types in an app, each
++   (type, protocol) pair triggered a full `swift_conformsToProtocol` scan of every loaded image's
++   conformance records, which dominated module registration time at startup.
++   */
++  func __collect(into buckets: inout DefinitionBuckets)
++  var __isConstructor: Bool { get }
++}
++
++extension AnyDefinition {
++  public func __collect(into buckets: inout DefinitionBuckets) {}
++  public var __isConstructor: Bool { false }
++}
++
++/**
++ Definitions grouped by kind, filled by `AnyDefinition.__collect(into:)`.
++ */
++public struct DefinitionBuckets {
++  var functions: [AnyFunctionDefinition] = []
++  var staticFunctions: [AnyFunctionDefinition] = []
++  var legacyConstants: [ConstantsDefinition] = []
++  var constants: [AnyConstantDefinition] = []
++  var properties: [AnyPropertyDefinition] = []
++  var classes: [ClassDefinition] = []
++  var moduleNames: [ModuleNameDefinition] = []
++  var eventListeners: [EventListener] = []
++  var views: [AnyViewDefinition] = []
++  var events: [EventsDefinition] = []
++  var eventObservers: [AnyEventObservingDefinition] = []
++  var viewProps: [AnyViewProp] = []
++  var viewNames: [ViewNameDefinition] = []
++  var lifecycleMethods: [AnyViewLifecycleMethod] = []
++
++  public init() {}
++}
+diff --git a/ios/Core/Views/AnyViewProp.swift b/ios/Core/Views/AnyViewProp.swift
+index fb66ae37304c4cc5d50eeefd782c78ec1c2c9e71..548fbe9bbca0e22d0f8b18445dbacbc5932f86f2 100644
+--- a/ios/Core/Views/AnyViewProp.swift
++++ b/ios/Core/Views/AnyViewProp.swift
+@@ -12,3 +12,13 @@ public protocol AnyViewProp: AnyViewDefinitionElement {
+    */
+   func set(value: Any, onView: UIView, appContext: AppContext) throws
+ }
++
++extension AnyViewProp {
++  /**
++   Default collection for view props declared outside of this module. Mirrors the `as? AnyViewProp` cast that
++   `ViewDefinition` used to perform, so external conformers keep being registered as props.
++   */
++  public func __collect(into buckets: inout DefinitionBuckets) {
++    buckets.viewProps.append(self)
++  }
++}
+diff --git a/ios/Core/Views/ConcreteViewProp.swift b/ios/Core/Views/ConcreteViewProp.swift
+index 028a853038f4b20ec3a824412ca33194accf1f0d..2e03d93226680a9def87d817df6654ba22c20325 100644
+--- a/ios/Core/Views/ConcreteViewProp.swift
++++ b/ios/Core/Views/ConcreteViewProp.swift
+@@ -71,3 +71,9 @@ internal class IncompatibleViewException: GenericException<(propName: String, vi
+     "Tried to set prop '\(param.propName)' on the view that isn't \(param.viewType)"
+   }
+ }
++
++extension ConcreteViewProp {
++  public func __collect(into buckets: inout DefinitionBuckets) {
++    buckets.viewProps.append(self)
++  }
++}
+diff --git a/ios/Core/Views/SwiftUI/SwiftUIViewDefinition.swift b/ios/Core/Views/SwiftUI/SwiftUIViewDefinition.swift
+index 13a946de75346aa3cddd20d85ba6753558edaaaf..e6c3b232056863387a2ff4ee47f4c646cf6115ad 100644
+--- a/ios/Core/Views/SwiftUI/SwiftUIViewDefinition.swift
++++ b/ios/Core/Views/SwiftUI/SwiftUIViewDefinition.swift
+@@ -87,7 +87,7 @@ extension ExpoSwiftUI {
+ 
+     convenience init(_ viewType: ViewType.Type) {
+       // We assume SwiftUI views are exported as named views under the class name
+-      let nameDefinitionElement = ViewNameDefinition(name: String(describing: viewType))
++      let nameDefinitionElement = ViewNameDefinition(name: _typeName(viewType, qualified: false))
+       self.init(viewType, elements: [nameDefinitionElement])
+     }
+ 
+diff --git a/ios/Core/Views/ViewDefinition.swift b/ios/Core/Views/ViewDefinition.swift
+index f4f2ddd230fd057bdb4f286307200a1cc8d21dc9..e6f3e2af3e70dc78664031c478547058b4ca561e 100644
+--- a/ios/Core/Views/ViewDefinition.swift
++++ b/ios/Core/Views/ViewDefinition.swift
+@@ -30,26 +30,32 @@ public class ViewDefinition<ViewType>: ObjectDefinition, AnyViewDefinition, @unc
+    Default initializer receiving children definitions from the result builder.
+    */
+   init(_ viewType: ViewType.Type, elements: [AnyViewDefinitionElement]) {
+-    self.props = elements
+-      .compactMap { $0 as? AnyViewProp }
++    var buckets = DefinitionBuckets()
++    for element in elements {
++      element.__collect(into: &buckets)
++    }
++
++    self.props = buckets.viewProps
+ 
+-    self.name = elements
+-      .compactMap { $0 as? ViewNameDefinition }
++    self.name = buckets.viewNames
+       .last?
+-      .name ?? String(describing: viewType)
++      .name ?? _typeName(viewType, qualified: false)
+ 
+     self.eventNames = Array(
+-      elements
+-        .compactMap { ($0 as? EventsDefinition)?.names }
++      buckets.events
++        .map { $0.names }
+         .joined()
+     )
+ 
+-    self.lifecycleMethods = elements
+-      .compactMap { $0 as? AnyViewLifecycleMethod }
++    self.lifecycleMethods = buckets.lifecycleMethods
+ 
+     super.init(definitions: elements)
+   }
+ 
++  public override func __collect(into buckets: inout DefinitionBuckets) {
++    buckets.views.append(self)
++  }
++
+   // MARK: - AnyViewDefinition
+ 
+   public func createView(appContext: AppContext) -> AppleView? {
+@@ -129,3 +135,9 @@ extension UIView: @MainActor AnyArgument {
+ public struct ViewNameDefinition: AnyViewDefinitionElement {
+   let name: String
+ }
++
++extension ViewNameDefinition {
++  public func __collect(into buckets: inout DefinitionBuckets) {
++    buckets.viewNames.append(self)
++  }
++}
+diff --git a/ios/Core/Views/ViewLifecycleMethod.swift b/ios/Core/Views/ViewLifecycleMethod.swift
+index 7afe259786701c675bae0f537bc40c3f582e6a5f..bab5c12885e19d7faa38607cd185b52e40ea513b 100644
+--- a/ios/Core/Views/ViewLifecycleMethod.swift
++++ b/ios/Core/Views/ViewLifecycleMethod.swift
+@@ -58,3 +58,9 @@ public final class ViewLifecycleMethod<ViewType>: AnyViewLifecycleMethod {
+     log.warn("Cannot call lifecycle method '\(type)', given view is not of type '\(ViewType.self)'")
+   }
+ }
++
++extension ViewLifecycleMethod {
++  public func __collect(into buckets: inout DefinitionBuckets) {
++    buckets.lifecycleMethods.append(self)
++  }
++}
