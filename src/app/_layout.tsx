@@ -46,8 +46,14 @@ function RootLayout() {
   // mount meant a launch straight into the Sequencer never noticed a device
   // plugged in later. (Web still needs its explicit enable tap: permission
   // prompts require a user gesture there.)
+  // MIDI comes up after the boot overlay, not during it: the first CoreMIDI
+  // call waits on MIDIServer (~600 ms when it has to cold-start) and would
+  // otherwise land in the first-screen critical path. See MidiModule.swift.
   useEffect(() => {
-    if (Platform.OS !== 'web') void enableMidi();
+    if (Platform.OS === 'web') return;
+    return onBootOverlayGone(() => {
+      void enableMidi();
+    });
   }, []);
 
   // App-level TTI. Note this reports the FULL boot sequence, not the moment the
