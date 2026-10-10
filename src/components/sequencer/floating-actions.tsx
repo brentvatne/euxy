@@ -51,6 +51,7 @@ import {
 } from "react-native-gesture-handler";
 import Animated, {
   Easing,
+  FadeIn,
   FadeOut,
   ReduceMotion,
   cancelAnimation,
@@ -287,13 +288,14 @@ const CAPSULE_ENTER = () => {
     reduceMotion: ReduceMotion.System,
   });
   return {
-    initialValues: { opacity: 0, transform: [{ translateY: 18 }, { scale: 0.88 }] },
+    // Transform only — no opacity. UIKit switches a UIVisualEffectView's
+    // effect OFF while it or any superview has alpha < 1 ("many effects look
+    // incorrect or not show at all"), so fading the shell in rendered a flat
+    // semi-opaque capsule for 200 ms that snapped to glass when the fade hit
+    // 1. The keys fade in on their own below (they're the glass's children,
+    // which is fine).
+    initialValues: { transform: [{ translateY: 18 }, { scale: 0.88 }] },
     animations: {
-      opacity: withTiming(1, {
-        duration: 200,
-        easing: CAPSULE_EASE_OUT,
-        reduceMotion: ReduceMotion.System,
-      }),
       transform: [
         { translateY: withSpring(0, spring(0.62, 480)) },
         { scale: withSpring(1, spring(0.58, 520)) },
@@ -301,6 +303,9 @@ const CAPSULE_ENTER = () => {
     },
   };
 };
+const KEYS_ENTER = FadeIn.duration(200)
+  .easing(CAPSULE_EASE_OUT)
+  .reduceMotion(ReduceMotion.System);
 const CAPSULE_EXIT = FadeOut.duration(120)
   .easing(CAPSULE_EASE_OUT)
   .reduceMotion(ReduceMotion.System);
@@ -799,8 +804,10 @@ export function FloatingActions({
     height: BAR_H + (CHARGE_D - BAR_H) * charge.contract.value,
   }));
 
+  // Opacity lives on the key row, never on the glass shell or its ancestors
+  // (see CAPSULE_ENTER): the breathing dim and the entrance fade both go here.
   const keys = (
-    <View style={styles.row}>
+    <Animated.View entering={KEYS_ENTER} style={[styles.row, breatheStyle]}>
       {/* Temp is a RESIDENT key (Brent's corrected semantics): tap to hold
           the current state away, tap again to jump back, long-press to keep. */}
       <SideKey charge={charge} side="left">
@@ -829,7 +836,7 @@ export function FloatingActions({
       <SideKey charge={charge} side="right">
         <AddKey onPress={onAddLane} />
       </SideKey>
-    </View>
+    </Animated.View>
   );
 
   return (
@@ -850,10 +857,7 @@ export function FloatingActions({
           exiting={CAPSULE_EXIT}
           style={styles.barAnchor}
         >
-          <Animated.View
-            style={[dragStyle, breatheStyle]}
-            onTouchStart={relight}
-          >
+          <Animated.View style={dragStyle} onTouchStart={relight}>
             {liquidGlassAvailable && AnimatedGlassView ? (
               // Real material refracts the playhead LEDs sweeping beneath
               // it; the tint matches the Paper mock (rgba(28,28,34,.55)).
