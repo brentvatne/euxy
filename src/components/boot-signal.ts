@@ -98,8 +98,33 @@ export const bootKind: 'launch' | 'reload' = (() => {
   }
 })();
 
-let firstScreenLaidOut = false;
-let pending: (() => void) | null = null;
+/** Fire-once gate: subscribers run when it flips, or immediately if it already has. */
+function makeGate() {
+  let fired = false;
+  const subscribers = new Set<() => void>();
+  return {
+    fire(): void {
+      if (fired) return;
+      fired = true;
+      const cbs = [...subscribers];
+      subscribers.clear();
+      cbs.forEach((cb) => cb());
+    },
+    subscribe(cb: () => void): () => void {
+      if (fired) {
+        cb();
+        return () => {};
+      }
+      subscribers.add(cb);
+      return () => {
+        subscribers.delete(cb);
+      };
+    },
+  };
+}
+
+const firstScreenLayout = makeGate();
+const bootOverlayGone = makeGate();
 
 /**
  * The first screen's first onLayout flips this gate (exactly once, whichever
@@ -107,39 +132,21 @@ let pending: (() => void) | null = null;
  * are no-ops.
  */
 export function reportFirstScreenLayout(): void {
-  if (firstScreenLaidOut) return;
-  firstScreenLaidOut = true;
-  const cb = pending;
-  pending = null;
-  cb?.();
+  firstScreenLayout.fire();
 }
 
 /**
  * Run `cb` once the first screen has laid out — immediately if it already has,
- * which covers the layout-fired-before-subscribe race. Single subscriber
- * (BootSplash). Returns an unsubscribe.
+ * which covers the layout-fired-before-subscribe race. Any number of
+ * subscribers. Returns an unsubscribe.
  */
 export function onFirstScreenLayout(cb: () => void): () => void {
-  if (firstScreenLaidOut) {
-    cb();
-    return () => {};
-  }
-  pending = cb;
-  return () => {
-    if (pending === cb) pending = null;
-  };
+  return firstScreenLayout.subscribe(cb);
 }
-
-let overlayGone = false;
-let overlayPending: (() => void) | null = null;
 
 /** BootSplash flips this once its overlay has fully faded out (exactly once). */
 export function reportBootOverlayGone(): void {
-  if (overlayGone) return;
-  overlayGone = true;
-  const cb = overlayPending;
-  overlayPending = null;
-  cb?.();
+  bootOverlayGone.fire();
 }
 
 /**
@@ -147,15 +154,9 @@ export function reportBootOverlayGone(): void {
  * Anything that wants to be SEEN animating in on app open waits on this: the
  * whole app renders BEHIND an opaque overlay for the entire boot sequence, so
  * an entrance that starts at mount is finished before the first visible frame.
- * Single subscriber (the sequencer capsule). Returns an unsubscribe.
+ * Also where boot-deferred work (MIDI enable, keyboard preload) starts. Any
+ * number of subscribers. Returns an unsubscribe.
  */
 export function onBootOverlayGone(cb: () => void): () => void {
-  if (overlayGone) {
-    cb();
-    return () => {};
-  }
-  overlayPending = cb;
-  return () => {
-    if (overlayPending === cb) overlayPending = null;
-  };
+  return bootOverlayGone.subscribe(cb);
 }

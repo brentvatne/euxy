@@ -62,6 +62,9 @@ const SINGLES_UP_TO = 14;
 // web, dropped native event), hide the native splash anyway after this long —
 // the gate must NEVER deadlock the boot.
 const FAILSAFE_MS = 2000;
+// Max extra time the lit glyph holds waiting for the first screen's layout
+// before fading anyway (after TYPE_MS + HOLD_MS have already elapsed).
+const FADE_FAILSAFE_MS = 1500;
 
 const GLYPHS = Object.values(CHIPS);
 
@@ -102,7 +105,37 @@ export function BootSplash() {
   const started = useRef(false);
   const overlayLaidOut = useRef(false);
   const firstScreenLaidOut = useRef(false);
+  const typeDone = useRef(false);
+  const faded = useRef(false);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fadeFailsafe = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** Decay the overlay and hand off to the header chip. Guarded to run once —
+   * from the hold timer (screen already laid out), the screen's layout signal,
+   * or the fade failsafe. */
+  const fade = (gate: 'layout' | 'failsafe') => {
+    if (faded.current) return;
+    faded.current = true;
+    if (fadeFailsafe.current != null) clearTimeout(fadeFailsafe.current);
+    if (gate === 'failsafe') {
+      logObserveEvent('boot.fade_failsafe', {
+        attributes: { kind: bootKind, elapsed_ms: bootElapsedMs() },
+        severity: 'warn',
+      });
+    }
+    opacity.value = withTiming(
+      0,
+      { duration: FADE_MS, easing: Easing.out(Easing.quad), reduceMotion: ReduceMotion.System },
+      (finished) => {
+        if (finished) runOnJS(setDone)(true);
+      },
+    );
+    // Handoff: the same glyph types on in the header chip while the big
+    // grid fades (~150ms overlap with the decay).
+    bootChipProgress.value = reduceMotion
+      ? 1
+      : withTiming(1, { duration: CHIP_RELIGHT_MS, easing: Easing.linear });
+  };
 
   /** Drop the native splash and power on. Guarded to run exactly once —
    * callable from either layout gate or the failsafe. */
@@ -131,25 +164,22 @@ export function BootSplash() {
       progress.value = withTiming(1, { duration: TYPE_MS, easing: Easing.linear });
     }
     holdTimer.current = setTimeout(() => {
-      opacity.value = withTiming(
-        0,
-        { duration: FADE_MS, easing: Easing.out(Easing.quad), reduceMotion: ReduceMotion.System },
-        (finished) => {
-          if (finished) runOnJS(setDone)(true);
-        },
-      );
-      // Handoff: the same glyph types on in the header chip while the big
-      // grid fades (~150ms overlap with the decay).
-      bootChipProgress.value = reduceMotion
-        ? 1
-        : withTiming(1, { duration: CHIP_RELIGHT_MS, easing: Easing.linear });
+      typeDone.current = true;
+      // Gate 2 is only needed for the reveal: the screen underneath must have
+      // laid out before we fade, or the handoff frame isn't live. It usually
+      // has by now; if not, hold the lit glyph a little longer, bounded.
+      if (firstScreenLaidOut.current) fade('layout');
+      else fadeFailsafe.current = setTimeout(() => fade('failsafe'), FADE_FAILSAFE_MS);
     }, typeMs + HOLD_MS);
   };
 
-  /** Both gates must pass: this overlay AND the screen beneath it have really
-   * laid out — only then is the handoff frame guaranteed live. */
+  /** Gate 1: this opaque overlay has laid out, so the native splash can drop
+   * and the type-on can run — nothing can show through it. We deliberately
+   * do NOT wait for the screen beneath here: on a cold launch its first
+   * layout lands 350–750ms after ours (JS render + Fabric mount + Skia
+   * surfaces), and waiting left the grid frozen for exactly that long. */
   const maybeStart = () => {
-    if (overlayLaidOut.current && firstScreenLaidOut.current) start('layout');
+    if (overlayLaidOut.current) start('layout');
   };
 
   useEffect(() => {
@@ -161,7 +191,7 @@ export function BootSplash() {
     // so subscription order can't race.
     const unsubscribe = onFirstScreenLayout(() => {
       firstScreenLaidOut.current = true;
-      maybeStart();
+      if (typeDone.current) fade('layout');
     });
     // Failsafe: NEVER deadlock behind the native splash if a layout callback
     // is missed — boot anyway after FAILSAFE_MS. With the gate no longer tied
@@ -172,6 +202,7 @@ export function BootSplash() {
       unsubscribe();
       clearTimeout(failsafe);
       if (holdTimer.current != null) clearTimeout(holdTimer.current);
+      if (fadeFailsafe.current != null) clearTimeout(fadeFailsafe.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
