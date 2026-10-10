@@ -26,11 +26,13 @@ import { ResolutionPicker } from '@/components/patterns/resolution-picker';
 import { useActivePattern } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import { color, font, HIT_SLOP, radius, space } from '@/theme/tokens';
+import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 import { BPM_MAX, BPM_MIN } from './new-pattern';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
 export default function TempoSheet() {
   useMarkInteractive();
+  const bottomInset = useSheetBottomInset();
   const bpm = useStore((s) => s.transport.bpm);
   const recordMode = useStore((s) => s.transport.clockMode) === 'record';
   const setBpm = useStore((s) => s.setBpm);
@@ -125,7 +127,7 @@ export default function TempoSheet() {
       <View style={styles.scroll} collapsable={false}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.body}
+        contentContainerStyle={[styles.body, { paddingBottom: space.xxl + bottomInset }]}
         showsVerticalScrollIndicator={false}
       >
         {/* No "Tempo" header — the sheet IS tempo (Brent: redundant). The

@@ -32,6 +32,7 @@ import {
 import { haptics, updatesInfo } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { color, font, radius, space, selection } from '@/theme/tokens';
+import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 
 const fmtDate = (d: Date | null) => {
   if (!d) return '—';
@@ -61,6 +62,7 @@ const placeholder = {
 
 export default function ChannelSurfSheet() {
   useMarkInteractive();
+  const bottomInset = useSheetBottomInset();
   const [override, setOverride] = useState(getChannelOverrideRecord);
   const [quickPicks, setQuickPicks] = useState(getQuickPickChannels);
   // Null until the prompt is edited (or a chip tapped), so the field starts on
@@ -138,7 +140,7 @@ export default function ChannelSurfSheet() {
         <KeyboardAwareScrollView
           bottomOffset={24}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.body}
+          contentContainerStyle={[styles.body, { paddingBottom: space.xxl + bottomInset }]}
         >
           {/* Device screen: the running update, spec-sheet style. */}
           <View style={styles.panel}>

@@ -34,6 +34,7 @@ import { useLane } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import type { CombineOp, Lane } from '@/state/types';
 import { color, font, radius, ramp, space } from '@/theme/tokens';
+import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 import { AppText, SFSymbol, SheetHeader, Tip } from '@/components/ui';
 import { KeyboardAwareScrollView } from '@/components/ui/keyboard';
 import { ledExitSuppressed } from '@/components/ui/led';
@@ -146,6 +147,7 @@ function Section({
 
 export default function LaneEditorSheet() {
   useMarkInteractive();
+  const bottomInset = useSheetBottomInset();
   const laneId = useStore((s) => s.selection.laneId);
   const lane = useLane(laneId);
   const updateLane = useStore((s) => s.updateLane);
@@ -356,7 +358,7 @@ export default function LaneEditorSheet() {
       <KeyboardAwareScrollView
         ref={scrollRef}
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: space.xxl + bottomInset }]}
         showsVerticalScrollIndicator={false}
         bottomOffset={24}
         onScroll={onScroll}

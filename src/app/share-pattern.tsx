@@ -29,6 +29,7 @@ import {
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { useStore } from '@/state/store';
 import { color, font, space } from '@/theme/tokens';
+import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 
 const CARD_WIDTH = 358;
 
@@ -49,6 +50,7 @@ export default function SharePatternSheet() {
   // Nav TTI for this sheet (the QR render is its real readiness moment) +
   // the top of the share funnel.
   useMarkInteractive();
+  const bottomInset = useSheetBottomInset();
   useEffect(() => {
     logObserveEvent('share.sheet_opened');
   }, []);
@@ -93,7 +95,7 @@ export default function SharePatternSheet() {
       <View style={styles.grabberSpace} />
       <SheetHeader title="Share Pattern" onDone={() => router.back()} />
       <View style={styles.flex} collapsable={false}>
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: space.xxl + bottomInset }]} showsVerticalScrollIndicator={false}>
           <ShareCard pattern={pattern} width={CARD_WIDTH} canvasRef={canvasRef} />
           <View style={styles.actions}>
             <Pressable

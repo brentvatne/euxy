@@ -17,9 +17,11 @@ import { haptics } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { useStore } from '@/state/store';
 import { color, font, radius, space, selection } from '@/theme/tokens';
+import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 
 export default function RenamePatternSheet() {
   useMarkInteractive();
+  const bottomInset = useSheetBottomInset();
   const { patternId } = useLocalSearchParams<{ patternId: string }>();
   const pattern = useStore((s) => s.patterns.find((p) => p.id === patternId));
   const renamePattern = useStore((s) => s.renamePattern);
@@ -43,7 +45,7 @@ export default function RenamePatternSheet() {
         doneLabel="Rename"
         doneDisabled={!name.trim()}
       />
-      <View style={styles.body}>
+      <View style={[styles.body, { paddingBottom: space.xxl + bottomInset }]}>
         <AppText style={styles.fieldLabel}>Name</AppText>
         <View style={styles.inputCell}>
           <TextInput

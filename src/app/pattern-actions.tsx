@@ -20,11 +20,13 @@ import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { isPresetPattern } from '@/state/presets';
 import { useStore } from '@/state/store';
 import { color, font, radius, space } from '@/theme/tokens';
+import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 
 type Action = { key: string; label: string; onPress: () => void; destructive?: boolean };
 
 export default function PatternActionsSheet() {
   useMarkInteractive();
+  const bottomInset = useSheetBottomInset();
   const { patternId } = useLocalSearchParams<{ patternId: string }>();
   // Captured on open: Delete removes the pattern from the store before the
   // sheet has finished dismissing, and the title must not blank out (or the
@@ -96,7 +98,7 @@ export default function PatternActionsSheet() {
   };
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { paddingBottom: space.xxl + bottomInset }]}>
       <View style={styles.header}>
         <AppText style={styles.title} numberOfLines={1}>
           {pattern.name}
