@@ -5,9 +5,11 @@
 # The test job runs on Linux: @e2e-dev/eas leases a hosted iOS simulator,
 # EAS installs the build on it, and the suite drives it over agent-device.
 #
-# No model or API key: the suite has no agent steps. The test job reads
-# EXPO_TOKEN from the EAS `preview` environment to start the simulator
-# sessions. Pull requests from forks never trigger EAS workflows.
+# No model or API key: the suite has no agent steps. The test job runs the
+# pull request's code (install scripts, e2e.config.ts, the tests), so it reads
+# the EAS `e2e` environment, which holds only EXPO_TOKEN: a robot token for
+# starting the simulator sessions. Never use `preview` here; it also holds
+# GH_TOKEN and CLAUDE_CODE_OAUTH_TOKEN.
 #
 #   eas workflow:run .eas/workflows/e2e.yml
 
@@ -60,7 +62,7 @@ jobs:
     after: [repack, build]
     if: ${{ after.repack.status == 'success' || after.build.status == 'success' }}
     runs_on: linux-medium
-    environment: preview
+    environment: e2e
     env:
       CI: '1'
       # Not EAS_BUILD_ID: EAS sets that to this job's own id and fetches the
