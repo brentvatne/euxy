@@ -14,6 +14,7 @@ import { IconBus, IconCheck, IconClose, IconDevice, IconNone, IconUsb } from '@/
 import { refreshDevices, selectInput, selectOutput, useMidiRuntime } from '@/components/midi/runtime';
 import { useSettings } from '@/state/selectors';
 import { color, radius, space } from '@/theme/tokens';
+import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 import type { MidiDevice } from '@/midi/types';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
@@ -28,6 +29,7 @@ function DeviceIcon({ name, selected }: { name: string; selected: boolean }) {
 
 export default function DevicePickerSheet() {
   useMarkInteractive();
+  const bottomInset = useSheetBottomInset();
   const { kind } = useLocalSearchParams<{ kind?: string }>();
   const isInput = kind === 'input';
   const rt = useMidiRuntime();
@@ -62,7 +64,7 @@ export default function DevicePickerSheet() {
   };
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.scroll}>
+    <ScrollView nestedScrollEnabled style={styles.root} contentContainerStyle={[styles.scroll, { paddingBottom: space.xxl + bottomInset }]}>
       <View style={styles.header}>
         <AppText style={styles.title}>{isInput ? 'Input device' : 'Output device'}</AppText>
         <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Close" style={styles.closeBtn} hitSlop={space.sm}>

@@ -15,10 +15,12 @@ import { AppText } from '@/components/ui';
 import { IconMic, IconMidiDin, IconWarning } from '@/components/midi/icons';
 import { enableMidi, useMidiRuntime } from '@/components/midi/runtime';
 import { color, space } from '@/theme/tokens';
+import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
 export default function EnableMidiSheet() {
   useMarkInteractive();
+  const bottomInset = useSheetBottomInset();
   const rt = useMidiRuntime();
   const [busy, setBusy] = useState(false);
 
@@ -30,7 +32,7 @@ export default function EnableMidiSheet() {
   };
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.scroll}>
+    <ScrollView nestedScrollEnabled style={styles.root} contentContainerStyle={[styles.scroll, { paddingBottom: space.xxl + bottomInset }]}>
       <View style={styles.hero}>
         <View style={styles.iconTile}>
           <IconMidiDin />

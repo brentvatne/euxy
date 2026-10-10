@@ -16,10 +16,12 @@ import { IconPicker } from '@/components/patterns/icon-picker';
 import { SheetHeader } from '@/components/ui';
 import { useStore } from '@/state/store';
 import { color, font, space } from '@/theme/tokens';
+import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
 export default function ChangeIconSheet() {
   useMarkInteractive();
+  const bottomInset = useSheetBottomInset();
   const { patternId } = useLocalSearchParams<{ patternId?: string }>();
   const pattern = useStore((s) =>
     s.patterns.find((p) => p.id === (patternId ?? s.activePatternId)),
@@ -51,7 +53,7 @@ export default function ChangeIconSheet() {
           formSheet frame correction otherwise paints it over the header
           (same workaround as lane-editor). */}
       <View style={styles.flex} collapsable={false}>
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView nestedScrollEnabled contentContainerStyle={[styles.content, { paddingBottom: space.xxl + bottomInset }]} showsVerticalScrollIndicator={false}>
           <IconPicker
             selected={selected}
             onSelect={(name) => {

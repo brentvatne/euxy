@@ -24,6 +24,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   type ScrollView,
+  Platform,
 } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
@@ -34,6 +35,7 @@ import { useLane } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import type { CombineOp, Lane } from '@/state/types';
 import { color, font, radius, ramp, space } from '@/theme/tokens';
+import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 import { AppText, SFSymbol, SheetHeader, Tip } from '@/components/ui';
 import { KeyboardAwareScrollView } from '@/components/ui/keyboard';
 import { ledExitSuppressed } from '@/components/ui/led';
@@ -146,6 +148,7 @@ function Section({
 
 export default function LaneEditorSheet() {
   useMarkInteractive();
+  const bottomInset = useSheetBottomInset();
   const laneId = useStore((s) => s.selection.laneId);
   const lane = useLane(laneId);
   const updateLane = useStore((s) => s.updateLane);
@@ -355,8 +358,9 @@ export default function LaneEditorSheet() {
           of letting the keyboard cover it. ONE keyboard owner per screen. */}
       <KeyboardAwareScrollView
         ref={scrollRef}
+        nestedScrollEnabled
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: space.xxl + bottomInset }]}
         showsVerticalScrollIndicator={false}
         bottomOffset={24}
         onScroll={onScroll}
@@ -629,6 +633,7 @@ export default function LaneEditorSheet() {
             <View style={[styles.cellBlock, styles.cellMid]}>
               <SliderRow
                 label="Velocity"
+                trackColor={color.surface3}
                 value={lane.velocity}
                 min={1}
                 max={127}
@@ -638,6 +643,7 @@ export default function LaneEditorSheet() {
             <View style={[styles.cellBlock, styles.cellLast]}>
               <SliderRow
                 label="Gate"
+                trackColor={color.surface3}
                 value={lane.gateMs}
                 min={5}
                 max={500}
@@ -711,12 +717,17 @@ const styles = StyleSheet.create({
     backgroundColor: color.surface,
     zIndex: 1,
   },
-  pinnedShadow: {
-    shadowColor: '#000000',
-    shadowOpacity: 0.45,
-    shadowRadius: 9,
-    shadowOffset: { width: 0, height: 10 },
-  },
+  // Android ignores the iOS shadow* props; boxShadow is the one spelling it
+  // draws (CSS blur ≈ 2× shadowRadius for the same softness).
+  pinnedShadow: Platform.select({
+    android: { boxShadow: '0 10px 18px rgba(0, 0, 0, 0.45)' },
+    default: {
+      shadowColor: '#000000',
+      shadowOpacity: 0.45,
+      shadowRadius: 9,
+      shadowOffset: { width: 0, height: 10 },
+    },
+  }),
 
   // MIDI-screen header style (title case, 17/22 semibold, label3).
   section: { paddingHorizontal: 16, paddingTop: 22 },

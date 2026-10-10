@@ -75,3 +75,23 @@ export const largeTitleStackOptions = Platform.select({
 } as const);
 
 export { color, font };
+
+/**
+ * Android tab bar in the app's grays. Without this the Material 3 defaults
+ * leak through: a lavender-tinted surface and a periwinkle active-indicator
+ * pill, the only hue on an otherwise monochrome screen. iOS ignores every key
+ * here (the bar stays translucent white-on-black), so this is Android-only.
+ */
+export const androidTabBarOptions = Platform.select({
+  android: {
+    backgroundColor: color.surface,
+    indicatorColor: color.surface4,
+    rippleColor: 'rgba(246, 244, 244, 0.10)',
+    iconColor: { default: color.label3, selected: color.label },
+    labelStyle: {
+      default: { color: color.label3, fontFamily: font.text },
+      selected: { color: color.label, fontFamily: font.text },
+    },
+  },
+  default: {},
+});

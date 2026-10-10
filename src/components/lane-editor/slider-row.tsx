@@ -34,6 +34,11 @@ export interface SliderRowProps {
   /** Landmark values that get a harder, detent-like haptic while dragging
    * (e.g. 16/32/48/64 on Steps) — every other step ticks like an encoder. */
   accentValues?: readonly number[];
+  /** Inactive track color — one step lighter than the row's background so the
+   * track reads as a track (Material also paints a stop dot at its end, which
+   * dangles in space when the track is invisible). Defaults to `surface2`,
+   * right for a row sitting on a `surface` card. */
+  trackColor?: string;
 }
 
 /** Longest the store may lag the finger. ~8× fewer commits on a fast sweep,
@@ -49,6 +54,7 @@ export function SliderRow({
   onChange,
   formatValue,
   accentValues,
+  trackColor = color.surface2,
 }: SliderRowProps) {
   // Encoder feel: one selection tick per stepped value crossed, a rigid
   // detent on landmarks. The ref gates repeat events at the same step.
@@ -134,7 +140,7 @@ export function SliderRow({
         step={step}
         disabled={empty}
         minimumTrackTintColor="#EBEBEB"
-        maximumTrackTintColor={color.surface2}
+        maximumTrackTintColor={trackColor}
         thumbTintColor={color.label}
         onValueChange={(v) => {
           const next = Math.round(v / step) * step;

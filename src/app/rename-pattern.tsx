@@ -1,8 +1,9 @@
 /**
- * Rename sheet. iOS renames through `Alert.prompt`, which Android and web do
- * not have — there the Patterns list, its long-press menu and the Sequencer's
- * pattern menu open this form sheet instead. One field, Done commits via
- * `renamePattern`; a blank name is a no-op (the store keeps the old one).
+ * Rename sheet (web). iOS renames through `Alert.prompt` and Android through a
+ * Material AlertDialog (components/patterns/rename-prompt*); web has neither,
+ * so the Patterns list, its long-press menu and the Sequencer's pattern menu
+ * open this form sheet there. One field, Done commits via `renamePattern`; a
+ * blank name is a no-op (the store keeps the old one).
  *
  * Route params: `patternId` — the pattern to rename.
  */
@@ -17,9 +18,11 @@ import { haptics } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { useStore } from '@/state/store';
 import { color, font, radius, space, selection } from '@/theme/tokens';
+import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 
 export default function RenamePatternSheet() {
   useMarkInteractive();
+  const bottomInset = useSheetBottomInset();
   const { patternId } = useLocalSearchParams<{ patternId: string }>();
   const pattern = useStore((s) => s.patterns.find((p) => p.id === patternId));
   const renamePattern = useStore((s) => s.renamePattern);
@@ -43,7 +46,7 @@ export default function RenamePatternSheet() {
         doneLabel="Rename"
         doneDisabled={!name.trim()}
       />
-      <View style={styles.body}>
+      <View style={[styles.body, { paddingBottom: space.xxl + bottomInset }]}>
         <AppText style={styles.fieldLabel}>Name</AppText>
         <View style={styles.inputCell}>
           <TextInput

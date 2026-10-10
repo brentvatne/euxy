@@ -83,7 +83,7 @@ function RootLayout() {
             name="change-icon"
             options={{ ...sheetOptions, sheetAllowedDetents: [0.75] }}
           />
-          {/* Android/web only — iOS renames with Alert.prompt. */}
+          {/* Web only — iOS renames with Alert.prompt, Android with a Compose AlertDialog. */}
           <Stack.Screen
             name="rename-pattern"
             options={{ ...sheetOptions, sheetAllowedDetents: [0.3] }}
