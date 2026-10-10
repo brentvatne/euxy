@@ -11,26 +11,11 @@
  */
 import { Stack } from 'expo-router/stack';
 
-import { sheetOptions } from '@/theme/navigation';
-import { color } from '@/theme/tokens';
+import { largeTitleStackOptions, sheetOptions } from '@/theme/navigation';
 
 export default function PatternsStack() {
   return (
-    <Stack
-      // Same transparent large-title recipe as the MIDI stack — an opaque
-      // header makes the large-title collapse stutter.
-      screenOptions={{
-        headerLargeTitle: true,
-        headerTransparent: true,
-        headerShadowVisible: false,
-        headerLargeTitleShadowVisible: false,
-        headerBlurEffect: 'none',
-        headerLargeStyle: { backgroundColor: 'transparent' },
-        headerTintColor: color.label,
-        headerLargeTitleStyle: { color: color.label },
-        headerTitleStyle: { color: color.label },
-      }}
-    >
+    <Stack screenOptions={largeTitleStackOptions}>
       <Stack.Screen name="patterns" options={{ title: 'Patterns' }} />
       {/* Two URL shapes, one sheet: /p/<payload> is canonical, /p?d=<payload>
           is kept for links already in the wild. */}

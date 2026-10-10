@@ -4,6 +4,7 @@
  * Consumed by the root ThemeProvider (see src/app/_layout.tsx). NativeTabs takes
  * its own `tintColor` prop separately.
  */
+import { Platform } from 'react-native';
 import { DarkTheme, type Theme } from 'expo-router/react-navigation';
 
 import { color, font, radius } from './tokens';
@@ -39,5 +40,38 @@ export const sheetOptions = {
   headerShown: false,
   contentStyle: { backgroundColor: color.surface },
 } as const;
+
+/**
+ * Screen options for the two large-title tabs (Patterns, MIDI).
+ *
+ * iOS: the header is TRANSPARENT and the scroll view supplies the background
+ * (contentInsetAdjustmentBehavior "automatic"). An opaque headerStyle /
+ * headerLargeStyle makes the large→small collapse fight the scroll view and
+ * stutter.
+ *
+ * Android has no large titles and no automatic content insets, so a
+ * transparent header would just float over the first rows: there the header
+ * is an ordinary opaque bar in the ground color, flush with the content.
+ */
+export const largeTitleStackOptions = Platform.select({
+  android: {
+    headerTransparent: false,
+    headerShadowVisible: false,
+    headerStyle: { backgroundColor: color.ground },
+    headerTintColor: color.label,
+    headerTitleStyle: { color: color.label },
+  },
+  default: {
+    headerLargeTitle: true,
+    headerTransparent: true,
+    headerShadowVisible: false,
+    headerLargeTitleShadowVisible: false,
+    headerBlurEffect: 'none',
+    headerLargeStyle: { backgroundColor: 'transparent' },
+    headerTintColor: color.label,
+    headerLargeTitleStyle: { color: color.label },
+    headerTitleStyle: { color: color.label },
+  },
+} as const);
 
 export { color, font };

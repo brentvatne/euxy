@@ -68,6 +68,10 @@ export default function PatternsScreen() {
   const [query, setQuery] = useState('');
 
   const promptRename = (pattern: Pattern) => {
+    if (Platform.OS !== 'ios') {
+      router.push({ pathname: '/rename-pattern', params: { patternId: pattern.id } });
+      return;
+    }
     Alert.prompt(
       'Rename pattern',
       undefined,
@@ -118,8 +122,9 @@ export default function PatternsScreen() {
       );
       return;
     }
-    // Android/web: Alert stand-in (no Alert.prompt there, so rename is iOS-only).
+    // Android/web: Alert stand-in for the action sheet.
     Alert.alert(pattern.name, undefined, [
+      { text: 'Rename…', onPress: () => promptRename(pattern) },
       { text: 'Change Icon…', onPress: changeIcon },
       { text: 'Clone', onPress: clone },
       ...(isPreset ? [{ text: 'Restore Default', onPress: restoreDefault }] : []),

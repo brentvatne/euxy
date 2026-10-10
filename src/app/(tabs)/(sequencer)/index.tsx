@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useIsFirstRender } from '@/lib/use-is-first-render';
 import { router } from 'expo-router';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, {
   FadeInDown,
   FadeOut,
@@ -203,6 +203,10 @@ export default function SequencerScreen() {
   };
 
   const renamePattern = () => {
+    if (Platform.OS !== 'ios') {
+      router.push({ pathname: '/rename-pattern', params: { patternId: pattern.id } });
+      return;
+    }
     Alert.prompt(
       'Rename pattern',
       undefined,

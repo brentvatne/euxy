@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: color.label,
     fontSize: 16,
-    fontFamily: 'SF Pro Text',
+    fontFamily: font.text,
     padding: 0,
   },
   fieldKey: {
