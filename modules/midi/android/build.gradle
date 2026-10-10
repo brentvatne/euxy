@@ -1,0 +1,15 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'dev.brent.euxy'
+version = '1.0.0'
+
+android {
+  namespace "dev.brent.euxy.midi"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+}

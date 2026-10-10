@@ -107,3 +107,6 @@ SETUP-TRACING.md
 
 # e2e run output (reports, screenshots, videos) and replay cache
 .e2e/
+
+# Gradle output from compiling modules/midi/android directly
+modules/midi/android/build/

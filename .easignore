@@ -105,3 +105,5 @@ SETUP-TRACING.md
 # euxy-web marketing package (no workspaces, unreferenced from src/).
 docs/
 web/
+
+modules/midi/android/build/
