@@ -6,6 +6,7 @@
     "@expo/ui": "~57.0.15",
     "@shopify/react-native-skia": "2.6.2",
     "expo": "~57.0.19",
+    "expo-build-properties": "~57.0.22",
     "expo-clipboard": "~57.0.1",
     "expo-constants": "~57.0.17",
     "expo-dev-client": "~57.0.18",
@@ -69,5 +70,9 @@
   "private": true,
   "trustedDependencies": [
     "@shopify/react-native-skia"
-  ]
+  ],
+  "patchedDependencies": {
+    "expo-modules-core@57.0.15": "patches/expo-modules-core@57.0.15.patch",
+    "@expo/ui@57.0.15": "patches/@expo%2Fui@57.0.15.patch"
+  }
 }
