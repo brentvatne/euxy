@@ -31,7 +31,10 @@
         "simulator": true
       },
       "channel": "explore",
-      "environment": "development"
+      "environment": "development",
+      "android": {
+        "buildType": "apk"
+      }
     },
     "e2e": {
       "withoutCredentials": true,
