@@ -24,7 +24,7 @@ import { isPresetPattern } from '@/state/presets';
 import { laneAudible, useActivePattern, useAnySolo, useSettings } from '@/state/selectors';
 import { selectHasLaneEdits, useStore } from '@/state/store';
 import type { Lane } from '@/state/types';
-import { onBootOverlayGone, reportFirstScreenLayout } from '@/components/boot-signal';
+import { reportFirstScreenLayout } from '@/components/boot-signal';
 import { useMidiRuntime } from '@/components/midi/runtime';
 import { postNotice } from '@/lib/notice';
 import { haptics, logObserveEvent } from '@/lib/shims';
@@ -49,7 +49,6 @@ function laneSubtitle(lane: Lane): string {
 
 // Backstop for the boot-overlay signal itself — comfortably past BootSplash's
 // own 2s failsafe plus its ~900ms power-on.
-const CAPSULE_FAILSAFE_MS = 4000;
 
 export default function SequencerScreen() {
   const insets = useSafeAreaInsets();
@@ -129,37 +128,6 @@ export default function SequencerScreen() {
     });
   };
 
-  // The capsule is the ONE thing that animates in on app open, and the whole
-  // app renders behind the opaque boot overlay for ~900ms (components/
-  // boot-splash.tsx) — so it holds its mount until that overlay is gone and
-  // then powers on where it can be seen. Gating on the screen's first render
-  // instead (the old `animateMount`) could never work: lanes exist in the very
-  // first render (hydration is synchronous), so the capsule always mounted in
-  // the initial commit with no entrance at all.
-  const [capsuleReady, setCapsuleReady] = useState(false);
-  useEffect(() => {
-    let revealFrame: number | null = null;
-    let revealed = false;
-    const reveal = () => {
-      if (revealed) return;
-      revealed = true;
-      setCapsuleReady(true);
-    };
-    const unsubscribe = onBootOverlayGone(() => {
-      // Cross a paint boundary instead of guessing at a delay. The overlay's
-      // removal is committed before this signal; mounting on the next frame
-      // keeps its teardown and the capsule entrance out of the same frame.
-      revealFrame = requestAnimationFrame(reveal);
-    });
-    // Same never-deadlock rule as the boot gates themselves: if the signal is
-    // ever missed, show the capsule anyway — no entrance beats no capsule.
-    const failsafe = setTimeout(reveal, CAPSULE_FAILSAFE_MS);
-    return () => {
-      unsubscribe();
-      clearTimeout(failsafe);
-      if (revealFrame != null) cancelAnimationFrame(revealFrame);
-    };
-  }, []);
 
   // The playhead runs on under the Lane Editor / Tempo sheets (still this
   // tab, just covered); it stops once another tab is actually up and nobody
@@ -338,33 +306,32 @@ export default function SequencerScreen() {
             ))}
           </ScrollView>
         )}
-        {/* Hidden in the empty state — its own Add-lane CTA owns that screen.
-            Held back until the boot overlay is gone so its entrance plays on a
-            visible frame (see capsuleReady above). */}
-        {lanes.length > 0 && capsuleReady ? (
-          <FloatingActions
-            canMutate
-            snapshotActive={snapshotActive}
-            onAddLane={addAndEdit}
-            onMutate={() => {
-              logObserveEvent('pattern.mutated', { attributes: { lanes: lanes.length } });
-              mutatePattern();
-            }}
-            onRoll={rollPattern}
-            // Logged on the COMMIT, once per hold — the preview rolls inside a
-            // hold are one gesture, and how far people actually charge is the
-            // question worth answering.
-            onChargeCommit={(tier) => {
-              logObserveEvent('pattern.charged', { attributes: { tier, lanes: lanes.length } });
-              commitChargeRoll();
-            }}
-            onArm={armSnapshot}
-            // Restores a state you already know, same as revert / restore
-            // above — the swap snaps instead of animating.
-            onRevert={() => applyQuietly(revertSnapshot)}
-            onKeep={keepSnapshot}
-          />
-        ) : null}
+        {/* Always mounted (Liquid Glass wants to be created under the boot
+            overlay, see floating-actions.tsx); parked off-screen in the empty
+            state, whose own Add-lane CTA owns that screen. */}
+        <FloatingActions
+        visible={lanes.length > 0}
+          canMutate
+          snapshotActive={snapshotActive}
+          onAddLane={addAndEdit}
+          onMutate={() => {
+            logObserveEvent('pattern.mutated', { attributes: { lanes: lanes.length } });
+            mutatePattern();
+          }}
+          onRoll={rollPattern}
+          // Logged on the COMMIT, once per hold — the preview rolls inside a
+          // hold are one gesture, and how far people actually charge is the
+          // question worth answering.
+          onChargeCommit={(tier) => {
+            logObserveEvent('pattern.charged', { attributes: { tier, lanes: lanes.length } });
+            commitChargeRoll();
+          }}
+          onArm={armSnapshot}
+          // Restores a state you already know, same as revert / restore
+          // above — the swap snaps instead of animating.
+          onRevert={() => applyQuietly(revertSnapshot)}
+          onKeep={keepSnapshot}
+        />
       </View>
 
       {/* Bottom inset includes the tab bar height inside NativeTabs — keeps
