@@ -118,6 +118,16 @@ export const color = {
 } as const;
 
 /**
+ * TextInput selection highlight. iOS draws it translucent, so the primary label
+ * works; Android paints it solid (hiding the selected text) and also uses it
+ * for the cursor, so it gets a translucent label there (cursorColor stays solid).
+ */
+export const selection = Platform.select({
+  android: 'rgba(246, 244, 244, 0.35)',
+  default: color.label,
+});
+
+/**
  * Fonts. SF Pro Display for large/headers, SF Pro Text for body/controls on
  * iOS; Android has neither, so it names the system families instead (an
  * unknown family there silently falls back to sans-serif — which would turn

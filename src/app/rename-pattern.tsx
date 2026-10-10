@@ -16,7 +16,7 @@ import { Key } from '@/components/ui/key';
 import { haptics } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { useStore } from '@/state/store';
-import { color, font, radius, space } from '@/theme/tokens';
+import { color, font, radius, space, selection } from '@/theme/tokens';
 
 export default function RenamePatternSheet() {
   useMarkInteractive();
@@ -51,7 +51,8 @@ export default function RenamePatternSheet() {
             onChangeText={setName}
             placeholder={pattern?.name}
             placeholderTextColor={color.label4}
-            selectionColor={color.label}
+            selectionColor={selection}
+            cursorColor={color.label}
             style={styles.input}
             returnKeyType="done"
             autoCapitalize="words"

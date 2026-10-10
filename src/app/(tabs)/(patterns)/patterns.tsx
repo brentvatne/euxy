@@ -122,15 +122,9 @@ export default function PatternsScreen() {
       );
       return;
     }
-    // Android/web: Alert stand-in for the action sheet.
-    Alert.alert(pattern.name, undefined, [
-      { text: 'Rename…', onPress: () => promptRename(pattern) },
-      { text: 'Change Icon…', onPress: changeIcon },
-      { text: 'Clone', onPress: clone },
-      ...(isPreset ? [{ text: 'Restore Default', onPress: restoreDefault }] : []),
-      { text: 'Delete', style: 'destructive', onPress: () => deletePattern(pattern.id) },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    // Android/web: Alert.alert caps at three buttons on Android, so the menu
+    // is a route-backed sheet with the same actions.
+    router.push({ pathname: '/pattern-actions', params: { patternId: pattern.id } });
   };
 
   const confirmRestoreAll = () => {

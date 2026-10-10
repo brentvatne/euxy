@@ -6,7 +6,7 @@
  * separators.
  */
 import { memo, useRef } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, Platform } from 'react-native';
 // Gesture-handler's Pressable, NOT React Native's: when the swipe pan
 // activates it CANCELS the press natively. RN's Pressable races it — a
 // mid-swipe finger lift fired onPress (load + tab switch), which is why
@@ -159,7 +159,11 @@ export const PatternRow = memo(PatternRowImpl);
 const styles = StyleSheet.create({
   swipeContainer: {
     marginBottom: 1,
-    backgroundColor: color.danger,
+    // Red so the sliver behind the row during a swipe reads as the Delete
+    // action. Android anti-aliases the row's rounded corners against this and
+    // leaks a red hairline along every edge at rest, so it matches the row
+    // there; the Delete action paints its own red.
+    backgroundColor: Platform.select({ android: color.surface, default: color.danger }),
   },
   row: {
     flexDirection: 'row',
