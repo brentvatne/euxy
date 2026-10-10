@@ -5,6 +5,12 @@ app:
   bundleId: dev.brent.euxy
   easProfile: explore
   scheme: euxy
+platforms:
+  ios: {}
+  android:
+    device: pixel_7
+    bundleId: dev.brent.euxy
+    easProfile: explore
 navigation:
   provider: expo-router
 device:
@@ -42,6 +48,9 @@ parameters:
   /p/[d]:
     d: AQAC-AYHb25lRHJvcAxMby1GaSBCb3VuY2UEEAMAAAAAADUAaQAZBgRLaWNrEAIEAAAAADcAXAAZBgVTbmFyZRAIAAMBAgA9AEQADwYDSGF0EAEOAAAAADkANwAZBgRTbmFw
   /share-pattern:
+    patternId: preset_lofi
+  # The actions sheet closes itself (router.back) when its pattern is missing.
+  /pattern-actions:
     patternId: preset_lofi
 setup:
   # Opened by link, the lane editor shows "No lane selected." Open it from the
