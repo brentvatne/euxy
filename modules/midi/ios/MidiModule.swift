@@ -84,6 +84,17 @@ public class MidiModule: Module {
     }
   }
 
+  private func onMidiThread(_ block: @escaping () -> Void) {
+    if isSetup {
+      thread.sync(block)
+    } else {
+      thread.async {
+        self.setupIfNeeded()
+        block()
+      }
+    }
+  }
+
   public func definition() -> ModuleDefinition {
     Name("Midi")
     Events("onMidiMessage", "onDevicesChanged")
@@ -111,18 +122,15 @@ public class MidiModule: Module {
       }
       return self.thread.sync { self.midi.inputs() }
     }
-    // Selection is ordered behind setup on the MIDI thread; the caller never waits.
+    // Once set up, selection stays synchronous so a send issued right after it
+    // (bindOutput's Stop / All Notes Off) hits the new endpoint. Before setup
+    // there is no endpoint to send to anyway, so the selection is queued behind
+    // setup on the MIDI thread instead of making the caller wait for it.
     Function("selectOutput") { (id: String) in
-      self.thread.async {
-        self.setupIfNeeded()
-        self.midi.selectOutput(id)
-      }
+      self.onMidiThread { self.midi.selectOutput(id) }
     }
     Function("selectInput") { (id: String) in
-      self.thread.async {
-        self.setupIfNeeded()
-        self.midi.selectInput(id)
-      }
+      self.onMidiThread { self.midi.selectInput(id) }
     }
     Function("send") { (bytes: [Int], delayMs: Double?) in
       self.midi.send(bytes.map { UInt8($0 & 0xFF) }, afterMs: delayMs ?? 0)
