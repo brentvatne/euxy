@@ -25,14 +25,16 @@ export interface KeyboardAwareScrollViewProps extends ScrollViewProps {
   ref?: Ref<ScrollView>;
 }
 
-let Provider: ComponentType<PropsWithChildren> = ({ children }: PropsWithChildren) =>
+let Provider: ComponentType<PropsWithChildren<{ preload?: boolean }>> = ({ children }: PropsWithChildren) =>
   children as React.ReactElement;
+let preload: () => void = () => {};
 let AwareScrollView: ComponentType<KeyboardAwareScrollViewProps> = ScrollView;
 
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const rnkc = require('react-native-keyboard-controller');
   Provider = rnkc.KeyboardProvider;
+  preload = () => rnkc.KeyboardController.preload();
   AwareScrollView = rnkc.KeyboardAwareScrollView;
 } catch {
   console.warn(
@@ -42,3 +44,12 @@ try {
 
 export const KeyboardProvider = Provider;
 export const KeyboardAwareScrollView = AwareScrollView;
+
+/** Warm UIKit's keyboard stack (a hidden UITextField becomes first responder,
+ * dlopen-ing the keyboard/AutoFill frameworks on the main thread). Cheap once
+ * the app is idle, ~100ms+ of main-thread work if it lands during boot — so
+ * `KeyboardProvider` gets `preload={false}` and we call this after the boot
+ * overlay is gone. */
+export function preloadKeyboard(): void {
+  preload();
+}
