@@ -132,7 +132,7 @@ export default function TempoSheet() {
             cell leads the body directly; Base Resolution keeps its header. */}
         <View>
           <View style={styles.tempoCell}>
-            <AppText variant="body">BPM</AppText>
+            <AppText variant="body">Tempo (BPM)</AppText>
             <View style={styles.tempoControls}>
               <Pressable
                 {...decBpm}
