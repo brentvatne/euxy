@@ -95,7 +95,11 @@ export default function SharePatternSheet() {
       <View style={styles.grabberSpace} />
       <SheetHeader title="Share Pattern" onDone={() => router.back()} />
       <View style={styles.flex} collapsable={false}>
-        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: space.xxl + bottomInset }]} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          nestedScrollEnabled
+          contentContainerStyle={[styles.content, { paddingBottom: space.xxl + bottomInset }]}
+          showsVerticalScrollIndicator={false}
+        >
           <ShareCard pattern={pattern} width={CARD_WIDTH} canvasRef={canvasRef} />
           <View style={styles.actions}>
             <Pressable

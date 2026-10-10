@@ -126,6 +126,7 @@ export default function TempoSheet() {
           one that new-pattern and lane-editor need. */}
       <View style={styles.scroll} collapsable={false}>
       <ScrollView
+        nestedScrollEnabled
         style={styles.scroll}
         contentContainerStyle={[styles.body, { paddingBottom: space.xxl + bottomInset }]}
         showsVerticalScrollIndicator={false}
