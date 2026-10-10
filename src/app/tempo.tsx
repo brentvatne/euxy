@@ -151,7 +151,11 @@ export default function TempoSheet() {
                 {bpmDisabled ? null : (
                   <ValueFilm value={Math.round(bpm)} style={styles.tempoValueFilm} />
                 )}
-                <AppText variant="title" style={[styles.tempoValue, bpmDisabled && styles.disabled]}>
+                <AppText
+                  variant="title"
+                  style={[styles.tempoValue, bpmDisabled && styles.disabled]}
+                  testID="tempo-value"
+                >
                   {Math.round(bpm)}
                 </AppText>
               </View>

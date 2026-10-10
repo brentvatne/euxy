@@ -1,0 +1,81 @@
+# Deterministic e2e suite (tester-army/e2e) on EAS Simulators.
+#
+# Reuses the last `e2e` simulator build with this fingerprint and repacks the
+# pull request's JavaScript into it; builds only when the native side changed.
+# The test job runs on Linux: @e2e-dev/eas leases a hosted iOS simulator,
+# EAS installs the build on it, and the suite drives it over agent-device.
+#
+# No model or API key: the suite has no agent steps. The test job runs the
+# pull request's code (install scripts, e2e.config.ts, the tests), so it reads
+# the EAS `e2e` environment, which holds only EXPO_TOKEN: a robot token for
+# starting the simulator sessions. Never use `preview` here; it also holds
+# GH_TOKEN and CLAUDE_CODE_OAUTH_TOKEN.
+#
+#   eas workflow:run .eas/workflows/e2e.yml
+
+name: e2e
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+defaults:
+  tools:
+    node: '24'
+
+jobs:
+  fingerprint:
+    type: fingerprint
+    # Matches the `e2e` build profile, so the hashes line up with its builds.
+    environment: development
+
+  get_build:
+    needs: [fingerprint]
+    type: get-build
+    params:
+      platform: ios
+      profile: e2e
+      fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
+      wait_for_in_progress: true
+
+  repack:
+    needs: [get_build]
+    if: ${{ needs.get_build.outputs.build_id }}
+    type: repack
+    params:
+      build_id: ${{ needs.get_build.outputs.build_id }}
+
+  build:
+    needs: [get_build]
+    if: ${{ !needs.get_build.outputs.build_id }}
+    type: build
+    params:
+      platform: ios
+      profile: e2e
+
+  test:
+    # One of the two ran; a failed build still reports a build_id, so gate on
+    # the status rather than the output.
+    after: [repack, build]
+    if: ${{ after.repack.status == 'success' || after.build.status == 'success' }}
+    runs_on: linux-medium
+    environment: e2e
+    env:
+      CI: '1'
+      # Not EAS_BUILD_ID: EAS sets that to this job's own id and fetches the
+      # job's sources with it.
+      E2E_BUILD_ID: ${{ after.repack.outputs.build_id || after.build.outputs.build_id }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - name: Run e2e on EAS Simulators
+        run: npx e2e run --target eas --reporter list,junit
+      - uses: eas/upload_artifact
+        if: ${{ always() }}
+        with:
+          type: other
+          name: e2e-ios
+          path: .e2e
