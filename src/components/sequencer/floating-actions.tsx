@@ -532,9 +532,10 @@ export function FloatingActions({
   useEffect(() => {
     wake.value = withRepeat(withTiming(1, { duration: 16 }), WAKE_FRAMES, true);
   }, [wake]);
-  const park = useDerivedValue(() =>
-    visible ? withSpring(0, CAPSULE_SPRING) : PARKED_Y,
-  );
+  const park = useSharedValue(visible ? 0 : PARKED_Y);
+  useEffect(() => {
+    park.value = withSpring(visible ? 0 : PARKED_Y, CAPSULE_SPRING);
+  }, [visible, park]);
   const anchorStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: park.value + wake.value * 0.5 }],
   }));
