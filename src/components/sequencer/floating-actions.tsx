@@ -259,11 +259,9 @@ const SNAP = { damping: 34, stiffness: 340, reduceMotion: ReduceMotion.System };
 // landing corner — a real throw goes where it was headed.
 const THROW_PROJECTION_S = 0.18;
 
-// An occasional entrance can afford to be legible, but it should arrive
-// immediately under the finger: strong ease-out, opacity-led, and only 8pt of
-// travel. The old 140ms curve produced too few painted frames on a cold boot;
-// 200ms stays inside the small-popover budget while preserving the first-frame
-// response. Exit is deliberately faster and drops movement entirely.
+// Shared ease-out for the capsule's exit (the entrance is all springs now).
+// The exit is deliberately fast and drops movement entirely; it fades the
+// capsule out, which is safe because the glass is on its way off screen.
 const CAPSULE_EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 /**
  * The capsule ARRIVES; it does not blink on. The old entrance was a 200ms
@@ -271,35 +269,46 @@ const CAPSULE_EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
  * overshoot to sell any weight, so it read as a cut with a fade stapled to it.
  *
  * This is a real spring instead: it rises further, scales up from just under
- * full size, and settles through one soft overshoot. The opacity still runs on
- * a timing and finishes EARLY — a spring on alpha reads as a flicker when it
- * overshoots, and the object should be solid well before it stops moving.
+ * full size, and settles through one soft overshoot.
  *
- * A custom entering worklet rather than `FadeInDown.springify()` because the
- * scale is what does most of the work here, and the builders only animate the
- * properties they own (opacity + one translate).
+ * NO ALPHA ON THE SHELL'S ANCESTORS, and that is the load-bearing part. A
+ * UIVisualEffectView — which is what `GlassView` mounts — cannot sample its
+ * backdrop while it or ANY ancestor sits below alpha 1: UIKit composites the
+ * group offscreen and the material comes out flat, with the lane grid reading
+ * straight through the capsule at full brightness. Worse, the native view
+ * attaches its UIGlassEffect in the FIRST layout pass after mount and latches
+ * that pass behind an `isMounted` flag (see expo-glass-effect's
+ * GlassView.swift) — an attach that lands inside an alpha window leaves the
+ * capsule with no material at all for the rest of the launch.
+ *
+ * So the entrance is a PLAIN ANIMATED STYLE, not a Reanimated `entering`
+ * layout animation, and dropping the opacity out of an entering worklet is not
+ * enough on its own. Every view that carries an `entering` prop is inserted and
+ * then immediately updated to `opacity: 0`, whatever the worklet declares:
+ * LayoutAnimationsProxy_Legacy::handleUpdatesAndEnterings pushes a
+ * `cloneViewWithoutOpacity` mutation on the ENTERING branch and the alpha is
+ * only restored on the animation's first frame (`maybeRestoreOpacity`). The
+ * comment on it says "to prevent flickering on android", but there is no
+ * platform guard and it runs on iOS too — that is the alpha window the glass
+ * attach was landing in. Driving the same two springs off shared values keeps
+ * the motion identical and removes the window entirely.
+ *
+ * Keep alpha off any NEW animation that wraps the shell. `breatheStyle` is the
+ * one that is left: its dim to 60% while playing flattens the material the same
+ * way, and undoing that is a motion decision rather than a bug fix, so it is
+ * deliberately untouched.
  */
-const CAPSULE_ENTER = () => {
-  'worklet';
-  const spring = (dampingRatio: number, duration: number) => ({
-    duration,
-    dampingRatio,
-    reduceMotion: ReduceMotion.System,
-  });
-  return {
-    initialValues: { opacity: 0, transform: [{ translateY: 18 }, { scale: 0.88 }] },
-    animations: {
-      opacity: withTiming(1, {
-        duration: 200,
-        easing: CAPSULE_EASE_OUT,
-        reduceMotion: ReduceMotion.System,
-      }),
-      transform: [
-        { translateY: withSpring(0, spring(0.62, 480)) },
-        { scale: withSpring(1, spring(0.58, 520)) },
-      ],
-    },
-  };
+const ENTER_TRANSLATE_Y = 18;
+const ENTER_SCALE = 0.88;
+const ENTER_TRANSLATE_SPRING = {
+  duration: 480,
+  dampingRatio: 0.62,
+  reduceMotion: ReduceMotion.System,
+};
+const ENTER_SCALE_SPRING = {
+  duration: 520,
+  dampingRatio: 0.58,
+  reduceMotion: ReduceMotion.System,
 };
 const CAPSULE_EXIT = FadeOut.duration(120)
   .easing(CAPSULE_EASE_OUT)
@@ -568,6 +577,22 @@ export function FloatingActions({
   }, [corner, screenW]);
 
   const charge = useCharge();
+
+  // The entrance (see ENTER_* above): the same two springs the entering worklet
+  // ran, on shared values, so the shell never mounts under Reanimated's
+  // opacity-0 hide and the glass attaches at alpha 1 on its first layout pass.
+  const enterY = useSharedValue(ENTER_TRANSLATE_Y);
+  const enterScale = useSharedValue(ENTER_SCALE);
+  useEffect(() => {
+    enterY.value = withSpring(0, ENTER_TRANSLATE_SPRING);
+    enterScale.value = withSpring(1, ENTER_SCALE_SPRING);
+    // Mount only — the capsule arrives once per mount, like the layout
+    // animation it replaces.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const enterStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: enterY.value }, { scale: enterScale.value }],
+  }));
 
   // Breathing (E spec): dim to 60% two beats after the last touch, playing
   // only. Quantize first — the derived beat re-runs styles per beat, never
@@ -846,9 +871,10 @@ export function FloatingActions({
         <Animated.View
           // Mounted only while lanes exist (and never during boot) — so this
           // entrance covers both app open and easing out of the empty state.
-          entering={CAPSULE_ENTER}
+          // `exiting` is still a layout animation: it only runs on unmount, so
+          // its fade never overlaps the glass attach.
           exiting={CAPSULE_EXIT}
-          style={styles.barAnchor}
+          style={[styles.barAnchor, enterStyle]}
         >
           <Animated.View
             style={[dragStyle, breatheStyle]}
