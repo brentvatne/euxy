@@ -63,7 +63,9 @@ jobs:
     environment: preview
     env:
       CI: '1'
-      EAS_BUILD_ID: ${{ after.repack.outputs.build_id || after.build.outputs.build_id }}
+      # Not EAS_BUILD_ID: EAS sets that to this job's own id and fetches the
+      # job's sources with it.
+      E2E_BUILD_ID: ${{ after.repack.outputs.build_id || after.build.outputs.build_id }}
     steps:
       - uses: eas/checkout
       - uses: eas/install_node_modules
