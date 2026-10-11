@@ -21,7 +21,7 @@ capture:
 report:
   preview:
     hosting: eas
-    expiresAfter: 7d
+    expiresAfter: 30d
 exploration:
   scope: changes
   # Headless: applies the channel override and returns to the tabs on its first
