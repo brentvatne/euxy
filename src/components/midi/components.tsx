@@ -10,7 +10,7 @@ import { Pressable } from 'react-native-gesture-handler';
 
 import { AppText, Segmented } from '@/components/ui';
 import { NativeSlider } from '@/components/ui/native-slider';
-import { radius, space } from '@/theme/tokens';
+import { alpha, radius, space } from '@/theme/tokens';
 import { themed, useStyles, useTheme } from '@/theme/theme';
 import { IconChevronRight, IconChevronUpDown } from './icons';
 
@@ -101,7 +101,7 @@ export function ConnectionBadge({ connected }: { connected: boolean }) {
   const styles = useStyles(stylesFor);
   const { color } = useTheme();
   return (
-    <View style={[styles.badge, { backgroundColor: connected ? 'rgba(48,209,88,0.16)' : 'rgba(121,121,130,0.18)' }]}>
+    <View style={[styles.badge, { backgroundColor: connected ? alpha(color.connected, 0.16) : alpha(color.label4, 0.18) }]}>
       <View style={[styles.badgeDot, { backgroundColor: connected ? color.connected : color.label4 }]} />
       <AppText style={[styles.badgeText, { color: connected ? color.connected : color.label3 }]}>
         {connected ? 'CONNECTED' : 'OFFLINE'}

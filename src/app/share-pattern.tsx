@@ -156,7 +156,7 @@ const stylesFor = themed(({ color }) => ({
     fontFamily: font.text,
     fontSize: 12,
     lineHeight: 16,
-    color: color.label3,
+    color: color.trail,
     textAlign: 'center',
     paddingTop: 12,
     paddingHorizontal: 16,
