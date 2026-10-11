@@ -45,7 +45,6 @@ export function effectiveKit(): SoundKit {
 let loadedKit: SoundKit = 'off';
 let failedKit: SoundKit = 'off';
 let loading: Promise<void> | null = null;
-let activeKit: SoundKit = 'off';
 let nativeActive = false;
 let wired = false;
 
@@ -74,7 +73,6 @@ function setNativeActive(on: boolean): void {
 export function syncSound(): void {
   if (!native) return;
   const wanted = effectiveKit();
-  activeKit = wanted;
   if (wanted === 'off') {
     setNativeActive(false);
     return;
@@ -83,8 +81,9 @@ export function syncSound(): void {
     // A kit that failed to decode is not retried on every sync; picking
     // another kit (or the same one again) tries afresh.
     if (loading || wanted === failedKit) return;
-    // Switching kits mid-play: the old one keeps sounding until the new one
-    // is decoded (a few ms per file), then the next hit uses the new kit.
+    // Switching kits mid-play: the sampler stays active and `triggerSound`
+    // keeps using `loadedKit` until the new one is decoded (a few ms per
+    // file); the first hit after that uses the new kit.
     const run = loadKit(wanted)
       .catch(() => {
         loadedKit = 'off';
@@ -123,14 +122,16 @@ export function initSound(): void {
  * are one-shots, like the OP-XY drum voices they stand in for.
  */
 export function triggerSound(note: number, velocity: number, timeMs?: number): void {
-  if (!native || !nativeActive || activeKit !== loadedKit) return;
+  // While a newly chosen kit decodes, the one already in memory keeps playing.
+  const kit = loadedKit;
+  if (!native || !nativeActive || kit === 'off') return;
   const slot = slotKeyFor(note);
   if (!slot) return;
   const delay = timeMs != null ? Math.max(0, timeMs - nowMs()) : 0;
   // Velocity → gain, perceptually (a square law keeps ghost notes quiet
   // without making 100 vs 127 inaudible).
   const v = Math.max(1, Math.min(127, velocity)) / 127;
-  native.trigger(`${activeKit}/${slot}`, v * v, delay);
+  native.trigger(`${kit}/${slot}`, v * v, delay);
 }
 
 /** Cut everything sounding (transport pause/stop, panic). */

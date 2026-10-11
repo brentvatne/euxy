@@ -3,41 +3,16 @@
  * slot (core/opxy.ts), bundled as app assets. Built by scripts/build-sound-kits.py
  * from CC0 sources — provenance in assets/audio/LICENSES.md.
  */
-import { DRUM_KIT_LO } from '@/core/opxy';
+import { drum } from '@/core/opxy';
 
 export type SoundKit = 'off' | '808' | '909' | 'analog';
 
 export const SOUND_KITS: readonly Exclude<SoundKit, 'off'>[] = ['808', '909', 'analog'];
 
-/** Slot order = MIDI 53..76 (DRUM_SLOT_NAMES). */
-export const SLOT_KEYS = [
-  'kick',
-  'kickAlt',
-  'snare',
-  'snare2',
-  'rim',
-  'clap',
-  'tamb',
-  'shaker',
-  'closedHat',
-  'closedHat2',
-  'openHat',
-  'clave',
-  'lowTom',
-  'ride',
-  'midTom',
-  'crash',
-  'hiTom',
-  'triangle',
-  'lowConga',
-  'hiConga',
-  'cowbell',
-  'guiro',
-  'metal',
-  'chi',
-] as const;
+/** Slot roles in slot order (MIDI 53..76), straight from core/opxy.ts. */
+export const SLOT_KEYS = Object.keys(drum) as readonly (keyof typeof drum)[];
 
-export type SlotKey = (typeof SLOT_KEYS)[number];
+export type SlotKey = keyof typeof drum;
 
 // Static requires so Metro bundles every file; a kit is a slot → module map.
 export const KIT_MODULES: Record<Exclude<SoundKit, 'off'>, Record<SlotKey, number>> = {
@@ -122,7 +97,8 @@ export const KIT_MODULES: Record<Exclude<SoundKit, 'off'>, Record<SlotKey, numbe
 };
 
 /** Slot key for a MIDI note, or null outside the kit range. */
+const SLOT_BY_NOTE = new Map<number, SlotKey>(SLOT_KEYS.map((k) => [drum[k], k]));
+
 export function slotKeyFor(note: number): SlotKey | null {
-  const i = note - DRUM_KIT_LO;
-  return i >= 0 && i < SLOT_KEYS.length ? SLOT_KEYS[i] : null;
+  return SLOT_BY_NOTE.get(note) ?? null;
 }
