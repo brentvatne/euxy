@@ -7,8 +7,8 @@
  * (see components/ui/symbol.tsx) so it keeps the iOS-native appearance.
  */
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import { useTheme } from '@/theme/theme';
 
-import { color } from '@/theme/tokens';
 
 export interface IconProps {
   size?: number;
@@ -53,7 +53,9 @@ export function IconStop({ size = 22, color = '#EBEBEB' }: IconProps) {
 }
 
 /** Panic — warning triangle. Paper CO-0 (danger red, outlined). */
-export function IconPanic({ size = 24, color: c = color.danger }: IconProps) {
+export function IconPanic({ size = 24, color: cProp }: IconProps) {
+  const { color } = useTheme();
+  const c = cProp ?? color.danger;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path
@@ -71,7 +73,9 @@ export function IconPanic({ size = 24, color: c = color.danger }: IconProps) {
 }
 
 /** Clear ×, sized for the 30px name-field key. Paper 8P3-0 (Sheet · New Pattern). */
-export function IconClear({ size = 11, color: c = color.label2 }: IconProps) {
+export function IconClear({ size = 11, color: cProp }: IconProps) {
+  const { color } = useTheme();
+  const c = cProp ?? color.label2;
   return (
     <Svg width={size} height={size} viewBox="0 0 12 12">
       <Path d="M2 2 L10 10 M10 2 L2 10" fill="none" stroke={c} strokeWidth={1.8} strokeLinecap="round" />
@@ -80,7 +84,9 @@ export function IconClear({ size = 11, color: c = color.label2 }: IconProps) {
 }
 
 /** Dice — the 5-pip "random" glyph (same vocabulary as mutate). Paper 8P6-0. */
-export function IconDice({ size = 14, color: c = color.label }: IconProps) {
+export function IconDice({ size = 14, color: cProp }: IconProps) {
+  const { color } = useTheme();
+  const c = cProp ?? color.label;
   return (
     <Svg width={size} height={size} viewBox="0 0 22 22">
       <Rect x="5.2" y="5.2" width="3.2" height="3.2" rx="1" fill={c} />

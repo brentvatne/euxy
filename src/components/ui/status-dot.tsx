@@ -4,7 +4,8 @@
  */
 import { StyleSheet, View, type ViewProps } from 'react-native';
 
-import { color, radius, space } from '@/theme/tokens';
+import { radius, space } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme';
 import { AppText } from './text';
 
 export interface StatusDotProps extends ViewProps {
@@ -13,6 +14,7 @@ export interface StatusDotProps extends ViewProps {
 }
 
 export function StatusDot({ connected, label, style, ...rest }: StatusDotProps) {
+  const { color } = useTheme();
   return (
     <View style={[styles.row, style]} {...rest}>
       <View style={[styles.dot, { backgroundColor: connected ? color.connected : color.label4 }]} />

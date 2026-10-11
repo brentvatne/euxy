@@ -15,7 +15,8 @@ import { Pressable } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 
 import { haptics } from '@/lib/shims';
-import { color, HIT_TARGET, radius, space } from '@/theme/tokens';
+import { HIT_TARGET, radius, space } from '@/theme/tokens';
+import { themed, useStyles } from '@/theme/theme';
 import { lightDecay } from './led';
 import { AppText } from './text';
 
@@ -42,6 +43,7 @@ export function Segmented<T extends string>({
   size = 'regular',
   disabled = false,
 }: SegmentedProps<T>) {
+  const styles = useStyles(stylesFor);
   const compact = size === 'compact';
   return (
     <View style={[styles.track, compact && styles.trackCompact, disabled && styles.trackDisabled]}>
@@ -92,7 +94,7 @@ export function Segmented<T extends string>({
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   track: {
     flexDirection: 'row',
     backgroundColor: color.surface3,
@@ -124,5 +126,4 @@ const styles = StyleSheet.create({
   segmentActive: { backgroundColor: color.label },
   activePill: { alignItems: 'center', justifyContent: 'center' },
   textActive: { color: color.ground, fontWeight: '700' },
-  textInactive: { color: color.label25, fontWeight: '600' },
-});
+  textInactive: { color: color.label25, fontWeight: '600' },}));

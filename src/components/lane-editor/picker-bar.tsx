@@ -9,7 +9,8 @@ import { StyleSheet, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 
-import { color, font } from '@/theme/tokens';
+import { font } from '@/theme/tokens';
+import { themed, useStyles } from '@/theme/theme';
 import { AppText } from '@/components/ui';
 import { lightDecay } from '@/components/ui/led';
 
@@ -32,6 +33,7 @@ export function PickerBar<T extends string>({
   onChange,
   size = 13,
 }: PickerBarProps<T>) {
+  const styles = useStyles(stylesFor);
   return (
     <View style={styles.track}>
       {options.map((opt) => {
@@ -67,7 +69,7 @@ export function PickerBar<T extends string>({
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   track: {
     flex: 1,
     flexDirection: 'row',
@@ -86,5 +88,4 @@ const styles = StyleSheet.create({
   activePill: { alignItems: 'center', justifyContent: 'center', borderRadius: 7 },
   label: { fontFamily: font.text, lineHeight: 16, textAlign: 'center' },
   labelActive: { color: color.ground, fontWeight: '700' },
-  labelInactive: { color: color.label25, fontWeight: '600' },
-});
+  labelInactive: { color: color.label25, fontWeight: '600' },}));

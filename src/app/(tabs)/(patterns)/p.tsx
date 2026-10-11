@@ -14,7 +14,7 @@
  */
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
 import { chipForPattern } from '@/components/patterns/chips';
@@ -25,9 +25,11 @@ import { claimSharedPatternPayload } from '@/core/shared-pattern-import';
 import { haptics, logObserveEvent } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { useStore } from '@/state/store';
-import { color, font, space } from '@/theme/tokens';
+import { font, space } from '@/theme/tokens';
+import { themed, useStyles } from '@/theme/theme';
 
 export default function ImportPatternSheet() {
+  const styles = useStyles(stylesFor);
   const { d } = useLocalSearchParams<{ d?: string }>();
   const importPattern = useStore((s) => s.importPattern);
   const shared = useMemo<SharedPattern | null>(() => {
@@ -119,7 +121,7 @@ export default function ImportPatternSheet() {
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   root: { flex: 1, backgroundColor: color.surface },
   grabberSpace: { height: 13 },
   content: { paddingHorizontal: space.xl, paddingTop: 14, gap: 16 },
@@ -141,5 +143,4 @@ const styles = StyleSheet.create({
   pressed: { transform: [{ scale: 0.97 }] },
   keyLabel: { fontFamily: font.text, fontWeight: '600', fontSize: 17, lineHeight: 22, color: color.label },
   keyLabelDark: { color: '#101014' },
-  footnote: { fontFamily: font.text, fontSize: 12, lineHeight: 16, color: '#6E6E76', textAlign: 'center' },
-});
+  footnote: { fontFamily: font.text, fontSize: 12, lineHeight: 16, color: '#6E6E76', textAlign: 'center' },}));

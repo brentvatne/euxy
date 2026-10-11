@@ -5,16 +5,15 @@
  * with 1px separators and position-aware corner radii, a white-active compact
  * clock toggle, and a draggable latency slider — is specific to this screen.
  */
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
 import { AppText, Segmented } from '@/components/ui';
 import { NativeSlider } from '@/components/ui/native-slider';
-import { color, radius, space } from '@/theme/tokens';
+import { radius, space } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import { IconChevronRight, IconChevronUpDown } from './icons';
 
-/** Section-label + secondary-value gray (token `label25`, exact from Paper). */
-export const GRAY = color.label25;
 const OUTER = radius.cell; // 12
 const INNER = 2;
 
@@ -48,6 +47,7 @@ export function SectionHeader({
   first?: boolean;
   onLongPress?: () => void;
 }) {
+  const styles = useStyles(stylesFor);
   const wrapStyle = [styles.section, first && styles.sectionFirst];
   const text = <AppText style={styles.sectionText}>{children}</AppText>;
   if (onLongPress) {
@@ -62,6 +62,7 @@ export function SectionHeader({
 
 /** Inset group container (16px side padding, 1px separators via gap). */
 export function Group({ children }: { children: React.ReactNode }) {
+  const styles = useStyles(stylesFor);
   return <View style={styles.group}>{children}</View>;
 }
 
@@ -79,6 +80,7 @@ export function Cell({
   style?: object;
   contentStyle?: object;
 }) {
+  const styles = useStyles(stylesFor);
   const inner = <View style={[styles.cellContent, contentStyle]}>{children}</View>;
   if (onPress) {
     return (
@@ -96,6 +98,8 @@ export function Cell({
 
 /** CONNECTED (green) / OFFLINE (gray) status pill. */
 export function ConnectionBadge({ connected }: { connected: boolean }) {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   return (
     <View style={[styles.badge, { backgroundColor: connected ? 'rgba(48,209,88,0.16)' : 'rgba(121,121,130,0.18)' }]}>
       <View style={[styles.badgeDot, { backgroundColor: connected ? color.connected : color.label4 }]} />
@@ -108,6 +112,7 @@ export function ConnectionBadge({ connected }: { connected: boolean }) {
 
 /** Left label + right value with a chevron-up/down (opens a picker). */
 export function ValueRow({ pos, label, value, onPress }: { pos: CellPos; label: string; value: string; onPress?: () => void }) {
+  const styles = useStyles(stylesFor);
   return (
     <Cell pos={pos} onPress={onPress}>
       <AppText style={styles.rowLabel}>{label}</AppText>
@@ -121,6 +126,7 @@ export function ValueRow({ pos, label, value, onPress }: { pos: CellPos; label: 
 
 /** Left label + right chevron (pushes a screen). */
 export function PushRow({ pos, label, onPress }: { pos: CellPos; label: string; onPress?: () => void }) {
+  const styles = useStyles(stylesFor);
   return (
     <Cell pos={pos} onPress={onPress}>
       <AppText style={styles.rowLabel}>{label}</AppText>
@@ -156,6 +162,8 @@ export function LatencySlider({
   max: number;
   onChange: (v: number) => void;
 }) {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   return (
     <NativeSlider
       value={value}
@@ -171,7 +179,7 @@ export function LatencySlider({
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   // iOS Settings-style header: aligned with the group's edge, body-size semibold.
   section: { paddingTop: 24, paddingBottom: 8, paddingHorizontal: space.lg },
   sectionFirst: { paddingTop: space.sm },
@@ -184,11 +192,10 @@ const styles = StyleSheet.create({
 
   rowLabel: { fontSize: 16, lineHeight: 20, color: color.label },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: space.sm - 2 },
-  rowValue: { fontSize: 16, lineHeight: 20, fontWeight: '500', color: GRAY },
+  rowValue: { fontSize: 16, lineHeight: 20, fontWeight: '500', color: color.label25 },
 
   badge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingHorizontal: 10, borderRadius: radius.chip },
   badgeDot: { width: 7, height: 7, borderRadius: radius.chip },
   badgeText: { fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.3 },
 
-  slider: { height: 28 },
-});
+  slider: { height: 28 },}));

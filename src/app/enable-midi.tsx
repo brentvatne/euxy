@@ -8,17 +8,19 @@
  */
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
 import { AppText } from '@/components/ui';
 import { IconMic, IconMidiDin, IconWarning } from '@/components/midi/icons';
 import { enableMidi, useMidiRuntime } from '@/components/midi/runtime';
-import { color, space } from '@/theme/tokens';
+import { space } from '@/theme/tokens';
+import { themed, useStyles } from '@/theme/theme';
 import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
 export default function EnableMidiSheet() {
+  const styles = useStyles(stylesFor);
   useMarkInteractive();
   const bottomInset = useSheetBottomInset();
   const rt = useMidiRuntime();
@@ -68,7 +70,7 @@ export default function EnableMidiSheet() {
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   root: { flex: 1, backgroundColor: color.surface },
   scroll: { paddingTop: space.sm, paddingBottom: space.xxl },
   hero: { alignItems: 'center', gap: 18, paddingTop: 28, paddingBottom: space.sm, paddingHorizontal: space.xl + space.md },
@@ -85,5 +87,4 @@ const styles = StyleSheet.create({
   error: { fontSize: 13, lineHeight: 18, color: color.danger, textAlign: 'center' },
 
   notice: { flexDirection: 'row', gap: 10, marginTop: 6, marginHorizontal: space.lg, paddingVertical: 13, paddingHorizontal: 15, borderRadius: 11, backgroundColor: '#241207', borderWidth: 1, borderColor: '#5A3A12' },
-  noticeText: { flex: 1, fontSize: 13, lineHeight: 19, color: '#D8B98A' },
-});
+  noticeText: { flex: 1, fontSize: 13, lineHeight: 19, color: '#D8B98A' },}));

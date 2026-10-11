@@ -15,7 +15,7 @@
  */
 import { useEffect, useState } from 'react';
 import { useIsFirstRender } from '@/lib/use-is-first-render';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -28,7 +28,7 @@ import Animated, {
 import { generator, withRotation } from '@/core/euclid';
 import { patternForLane } from '@/state/selectors';
 import type { Lane } from '@/state/types';
-import { color, stepFill } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import { FlickerBloom } from '@/components/ui/flicker-bloom';
 import { Led } from '@/components/ui/led';
 // The card's columns ARE the sequencer strip's columns (same 16 slots, same
@@ -83,6 +83,8 @@ export function CombinedCard({
   /** 'rtl' replays the wash right-to-left (undo). */
   washDirection?: 'ltr' | 'rtl';
 }) {
+  const styles = useStyles(stylesFor);
+  const { stepFill } = useTheme();
   const n = lane.length;
   const combined = patternForLane(lane);
   // Generator sources are whole-track rotated like the combined row, so each
@@ -220,6 +222,7 @@ function RerollWash({
   cellW: number;
   width: number;
 }) {
+  const styles = useStyles(stylesFor);
   // The lane's own width: a row is only as wide as the steps it holds, so a
   // 12- or 8-step lane stops well short of the card's right edge.
   const cols = Math.min(PER_ROW, Math.max(1, steps));
@@ -309,7 +312,7 @@ function RerollWash({
 // for itself); cells 30 tall r3, 16/row, gap 3 inside a beat and 8 before each
 // downbeat; light 6px white, dark ring, glow, top-centered 3px from the top;
 // attribution row 3px dots, 4px tall.
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   card: {
     backgroundColor: color.stepEmptyDim,
     borderRadius: 12,
@@ -405,5 +408,4 @@ const styles = StyleSheet.create({
     shadowOpacity: 1,
     shadowRadius: 3.5,
     shadowOffset: { width: 0, height: 0 },
-  },
-});
+  },}));

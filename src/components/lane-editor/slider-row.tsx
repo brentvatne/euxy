@@ -15,10 +15,11 @@
  * while the store hears from us at most every COMMIT_MS.
  */
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { haptics } from '@/lib/shims';
-import { color, font, space } from '@/theme/tokens';
+import { font, space } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import { AppText } from '@/components/ui';
 import { NativeSlider } from '@/components/ui/native-slider';
 
@@ -54,8 +55,11 @@ export function SliderRow({
   onChange,
   formatValue,
   accentValues,
-  trackColor = color.surface2,
+  trackColor: trackColorProp,
 }: SliderRowProps) {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
+  const trackColor = trackColorProp ?? color.surface2;
   // Encoder feel: one selection tick per stepped value crossed, a rigid
   // detent on landmarks. The ref gates repeat events at the same step.
   const lastTicked = useRef(value);
@@ -157,11 +161,10 @@ export function SliderRow({
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   row: { gap: space.xs },
   rowDisabled: { opacity: 0.4 },
   head: { flexDirection: 'row', justifyContent: 'space-between' },
   label: { fontFamily: font.text, fontWeight: '500', fontSize: 14, lineHeight: 18, color: color.label25 },
   value: { fontFamily: font.text, fontWeight: '600', fontSize: 14, lineHeight: 18, color: color.label },
-  slider: { height: 28 },
-});
+  slider: { height: 28 },}));

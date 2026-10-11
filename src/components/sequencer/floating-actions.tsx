@@ -38,6 +38,7 @@
  * = the rim itself brightens to 35% white (no drawn outline).
  */
 import { useEffect, useRef, useState } from "react";
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import {
   PixelRatio,
   StyleSheet,
@@ -80,7 +81,7 @@ import {
   liquidGlassAvailable,
   useHapticRamp,
 } from "@/lib/shims";
-import { color, ramp, timing } from "@/theme/tokens";
+import { ramp, timing } from "@/theme/tokens";
 import { Key } from "@/components/ui/key";
 
 /** The capsule shell itself animates its size during a charge, so the glass
@@ -523,6 +524,7 @@ export function FloatingActions({
   onRevert: () => void;
   onKeep: () => void;
 }) {
+  const styles = useStyles(stylesFor);
   const reducedMotion = useReducedMotion();
   const { width: screenW } = useWindowDimensions();
 
@@ -930,6 +932,7 @@ function ChargeRing({
   charge: Charge;
   reducedMotion: boolean;
 }) {
+  const styles = useStyles(stylesFor);
   const glowStyle = useAnimatedStyle(() => ({
     opacity: 0.5 * charge.bloom.value,
   }));
@@ -979,6 +982,7 @@ function RingLed({
   charge: Charge;
   reducedMotion: boolean;
 }) {
+  const styles = useStyles(stylesFor);
   const style = useAnimatedStyle(() => {
     // Reduced Motion: a four-segment stepper that snaps on tier boundaries
     // instead of sweeping one LED per 16th.
@@ -1017,6 +1021,8 @@ function RingLed({
 /** Add lane — the + rotates 90° while pressed (E spec), then the existing
  * lane slide-in takes over. */
 function AddKey({ onPress }: { onPress: () => void }) {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   const down = useSharedValue(0);
   const rotStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${down.value * 90}deg` }],
@@ -1096,6 +1102,7 @@ function ChargeDice({
   onRoll: (tier: ChargeTier) => void;
   onChargeCommit: (tier: ChargeTier) => void;
 }) {
+  const styles = useStyles(stylesFor);
   const [scatter, setScatter] = useState<{
     nonce: number;
     frames: number[][][];
@@ -1540,6 +1547,8 @@ function Pip({
   collapse: SharedValue<number>;
   isCenter: boolean;
 }) {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   const x = useSharedValue(PIP_COORD[rest[0]]);
   const y = useSharedValue(PIP_COORD[rest[1]]);
   useEffect(() => {
@@ -1659,6 +1668,7 @@ function TempKey({
   onRevert: () => void;
   onKeep: () => void;
 }) {
+  const styles = useStyles(stylesFor);
   const flash = useSharedValue(0);
   const dotPulse = useSharedValue(0);
   /**
@@ -1934,7 +1944,7 @@ function TempKey({
 // Paper 5SI-0: glass capsule (rgba(28,28,34,.55) + blur 24 saturate 160% in
 // the mock — real GlassView here), 0.5px rgba(255,255,255,.12) rim, soft
 // 0/10/24 shadow, solid #2C2C2E keys. Fallback = the old solid #16161D bar.
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   // The layout box is SS× the visual capsule and the ÷SS scale shrinks it
   // toward its own center, so the anchor overshoots the margins by half the
   // VISUAL size — the scaled-down capsule's right/bottom edges land exactly
@@ -2184,5 +2194,4 @@ const styles = StyleSheet.create({
     // CALayer border path so the hairline scales as vector geometry
     // instead of a nearest-filtered bitmap. No children, no shadow.
     overflow: "hidden",
-  },
-});
+  },}));

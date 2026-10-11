@@ -8,8 +8,8 @@
  * callers from tokens so the monochrome scheme stays centralized.
  */
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import { useTheme } from '@/theme/theme';
 
-import { color } from '@/theme/tokens';
 
 export interface IconProps {
   size?: number;
@@ -17,7 +17,9 @@ export interface IconProps {
 }
 
 /** Device / handheld (OP-XY). Paper MC-0. */
-export function IconDevice({ size = 22, color: c = color.label }: IconProps) {
+export function IconDevice({ size = 22, color: cProp }: IconProps) {
+  const { color } = useTheme();
+  const c = cProp ?? color.label;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Rect x="6" y="3" width="12" height="18" rx="2" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
@@ -27,7 +29,9 @@ export function IconDevice({ size = 22, color: c = color.label }: IconProps) {
 }
 
 /** USB MIDI interface. Paper 29L-0. */
-export function IconUsb({ size = 22, color: c = color.label3 }: IconProps) {
+export function IconUsb({ size = 22, color: cProp }: IconProps) {
+  const { color } = useTheme();
+  const c = cProp ?? color.label3;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Rect x="3" y="8" width="18" height="8" rx="2" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
@@ -37,7 +41,9 @@ export function IconUsb({ size = 22, color: c = color.label3 }: IconProps) {
 }
 
 /** IAC / virtual bus (circle-minus). Paper 29L-0. */
-export function IconBus({ size = 22, color: c = color.label3 }: IconProps) {
+export function IconBus({ size = 22, color: cProp }: IconProps) {
+  const { color } = useTheme();
+  const c = cProp ?? color.label3;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Circle cx="12" cy="12" r="9" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
@@ -47,7 +53,9 @@ export function IconBus({ size = 22, color: c = color.label3 }: IconProps) {
 }
 
 /** No device / disconnected (slashed circle). Paper 29L-0. */
-export function IconNone({ size = 22, color: c = color.label4 }: IconProps) {
+export function IconNone({ size = 22, color: cProp }: IconProps) {
+  const { color } = useTheme();
+  const c = cProp ?? color.label4;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path d="M5 5l14 14M6 6a9 9 0 0012 12" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
@@ -56,7 +64,9 @@ export function IconNone({ size = 22, color: c = color.label4 }: IconProps) {
 }
 
 /** Chevron up/down (menu affordance on a value row). Paper MC-0. */
-export function IconChevronUpDown({ size = 15, color: c = color.labelDisabled }: IconProps) {
+export function IconChevronUpDown({ size = 15, color: cProp }: IconProps) {
+  const { color } = useTheme();
+  const c = cProp ?? color.labelDisabled;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path d="M8 9l4-4 4 4M8 15l4 4 4-4" fill="none" stroke={c} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
@@ -65,7 +75,9 @@ export function IconChevronUpDown({ size = 15, color: c = color.labelDisabled }:
 }
 
 /** Chevron right (push affordance). Paper MC-0. */
-export function IconChevronRight({ size = 16, color: c = color.labelDisabled }: IconProps) {
+export function IconChevronRight({ size = 16, color: cProp }: IconProps) {
+  const { color } = useTheme();
+  const c = cProp ?? color.labelDisabled;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path d="M8 6l6 6-6 6" fill="none" stroke={c} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
@@ -74,7 +86,9 @@ export function IconChevronRight({ size = 16, color: c = color.labelDisabled }: 
 }
 
 /** Checkmark (selected row). Paper 29L-0. */
-export function IconCheck({ size = 20, color: c = color.label }: IconProps) {
+export function IconCheck({ size = 20, color: cProp }: IconProps) {
+  const { color } = useTheme();
+  const c = cProp ?? color.label;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path d="M4 12l5 5L20 6" fill="none" stroke={c} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" />
@@ -83,7 +97,9 @@ export function IconCheck({ size = 20, color: c = color.label }: IconProps) {
 }
 
 /** Close (X) — sheet dismiss. Paper 29L-0. */
-export function IconClose({ size = 14, color: c = color.label3 }: IconProps) {
+export function IconClose({ size = 14, color: cProp }: IconProps) {
+  const { color } = useTheme();
+  const c = cProp ?? color.label3;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path d="M6 6l12 12M18 6L6 18" fill="none" stroke={c} strokeWidth={2.6} strokeLinecap="round" />
@@ -92,7 +108,9 @@ export function IconClose({ size = 14, color: c = color.label3 }: IconProps) {
 }
 
 /** MIDI DIN 5-pin connector — Enable-MIDI hero glyph. Paper 2BL-0. */
-export function IconMidiDin({ size = 30, color: c = color.label }: IconProps) {
+export function IconMidiDin({ size = 30, color: cProp }: IconProps) {
+  const { color } = useTheme();
+  const c = cProp ?? color.label;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Circle cx="12" cy="12" r="9" fill="none" stroke={c} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
@@ -106,7 +124,9 @@ export function IconMidiDin({ size = 30, color: c = color.label }: IconProps) {
 }
 
 /** Microphone (permission) — Enable-MIDI button glyph. Paper 2BL-0. */
-export function IconMic({ size = 17, color: c = color.ground }: IconProps) {
+export function IconMic({ size = 17, color: cProp }: IconProps) {
+  const { color } = useTheme();
+  const c = cProp ?? color.ground;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" fill="none" stroke={c} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />

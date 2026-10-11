@@ -5,7 +5,8 @@
  */
 import { Text as RNText, type TextProps as RNTextProps, StyleSheet } from 'react-native';
 
-import { color, font, type } from '@/theme/tokens';
+import { font, type, type Palette } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme';
 
 type Variant = keyof typeof type;
 type Tone = 'primary' | 'secondary' | 'tertiary' | 'disabled' | 'danger' | 'connected';
@@ -17,14 +18,14 @@ export interface AppTextProps extends RNTextProps {
   uppercase?: boolean;
 }
 
-const toneColor: Record<Tone, string> = {
+const toneColor = (color: Palette) => ({
   primary: color.label,
   secondary: color.label3,
   tertiary: color.label4,
   disabled: color.labelDisabled,
   danger: color.danger,
   connected: color.connected,
-};
+});
 
 export function AppText({
   variant = 'body',
@@ -34,6 +35,7 @@ export function AppText({
   style,
   ...rest
 }: AppTextProps) {
+  const { color } = useTheme();
   const t = type[variant];
   return (
     <RNText
@@ -43,7 +45,7 @@ export function AppText({
           lineHeight: t.line,
           fontWeight: t.weight,
           fontFamily: mono ? font.mono : font.text,
-          color: toneColor[tone],
+          color: toneColor(color)[tone],
         },
         uppercase && styles.upper,
         style,

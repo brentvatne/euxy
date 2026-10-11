@@ -25,19 +25,20 @@
  */
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { parseChannelLink } from '@/lib/channel-link';
 import { startChannelLinkSurf, surfedIntoChannel } from '@/lib/channel-surf';
 import { postNotice } from '@/lib/notice';
 import { logObserveEvent, updatesInfo } from '@/lib/shims';
-import { color } from '@/theme/tokens';
+import { themed, useStyles } from '@/theme/theme';
 
 /** expo-updates reports isEnabled in dev clients too, but every API call
  * rejects there — treat dev as not surfable so the notice says why. */
 const surfable = updatesInfo.isEnabled && !__DEV__;
 
 export default function ChannelLinkRoute() {
+  const styles = useStyles(stylesFor);
   const { channel: linkParam } = useLocalSearchParams<{ channel?: string }>();
   const linked = parseChannelLink(linkParam);
 
@@ -81,6 +82,5 @@ export default function ChannelLinkRoute() {
   return <View style={styles.root} />;
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: color.ground },
-});
+const stylesFor = themed(({ color }) => ({
+  root: { flex: 1, backgroundColor: color.ground },}));

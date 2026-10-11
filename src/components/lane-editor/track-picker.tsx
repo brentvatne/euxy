@@ -20,7 +20,8 @@ import { StyleSheet, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 
-import { color, font, HIT_TARGET } from '@/theme/tokens';
+import { font, HIT_TARGET } from '@/theme/tokens';
+import { themed, useStyles } from '@/theme/theme';
 import { AppText } from '@/components/ui';
 import { lightDecay } from '@/components/ui/led';
 
@@ -34,6 +35,7 @@ export interface TrackPickerProps {
 }
 
 export function TrackPicker({ channel, onChange }: TrackPickerProps) {
+  const styles = useStyles(stylesFor);
   return (
     <View style={styles.track}>
       {Array.from({ length: TRACK_COUNT }, (_, i) => {
@@ -67,7 +69,7 @@ export function TrackPicker({ channel, onChange }: TrackPickerProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   // surface4 (not PickerBar's surface2): this row lives INSIDE the disclosure
   // panel a grouped cell expands into, which is already surface3 — the
   // segmented track has to sit one step above its panel.
@@ -92,5 +94,4 @@ const styles = StyleSheet.create({
   },
   label: { fontFamily: font.text, fontSize: 15, lineHeight: 20, textAlign: 'center' },
   labelActive: { color: color.ground, fontWeight: '700' },
-  labelInactive: { color: color.label25, fontWeight: '600' },
-});
+  labelInactive: { color: color.label25, fontWeight: '600' },}));

@@ -13,7 +13,7 @@ import { fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
 import { haptics } from '@/lib/shims';
 import { useStore } from '@/state/store';
 import type { Pattern } from '@/state/types';
-import { color, selection } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme';
 
 export function useRenamePrompt() {
   const [target, setTarget] = useState<Pattern | null>(null);
@@ -25,6 +25,7 @@ export function useRenamePrompt() {
 }
 
 function RenameDialog({ pattern, onClose }: { pattern: Pattern; onClose: () => void }) {
+  const { color, selection } = useTheme();
   const renamePattern = useStore((s) => s.renamePattern);
   const name = useNativeState(pattern.name);
   const commit = (value: string = name.value) => {

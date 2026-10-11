@@ -18,8 +18,8 @@
  */
 import { SymbolView, type AndroidSymbol, type SFSymbol as SFSymbolName, type SymbolViewProps } from 'expo-symbols';
 import { Platform } from 'react-native';
+import { useTheme } from '@/theme/theme';
 
-import { color } from '@/theme/tokens';
 
 const MATERIAL: Partial<Record<SFSymbolName, AndroidSymbol>> = {
   plus: 'add',
@@ -36,7 +36,9 @@ export interface SFSymbolProps extends Omit<SymbolViewProps, 'tintColor' | 'name
   tint?: string;
 }
 
-export function SFSymbol({ name, size = 20, tint = color.label, style, ...rest }: SFSymbolProps) {
+export function SFSymbol({ name, size = 20, tint: tintProp, style, ...rest }: SFSymbolProps) {
+  const { color } = useTheme();
+  const tint = tintProp ?? color.label;
   return (
     <SymbolView
       name={{ ios: name, android: MATERIAL[name] }}

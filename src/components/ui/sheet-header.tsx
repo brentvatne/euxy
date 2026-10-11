@@ -3,10 +3,11 @@
  * the monochrome scheme: Cancel is muted gray, Done is bright white (never the
  * system blue). Used at the top of every form sheet.
  */
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
-import { color, font, HIT_TARGET, space } from '@/theme/tokens';
+import { font, HIT_TARGET, space } from '@/theme/tokens';
+import { themed, useStyles } from '@/theme/theme';
 import { AppText } from './text';
 
 export interface SheetHeaderProps {
@@ -26,6 +27,7 @@ export function SheetHeader({
   doneLabel = 'Done',
   doneDisabled = false,
 }: SheetHeaderProps) {
+  const styles = useStyles(stylesFor);
   return (
     <View style={styles.header}>
       <View style={styles.side}>
@@ -60,7 +62,7 @@ export function SheetHeader({
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -71,5 +73,4 @@ const styles = StyleSheet.create({
   right: { alignItems: 'flex-end' },
   center: { flex: 2, alignItems: 'center' },
   // Paper 16G-0: Cancel is 17/22 regular in the label25 gray (not label3).
-  cancel: { fontFamily: font.text, fontSize: 17, lineHeight: 22, fontWeight: '400', color: color.label25 },
-});
+  cancel: { fontFamily: font.text, fontSize: 17, lineHeight: 22, fontWeight: '400', color: color.label25 },}));

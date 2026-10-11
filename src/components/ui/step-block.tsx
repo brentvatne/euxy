@@ -8,10 +8,11 @@
  * it, so this never re-renders on the tick.
  */
 import { memo } from 'react';
-import { StyleSheet, View, type ViewStyle } from 'react-native';
+import { View, type ViewStyle } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
-import { color, radius, ramp } from '@/theme/tokens';
+import { radius, ramp } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 
 export interface StepBlockProps {
   hit: boolean;
@@ -35,6 +36,8 @@ export const StepBlock = memo(function StepBlock({
   onPress,
   style,
 }: StepBlockProps) {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   const body = (
     <View
       style={[
@@ -54,8 +57,7 @@ export const StepBlock = memo(function StepBlock({
   );
 });
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   base: { borderRadius: radius.step },
   grow: { flex: 1 },
-  active: { borderWidth: 2, borderColor: color.label },
-});
+  active: { borderWidth: 2, borderColor: color.label },}));

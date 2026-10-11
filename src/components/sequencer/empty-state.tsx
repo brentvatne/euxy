@@ -16,7 +16,8 @@ import { Pressable } from 'react-native-gesture-handler';
 import Svg, { Path } from 'react-native-svg';
 
 import { haptics } from '@/lib/shims';
-import { color, font } from '@/theme/tokens';
+import { font } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import { AppText } from '@/components/ui';
 import { LedGrid, twinkle } from '@/components/ui/led-grid';
 import { useIdleTwinkle } from '@/components/ui/use-idle-twinkle';
@@ -36,6 +37,8 @@ const TWINKLE_LOOP_MS = 24000;
 const TWINKLE_FALL = 400 / (TWINKLE_LOOP_MS / 6);
 
 export function EmptyState({ onAddLane }: { onAddLane: () => void }) {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   // Lazy useState, not useMemo: useMemo is a hint React may discard and
   // recompute, which would reshuffle the twinkle order mid-animation.
   const [seed] = useState(() => Math.floor(Math.random() * 0x7fffffff));
@@ -102,7 +105,7 @@ export function EmptyState({ onAddLane }: { onAddLane: () => void }) {
 }
 
 // Exact values from Paper 22T-0: min-h 430, py 72, px 44, gap 20.
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   root: {
     flex: 1,
     minHeight: 430,
@@ -142,5 +145,4 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: color.label,
   },
-  ctaLabel: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: '#000000' },
-});
+  ctaLabel: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: '#000000' },}));

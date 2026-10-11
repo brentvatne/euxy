@@ -11,7 +11,7 @@
  * distinct icon with zero effort), pre-selected and scrolled into view.
  */
 import { useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ScrollView, TextInput, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 import { router } from 'expo-router';
 
@@ -27,7 +27,8 @@ import { allChipNames, randomChipName, type ChipName } from '@/components/patter
 import { IconPicker } from '@/components/patterns/icon-picker';
 import { ResolutionPicker } from '@/components/patterns/resolution-picker';
 import { useStore } from '@/state/store';
-import { color, font, HIT_SLOP, radius, space, timing, selection } from '@/theme/tokens';
+import { font, HIT_SLOP, radius, space, timing } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
@@ -41,6 +42,8 @@ const ICON_CHIP_SIZE = 56;
 const ICON_CHIP_STRIDE = ICON_CHIP_SIZE + 6 + 10;
 
 export default function NewPatternSheet() {
+  const styles = useStyles(stylesFor);
+  const { color, selection } = useTheme();
   useMarkInteractive();
   const bottomInset = useSheetBottomInset();
   const newPattern = useStore((s) => s.newPattern);
@@ -237,6 +240,7 @@ export default function NewPatternSheet() {
 /** Section headers match the Edit Lane sheet (Brent: that one is correct) —
  * title case, 17/22 semibold label3 — NOT small-caps micro labels. */
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  const styles = useStyles(stylesFor);
   return (
     <View style={styles.field}>
       <AppText style={styles.fieldLabel}>{label}</AppText>
@@ -245,7 +249,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   root: { flex: 1, backgroundColor: color.surface },
   grabberSpace: { height: 13 },
   scroll: { flex: 1 },
@@ -335,5 +339,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   createBtnPressed: { opacity: 0.85 },
-  createLabel: { color: color.ground, fontWeight: '600' },
-});
+  createLabel: { color: color.ground, fontWeight: '600' },}));

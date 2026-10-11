@@ -10,14 +10,15 @@
  * path and animates the playhead on the UI thread (see docs/design/README.md).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { generator } from '@/core/euclid';
 import { createMidiPort } from '@/midi/port';
 import type { MidiDevice } from '@/midi/types';
-import { color, font, radius, space, timing } from '@/theme/tokens';
+import { font, radius, space, timing } from '@/theme/tokens';
+import { themed, useStyles } from '@/theme/theme';
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = (n: number) => `${NOTE_NAMES[n % 12]}${Math.floor(n / 12) - 1}`;
@@ -47,6 +48,7 @@ const opXyFirst = (list: MidiDevice[]) => {
 };
 
 export default function Screen() {
+  const styles = useStyles(stylesFor);
   const insets = useSafeAreaInsets();
   const midi = useMemo(() => createMidiPort(), []);
 
@@ -382,6 +384,7 @@ function Stepper({
   onDec: () => void;
   onInc: () => void;
 }) {
+  const styles = useStyles(stylesFor);
   return (
     <View style={styles.stepperRow}>
       <Text style={styles.stepperLabel}>{label}</Text>
@@ -407,6 +410,7 @@ function Segmented({
   index: number;
   onChange: (i: number) => void;
 }) {
+  const styles = useStyles(stylesFor);
   return (
     <View style={styles.segmented}>
       {options.map((opt, i) => (
@@ -421,7 +425,7 @@ function Segmented({
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   root: { flex: 1, backgroundColor: color.ground },
   content: { padding: space.lg, paddingBottom: 48, gap: space.lg },
 
@@ -554,5 +558,4 @@ const styles = StyleSheet.create({
   clockTag: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   clockDot: { width: 6, height: 6, borderRadius: 999, backgroundColor: color.playhead },
   clockText: { fontFamily: font.mono, fontSize: 11, color: color.playhead },
-  logLine: { fontFamily: font.mono, fontSize: 11, color: color.label3 },
-});
+  logLine: { fontFamily: font.mono, fontSize: 11, color: color.label3 },}));

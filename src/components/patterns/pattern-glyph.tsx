@@ -12,7 +12,7 @@
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { color } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme';
 import { LedGrid, twinkle as twinkleOrder } from '@/components/ui/led-grid';
 import { useIdleTwinkle } from '@/components/ui/use-idle-twinkle';
 
@@ -24,6 +24,7 @@ const TWINKLE_LOOP_MS = 20000;
 const TWINKLE_FALL = 400 / (TWINKLE_LOOP_MS / 5);
 
 export function PatternGlyph({ size = 22, twinkle = false }: { size?: number; twinkle?: boolean }) {
+  const { color } = useTheme();
   const u = size / 22;
   // Lazy useState, not useMemo: useMemo is a hint React may discard and
   // recompute, which would reshuffle the twinkle order mid-animation.

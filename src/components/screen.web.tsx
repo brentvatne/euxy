@@ -6,13 +6,14 @@
  * Web MIDI, pick the output, send notes, and watch traffic both directions.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
 import { generator } from '@/core/euclid';
 import { createMidiPort } from '@/midi/port';
 import type { InboundEvent, MidiDevice } from '@/midi/types';
-import { color, font, radius, space } from '@/theme/tokens';
+import { font, radius, space } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 
 const describe = (e: InboundEvent) =>
   e.type === 'noteon'
@@ -26,6 +27,8 @@ const describe = (e: InboundEvent) =>
 const PATTERN = generator(4, 16, 0);
 
 export default function ScreenWeb() {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   const midi = useMemo(() => createMidiPort(), []);
   const supported = useMemo(() => midi.isSupported(), [midi]);
 
@@ -179,7 +182,7 @@ export default function ScreenWeb() {
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   root: { flex: 1, backgroundColor: color.ground },
   content: { padding: space.lg, gap: space.lg, maxWidth: 520, width: '100%', alignSelf: 'center' },
   header: { gap: 2, paddingTop: space.xl },
@@ -212,5 +215,4 @@ const styles = StyleSheet.create({
 
   logBox: { backgroundColor: color.displayBg, borderRadius: radius.cell, padding: space.lg, gap: 4, minHeight: 160 },
   logTitle: { fontFamily: font.mono, fontSize: 11, color: color.label4 },
-  logLine: { fontFamily: font.mono, fontSize: 12, color: color.label3 },
-});
+  logLine: { fontFamily: font.mono, fontSize: 12, color: color.label3 },}));
