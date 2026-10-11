@@ -75,8 +75,16 @@ final class Sampler {
 
   // MARK: transport
 
-  /// Bring the audio session + engine up. Idempotent; called when built-in
-  /// sound turns on and again from `trigger` after an interruption.
+  /// Built-in sound turned on: remember it and bring the engine up. A failure
+  /// here (no output route yet, interruption still in progress) is not an
+  /// error for the caller; `trigger` keeps retrying the start while active.
+  func activate() {
+    lock.lock(); active = true; lock.unlock()
+    try? start()
+  }
+
+  /// Bring the audio session + engine up. Idempotent; called from `activate`
+  /// and again from `trigger` after an interruption.
   func start() throws {
     lock.lock(); active = true; lock.unlock()
     let session = AVAudioSession.sharedInstance()

@@ -29,7 +29,7 @@ public class AudioModule: Module {
     Function("unloadAll") { self.sampler.unloadAll() }
 
     Function("setActive") { (on: Bool) in
-      if on { try self.sampler.start() } else { self.sampler.stop() }
+      if on { self.sampler.activate() } else { self.sampler.stop() }
     }
     Function("stopAll") { self.sampler.stopAll() }
 
