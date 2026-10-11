@@ -43,8 +43,10 @@ export function effectiveKit(): SoundKit {
 }
 
 let loadedKit: SoundKit = 'off';
+let failedKit: SoundKit = 'off';
 let loading: Promise<void> | null = null;
 let activeKit: SoundKit = 'off';
+let nativeActive = false;
 let wired = false;
 
 async function loadKit(kit: Exclude<SoundKit, 'off'>): Promise<void> {
@@ -62,23 +64,31 @@ async function loadKit(kit: Exclude<SoundKit, 'off'>): Promise<void> {
   loadedKit = kit;
 }
 
+function setNativeActive(on: boolean): void {
+  if (!native || nativeActive === on) return;
+  nativeActive = on;
+  native.setActive(on);
+}
+
 /** Reconcile the native sampler with settings + connection state. Idempotent. */
 export function syncSound(): void {
   if (!native) return;
   const wanted = effectiveKit();
-  if (wanted === activeKit && (wanted === 'off' || wanted === loadedKit)) return;
+  activeKit = wanted;
   if (wanted === 'off') {
-    activeKit = 'off';
-    native.setActive(false);
+    setNativeActive(false);
     return;
   }
-  activeKit = wanted;
   if (wanted !== loadedKit) {
+    // A kit that failed to decode is not retried on every sync; picking
+    // another kit (or the same one again) tries afresh.
+    if (loading || wanted === failedKit) return;
     // Switching kits mid-play: the old one keeps sounding until the new one
     // is decoded (a few ms per file), then the next hit uses the new kit.
     const run = loadKit(wanted)
       .catch(() => {
         loadedKit = 'off';
+        failedKit = wanted;
       })
       .finally(() => {
         if (loading === run) loading = null;
@@ -88,7 +98,7 @@ export function syncSound(): void {
     loading = run;
     return;
   }
-  native.setActive(true);
+  setNativeActive(true);
 }
 
 /** Wire the store + MIDI runtime once (the engine calls this from init). */
@@ -100,6 +110,7 @@ export function initSound(): void {
     const { soundKit, outputId } = s.settings;
     if (soundKit === last.soundKit && outputId === last.outputId) return;
     last = s.settings;
+    if (soundKit === failedKit) failedKit = 'off';
     syncSound();
   });
   subscribeMidiRuntime(syncSound);
@@ -112,7 +123,7 @@ export function initSound(): void {
  * are one-shots, like the OP-XY drum voices they stand in for.
  */
 export function triggerSound(note: number, velocity: number, timeMs?: number): void {
-  if (!native || activeKit === 'off' || activeKit !== loadedKit) return;
+  if (!native || !nativeActive || activeKit !== loadedKit) return;
   const slot = slotKeyFor(note);
   if (!slot) return;
   const delay = timeMs != null ? Math.max(0, timeMs - nowMs()) : 0;
@@ -124,6 +135,6 @@ export function triggerSound(note: number, velocity: number, timeMs?: number): v
 
 /** Cut everything sounding (transport pause/stop, panic). */
 export function stopAllSound(): void {
-  if (!native || activeKit === 'off') return;
+  if (!native || !nativeActive) return;
   native.stopAll();
 }
