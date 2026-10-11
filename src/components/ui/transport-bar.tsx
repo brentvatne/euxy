@@ -381,7 +381,7 @@ const stylesFor = themed(({ color }) => ({
     height: 77,
     paddingVertical: space.md,
     paddingHorizontal: 18,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: color.ground,
     borderTopWidth: 1,
     borderTopColor: color.surface,
     // Subtle upward shadow so the pinned bar reads as floating over the lane
@@ -438,7 +438,7 @@ const stylesFor = themed(({ color }) => ({
   },
   recRing: { width: 16, height: 16, borderRadius: 999, borderWidth: 2 },
   recText: { gap: 1 },
-  recTitle: { fontFamily: font.text, fontWeight: '600', fontSize: 15, lineHeight: 18, color: '#FFFFFF' },
+  recTitle: { fontFamily: font.text, fontWeight: '600', fontSize: 15, lineHeight: 18, color: color.label },
   recSub: { fontFamily: font.text, fontWeight: '500', fontSize: 12, lineHeight: 16, color: color.label25 },
   right: { flex: 1, alignItems: 'flex-end' },
   modePill: {
@@ -460,7 +460,7 @@ const stylesFor = themed(({ color }) => ({
     bottom: 0,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#6E6E76',
+    borderColor: color.label3,
   },
   modeDot: { width: 7, height: 7, borderRadius: 999, backgroundColor: color.danger },
   modeLabel: {
@@ -471,4 +471,5 @@ const stylesFor = themed(({ color }) => ({
     letterSpacing: 0.88,
     color: color.label,
   },
-  modeLabelRec: { color: color.danger },}));
+  modeLabelRec: { color: color.danger },
+}));

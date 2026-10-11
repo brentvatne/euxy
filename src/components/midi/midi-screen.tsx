@@ -220,4 +220,5 @@ const stylesFor = themed(({ color }) => ({
   },
   panicDisabled: { opacity: 0.4 },
   panicPressed: { opacity: 0.7 },
-  panicText: { fontSize: 16, lineHeight: 20, fontWeight: '600', color: color.danger },}));
+  panicText: { fontSize: 16, lineHeight: 20, fontWeight: '600', color: color.danger },
+}));

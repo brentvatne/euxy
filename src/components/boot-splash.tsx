@@ -25,6 +25,7 @@
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
+import { themed, useStyles } from '@/theme/theme';
 import Animated, {
   Easing,
   ReduceMotion,
@@ -95,6 +96,7 @@ function bootTypeOnOrder(shades: string): (number | null)[] {
 }
 
 export function BootSplash() {
+  const styles = useStyles(stylesFor);
   const [done, setDone] = useState(false);
   const reduceMotion = useReducedMotion();
   const glyph = useMemo(() => bootGlyph(), []);
@@ -249,16 +251,15 @@ export function BootSplash() {
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   overlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#08080A',
+    backgroundColor: color.displayBg,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1000,
-  },
-});
+  },}));

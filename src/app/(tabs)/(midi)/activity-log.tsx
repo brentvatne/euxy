@@ -104,4 +104,5 @@ const stylesFor = themed(({ color }) => ({
   clockDot: { width: 7, height: 7, borderRadius: radius.chip },
   clockText: { fontSize: 12, lineHeight: 16 },
 
-  hint: { fontSize: 12, lineHeight: 16, color: color.label4, paddingHorizontal: space.xs },}));
+  hint: { fontSize: 12, lineHeight: 16, color: color.label4, paddingHorizontal: space.xs },
+}));

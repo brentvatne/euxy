@@ -179,7 +179,7 @@ const stylesFor = themed(({ color }) => ({
   rowPressed: { backgroundColor: color.surface2 },
   textCol: { flex: 1, gap: 2 },
   // Paper KL-0: name semibold 16/20 white; sub regular 13/16 label25.
-  name: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: '#FFFFFF' },
+  name: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: color.label },
   sub: { fontFamily: font.text, fontWeight: '400', fontSize: 13, lineHeight: 16, color: color.label25 },
   activeDot: {
     width: 8,
@@ -200,4 +200,5 @@ const stylesFor = themed(({ color }) => ({
     justifyContent: 'center',
     backgroundColor: color.danger,
   },
-  deleteText: { color: color.label, fontWeight: '600' },}));
+  deleteText: { color: color.label, fontWeight: '600' },
+}));

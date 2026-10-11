@@ -303,11 +303,12 @@ const stylesFor = themed(({ color }) => ({
     left: -6,
     right: -6,
     borderRadius: 6,
-    backgroundColor: '#F6F4F4',
+    backgroundColor: color.label,
   },
   disabled: { opacity: 0.35 },
   // Paper 8OU-0: 13/18 regular, px 20 (body is 16 → +4), first line #95959A,
   // second the dimmer #6E6E76 (Paper value; also the transport standby ring).
   footnotes: { gap: space.sm, paddingHorizontal: 4, paddingTop: space.xs },
   footnote: { fontFamily: font.text, fontSize: 13, lineHeight: 18, color: color.label3 },
-  footnoteDim: { fontFamily: font.text, fontSize: 13, lineHeight: 18, color: '#6E6E76' },}));
+  footnoteDim: { fontFamily: font.text, fontSize: 13, lineHeight: 18, color: color.label3 },
+}));

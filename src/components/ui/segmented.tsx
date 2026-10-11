@@ -126,4 +126,5 @@ const stylesFor = themed(({ color }) => ({
   segmentActive: { backgroundColor: color.label },
   activePill: { alignItems: 'center', justifyContent: 'center' },
   textActive: { color: color.ground, fontWeight: '700' },
-  textInactive: { color: color.label25, fontWeight: '600' },}));
+  textInactive: { color: color.label25, fontWeight: '600' },
+}));

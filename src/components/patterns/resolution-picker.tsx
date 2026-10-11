@@ -62,4 +62,5 @@ const stylesFor = themed(({ color }) => ({
   segmentActive: { backgroundColor: color.label },
   label: { fontWeight: '600' },
   labelIdle: { color: color.label3 },
-  labelActive: { color: color.ground, fontWeight: '700' },}));
+  labelActive: { color: color.ground, fontWeight: '700' },
+}));

@@ -172,17 +172,17 @@ const stylesFor = themed(({ color }) => ({
     flex: 1,
     height: 40,
     borderRadius: 4,
-    backgroundColor: '#232328', // natural key (Paper 02c)
+    backgroundColor: color.padNatural, // natural key (Paper 02c)
     alignItems: 'center',
     justifyContent: 'flex-end',
     paddingBottom: 4,
   },
-  padSharp: { backgroundColor: '#1A1A1F' },
+  padSharp: { backgroundColor: color.padSharp },
   padSelected: {
     backgroundColor: color.label,
     justifyContent: 'flex-start',
     paddingTop: 4,
-    shadowColor: '#FFFFFF',
+    shadowColor: color.label,
     shadowOpacity: 0.5,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 0 },
@@ -219,4 +219,5 @@ const stylesFor = themed(({ color }) => ({
     fontSize: 12,
     lineHeight: 15,
     color: color.label25,
-  },}));
+  },
+}));

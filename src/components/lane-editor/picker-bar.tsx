@@ -88,4 +88,5 @@ const stylesFor = themed(({ color }) => ({
   activePill: { alignItems: 'center', justifyContent: 'center', borderRadius: 7 },
   label: { fontFamily: font.text, lineHeight: 16, textAlign: 'center' },
   labelActive: { color: color.ground, fontWeight: '700' },
-  labelInactive: { color: color.label25, fontWeight: '600' },}));
+  labelInactive: { color: color.label25, fontWeight: '600' },
+}));

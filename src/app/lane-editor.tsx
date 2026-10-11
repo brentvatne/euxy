@@ -853,4 +853,5 @@ const stylesFor = themed(({ color }) => ({
   },
   deleteLabel: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: color.danger },
   // Press-down feedback for cells/rows (dim, not travel — wide surfaces).
-  pressedDim: { opacity: 0.65 },}));
+  pressedDim: { opacity: 0.65 },
+}));

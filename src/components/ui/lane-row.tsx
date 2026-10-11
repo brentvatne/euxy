@@ -179,12 +179,12 @@ const stylesFor = themed(({ color }) => ({
     gap: 4,
   },
   msLabel: { fontFamily: font.text, fontWeight: '700', fontSize: 15, lineHeight: 18, color: color.labelDisabled },
-  msLabelActive: { color: '#FFFFFF' },
-  msBar: { width: 14, height: 3, borderRadius: 2, backgroundColor: '#26262b' },
+  msLabelActive: { color: color.label },
+  msBar: { width: 14, height: 3, borderRadius: 2, backgroundColor: color.surface2 },
   msBarActive: {
     borderRadius: 2,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#FFFFFF',
+    backgroundColor: color.label,
+    shadowColor: color.label,
     shadowOpacity: 0.95,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 0 },
@@ -200,4 +200,5 @@ const stylesFor = themed(({ color }) => ({
   },
   // Press-down feedback for large surfaces (concept H's "face one shade
   // darker", as dim — travel would warp wide rows).
-  pressedDim: { opacity: 0.65 },}));
+  pressedDim: { opacity: 0.65 },
+}));

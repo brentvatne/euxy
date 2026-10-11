@@ -73,4 +73,5 @@ const stylesFor = themed(({ color }) => ({
   right: { alignItems: 'flex-end' },
   center: { flex: 2, alignItems: 'center' },
   // Paper 16G-0: Cancel is 17/22 regular in the label25 gray (not label3).
-  cancel: { fontFamily: font.text, fontSize: 17, lineHeight: 22, fontWeight: '400', color: color.label25 },}));
+  cancel: { fontFamily: font.text, fontSize: 17, lineHeight: 22, fontWeight: '400', color: color.label25 },
+}));

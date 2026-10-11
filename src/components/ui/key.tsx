@@ -5,8 +5,9 @@
  * a thin light ring that blooms out and fades. Pure Reanimated on the UI
  * thread; a drop-in Pressable replacement (no PanResponder anywhere).
  */
-import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { type StyleProp, type ViewStyle } from 'react-native';
 import { Pressable, type PressableProps } from 'react-native-gesture-handler';
+import { themed, useStyles } from '@/theme/theme';
 import Animated, {
   Easing,
   ReduceMotion,
@@ -42,6 +43,7 @@ export interface KeyProps extends Omit<PressableProps, 'style'> {
 }
 
 export function Key({ style, ack = false, haptic = 'light', travelRelease, onPressIn, onPressOut, children, ...rest }: KeyProps) {
+  const styles = useStyles(stylesFor);
   const down = useSharedValue(0);
   const ring = useSharedValue(0);
 
@@ -83,7 +85,7 @@ export function Key({ style, ack = false, haptic = 'light', travelRelease, onPre
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   ring: {
     position: 'absolute',
     top: 0,
@@ -92,11 +94,10 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: 999,
     borderWidth: 1.5,
-    borderColor: '#F6F4F4',
+    borderColor: color.label,
     // The ring blooms via transform: scale. Clipping flips RN onto the
     // CALayer border path (vector, scales crisp); unclipped borders are
     // rasterized with a nearest-neighbor magnification filter and alias
     // as they grow. No children, so the clip costs nothing.
     overflow: 'hidden',
-  },
-});
+  },}));

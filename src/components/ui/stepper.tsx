@@ -97,4 +97,5 @@ const stylesFor = themed(({ color }) => ({
     justifyContent: 'center',
   },
   btnDisabled: { opacity: 0.5 },
-  valueBox: { minWidth: 56, alignItems: 'center' },}));
+  valueBox: { minWidth: 56, alignItems: 'center' },
+}));

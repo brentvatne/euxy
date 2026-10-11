@@ -151,13 +151,14 @@ const stylesFor = themed(({ color }) => ({
     lineHeight: 22,
     color: color.label,
   },
-  keyLabelDark: { color: '#101014' },
+  keyLabelDark: { color: color.ground },
   footnote: {
     fontFamily: font.text,
     fontSize: 12,
     lineHeight: 16,
-    color: '#6E6E76',
+    color: color.label3,
     textAlign: 'center',
     paddingTop: 12,
     paddingHorizontal: 16,
-  },}));
+  },
+}));

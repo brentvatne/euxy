@@ -328,7 +328,7 @@ const stylesFor = themed(({ color }) => ({
     left: -6,
     right: -6,
     borderRadius: 6,
-    backgroundColor: '#F6F4F4',
+    backgroundColor: color.label,
   },
   createBtn: {
     marginTop: space.sm,
@@ -339,4 +339,5 @@ const stylesFor = themed(({ color }) => ({
     justifyContent: 'center',
   },
   createBtnPressed: { opacity: 0.85 },
-  createLabel: { color: color.ground, fontWeight: '600' },}));
+  createLabel: { color: color.ground, fontWeight: '600' },
+}));

@@ -558,4 +558,5 @@ const stylesFor = themed(({ color }) => ({
   clockTag: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   clockDot: { width: 6, height: 6, borderRadius: 999, backgroundColor: color.playhead },
   clockText: { fontFamily: font.mono, fontSize: 11, color: color.playhead },
-  logLine: { fontFamily: font.mono, fontSize: 11, color: color.label3 },}));
+  logLine: { fontFamily: font.mono, fontSize: 11, color: color.label3 },
+}));

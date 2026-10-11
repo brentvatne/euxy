@@ -215,4 +215,5 @@ const stylesFor = themed(({ color }) => ({
 
   logBox: { backgroundColor: color.displayBg, borderRadius: radius.cell, padding: space.lg, gap: 4, minHeight: 160 },
   logTitle: { fontFamily: font.mono, fontSize: 11, color: color.label4 },
-  logLine: { fontFamily: font.mono, fontSize: 12, color: color.label3 },}));
+  logLine: { fontFamily: font.mono, fontSize: 12, color: color.label3 },
+}));

@@ -87,4 +87,5 @@ const stylesFor = themed(({ color }) => ({
     backgroundColor: color.surface2,
     alignItems: 'center',
     justifyContent: 'center',
-  },}));
+  },
+}));

@@ -94,4 +94,5 @@ const stylesFor = themed(({ color }) => ({
   },
   label: { fontFamily: font.text, fontSize: 15, lineHeight: 20, textAlign: 'center' },
   labelActive: { color: color.ground, fontWeight: '700' },
-  labelInactive: { color: color.label25, fontWeight: '600' },}));
+  labelInactive: { color: color.label25, fontWeight: '600' },
+}));

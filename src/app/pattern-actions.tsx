@@ -161,4 +161,5 @@ const stylesFor = themed(({ color }) => ({
   destructive: { color: color.danger },
   first: { borderTopLeftRadius: OUTER, borderTopRightRadius: OUTER, borderBottomLeftRadius: INNER, borderBottomRightRadius: INNER },
   middle: { borderRadius: INNER },
-  last: { borderTopLeftRadius: INNER, borderTopRightRadius: INNER, borderBottomLeftRadius: OUTER, borderBottomRightRadius: OUTER },}));
+  last: { borderTopLeftRadius: INNER, borderTopRightRadius: INNER, borderBottomLeftRadius: OUTER, borderBottomRightRadius: OUTER },
+}));

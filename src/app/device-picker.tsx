@@ -131,4 +131,5 @@ const stylesFor = themed(({ color }) => ({
   rowLast: { borderTopLeftRadius: INNER, borderTopRightRadius: INNER, borderBottomLeftRadius: OUTER, borderBottomRightRadius: OUTER },
 
   searching: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.md, paddingTop: space.md },
-  hint: { flex: 1, fontSize: 13, lineHeight: 18, color: color.label3 },}));
+  hint: { flex: 1, fontSize: 13, lineHeight: 18, color: color.label3 },
+}));

@@ -253,7 +253,7 @@ const stylesFor = themed(({ color }) => ({
     fontSize: 22,
     lineHeight: 28,
     letterSpacing: -0.44,
-    color: '#FFFFFF',
+    color: color.label,
   },
   chevron: { marginTop: 4 },
   right: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -268,5 +268,5 @@ const stylesFor = themed(({ color }) => ({
   },
   pillPressed: { opacity: 0.6 },
   pillDot: { width: 7, height: 7, borderRadius: 999 },
-  pillText: { fontFamily: font.text, fontWeight: '600', fontSize: 13, lineHeight: 16, color: '#EBEBEB' },
+  pillText: { fontFamily: font.text, fontWeight: '600', fontSize: 13, lineHeight: 16, color: color.label },
 }));

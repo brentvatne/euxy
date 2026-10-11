@@ -60,4 +60,5 @@ export const StepBlock = memo(function StepBlock({
 const stylesFor = themed(({ color }) => ({
   base: { borderRadius: radius.step },
   grow: { flex: 1 },
-  active: { borderWidth: 2, borderColor: color.label },}));
+  active: { borderWidth: 2, borderColor: color.label },
+}));

@@ -83,4 +83,5 @@ export default function ChannelLinkRoute() {
 }
 
 const stylesFor = themed(({ color }) => ({
-  root: { flex: 1, backgroundColor: color.ground },}));
+  root: { flex: 1, backgroundColor: color.ground },
+}));

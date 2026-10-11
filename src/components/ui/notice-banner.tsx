@@ -114,4 +114,5 @@ const stylesFor = themed(({ color }) => ({
     borderRadius: radius.chip,
     backgroundColor: color.surface,
   },
-  text: { fontSize: 12, lineHeight: 16, color: color.label2, letterSpacing: 0.6 },}));
+  text: { fontSize: 12, lineHeight: 16, color: color.label2, letterSpacing: 0.6 },
+}));

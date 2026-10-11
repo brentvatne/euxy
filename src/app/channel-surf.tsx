@@ -324,4 +324,5 @@ const stylesFor = themed(({ color }) => ({
   clearBtn: { marginTop: space.md, alignItems: 'center', paddingVertical: 6 },
   clearLabel: { fontSize: 13, lineHeight: 18, fontWeight: '500', color: color.label3 },
 
-  footnote: { fontSize: 12, lineHeight: 16, color: color.label4, paddingTop: 10, paddingHorizontal: space.md },}));
+  footnote: { fontSize: 12, lineHeight: 16, color: color.label4, paddingTop: 10, paddingHorizontal: space.md },
+}));

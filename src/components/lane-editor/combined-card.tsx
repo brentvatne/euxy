@@ -28,6 +28,7 @@ import Animated, {
 import { generator, withRotation } from '@/core/euclid';
 import { patternForLane } from '@/state/selectors';
 import type { Lane } from '@/state/types';
+import { alpha } from '@/theme/tokens';
 import { themed, useStyles, useTheme } from '@/theme/theme';
 import { FlickerBloom } from '@/components/ui/flicker-bloom';
 import { Led } from '@/components/ui/led';
@@ -67,9 +68,6 @@ export function combinedCardHeight(steps: number): number {
 /** Curtain sweep across all 16 columns (concept J, ~350ms). */
 const SWEEP_MS = 350;
 
-/** Attribution dots (Paper 02x concept C): G1 bright, G2 dim. */
-const G1_DOT = '#98989F';
-const G2_DOT = '#5B5D63';
 
 export function CombinedCard({
   lane,
@@ -332,14 +330,14 @@ const stylesFor = themed(({ color }) => ({
     width: TICK_W,
     height: TICK_H,
     borderRadius: TICK_RADIUS,
-    backgroundColor: 'rgba(255,255,255,0.85)',
-    shadowColor: '#FFFFFF',
+    backgroundColor: alpha(color.label, 0.85),
+    shadowColor: color.label,
     shadowOpacity: 0.45,
     shadowRadius: 2,
     shadowOffset: { width: 0, height: 0 },
   },
   tickLightFill: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: color.label,
     shadowOpacity: 0.6,
     outlineWidth: 1,
     outlineColor: 'rgba(0,0,0,0.40)',
@@ -353,8 +351,9 @@ const stylesFor = themed(({ color }) => ({
     gap: 2,
   },
   attrDot: { width: 3, height: 3, borderRadius: 999 },
-  attrG1: { backgroundColor: G1_DOT },
-  attrG2: { backgroundColor: G2_DOT },
+  // Attribution dots (Paper 02x concept C): G1 bright, G2 dim.
+  attrG1: { backgroundColor: color.label25 },
+  attrG2: { backgroundColor: color.labelDisabled },
   // Concept J: the wash layer is clipped to the lane's steps (see RerollWash),
   // so the curtain never paints outside the lane it belongs to.
   washClip: {
@@ -369,7 +368,7 @@ const stylesFor = themed(({ color }) => ({
     position: 'absolute',
     height: CELL_H,
     borderRadius: 3,
-    backgroundColor: '#F6F4F4',
+    backgroundColor: color.label,
   },
   // The curtain: a soft light band with a brighter leading edge + glow. Full
   // height of the clip (which is the grid's box) — the old -4 overhang bled
@@ -379,7 +378,7 @@ const stylesFor = themed(({ color }) => ({
     top: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: 'rgba(246,244,244,0.10)',
+    backgroundColor: alpha(color.label, 0.10),
     borderRadius: 4,
   },
   curtainEdge: {
@@ -388,9 +387,9 @@ const stylesFor = themed(({ color }) => ({
     bottom: 0,
     width: 2,
     borderRadius: 1,
-    backgroundColor: '#F6F4F4',
+    backgroundColor: color.label,
     opacity: 0.55,
-    shadowColor: '#F6F4F4',
+    shadowColor: color.label,
     shadowOpacity: 0.9,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 0 },
@@ -401,11 +400,12 @@ const stylesFor = themed(({ color }) => ({
     width: 6,
     height: 6,
     borderRadius: 999,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: color.label,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.45)',
-    shadowColor: '#FFFFFF',
+    shadowColor: color.label,
     shadowOpacity: 1,
     shadowRadius: 3.5,
     shadowOffset: { width: 0, height: 0 },
-  },}));
+  },
+}));

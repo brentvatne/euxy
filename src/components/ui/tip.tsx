@@ -135,4 +135,5 @@ const stylesFor = themed(({ color }) => ({
     // label2 on the lighter panel falls to ~4.2:1; primary label holds the copy
     // legible, and the popover is only up for as long as it's needed anyway.
     color: color.label,
-  },}));
+  },
+}));

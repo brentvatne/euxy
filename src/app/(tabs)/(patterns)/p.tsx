@@ -142,5 +142,6 @@ const stylesFor = themed(({ color }) => ({
   keyPrimary: { backgroundColor: color.label },
   pressed: { transform: [{ scale: 0.97 }] },
   keyLabel: { fontFamily: font.text, fontWeight: '600', fontSize: 17, lineHeight: 22, color: color.label },
-  keyLabelDark: { color: '#101014' },
-  footnote: { fontFamily: font.text, fontSize: 12, lineHeight: 16, color: '#6E6E76', textAlign: 'center' },}));
+  keyLabelDark: { color: color.ground },
+  footnote: { fontFamily: font.text, fontSize: 12, lineHeight: 16, color: color.label3, textAlign: 'center' },
+}));

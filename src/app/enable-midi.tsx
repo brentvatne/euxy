@@ -87,4 +87,5 @@ const stylesFor = themed(({ color }) => ({
   error: { fontSize: 13, lineHeight: 18, color: color.danger, textAlign: 'center' },
 
   notice: { flexDirection: 'row', gap: 10, marginTop: 6, marginHorizontal: space.lg, paddingVertical: 13, paddingHorizontal: 15, borderRadius: 11, backgroundColor: '#241207', borderWidth: 1, borderColor: '#5A3A12' },
-  noticeText: { flex: 1, fontSize: 13, lineHeight: 19, color: '#D8B98A' },}));
+  noticeText: { flex: 1, fontSize: 13, lineHeight: 19, color: '#D8B98A' },
+}));

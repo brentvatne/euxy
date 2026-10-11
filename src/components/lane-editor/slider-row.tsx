@@ -143,7 +143,7 @@ export function SliderRow({
         maximumValue={safeMax}
         step={step}
         disabled={empty}
-        minimumTrackTintColor="#EBEBEB"
+        minimumTrackTintColor={color.label}
         maximumTrackTintColor={trackColor}
         thumbTintColor={color.label}
         onValueChange={(v) => {
@@ -167,4 +167,5 @@ const stylesFor = themed(({ color }) => ({
   head: { flexDirection: 'row', justifyContent: 'space-between' },
   label: { fontFamily: font.text, fontWeight: '500', fontSize: 14, lineHeight: 18, color: color.label25 },
   value: { fontFamily: font.text, fontWeight: '600', fontSize: 14, lineHeight: 18, color: color.label },
-  slider: { height: 28 },}));
+  slider: { height: 28 },
+}));

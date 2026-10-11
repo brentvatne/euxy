@@ -303,4 +303,5 @@ const stylesFor = themed(({ color }) => ({
   // iOS grouped-list footer action: quiet text button under the list.
   restoreAll: { alignItems: 'center', paddingVertical: 18 },
   restoreAllLabel: { fontSize: 13, lineHeight: 18, color: color.label3, fontWeight: '500' },
-  pressedDim: { opacity: 0.65 },}));
+  pressedDim: { opacity: 0.65 },
+}));

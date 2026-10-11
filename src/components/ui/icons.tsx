@@ -16,7 +16,9 @@ export interface IconProps {
 }
 
 /** Skip-to-start (rewind transport to tick 0). Paper CO-0. */
-export function IconSkipToStart({ size = 24, color = '#EBEBEB' }: IconProps) {
+export function IconSkipToStart({ size = 24, color: cProp }: IconProps) {
+  const { color: palette } = useTheme();
+  const color = cProp ?? palette.label;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path d="M6 5h2v14H6zM20 5L9 12l11 7z" fill={color} />
@@ -25,7 +27,9 @@ export function IconSkipToStart({ size = 24, color = '#EBEBEB' }: IconProps) {
 }
 
 /** Play triangle. Paper CO-0 (rendered black on the white circular button). */
-export function IconPlay({ size = 24, color = '#000000' }: IconProps) {
+export function IconPlay({ size = 24, color: cProp }: IconProps) {
+  const { color: palette } = useTheme();
+  const color = cProp ?? palette.ground;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path d="M8 5v14l11-7z" fill={color} />
@@ -34,7 +38,9 @@ export function IconPlay({ size = 24, color = '#000000' }: IconProps) {
 }
 
 /** Pause (playing state of the transport button). */
-export function IconPause({ size = 24, color = '#000000' }: IconProps) {
+export function IconPause({ size = 24, color: cProp }: IconProps) {
+  const { color: palette } = useTheme();
+  const color = cProp ?? palette.ground;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Rect x="6" y="5" width="4" height="14" rx="1" fill={color} />
@@ -44,7 +50,9 @@ export function IconPause({ size = 24, color = '#000000' }: IconProps) {
 }
 
 /** Stop square. Paper CO-0. */
-export function IconStop({ size = 22, color = '#EBEBEB' }: IconProps) {
+export function IconStop({ size = 22, color: cProp }: IconProps) {
+  const { color: palette } = useTheme();
+  const color = cProp ?? palette.label;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Rect x="6" y="6" width="12" height="12" rx="2" fill={color} />

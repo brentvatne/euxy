@@ -124,4 +124,5 @@ const stylesFor = themed(({ color }) => ({
     backgroundColor: color.surface3,
     alignItems: 'center',
     justifyContent: 'center',
-  },}));
+  },
+}));

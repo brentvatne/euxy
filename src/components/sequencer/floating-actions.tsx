@@ -81,7 +81,7 @@ import {
   liquidGlassAvailable,
   useHapticRamp,
 } from "@/lib/shims";
-import { ramp, timing } from "@/theme/tokens";
+import { alpha, ramp, timing } from "@/theme/tokens";
 import { Key } from "@/components/ui/key";
 
 /** The capsule shell itself animates its size during a charge, so the glass
@@ -1970,7 +1970,7 @@ const stylesFor = themed(({ color }) => ({
     // the solid fallback. Armed brightening is the separate armedRim
     // overlay, which can be thicker without heavying this rest chrome.
     borderWidth: 2 * SS,
-    borderColor: "rgba(255,255,255,0.07)",
+    borderColor: alpha(color.label, 0.07),
     shadowColor: "#000000",
     shadowOpacity: 0.4,
     shadowRadius: 24 * SS,
@@ -2012,8 +2012,8 @@ const stylesFor = themed(({ color }) => ({
   // Downbeat bloom over the light pixel's rest cell (TL).
   pipGlow: {
     transform: [{ translateX: PIP_COORD[0] }, { translateY: PIP_COORD[0] }],
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#FFFFFF",
+    backgroundColor: color.label,
+    shadowColor: color.label,
     shadowOpacity: 0.8,
     shadowRadius: 3 * SS,
     shadowOffset: { width: 0, height: 0 },
@@ -2030,7 +2030,7 @@ const stylesFor = themed(({ color }) => ({
   keyInvert: {
     ...FILL,
     borderRadius: 999,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: color.label,
   },
   keyFlash: {
     ...FILL,
@@ -2042,7 +2042,7 @@ const stylesFor = themed(({ color }) => ({
     height: 11 * SS,
     borderRadius: 999,
     borderWidth: 1.5 * SS,
-    borderColor: "#8E8E93",
+    borderColor: color.label4,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2057,8 +2057,8 @@ const stylesFor = themed(({ color }) => ({
   },
   // Jump-back blip: a hot white glow over the lit dot.
   ghostDotPulse: {
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#FFFFFF",
+    backgroundColor: color.label,
+    shadowColor: color.label,
     shadowOpacity: 1,
     shadowRadius: 6 * SS,
     shadowOffset: { width: 0, height: 0 },
@@ -2073,8 +2073,8 @@ const stylesFor = themed(({ color }) => ({
     bottom: 0,
     borderRadius: 999,
     borderWidth: 3 * SS,
-    borderColor: "rgba(255,255,255,0.25)",
-    shadowColor: "#FFFFFF",
+    borderColor: alpha(color.label, 0.25),
+    shadowColor: color.label,
     shadowOpacity: 0.4,
     shadowRadius: 16 * SS,
     shadowOffset: { width: 0, height: 0 },
@@ -2093,7 +2093,7 @@ const stylesFor = themed(({ color }) => ({
     bottom: 0,
     borderRadius: 999,
     borderWidth: 3 * SS,
-    borderColor: "rgba(255,255,255,0.35)",
+    borderColor: alpha(color.label, 0.35),
     overflow: "hidden",
   },
   // Keep progress bar — pinned right/bottom (the capsule's fixed corner) so
@@ -2132,8 +2132,8 @@ const stylesFor = themed(({ color }) => ({
     width: 5 * SS,
     height: 5 * SS,
     borderRadius: 999,
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#FFFFFF",
+    backgroundColor: color.label,
+    shadowColor: color.label,
     shadowOpacity: 0.8,
     shadowRadius: 3 * SS,
     shadowOffset: { width: 0, height: 0 },
@@ -2159,8 +2159,8 @@ const stylesFor = themed(({ color }) => ({
     width: RING_LED,
     height: RING_LED,
     borderRadius: 999,
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#FFFFFF",
+    backgroundColor: color.label,
+    shadowColor: color.label,
     shadowOpacity: 0.9,
     shadowRadius: 3 * SS,
     shadowOffset: { width: 0, height: 0 },
@@ -2174,8 +2174,8 @@ const stylesFor = themed(({ color }) => ({
     width: CHARGE_D,
     height: CHARGE_D,
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    shadowColor: "#FFFFFF",
+    backgroundColor: alpha(color.label, 0.05),
+    shadowColor: color.label,
     shadowOpacity: 0.9,
     shadowRadius: 22 * SS,
     shadowOffset: { width: 0, height: 0 },
@@ -2189,9 +2189,10 @@ const stylesFor = themed(({ color }) => ({
     height: DISCHARGE_D,
     borderRadius: 999,
     borderWidth: 1.5 * SS,
-    borderColor: "#FFFFFF",
+    borderColor: color.label,
     // Rides transform: scale (0.375 → 1). Clipping flips RN onto the
     // CALayer border path so the hairline scales as vector geometry
     // instead of a nearest-filtered bitmap. No children, no shadow.
     overflow: "hidden",
-  },}));
+  },
+}));

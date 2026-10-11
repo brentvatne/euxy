@@ -82,4 +82,5 @@ const stylesFor = themed(({ color }) => ({
     color: color.label3,
     paddingBottom: 12,
   },
-  content: { paddingHorizontal: 16, paddingBottom: space.xxl },}));
+  content: { paddingHorizontal: 16, paddingBottom: space.xxl },
+}));

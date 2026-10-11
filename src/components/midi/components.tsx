@@ -172,7 +172,7 @@ export function LatencySlider({
       step={1}
       minimumTrackTintColor={color.label}
       maximumTrackTintColor={color.surface2}
-      thumbTintColor="#FFFFFF"
+      thumbTintColor={color.label}
       onValueChange={(v) => onChange(Math.round(v))}
       style={styles.slider}
     />
@@ -198,4 +198,5 @@ const stylesFor = themed(({ color }) => ({
   badgeDot: { width: 7, height: 7, borderRadius: radius.chip },
   badgeText: { fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.3 },
 
-  slider: { height: 28 },}));
+  slider: { height: 28 },
+}));

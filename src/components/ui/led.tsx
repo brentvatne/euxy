@@ -23,9 +23,10 @@
  * (the wave-2 invisible-lane-list bug).
  */
 import { useState } from 'react';
-import { StyleSheet } from 'react-native';
+
 import Animated, { Easing, ReduceMotion, makeMutable, withTiming } from 'react-native-reanimated';
 import type { StyleProp, ViewStyle } from 'react-native';
+import { themed, useStyles } from '@/theme/theme';
 
 /**
  * While 1, LED exit decays are skipped (lights vanish with their cell).
@@ -77,6 +78,7 @@ const haloFlash = () => {
 };
 
 export function Led({ style, ignite = false }: { style?: StyleProp<ViewStyle>; ignite?: boolean }) {
+  const styles = useStyles(stylesFor);
   // Ignite is a MOUNT-TIME fact: call sites flip their first-render flag
   // right after mounting, and a later re-render must not retroactively
   // mount the halo — its entering would flash every already-lit LED.
@@ -91,7 +93,7 @@ export function Led({ style, ignite = false }: { style?: StyleProp<ViewStyle>; i
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   // The bloom halo: the dot's own footprint pre-scaled 1.6× (static — see
   // the perf rule above). Soft white, no shadow of its own: at 60% alpha
   // over the glowing dot it reads as the light flaring, not a second dot.
@@ -102,11 +104,10 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     borderRadius: 999,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: color.label,
     transform: [{ scale: 1.6 }],
     // Resting alpha is ZERO — the entering flash animates 0.85 → 0, so
     // whether the final animated value or the style wins after completion
     // (and under Reduced Motion), the halo ends invisible either way.
     opacity: 0,
-  },
-});
+  },}));

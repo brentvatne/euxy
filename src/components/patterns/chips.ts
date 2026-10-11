@@ -7,7 +7,12 @@
  */
 import type { Pattern } from '@/state/types';
 
+import type { Palette } from '@/theme/tokens';
+
+/** Dim / mid / lit chip shades of the dark scheme — what the share card (always dark) draws. */
 export const CHIP_SHADE_COLORS = ['#45454B', '#AFAFB3', '#F6F4F4'] as const;
+/** The same three shades for the active scheme. */
+export const chipShadeColorsFor = (color: Palette) => [color.surface4, color.tickLit, color.label] as const;
 
 export const CHIPS = {
   heart: '0101011111111110111000100',

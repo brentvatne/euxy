@@ -113,6 +113,13 @@ const darkColor = {
   stepEmptyDim: '#232325', // gen sub-rows
 
   // Functional-semantic exceptions — the ONLY non-gray colors allowed
+  // Instrument surfaces (Paper exact): note-pad keys, unlit LEDs, beat-ticker ticks.
+  padNatural: '#232328',
+  padSharp: '#1A1A1F',
+  ledUnlit: '#1A1A1F',
+  tickRest: '#2C2C2E',
+  tickLit: '#AFAFB3',
+
   playhead: '#7fd4c8', // faint desaturated cyan, echoes the OP-XY display
   connected: '#30D158', // success / device connected
   danger: '#FF453A', // record LED + destructive (Panic, swipe-delete)
@@ -146,10 +153,22 @@ const lightColor: Palette = {
   stepEmpty: '#dcdbe0',
   stepEmptyDim: '#e9e8ec',
 
+  padNatural: '#ffffff',
+  padSharp: '#dcdbe0',
+  ledUnlit: '#dcdbe0',
+  tickRest: '#dcdbe0',
+  tickLit: '#5e5e66',
+
   playhead: '#1f8f84',
   connected: '#248a3d',
   danger: '#ff3b30',
 };
+
+/** `hex` (#rrggbb) at `opacity`, as an rgba() string. */
+export function alpha(hex: string, opacity: number): string {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
 
 export type Palette = { [K in keyof typeof darkColor]: string };
 export type Scheme = 'dark' | 'light';
