@@ -111,12 +111,14 @@ const darkColor = {
   surface4: '#48484A', // grabber, active segment, controls inside a surface3 panel
   separator: '#1C1C1E',
   displayBg: '#08080a', // dot-matrix "device screen" panel (Graph view)
+  splash: '#08080a', // JS boot overlay; must equal the native splash background in app.json
 
   // Labels (text)
   label: '#f6f4f4', // primary + active/interactive
   label2: '#afafb3',
   label25: '#98989F', // section headers / secondary values (exact Paper gray between label2 and label3)
   label3: '#95959a', // secondary
+  trail: '#6e6e76', // trail grey: dim footnote line, transport standby ring, twinkle peak
   label4: '#797982', // tertiary
   labelDisabled: '#5A5A5E',
 
@@ -154,11 +156,13 @@ const lightColor: Palette = {
   surface4: '#cfced4',
   separator: '#f6f4f4',
   displayBg: '#ececef',
+  splash: '#f6f4f4',
 
   label: '#0a0a0c',
   label2: '#48484f',
   label25: '#5e5e66',
   label3: '#6e6e76',
+  trail: '#95959a',
   label4: '#8e8e95',
   labelDisabled: '#b4b4ba',
 

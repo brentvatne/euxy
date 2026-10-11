@@ -81,7 +81,7 @@ import {
   liquidGlassAvailable,
   useHapticRamp,
 } from "@/lib/shims";
-import { alpha, timing } from "@/theme/tokens";
+import { alpha, type Scheme, timing } from "@/theme/tokens";
 import { Key } from "@/components/ui/key";
 
 /** The capsule shell itself animates its size during a charge, so the glass
@@ -162,11 +162,12 @@ const PEAK_ORIGIN = (GLYPH - (PEAK_STEP * 4 + PEAK_CELL)) / 2;
  * weight onto white they closed the gaps and the bolt read as a grey block, so
  * the dim tier drops to a ghost and the lit tier goes nearly black.
  */
-const PEAK_SHADES = [
-  "rgba(10,10,10,0.07)",
-  "rgba(10,10,10,0.78)",
-  "#0A0A0A",
-] as const;
+const PEAK_SHADES: Record<Scheme, readonly [string, string, string]> = {
+  // Dark scheme: the key inverts to the light label, so the bolt is near-black.
+  dark: ["rgba(10,10,10,0.07)", "rgba(10,10,10,0.78)", "#0A0A0A"],
+  // Light scheme: the key inverts to the dark label, so the bolt is near-white.
+  light: ["rgba(246,244,244,0.07)", "rgba(246,244,244,0.78)", "#F6F4F4"],
+};
 /** Index of the centre pip within REST_CELLS — the one the pop collapses to. */
 const CENTER_PIP = 2;
 /** The dice's "light pixel" (E spec) — top-left pip: ticks the downbeat,
@@ -1457,7 +1458,7 @@ function ChargeDice({
       ],
     };
   });
-  // Peak inverts the key: white fill, dark pips, all nine lit.
+  // Peak inverts the key: label fill, ground-coloured pips, all nine lit.
   const invertStyle = useAnimatedStyle(() => ({ opacity: charge.peak.value }));
   // Beat 3 lifts the surface one shade on the way there.
   const liftStyle = useAnimatedStyle(() => ({
@@ -1604,6 +1605,8 @@ function PeakGlyph({
   peak: SharedValue<number>;
   collapse: SharedValue<number>;
 }) {
+  const { scheme } = useTheme();
+  const shades = PEAK_SHADES[scheme];
   const style = useAnimatedStyle(() => ({
     opacity: peak.value * (1 - collapse.value),
   }));
@@ -1623,7 +1626,7 @@ function PeakGlyph({
               width: PEAK_CELL,
               height: PEAK_CELL,
               borderRadius: PEAK_CELL * 0.3,
-              backgroundColor: PEAK_SHADES[shade],
+              backgroundColor: shades[shade],
               transform: [{ translateX: cx }, { translateY: cy }],
             }}
           />

@@ -37,7 +37,7 @@ const TWINKLE_FALL = 400 / (TWINKLE_LOOP_MS / 6);
 export function EmptyState({ onAddLane }: { onAddLane: () => void }) {
   const styles = useStyles(stylesFor);
   const { color } = useTheme();
-  const twinkleColors = useMemo(() => ['transparent', color.label] as const, [color]);
+  const twinkleColors = useMemo(() => ['transparent', color.trail] as const, [color]);
   // Lazy useState, not useMemo: useMemo is a hint React may discard and
   // recompute, which would reshuffle the twinkle order mid-animation.
   const [seed] = useState(() => Math.floor(Math.random() * 0x7fffffff));
