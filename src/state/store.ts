@@ -7,6 +7,7 @@
  * here re-renders on the tick — the playhead is driven off a Reanimated shared
  * value in the engine, not this store.
  */
+import type { SoundKit } from '@/audio/kits';
 import { create } from 'zustand';
 
 import { randomChipName } from '@/components/patterns/chips';
@@ -336,6 +337,8 @@ export interface AppState {
   setCountInBeats: (beats: number) => void;
   /** Pulse on every beat while playing (Tempo sheet, off by default). */
   setBeatHaptics: (on: boolean) => void;
+  /** Built-in sound kit (MIDI tab "Sound"; 'off' by default). */
+  setSoundKit: (kit: SoundKit) => void;
   setFloatBarCorner: (corner: 'left' | 'right') => void;
   /** Pick the order the Patterns library is listed in (library header "Sort
    * by"). Picking a new key starts it descending; picking the key that is
@@ -454,6 +457,7 @@ export const useStore = create<AppState>((set, get) => {
       patternSort: 'created',
       patternSortDir: 'desc',
       beatHaptics: false,
+      soundKit: 'off',
       ...persisted?.settings,
     },
 
@@ -695,6 +699,7 @@ export const useStore = create<AppState>((set, get) => {
     setLatencyOffsetMs: (latencyOffsetMs) => set((s) => ({ settings: { ...s.settings, latencyOffsetMs } })),
     setCountInBeats: (countInBeats) => set((s) => ({ settings: { ...s.settings, countInBeats } })),
     setBeatHaptics: (beatHaptics) => set((s) => ({ settings: { ...s.settings, beatHaptics } })),
+    setSoundKit: (soundKit) => set((s) => ({ settings: { ...s.settings, soundKit } })),
     setFloatBarCorner: (floatBarCorner) =>
       set((s) => ({ settings: { ...s.settings, floatBarCorner } })),
     // Same menu item does double duty, the way an iOS sort menu does: the first

@@ -10,6 +10,7 @@
  * `floor(globalTick / resolutionTicks) % length` — computed by the engine from
  * the global tick, not held here.
  */
+import type { SoundKit } from '@/audio/kits';
 
 /** How the two generators combine into the played pattern. */
 export type CombineOp = 'OR' | 'AND' | 'XOR' | 'A>B';
@@ -118,6 +119,13 @@ export interface Settings {
    * the store defaults it to false.
    */
   beatHaptics: boolean;
+  /**
+   * Built-in sound: which drum kit the phone itself plays the lanes with
+   * ('off' = none, the default). Only heard while NO MIDI output is connected
+   * — a connected device plays the notes, the kit stays chosen for later.
+   * Absent on old blobs — the store defaults it to 'off'.
+   */
+  soundKit: SoundKit;
 }
 
 export interface Selection {
