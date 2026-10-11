@@ -22,7 +22,9 @@ import { AppText } from '@/components/ui';
 import { LedGrid, twinkle } from '@/components/ui/led-grid';
 import { useIdleTwinkle } from '@/components/ui/use-idle-twinkle';
 
-// Bright/dim map of the Paper glyph, row-major ('1' = bright surface3 dot).
+// Bright/dim map of the Paper glyph, row-major ('1' = bright dot). Bright is
+// ramp[5] (one stop above stepEmpty in both schemes; surface3 equals
+// stepEmpty in light), dim is stepEmpty.
 const SHADES = '01001' + '10010' + '01001';
 // Twinkle peak — one palette step brighter than the bright dots (trail grey).
 const CELL = 10;
