@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useIsFirstRender } from '@/lib/use-is-first-render';
 import { router } from 'expo-router';
 import { ScrollView, View } from 'react-native';
-import { themed, useStyles, useTheme } from '@/theme/theme';
+import { themed, useStyles } from '@/theme/theme';
 import Animated, {
   FadeInDown,
   FadeOut,
@@ -51,7 +51,6 @@ function laneSubtitle(lane: Lane): string {
 // own 2s failsafe plus its ~900ms power-on.
 
 export default function SequencerScreen() {
-  const { color } = useTheme();
   const styles = useStyles(stylesFor);
   const insets = useSafeAreaInsets();
   const pattern = useActivePattern();
@@ -338,7 +337,7 @@ export default function SequencerScreen() {
 
       {/* Bottom inset includes the tab bar height inside NativeTabs — keeps
           the transport pinned above it, on the transport's own background. */}
-      <View style={{ paddingBottom: insets.bottom, backgroundColor: color.ground }}>
+      <View style={[styles.dock, { paddingBottom: insets.bottom }]}>
         <TransportBar
           playing={transport.playing}
           bpm={transport.bpm}
@@ -370,4 +369,15 @@ const stylesFor = themed(({ color }) => ({
   scroll: { flex: 1 },
   // Extra bottom padding so the last lane can scroll clear of the floating bar.
   scrollContent: { paddingBottom: 84 },
+  // Subtle upward shadow so the pinned transport reads as floating over the
+  // lane list scrolling beneath it (Paper 2026-07-24 depth pass). It lives on
+  // the dock, which runs to the screen's bottom edge, so the blur's downward
+  // spill lands off-screen instead of under the bar, above the tab bar.
+  dock: {
+    backgroundColor: color.ground,
+    shadowColor: '#000000',
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -8 },
+  },
 }));

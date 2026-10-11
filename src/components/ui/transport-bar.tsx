@@ -384,12 +384,8 @@ const stylesFor = themed(({ color, ramp }) => ({
     backgroundColor: color.ground,
     borderTopWidth: 1,
     borderTopColor: color.surface,
-    // Subtle upward shadow so the pinned bar reads as floating over the lane
-    // list scrolling beneath it (Paper 2026-07-24 depth pass).
-    shadowColor: '#000000',
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: -8 },
+    // No shadow here: a shadow on the bar itself bleeds below it onto the
+    // strip above the tab bar. The screen's dock casts the upward one.
   },
   bpmCol: { flex: 1 },
   pressedDim: { opacity: 0.65 },
