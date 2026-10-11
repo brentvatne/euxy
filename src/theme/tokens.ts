@@ -134,6 +134,7 @@ const darkColor = {
   ledUnlit: '#1A1A1F',
   tickRest: '#2C2C2E',
   tickLit: '#AFAFB3',
+  chipDim: '#45454B', // rest-dim cell of the pattern chip glyphs (Paper value; the share card draws this scheme)
 
   playhead: '#7fd4c8', // faint desaturated cyan, echoes the OP-XY display
   connected: '#30D158', // success / device connected
@@ -175,6 +176,7 @@ const lightColor: Palette = {
   ledUnlit: '#dcdbe0',
   tickRest: '#dcdbe0',
   tickLit: '#5e5e66',
+  chipDim: '#cfced4',
 
   playhead: '#1f8f84',
   connected: '#248a3d',
