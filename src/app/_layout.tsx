@@ -76,7 +76,7 @@ function RootLayout() {
     <SafeAreaProvider>
       <KeyboardProvider preload={false}>
       <ThemeProvider value={navTheme}>
-        <StatusBar style="light" />
+        <StatusBar style="auto" />
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.ground } }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen
