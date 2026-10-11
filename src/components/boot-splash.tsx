@@ -258,7 +258,7 @@ const stylesFor = themed(({ color }) => ({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: color.displayBg,
+    backgroundColor: color.ground,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1000,

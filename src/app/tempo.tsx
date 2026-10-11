@@ -252,7 +252,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const stylesFor = themed(({ color }) => ({
+const stylesFor = themed(({ color, ramp }) => ({
   root: { flex: 1, backgroundColor: color.surface },
   grabberSpace: { height: 13 },
   scroll: { flex: 1 },
@@ -310,5 +310,5 @@ const stylesFor = themed(({ color }) => ({
   // second the dimmer #6E6E76 (Paper value; also the transport standby ring).
   footnotes: { gap: space.sm, paddingHorizontal: 4, paddingTop: space.xs },
   footnote: { fontFamily: font.text, fontSize: 13, lineHeight: 18, color: color.label3 },
-  footnoteDim: { fontFamily: font.text, fontSize: 13, lineHeight: 18, color: color.label3 },
+  footnoteDim: { fontFamily: font.text, fontSize: 13, lineHeight: 18, color: ramp[2] },
 }));

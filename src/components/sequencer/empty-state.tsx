@@ -95,7 +95,7 @@ export function EmptyState({ onAddLane }: { onAddLane: () => void }) {
         accessibilityRole="button"
       >
         <Svg width={17} height={17} viewBox="0 0 24 24">
-          <Path d="M12 5v14M5 12h14" fill="none" stroke="#000000" strokeWidth={2.6} strokeLinecap="round" />
+          <Path d="M12 5v14M5 12h14" fill="none" stroke={color.ground} strokeWidth={2.6} strokeLinecap="round" />
         </Svg>
         <AppText style={styles.ctaLabel}>Add lane</AppText>
       </Pressable>
@@ -144,5 +144,5 @@ const stylesFor = themed(({ color }) => ({
     borderRadius: 12,
     backgroundColor: color.label,
   },
-  ctaLabel: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: '#000000' },
+  ctaLabel: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: color.ground },
 }));

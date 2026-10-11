@@ -31,8 +31,8 @@ import { playheadPlaying, playheadTick } from '@/core/playhead';
 import { patternForLane } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import type { Lane } from '@/state/types';
-import { alpha, stepFill } from '@/theme/tokens';
-import { themed, useStyles } from '@/theme/theme';
+import { alpha } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import { FlickerBloom } from '@/components/ui/flicker-bloom';
 import { Led as LedBase } from '@/components/ui/led';
 import { SKIA_STRIP_GLOW } from '@/lib/flags';
@@ -138,6 +138,7 @@ export const StepStrip = memo(StepStripBase, (prev, next) => {
 
 function StepStripBase({ lane, washDelay = 0, active = true }: StepStripProps) {
   const styles = useStyles(stylesFor);
+  const { stepFill } = useTheme();
   const pattern = patternForLane(lane);
   const n = pattern.length;
   const [width, setWidth] = useState(lastStripWidth);

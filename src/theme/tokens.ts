@@ -188,6 +188,9 @@ export type Scheme = 'dark' | 'light';
 
 export const palette: Record<Scheme, Palette> = { dark: darkColor, light: lightColor };
 
+/** The dark table under its old name: the web app (`web/`, dark-only, synced copy of this module) still reads it. */
+export const color: Palette = darkColor;
+
 /**
  * Key-ramp anchors for the light scheme: the dark anchors mirrored around the
  * ramp, so slot 1 is the faint cell just below the white surface and slot 16

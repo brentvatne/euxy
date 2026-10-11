@@ -460,7 +460,7 @@ const stylesFor = themed(({ color, ramp }) => ({
     bottom: 0,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: color.label3,
+    borderColor: ramp[2],
   },
   modeDot: { width: 7, height: 7, borderRadius: 999, backgroundColor: color.danger },
   modeLabel: {
