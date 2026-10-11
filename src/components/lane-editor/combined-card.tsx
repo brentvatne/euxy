@@ -15,7 +15,7 @@
  */
 import { useEffect, useState } from 'react';
 import { useIsFirstRender } from '@/lib/use-is-first-render';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -28,7 +28,8 @@ import Animated, {
 import { generator, withRotation } from '@/core/euclid';
 import { patternForLane } from '@/state/selectors';
 import type { Lane } from '@/state/types';
-import { color, stepFill } from '@/theme/tokens';
+import { alpha } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import { FlickerBloom } from '@/components/ui/flicker-bloom';
 import { Led } from '@/components/ui/led';
 // The card's columns ARE the sequencer strip's columns (same 16 slots, same
@@ -67,9 +68,6 @@ export function combinedCardHeight(steps: number): number {
 /** Curtain sweep across all 16 columns (concept J, ~350ms). */
 const SWEEP_MS = 350;
 
-/** Attribution dots (Paper 02x concept C): G1 bright, G2 dim. */
-const G1_DOT = '#98989F';
-const G2_DOT = '#5B5D63';
 
 export function CombinedCard({
   lane,
@@ -83,6 +81,8 @@ export function CombinedCard({
   /** 'rtl' replays the wash right-to-left (undo). */
   washDirection?: 'ltr' | 'rtl';
 }) {
+  const styles = useStyles(stylesFor);
+  const { stepFill } = useTheme();
   const n = lane.length;
   const combined = patternForLane(lane);
   // Generator sources are whole-track rotated like the combined row, so each
@@ -220,6 +220,7 @@ function RerollWash({
   cellW: number;
   width: number;
 }) {
+  const styles = useStyles(stylesFor);
   // The lane's own width: a row is only as wide as the steps it holds, so a
   // 12- or 8-step lane stops well short of the card's right edge.
   const cols = Math.min(PER_ROW, Math.max(1, steps));
@@ -309,7 +310,7 @@ function RerollWash({
 // for itself); cells 30 tall r3, 16/row, gap 3 inside a beat and 8 before each
 // downbeat; light 6px white, dark ring, glow, top-centered 3px from the top;
 // attribution row 3px dots, 4px tall.
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   card: {
     backgroundColor: color.stepEmptyDim,
     borderRadius: 12,
@@ -329,14 +330,14 @@ const styles = StyleSheet.create({
     width: TICK_W,
     height: TICK_H,
     borderRadius: TICK_RADIUS,
-    backgroundColor: 'rgba(255,255,255,0.85)',
-    shadowColor: '#FFFFFF',
+    backgroundColor: alpha(color.label, 0.85),
+    shadowColor: color.label,
     shadowOpacity: 0.45,
     shadowRadius: 2,
     shadowOffset: { width: 0, height: 0 },
   },
   tickLightFill: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: color.label,
     shadowOpacity: 0.6,
     outlineWidth: 1,
     outlineColor: 'rgba(0,0,0,0.40)',
@@ -350,8 +351,9 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   attrDot: { width: 3, height: 3, borderRadius: 999 },
-  attrG1: { backgroundColor: G1_DOT },
-  attrG2: { backgroundColor: G2_DOT },
+  // Attribution dots (Paper 02x concept C): G1 bright, G2 dim.
+  attrG1: { backgroundColor: color.label25 },
+  attrG2: { backgroundColor: color.labelDisabled },
   // Concept J: the wash layer is clipped to the lane's steps (see RerollWash),
   // so the curtain never paints outside the lane it belongs to.
   washClip: {
@@ -366,7 +368,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     height: CELL_H,
     borderRadius: 3,
-    backgroundColor: '#F6F4F4',
+    backgroundColor: color.label,
   },
   // The curtain: a soft light band with a brighter leading edge + glow. Full
   // height of the clip (which is the grid's box) — the old -4 overhang bled
@@ -376,7 +378,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: 'rgba(246,244,244,0.10)',
+    backgroundColor: alpha(color.label, 0.10),
     borderRadius: 4,
   },
   curtainEdge: {
@@ -385,9 +387,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: 2,
     borderRadius: 1,
-    backgroundColor: '#F6F4F4',
+    backgroundColor: color.label,
     opacity: 0.55,
-    shadowColor: '#F6F4F4',
+    shadowColor: color.label,
     shadowOpacity: 0.9,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 0 },
@@ -398,12 +400,12 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 999,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: color.label,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.45)',
-    shadowColor: '#FFFFFF',
+    shadowColor: color.label,
     shadowOpacity: 1,
     shadowRadius: 3.5,
     shadowOffset: { width: 0, height: 0 },
   },
-});
+}));

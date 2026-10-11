@@ -17,7 +17,8 @@ import { StyleSheet, View } from 'react-native';
 import { SFSymbol } from '@/components/ui';
 import { haptics } from '@/lib/shims';
 import type { Pattern, PatternSort, PatternSortDir } from '@/state/types';
-import { color, space } from '@/theme/tokens';
+import { space } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme';
 
 /** Shared with the iOS header's native Sort menu, so both list the same orders. */
 export const SORT_OPTIONS = [
@@ -69,6 +70,7 @@ export function SortMenuButton({
   dir: PatternSortDir;
   onChange: (sort: PatternSort) => void;
 }) {
+  const { color } = useTheme();
   const actions: MenuAction[] = SORT_OPTIONS.map((o) => ({
     ...o,
     // MenuAction has no subtitle field, so off iOS the direction rides in the

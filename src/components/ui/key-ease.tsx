@@ -15,10 +15,11 @@
  * (`useReducedMotion` → `{ type: 'none' }`); ease has no built-in support.
  */
 import { useState } from 'react';
-import { StyleSheet } from 'react-native';
+
 import { Pressable } from 'react-native-gesture-handler';
 import { EaseView } from 'react-native-ease';
 import { useReducedMotion } from 'react-native-reanimated';
+import { themed, useStyles } from '@/theme/theme';
 
 import { haptics } from '@/lib/shims';
 import type { KeyProps } from './key';
@@ -30,6 +31,7 @@ const NONE = { type: 'none' } as const;
 
 /** Drop-in for `Key` — identical public shape. */
 export function KeyEase({ style, ack = false, haptic = 'light', onPressIn, onPressOut, children, ...rest }: KeyProps) {
+  const styles = useStyles(stylesFor);
   const reduced = useReducedMotion();
   const [down, setDown] = useState(false);
   // Monotonic shot id — each release remounts the ring so its
@@ -71,7 +73,7 @@ export function KeyEase({ style, ack = false, haptic = 'light', onPressIn, onPre
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   ring: {
     position: 'absolute',
     top: 0,
@@ -80,6 +82,5 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: 999,
     borderWidth: 1.5,
-    borderColor: '#F6F4F4',
-  },
-});
+    borderColor: color.label,
+  },}));

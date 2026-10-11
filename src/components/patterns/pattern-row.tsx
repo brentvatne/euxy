@@ -6,7 +6,7 @@
  * separators.
  */
 import { memo, useRef } from 'react';
-import { StyleSheet, View, Platform } from 'react-native';
+import { View, Platform } from 'react-native';
 // Gesture-handler's Pressable, NOT React Native's: when the swipe pan
 // activates it CANCELS the press natively. RN's Pressable races it — a
 // mid-swipe finger lift fired onPress (load + tab switch), which is why
@@ -19,7 +19,8 @@ import ReanimatedSwipeable, {
 import { AppText, SFSymbol } from '@/components/ui';
 import { haptics } from '@/lib/shims';
 import type { Pattern } from '@/state/types';
-import { color, font, radius, space } from '@/theme/tokens';
+import { font, radius, space } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import { chipForPattern } from './chips';
 import { LedChip } from './led-chip';
 
@@ -53,6 +54,8 @@ function editedLabel(updatedAt: number): string {
 }
 
 function PatternRowImpl({ pattern, active, playing = false, first, last, onPress, onDelete, onLongPress, onReset }: PatternRowProps) {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   const swipeRef = useRef<SwipeableMethods>(null);
   // A swipe must never double as a select: while the row is dragged or open,
   // a tap only closes the swipe.
@@ -156,7 +159,7 @@ function PatternRowImpl({ pattern, active, playing = false, first, last, onPress
 
 export const PatternRow = memo(PatternRowImpl);
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   swipeContainer: {
     marginBottom: 1,
     // Red so the sliver behind the row during a swipe reads as the Delete
@@ -176,7 +179,7 @@ const styles = StyleSheet.create({
   rowPressed: { backgroundColor: color.surface2 },
   textCol: { flex: 1, gap: 2 },
   // Paper KL-0: name semibold 16/20 white; sub regular 13/16 label25.
-  name: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: '#FFFFFF' },
+  name: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: color.label },
   sub: { fontFamily: font.text, fontWeight: '400', fontSize: 13, lineHeight: 16, color: color.label25 },
   activeDot: {
     width: 8,
@@ -198,4 +201,4 @@ const styles = StyleSheet.create({
     backgroundColor: color.danger,
   },
   deleteText: { color: color.label, fontWeight: '600' },
-});
+}));

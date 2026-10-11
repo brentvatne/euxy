@@ -10,7 +10,8 @@
  * (playhead cyan, connected green, record/destructive red). Do not introduce
  * hues for lane differentiation, accents, or decoration.
  *
- * Styling: consume these tokens directly with React Native `StyleSheet`
+ * Styling: consume these tokens through `useTheme()` / `themed()` in
+ * src/theme/theme.ts (one palette per color scheme) with React Native `StyleSheet`
  * (and `Color` from expo-router for native semantic colors where relevant).
  * Do NOT use NativeWind / Tailwind — this module is the single style source.
  */
@@ -28,6 +29,19 @@ export const ramp = {
   6: '#2f2f36',
   7: '#16161d',
   8: '#000000', // ground
+} as const;
+
+/** The monoramp mirrored for the light scheme: same 9 stops, dark → light, so `ramp[n]` keeps its role in either scheme. */
+export const lightRamp = {
+  0: '#0a0a0c', // primary label / active / play
+  1: '#48484f',
+  2: '#6e6e76',
+  3: '#8c8c92',
+  4: '#a4a4aa',
+  5: '#bdbdc3',
+  6: '#dcdbe0',
+  7: '#e9e8ec',
+  8: '#f6f4f4', // ground
 } as const;
 
 /**
@@ -84,7 +98,7 @@ export function stepFill(slot: number): string {
   return stepRamp[((slot % 16) + 16) % 16];
 }
 
-export const color = {
+const darkColor = {
   // Surfaces
   ground: '#000000', // app background (also OLED-friendly)
   surface: '#1C1C1E', // grouped cell / bars
@@ -97,12 +111,14 @@ export const color = {
   surface4: '#48484A', // grabber, active segment, controls inside a surface3 panel
   separator: '#1C1C1E',
   displayBg: '#08080a', // dot-matrix "device screen" panel (Graph view)
+  splash: '#08080a', // JS boot overlay; must equal the native splash background in app.json
 
   // Labels (text)
   label: '#f6f4f4', // primary + active/interactive
   label2: '#afafb3',
   label25: '#98989F', // section headers / secondary values (exact Paper gray between label2 and label3)
   label3: '#95959a', // secondary
+  trail: '#6e6e76', // trail grey: dim footnote line, transport standby ring, twinkle peak
   label4: '#797982', // tertiary
   labelDisabled: '#5A5A5E',
 
@@ -112,20 +128,122 @@ export const color = {
   stepEmptyDim: '#232325', // gen sub-rows
 
   // Functional-semantic exceptions — the ONLY non-gray colors allowed
+  // Instrument surfaces (Paper exact): note-pad keys, unlit LEDs, beat-ticker ticks.
+  padNatural: '#232328',
+  padSharp: '#1A1A1F',
+  ledUnlit: '#1A1A1F',
+  tickRest: '#2C2C2E',
+  tickLit: '#AFAFB3',
+  chipDim: '#45454B', // rest-dim cell of the pattern chip glyphs (Paper value; the share card draws this scheme)
+
   playhead: '#7fd4c8', // faint desaturated cyan, echoes the OP-XY display
   connected: '#30D158', // success / device connected
   danger: '#FF453A', // record LED + destructive (Panic, swipe-delete)
 } as const;
 
 /**
+ * Light scheme: the same monoramp read from the other end. Ground is the ramp's
+ * brightest stop (#f6f4f4), cells are white one step above it, and the label
+ * ramp runs dark→light in the same order as the dark scheme's runs light→dark,
+ * so every "label3 on surface" pairing keeps roughly the same contrast. The
+ * three functional colors shift to their light-background values (darker cyan,
+ * iOS light-mode green/red) so they stay legible on white.
+ */
+const lightColor: Palette = {
+  ground: '#f6f4f4',
+  surface: '#ffffff',
+  surface2: '#e9e8ec',
+  surface3: '#dcdbe0',
+  surface4: '#cfced4',
+  separator: '#f6f4f4',
+  displayBg: '#ececef',
+  splash: '#f6f4f4',
+
+  label: '#0a0a0c',
+  label2: '#48484f',
+  label25: '#5e5e66',
+  label3: '#6e6e76',
+  trail: '#95959a',
+  label4: '#8e8e95',
+  labelDisabled: '#b4b4ba',
+
+  stepHit: '#48484f',
+  stepEmpty: '#dcdbe0',
+  stepEmptyDim: '#e9e8ec',
+
+  padNatural: '#ffffff',
+  padSharp: '#dcdbe0',
+  ledUnlit: '#dcdbe0',
+  tickRest: '#dcdbe0',
+  tickLit: '#5e5e66',
+  chipDim: '#cfced4',
+
+  playhead: '#1f8f84',
+  connected: '#248a3d',
+  danger: '#ff3b30',
+};
+
+/** `hex` (#rrggbb) at `opacity`, as an rgba() string. */
+export function alpha(hex: string, opacity: number): string {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
+export type Palette = { [K in keyof typeof darkColor]: string };
+export type Scheme = 'dark' | 'light';
+
+export const palette: Record<Scheme, Palette> = { dark: darkColor, light: lightColor };
+
+/** The dark table under its old name: the web app (`web/`, dark-only, synced copy of this module) still reads it. */
+export const color: Palette = darkColor;
+
+/**
+ * Key-ramp anchors for the light scheme: the dark anchors mirrored around the
+ * ramp, so slot 1 is the faint cell just below the white surface and slot 16
+ * the darkest key — a 16-step row still sweeps the full ramp, now light → dark,
+ * and still never reaches the label color.
+ */
+export const lightKeyRamp = [
+  '#E9E8EC', // pair 1-2 — just under the white cell
+  '#DCDBE0',
+  '#BDBDC3',
+  '#A4A4AA',
+  '#8C8C92',
+  '#7C7C82',
+  '#5B5B61',
+  '#3A3A40', // pair 15-16 — tops out above the label, never black
+] as const;
+
+/** `anchors` resampled to 16 shades, one per slot (same derivation as `stepRamp`). */
+export function resampleRamp(anchors: readonly string[]): string[] {
+  const rgb = anchors.map((hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)));
+  return Array.from({ length: 16 }, (_, slot) => {
+    const p = (slot * (rgb.length - 1)) / 15;
+    const lo = Math.floor(p);
+    const hi = Math.min(rgb.length - 1, lo + 1);
+    const t = p - lo;
+    const channels = rgb[lo].map((v, k) => Math.round(v + (rgb[hi][k] - v) * t));
+    return `#${channels.map((v) => v.toString(16).toUpperCase().padStart(2, '0')).join('')}`;
+  });
+}
+
+export const lightStepRamp = resampleRamp(lightKeyRamp);
+
+/** Fill for a step at `slot` in the given scheme (see `stepFill`). */
+export function stepFillFor(scheme: Scheme, slot: number): string {
+  return (scheme === 'light' ? lightStepRamp : stepRamp)[((slot % 16) + 16) % 16];
+}
+
+/**
  * TextInput selection highlight. iOS draws it translucent, so the primary label
  * works; Android paints it solid (hiding the selected text) and also uses it
  * for the cursor, so it gets a translucent label there (cursorColor stays solid).
  */
-export const selection = Platform.select({
-  android: 'rgba(246, 244, 244, 0.35)',
-  default: color.label,
-});
+export const selectionFor = (scheme: Scheme): string =>
+  Platform.select({
+    android: scheme === 'light' ? 'rgba(10, 10, 12, 0.25)' : 'rgba(246, 244, 244, 0.35)',
+    default: palette[scheme].label,
+  }) as string;
 
 /**
  * Fonts. SF Pro Display for large/headers, SF Pro Text for body/controls on

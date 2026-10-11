@@ -18,7 +18,6 @@ import { useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import { MenuView } from '@expo/ui/community/menu';
 import {
-  StyleSheet,
   TextInput,
   View,
   type NativeScrollEvent,
@@ -34,7 +33,8 @@ import { haptics, logObserveEvent } from '@/lib/shims';
 import { useLane } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import type { CombineOp, Lane } from '@/state/types';
-import { color, font, radius, ramp, space } from '@/theme/tokens';
+import { font, radius, space } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 import { AppText, SFSymbol, SheetHeader, Tip } from '@/components/ui';
 import { KeyboardAwareScrollView } from '@/components/ui/keyboard';
@@ -130,6 +130,7 @@ function Section({
   gapAfter?: boolean;
   children: React.ReactNode;
 }) {
+  const styles = useStyles(stylesFor);
   return (
     <View style={[styles.section, gapAfter && styles.sectionGapAfter]}>
       {title ? (
@@ -147,6 +148,8 @@ function Section({
 }
 
 export default function LaneEditorSheet() {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   useMarkInteractive();
   const bottomInset = useSheetBottomInset();
   const laneId = useStore((s) => s.selection.laneId);
@@ -693,7 +696,7 @@ export default function LaneEditorSheet() {
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color, ramp }) => ({
   root: { flex: 1, backgroundColor: color.surface },
   grabberSpace: { height: 13 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -851,4 +854,4 @@ const styles = StyleSheet.create({
   deleteLabel: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: color.danger },
   // Press-down feedback for cells/rows (dim, not travel — wide surfaces).
   pressedDim: { opacity: 0.65 },
-});
+}));

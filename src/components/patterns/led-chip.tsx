@@ -7,10 +7,12 @@
  */
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion } from 'react-native-reanimated';
+import { alpha } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 
 import { bootChipProgress } from '@/components/boot-signal';
 import { playheadPlaying, playheadTick } from '@/core/playhead';
-import { CHIP_SHADE_COLORS } from './chips';
+import { chipShadeColorsFor } from './chips';
 
 /** Geometry from the Paper chip: a 152px chip holds a 22-unit grid (cell 3.2,
  * gap 1) with equal padding around — everything scales off `size`. */
@@ -29,6 +31,8 @@ export function LedChip({
    * grid decays — the glyph's identity arriving in its header slot. */
   relightOnBoot?: boolean;
 }) {
+  const chipShades = chipShadeColorsFor(useTheme().color);
+  const styles = useStyles(stylesFor);
   const unit = (size * 0.58) / 22; // grid occupies ~58% of the chip, centered
   const cell = 3.2 * unit;
   const gap = unit;
@@ -52,7 +56,7 @@ export function LedChip({
                 width: cell,
                 height: cell,
                 borderRadius: cell * 0.3,
-                backgroundColor: CHIP_SHADE_COLORS[shade],
+                backgroundColor: chipShades[shade],
               };
               if (relightOnBoot && shade > 0 && !reduceMotion) {
                 return (
@@ -61,7 +65,7 @@ export function LedChip({
                     orderIndex={litIndex++}
                     litCount={litCount}
                     style={cellStyle}
-                    dimColor={CHIP_SHADE_COLORS[0]}
+                    dimColor={chipShades[0]}
                   />
                 );
               }
@@ -117,6 +121,7 @@ function RelightCell({
 /** The playhead column: one column per 16th (6 ticks at 24 PPQN), wrapping
  * the 5 columns. A soft light wash — the "wall of tiny hardware LEDs". */
 function Sweep({ cellW, gap, height }: { cellW: number; gap: number; height: number }) {
+  const styles = useStyles(stylesFor);
   const style = useAnimatedStyle(() => {
     const col = Math.floor(playheadTick.value / 6) % 5;
     return {
@@ -132,9 +137,9 @@ function Sweep({ cellW, gap, height }: { cellW: number; gap: number; height: num
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   chip: {
-    backgroundColor: '#2C2C2E',
+    backgroundColor: color.surface2,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -143,7 +148,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
-    backgroundColor: 'rgba(246,244,244,0.28)',
+    backgroundColor: alpha(color.label, 0.28),
   },
   // The sweep's settled equivalent: same light, spread over the whole grid, so
   // the total brightness reads similar to one lit column travelling.
@@ -151,6 +156,5 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
-    backgroundColor: 'rgba(246,244,244,0.10)',
-  },
-});
+    backgroundColor: alpha(color.label, 0.10),
+  },}));

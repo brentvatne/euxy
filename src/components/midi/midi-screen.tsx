@@ -8,7 +8,7 @@
  */
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect } from 'react';
-import { Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, ScrollView, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
 import { AppText, Segmented } from '@/components/ui';
@@ -17,8 +17,9 @@ import { reportFirstScreenLayout } from '@/components/boot-signal';
 import { haptics } from '@/lib/shims';
 import { useActivePattern, useSettings, useTransport } from '@/state/selectors';
 import { useStore } from '@/state/store';
-import { color, space } from '@/theme/tokens';
-import { Cell, ClockModeToggle, ConnectionBadge, GRAY, Group, LatencySlider, PushRow, SectionHeader, ValueRow } from './components';
+import { space } from '@/theme/tokens';
+import { themed, useStyles } from '@/theme/theme';
+import { Cell, ClockModeToggle, ConnectionBadge, Group, LatencySlider, PushRow, SectionHeader, ValueRow } from './components';
 import { enableMidi, panic, refreshDevices, setLatency, useMidiRuntime } from './runtime';
 
 const LATENCY_MIN = -120;
@@ -30,6 +31,7 @@ const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 
 const noteName = (n: number) => `${NOTE_NAMES[n % 12]}${Math.floor(n / 12) - 2}`;
 
 export default function MidiScreen() {
+  const styles = useStyles(stylesFor);
   const rt = useMidiRuntime();
 
   // Re-enumerate whenever the tab gains focus — a device plugged in while
@@ -182,7 +184,7 @@ export default function MidiScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   root: { flex: 1, backgroundColor: color.ground },
   content: { paddingBottom: 40 },
 
@@ -190,21 +192,21 @@ const styles = StyleSheet.create({
   connName: { fontSize: 16, lineHeight: 20, fontWeight: '600', color: color.label },
 
   rowLabel: { fontSize: 16, lineHeight: 20, color: color.label },
-  rowLabelDisabled: { color: GRAY },
-  rowValue: { fontSize: 16, lineHeight: 20, fontWeight: '500', color: GRAY },
+  rowLabelDisabled: { color: color.label25 },
+  rowValue: { fontSize: 16, lineHeight: 20, fontWeight: '500', color: color.label25 },
 
   latencyCell: { flexDirection: 'column', alignItems: 'stretch', gap: 10, paddingVertical: 14 },
   latencyHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionFooter: {
     fontSize: 13,
     lineHeight: 18,
-    color: GRAY,
+    color: color.label25,
     paddingHorizontal: space.xl + space.md,
     paddingTop: 8,
   },
-  latencyValue: { fontSize: 16, lineHeight: 20, fontWeight: '600', color: GRAY },
+  latencyValue: { fontSize: 16, lineHeight: 20, fontWeight: '600', color: color.label25 },
 
-  emptyRouting: { fontSize: 16, lineHeight: 20, color: GRAY },
+  emptyRouting: { fontSize: 16, lineHeight: 20, color: color.label25 },
 
   panicWrap: { paddingTop: 22, paddingBottom: 8, paddingHorizontal: space.lg },
   panic: {
@@ -219,4 +221,4 @@ const styles = StyleSheet.create({
   panicDisabled: { opacity: 0.4 },
   panicPressed: { opacity: 0.7 },
   panicText: { fontSize: 16, lineHeight: 20, fontWeight: '600', color: color.danger },
-});
+}));

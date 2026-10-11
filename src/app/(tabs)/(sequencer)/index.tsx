@@ -8,7 +8,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useIsFirstRender } from '@/lib/use-is-first-render';
 import { router } from 'expo-router';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import Animated, {
   FadeInDown,
   FadeOut,
@@ -30,7 +31,6 @@ import { postNotice } from '@/lib/notice';
 import { haptics, logObserveEvent } from '@/lib/shims';
 import { useBeatHaptics } from '@/lib/use-beat-haptics';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
-import { color } from '@/theme/tokens';
 import { LaneRow, TransportBar } from '@/components/ui';
 import { useScreenFocused } from '@/components/ui/use-screen-focused';
 import { chipForPattern } from '@/components/patterns/chips';
@@ -51,6 +51,8 @@ function laneSubtitle(lane: Lane): string {
 // own 2s failsafe plus its ~900ms power-on.
 
 export default function SequencerScreen() {
+  const { color } = useTheme();
+  const styles = useStyles(stylesFor);
   const insets = useSafeAreaInsets();
   const pattern = useActivePattern();
   const lanes = pattern.lanes;
@@ -336,7 +338,7 @@ export default function SequencerScreen() {
 
       {/* Bottom inset includes the tab bar height inside NativeTabs — keeps
           the transport pinned above it, on the transport's own background. */}
-      <View style={{ paddingBottom: insets.bottom, backgroundColor: '#0A0A0A' }}>
+      <View style={{ paddingBottom: insets.bottom, backgroundColor: color.ground }}>
         <TransportBar
           playing={transport.playing}
           bpm={transport.bpm}
@@ -362,10 +364,10 @@ export default function SequencerScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   root: { flex: 1, backgroundColor: color.ground },
   listArea: { flex: 1 },
   scroll: { flex: 1 },
   // Extra bottom padding so the last lane can scroll clear of the floating bar.
   scrollContent: { paddingBottom: 84 },
-});
+}));

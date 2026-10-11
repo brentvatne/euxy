@@ -7,9 +7,10 @@
  * lays the chips out as one non-wrapping row instead (New Pattern's ICON
  * group, scrolled sideways by its host).
  */
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
+import { themed, useStyles } from '@/theme/theme';
 
 import { haptics } from '@/lib/shims';
 import { lightDecay } from '@/components/ui/led';
@@ -32,6 +33,7 @@ export function IconPicker({
   /** Chip size in px — the grid's 76 unless the host is tighter on space. */
   size?: number;
 }) {
+  const styles = useStyles(stylesFor);
   return (
     <View>
       <View style={[styles.grid, horizontal && styles.row]}>
@@ -64,7 +66,7 @@ export function IconPicker({
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -84,7 +86,6 @@ const styles = StyleSheet.create({
     bottom: -2,
     borderRadius: 21,
     borderWidth: 2,
-    borderColor: '#F6F4F4',
+    borderColor: color.label,
   },
-  pressedDim: { opacity: 0.65 },
-});
+  pressedDim: { opacity: 0.65 },}));

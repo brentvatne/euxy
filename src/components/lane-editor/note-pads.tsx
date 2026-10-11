@@ -9,14 +9,15 @@
  * AND previews it out the lane's channel so you hear the target track.
  */
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
 import { sendTestNote } from '@/components/midi/runtime';
 import { midiNoteName } from '@/core/note';
 import { haptics } from '@/lib/shims';
 import { drumSlotName } from '@/core/opxy';
-import { color, font } from '@/theme/tokens';
+import { font } from '@/theme/tokens';
+import { themed, useStyles } from '@/theme/theme';
 import { AppText } from '@/components/ui';
 
 /**
@@ -45,6 +46,7 @@ export interface NotePadsProps {
 }
 
 export function NotePads({ note, velocity, channel, onSelect }: NotePadsProps) {
+  const styles = useStyles(stylesFor);
   // Window opens on the F row holding the current note (bottom row). Pitches
   // under F-2 (MIDI 0–4) live in the octave below the lowest F row, so let the
   // floor drop there for them — the selected pad stays on screen, and the pads
@@ -117,6 +119,7 @@ function PadRow({
   note: number;
   onPick: (note: number) => void;
 }) {
+  const styles = useStyles(stylesFor);
   return (
     <View style={styles.row}>
       {Array.from({ length: 12 }, (_, i) => {
@@ -151,7 +154,7 @@ function PadRow({
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   // Sits between the Note and Track·Channel cells (cellMid shape). Same
   // surface3 as the revealed track row: the grid is content nested under the
   // Note cell, not another cell in the group, so it must not share the cell's
@@ -169,17 +172,17 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 40,
     borderRadius: 4,
-    backgroundColor: '#232328', // natural key (Paper 02c)
+    backgroundColor: color.padNatural, // natural key (Paper 02c)
     alignItems: 'center',
     justifyContent: 'flex-end',
     paddingBottom: 4,
   },
-  padSharp: { backgroundColor: '#1A1A1F' },
+  padSharp: { backgroundColor: color.padSharp },
   padSelected: {
     backgroundColor: color.label,
     justifyContent: 'flex-start',
     paddingTop: 4,
-    shadowColor: '#FFFFFF',
+    shadowColor: color.label,
     shadowOpacity: 0.5,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 0 },
@@ -217,4 +220,4 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     color: color.label25,
   },
-});
+}));

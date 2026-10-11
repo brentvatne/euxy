@@ -18,7 +18,7 @@ import {
 import { clickable, fillMaxWidth, padding } from '@expo/ui/jetpack-compose/modifiers';
 
 import type { Pattern } from '@/state/types';
-import { color } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme';
 import { type PatternMenuAction, patternMenuActions } from './pattern-menu-actions';
 
 export function usePatternMenu(promptRename: (pattern: Pattern) => void) {
@@ -44,6 +44,7 @@ function PatternMenuSheet({
   actions: PatternMenuAction[];
   onClose: () => void;
 }) {
+  const { color } = useTheme();
   const sheet = useRef<ModalBottomSheetRef>(null);
   const pick = async (action: PatternMenuAction) => {
     // Let the sheet animate out before the action opens the next sheet or
@@ -81,6 +82,7 @@ function PatternMenuSheet({
 }
 
 function ActionRow({ action, onPick }: { action: PatternMenuAction; onPick: () => void }) {
+  const { color } = useTheme();
   return (
     <ListItem
       modifiers={[clickable(onPick)]}

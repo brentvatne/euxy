@@ -38,6 +38,7 @@
  * = the rim itself brightens to 35% white (no drawn outline).
  */
 import { useEffect, useRef, useState } from "react";
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import {
   PixelRatio,
   StyleSheet,
@@ -80,7 +81,7 @@ import {
   liquidGlassAvailable,
   useHapticRamp,
 } from "@/lib/shims";
-import { color, ramp, timing } from "@/theme/tokens";
+import { alpha, type Scheme, timing } from "@/theme/tokens";
 import { Key } from "@/components/ui/key";
 
 /** The capsule shell itself animates its size during a charge, so the glass
@@ -161,11 +162,12 @@ const PEAK_ORIGIN = (GLYPH - (PEAK_STEP * 4 + PEAK_CELL)) / 2;
  * weight onto white they closed the gaps and the bolt read as a grey block, so
  * the dim tier drops to a ghost and the lit tier goes nearly black.
  */
-const PEAK_SHADES = [
-  "rgba(10,10,10,0.07)",
-  "rgba(10,10,10,0.78)",
-  "#0A0A0A",
-] as const;
+const PEAK_SHADES: Record<Scheme, readonly [string, string, string]> = {
+  // Dark scheme: the key inverts to the light label, so the bolt is near-black.
+  dark: ["rgba(10,10,10,0.07)", "rgba(10,10,10,0.78)", "#0A0A0A"],
+  // Light scheme: the key inverts to the dark label, so the bolt is near-white.
+  light: ["rgba(246,244,244,0.07)", "rgba(246,244,244,0.78)", "#F6F4F4"],
+};
 /** Index of the centre pip within REST_CELLS — the one the pop collapses to. */
 const CENTER_PIP = 2;
 /** The dice's "light pixel" (E spec) — top-left pip: ticks the downbeat,
@@ -523,6 +525,7 @@ export function FloatingActions({
   onRevert: () => void;
   onKeep: () => void;
 }) {
+  const styles = useStyles(stylesFor);
   const reducedMotion = useReducedMotion();
   const { width: screenW } = useWindowDimensions();
 
@@ -930,6 +933,7 @@ function ChargeRing({
   charge: Charge;
   reducedMotion: boolean;
 }) {
+  const styles = useStyles(stylesFor);
   const glowStyle = useAnimatedStyle(() => ({
     opacity: 0.5 * charge.bloom.value,
   }));
@@ -979,6 +983,7 @@ function RingLed({
   charge: Charge;
   reducedMotion: boolean;
 }) {
+  const styles = useStyles(stylesFor);
   const style = useAnimatedStyle(() => {
     // Reduced Motion: a four-segment stepper that snaps on tier boundaries
     // instead of sweeping one LED per 16th.
@@ -1017,6 +1022,8 @@ function RingLed({
 /** Add lane — the + rotates 90° while pressed (E spec), then the existing
  * lane slide-in takes over. */
 function AddKey({ onPress }: { onPress: () => void }) {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   const down = useSharedValue(0);
   const rotStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${down.value * 90}deg` }],
@@ -1096,6 +1103,7 @@ function ChargeDice({
   onRoll: (tier: ChargeTier) => void;
   onChargeCommit: (tier: ChargeTier) => void;
 }) {
+  const styles = useStyles(stylesFor);
   const [scatter, setScatter] = useState<{
     nonce: number;
     frames: number[][][];
@@ -1450,7 +1458,7 @@ function ChargeDice({
       ],
     };
   });
-  // Peak inverts the key: white fill, dark pips, all nine lit.
+  // Peak inverts the key: label fill, ground-coloured pips, all nine lit.
   const invertStyle = useAnimatedStyle(() => ({ opacity: charge.peak.value }));
   // Beat 3 lifts the surface one shade on the way there.
   const liftStyle = useAnimatedStyle(() => ({
@@ -1540,6 +1548,8 @@ function Pip({
   collapse: SharedValue<number>;
   isCenter: boolean;
 }) {
+  const styles = useStyles(stylesFor);
+  const { color, scheme } = useTheme();
   const x = useSharedValue(PIP_COORD[rest[0]]);
   const y = useSharedValue(PIP_COORD[rest[1]]);
   useEffect(() => {
@@ -1575,7 +1585,7 @@ function Pip({
       backgroundColor: interpolateColor(
         peak.value,
         [0, 1],
-        [color.label, "#0A0A0A"],
+        [color.label, PEAK_SHADES[scheme][2]],
       ),
     };
   });
@@ -1595,6 +1605,8 @@ function PeakGlyph({
   peak: SharedValue<number>;
   collapse: SharedValue<number>;
 }) {
+  const { scheme } = useTheme();
+  const shades = PEAK_SHADES[scheme];
   const style = useAnimatedStyle(() => ({
     opacity: peak.value * (1 - collapse.value),
   }));
@@ -1614,7 +1626,7 @@ function PeakGlyph({
               width: PEAK_CELL,
               height: PEAK_CELL,
               borderRadius: PEAK_CELL * 0.3,
-              backgroundColor: PEAK_SHADES[shade],
+              backgroundColor: shades[shade],
               transform: [{ translateX: cx }, { translateY: cy }],
             }}
           />
@@ -1659,6 +1671,7 @@ function TempKey({
   onRevert: () => void;
   onKeep: () => void;
 }) {
+  const styles = useStyles(stylesFor);
   const flash = useSharedValue(0);
   const dotPulse = useSharedValue(0);
   /**
@@ -1934,7 +1947,7 @@ function TempKey({
 // Paper 5SI-0: glass capsule (rgba(28,28,34,.55) + blur 24 saturate 160% in
 // the mock — real GlassView here), 0.5px rgba(255,255,255,.12) rim, soft
 // 0/10/24 shadow, solid #2C2C2E keys. Fallback = the old solid #16161D bar.
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color, ramp }) => ({
   // The layout box is SS× the visual capsule and the ÷SS scale shrinks it
   // toward its own center, so the anchor overshoots the margins by half the
   // VISUAL size — the scaled-down capsule's right/bottom edges land exactly
@@ -1960,7 +1973,7 @@ const styles = StyleSheet.create({
     // the solid fallback. Armed brightening is the separate armedRim
     // overlay, which can be thicker without heavying this rest chrome.
     borderWidth: 2 * SS,
-    borderColor: "rgba(255,255,255,0.07)",
+    borderColor: alpha(color.label, 0.07),
     shadowColor: "#000000",
     shadowOpacity: 0.4,
     shadowRadius: 24 * SS,
@@ -2002,8 +2015,8 @@ const styles = StyleSheet.create({
   // Downbeat bloom over the light pixel's rest cell (TL).
   pipGlow: {
     transform: [{ translateX: PIP_COORD[0] }, { translateY: PIP_COORD[0] }],
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#FFFFFF",
+    backgroundColor: color.label,
+    shadowColor: color.label,
     shadowOpacity: 0.8,
     shadowRadius: 3 * SS,
     shadowOffset: { width: 0, height: 0 },
@@ -2020,7 +2033,7 @@ const styles = StyleSheet.create({
   keyInvert: {
     ...FILL,
     borderRadius: 999,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: color.label,
   },
   keyFlash: {
     ...FILL,
@@ -2032,7 +2045,7 @@ const styles = StyleSheet.create({
     height: 11 * SS,
     borderRadius: 999,
     borderWidth: 1.5 * SS,
-    borderColor: "#8E8E93",
+    borderColor: color.label4,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2047,8 +2060,8 @@ const styles = StyleSheet.create({
   },
   // Jump-back blip: a hot white glow over the lit dot.
   ghostDotPulse: {
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#FFFFFF",
+    backgroundColor: color.label,
+    shadowColor: color.label,
     shadowOpacity: 1,
     shadowRadius: 6 * SS,
     shadowOffset: { width: 0, height: 0 },
@@ -2063,8 +2076,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: 999,
     borderWidth: 3 * SS,
-    borderColor: "rgba(255,255,255,0.25)",
-    shadowColor: "#FFFFFF",
+    borderColor: alpha(color.label, 0.25),
+    shadowColor: color.label,
     shadowOpacity: 0.4,
     shadowRadius: 16 * SS,
     shadowOffset: { width: 0, height: 0 },
@@ -2083,7 +2096,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: 999,
     borderWidth: 3 * SS,
-    borderColor: "rgba(255,255,255,0.35)",
+    borderColor: alpha(color.label, 0.35),
     overflow: "hidden",
   },
   // Keep progress bar — pinned right/bottom (the capsule's fixed corner) so
@@ -2122,8 +2135,8 @@ const styles = StyleSheet.create({
     width: 5 * SS,
     height: 5 * SS,
     borderRadius: 999,
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#FFFFFF",
+    backgroundColor: color.label,
+    shadowColor: color.label,
     shadowOpacity: 0.8,
     shadowRadius: 3 * SS,
     shadowOffset: { width: 0, height: 0 },
@@ -2149,8 +2162,8 @@ const styles = StyleSheet.create({
     width: RING_LED,
     height: RING_LED,
     borderRadius: 999,
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#FFFFFF",
+    backgroundColor: color.label,
+    shadowColor: color.label,
     shadowOpacity: 0.9,
     shadowRadius: 3 * SS,
     shadowOffset: { width: 0, height: 0 },
@@ -2164,8 +2177,8 @@ const styles = StyleSheet.create({
     width: CHARGE_D,
     height: CHARGE_D,
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    shadowColor: "#FFFFFF",
+    backgroundColor: alpha(color.label, 0.05),
+    shadowColor: color.label,
     shadowOpacity: 0.9,
     shadowRadius: 22 * SS,
     shadowOffset: { width: 0, height: 0 },
@@ -2179,10 +2192,10 @@ const styles = StyleSheet.create({
     height: DISCHARGE_D,
     borderRadius: 999,
     borderWidth: 1.5 * SS,
-    borderColor: "#FFFFFF",
+    borderColor: color.label,
     // Rides transform: scale (0.375 → 1). Clipping flips RN onto the
     // CALayer border path so the hairline scales as vector geometry
     // instead of a nearest-filtered bitmap. No children, no shadow.
     overflow: "hidden",
   },
-});
+}));

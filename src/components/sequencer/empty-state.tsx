@@ -16,16 +16,17 @@ import { Pressable } from 'react-native-gesture-handler';
 import Svg, { Path } from 'react-native-svg';
 
 import { haptics } from '@/lib/shims';
-import { color, font } from '@/theme/tokens';
+import { font } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import { AppText } from '@/components/ui';
 import { LedGrid, twinkle } from '@/components/ui/led-grid';
 import { useIdleTwinkle } from '@/components/ui/use-idle-twinkle';
 
-// Bright/dim map of the Paper glyph, row-major ('1' = bright #3A3A40 dot).
+// Bright/dim map of the Paper glyph, row-major ('1' = bright dot). Bright is
+// ramp[5] (one stop above stepEmpty in both schemes; surface3 equals
+// stepEmpty in light), dim is stepEmpty.
 const SHADES = '01001' + '10010' + '01001';
-const BRIGHT = '#3A3A40';
 // Twinkle peak — one palette step brighter than the bright dots (trail grey).
-const TWINKLE_COLORS = ['transparent', '#6E6E76'] as const;
 const CELL = 10;
 const GAP_X = 4;
 const GAP_Y = 9;
@@ -36,6 +37,9 @@ const TWINKLE_LOOP_MS = 24000;
 const TWINKLE_FALL = 400 / (TWINKLE_LOOP_MS / 6);
 
 export function EmptyState({ onAddLane }: { onAddLane: () => void }) {
+  const styles = useStyles(stylesFor);
+  const { color, ramp } = useTheme();
+  const twinkleColors = useMemo(() => ['transparent', color.trail] as const, [color]);
   // Lazy useState, not useMemo: useMemo is a hint React may discard and
   // recompute, which would reshuffle the twinkle order mid-animation.
   const [seed] = useState(() => Math.floor(Math.random() * 0x7fffffff));
@@ -54,7 +58,7 @@ export function EmptyState({ onAddLane }: { onAddLane: () => void }) {
                 {
                   left: (i % 5) * (CELL + GAP_X),
                   top: Math.floor(i / 5) * (CELL + GAP_Y),
-                  backgroundColor: s === '1' ? BRIGHT : color.stepEmpty,
+                  backgroundColor: s === '1' ? ramp[5] : color.stepEmpty,
                 },
               ]}
             />
@@ -66,7 +70,7 @@ export function EmptyState({ onAddLane }: { onAddLane: () => void }) {
               progress={progress}
               mode="pulse"
               pulseFall={TWINKLE_FALL}
-              colors={TWINKLE_COLORS}
+              colors={twinkleColors}
               cols={5}
               cell={CELL}
               gapX={GAP_X}
@@ -93,7 +97,7 @@ export function EmptyState({ onAddLane }: { onAddLane: () => void }) {
         accessibilityRole="button"
       >
         <Svg width={17} height={17} viewBox="0 0 24 24">
-          <Path d="M12 5v14M5 12h14" fill="none" stroke="#000000" strokeWidth={2.6} strokeLinecap="round" />
+          <Path d="M12 5v14M5 12h14" fill="none" stroke={color.ground} strokeWidth={2.6} strokeLinecap="round" />
         </Svg>
         <AppText style={styles.ctaLabel}>Add lane</AppText>
       </Pressable>
@@ -102,7 +106,7 @@ export function EmptyState({ onAddLane }: { onAddLane: () => void }) {
 }
 
 // Exact values from Paper 22T-0: min-h 430, py 72, px 44, gap 20.
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   root: {
     flex: 1,
     minHeight: 430,
@@ -142,5 +146,5 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: color.label,
   },
-  ctaLabel: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: '#000000' },
-});
+  ctaLabel: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: color.ground },
+}));

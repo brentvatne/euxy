@@ -10,7 +10,7 @@
  */
 import { useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
 import { IconClose } from '@/components/midi/icons';
@@ -19,12 +19,14 @@ import { haptics } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { isPresetPattern } from '@/state/presets';
 import { useStore } from '@/state/store';
-import { color, font, radius, space } from '@/theme/tokens';
+import { font, radius, space } from '@/theme/tokens';
+import { themed, useStyles } from '@/theme/theme';
 import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 
 type Action = { key: string; label: string; onPress: () => void; destructive?: boolean };
 
 export default function PatternActionsSheet() {
+  const styles = useStyles(stylesFor);
   useMarkInteractive();
   const bottomInset = useSheetBottomInset();
   const { patternId } = useLocalSearchParams<{ patternId: string }>();
@@ -132,7 +134,7 @@ export default function PatternActionsSheet() {
 // Same grouped-list recipe as the device picker (Paper 29L-0).
 const OUTER = radius.cell;
 const INNER = 2;
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   root: { flex: 1, backgroundColor: color.surface, paddingBottom: space.xxl },
   header: {
     flexDirection: 'row',
@@ -160,4 +162,4 @@ const styles = StyleSheet.create({
   first: { borderTopLeftRadius: OUTER, borderTopRightRadius: OUTER, borderBottomLeftRadius: INNER, borderBottomRightRadius: INNER },
   middle: { borderRadius: INNER },
   last: { borderTopLeftRadius: INNER, borderTopRightRadius: INNER, borderBottomLeftRadius: OUTER, borderBottomRightRadius: OUTER },
-});
+}));

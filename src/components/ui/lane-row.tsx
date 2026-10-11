@@ -12,7 +12,8 @@ import { StyleSheet, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
 import { haptics } from '@/lib/shims';
-import { color, font, HIT_TARGET, ramp, space } from '@/theme/tokens';
+import { font, HIT_TARGET, space } from '@/theme/tokens';
+import { themed, useStyles } from '@/theme/theme';
 import { Key } from './key';
 import { Led } from './led';
 import { AppText } from './text';
@@ -44,6 +45,7 @@ export function LaneRow({
   titleTestID,
   children,
 }: LaneRowProps) {
+  const styles = useStyles(stylesFor);
   // An accent lit in the row's FIRST render (an already-audible lane on boot)
   // must not bloom — only live changes ignite (see ui/led.tsx).
   const isFirstRender = useIsFirstRender();
@@ -95,6 +97,7 @@ export function LaneRow({
 }
 
 function MSButton({ label, active, onPress }: { label: string; active: boolean; onPress?: () => void }) {
+  const styles = useStyles(stylesFor);
   // A bar lit in the row's FIRST render (e.g. a muted lane on boot) must not
   // bloom — only live toggles ignite (see ui/led.tsx).
   const isFirstRender = useIsFirstRender();
@@ -127,7 +130,7 @@ function MSButton({ label, active, onPress }: { label: string; active: boolean; 
 const ROW_PAD_V = space.md;
 const HEADER_GAP = 9;
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color, ramp }) => ({
   row: {
     paddingHorizontal: space.lg,
     borderTopWidth: 1,
@@ -176,12 +179,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   msLabel: { fontFamily: font.text, fontWeight: '700', fontSize: 15, lineHeight: 18, color: color.labelDisabled },
-  msLabelActive: { color: '#FFFFFF' },
-  msBar: { width: 14, height: 3, borderRadius: 2, backgroundColor: '#26262b' },
+  msLabelActive: { color: color.label },
+  msBar: { width: 14, height: 3, borderRadius: 2, backgroundColor: color.surface2 },
   msBarActive: {
     borderRadius: 2,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#FFFFFF',
+    backgroundColor: color.label,
+    shadowColor: color.label,
     shadowOpacity: 0.95,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 0 },
@@ -198,4 +201,4 @@ const styles = StyleSheet.create({
   // Press-down feedback for large surfaces (concept H's "face one shade
   // darker", as dim — travel would warp wide rows).
   pressedDim: { opacity: 0.65 },
-});
+}));

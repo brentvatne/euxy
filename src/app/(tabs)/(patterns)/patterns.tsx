@@ -7,7 +7,7 @@
  * 2NR-0) shows when there are no patterns.
  */
 import { useMemo, useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { Alert, View } from 'react-native';
 import { Stack, router } from 'expo-router';
 
 import { haptics } from '@/lib/shims';
@@ -32,11 +32,14 @@ import {
 import { isPresetPattern } from '@/state/presets';
 import { usePatterns } from '@/state/selectors';
 import { useStore } from '@/state/store';
-import { color, radius, space } from '@/theme/tokens';
+import { radius, space } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 
 const SEQUENCER_HREF = '/(tabs)/(sequencer)' as const;
 
 function HeaderAddButton() {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   return (
     <Pressable
       onPress={() => {
@@ -54,6 +57,8 @@ function HeaderAddButton() {
 }
 
 export default function PatternsScreen() {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   const patterns = usePatterns();
   const activeId = useStore((s) => s.activePatternId);
   const isPlaying = useStore((s) => s.transport.playing);
@@ -225,6 +230,8 @@ export default function PatternsScreen() {
 
 /** Node 2NR-0 — first-run empty library. */
 function EmptyState() {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   return (
     <View style={styles.empty}>
       <View style={styles.emptyGlyph}>
@@ -251,6 +258,7 @@ function EmptyState() {
 }
 
 function NoMatches({ query }: { query: string }) {
+  const styles = useStyles(stylesFor);
   return (
     <View style={styles.noMatch}>
       <AppText variant="subhead" tone="tertiary">
@@ -260,7 +268,7 @@ function NoMatches({ query }: { query: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   flex: { flex: 1 },
   // Sort menu then +, the iOS order for a large-title header's trailing group.
   // Only used off iOS, where the header items API is unavailable.
@@ -296,4 +304,4 @@ const styles = StyleSheet.create({
   restoreAll: { alignItems: 'center', paddingVertical: 18 },
   restoreAllLabel: { fontSize: 13, lineHeight: 18, color: color.label3, fontWeight: '500' },
   pressedDim: { opacity: 0.65 },
-});
+}));

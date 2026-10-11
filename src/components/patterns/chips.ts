@@ -7,7 +7,12 @@
  */
 import type { Pattern } from '@/state/types';
 
-export const CHIP_SHADE_COLORS = ['#45454B', '#AFAFB3', '#F6F4F4'] as const;
+import { type Palette, palette } from '@/theme/tokens';
+
+/** Dim / mid / lit chip shades for a scheme's palette. */
+export const chipShadeColorsFor = (color: Palette) => [color.chipDim, color.tickLit, color.label] as const;
+/** The dark scheme's shades — what the share card (always dark) draws. */
+export const CHIP_SHADE_COLORS = chipShadeColorsFor(palette.dark);
 
 export const CHIPS = {
   heart: '0101011111111110111000100',

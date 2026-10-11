@@ -8,7 +8,7 @@
  * Route params: `patternId` — the pattern to rename.
  */
 import { useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { AppText, SheetHeader } from '@/components/ui';
@@ -17,10 +17,13 @@ import { Key } from '@/components/ui/key';
 import { haptics } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { useStore } from '@/state/store';
-import { color, font, radius, space, selection } from '@/theme/tokens';
+import { font, radius, space } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 
 export default function RenamePatternSheet() {
+  const styles = useStyles(stylesFor);
+  const { color, selection } = useTheme();
   useMarkInteractive();
   const bottomInset = useSheetBottomInset();
   const { patternId } = useLocalSearchParams<{ patternId: string }>();
@@ -80,7 +83,7 @@ export default function RenamePatternSheet() {
 }
 
 // Same field recipe as the New Pattern sheet (Paper 8OY-0).
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   root: { flex: 1, backgroundColor: color.surface },
   grabberSpace: { height: 13 },
   body: {
@@ -122,4 +125,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

@@ -48,7 +48,8 @@ import {
 import { playheadPlaying, playheadTick } from '@/core/playhead';
 import { useStore } from '@/state/store';
 import type { Lane } from '@/state/types';
-import { timing } from '@/theme/tokens';
+import { alpha, timing } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme';
 import {
   LED,
   LED_TOP,
@@ -86,6 +87,7 @@ export function StepStripGlow({
    * the animated canvas unmounts instead of painting where nobody looks. */
   active?: boolean;
 }) {
+  const { color } = useTheme();
   const n = pattern.length;
   const gridH = stepStripHeight(n);
   const canvasSize = { width: width + PAD * 2, height: gridH + PAD * 2 };
@@ -100,14 +102,14 @@ export function StepStripGlow({
       <Canvas pointerEvents="none" style={[styles.canvas, canvasSize]}>
         {pattern.map((hit, i) =>
           hit ? (
-            <Circle key={`glow-${i}`} cx={cxAt(i)} cy={cyAt(i)} r={4.5} color="#FFFFFF" opacity={0.55}>
+            <Circle key={`glow-${i}`} cx={cxAt(i)} cy={cyAt(i)} r={4.5} color={color.label} opacity={0.55}>
               <BlurMask blur={4} style="normal" />
             </Circle>
           ) : null,
         )}
         {pattern.map((hit, i) =>
           hit ? (
-            <Circle key={`core-${i}`} cx={cxAt(i)} cy={cyAt(i)} r={LED / 2} color="#FFFFFF" />
+            <Circle key={`core-${i}`} cx={cxAt(i)} cy={cyAt(i)} r={LED / 2} color={color.label} />
           ) : null,
         )}
         {pattern.map((hit, i) =>
@@ -152,6 +154,7 @@ function PlayheadLayer({
   blockW: number;
   canvasSize: { width: number; height: number };
 }) {
+  const { color } = useTheme();
   const res = lane.resolutionTicks;
   const len = lane.length;
   const reducedMotion = useReducedMotion();
@@ -229,25 +232,25 @@ function PlayheadLayer({
       {reducedMotion
         ? null
         : trail.map(({ k, cx, cy, opacity }) => (
-            <Circle key={`trail-${k}`} cx={cx} cy={cy} r={3.5} color="#F6F4F4" opacity={opacity}>
+            <Circle key={`trail-${k}`} cx={cx} cy={cy} r={3.5} color={color.label} opacity={opacity}>
               <BlurMask blur={3.5} style="normal" />
             </Circle>
           ))}
 
       {/* Head on an EMPTY step: hot core + wide bloom. */}
-      <Circle cx={headCx} cy={headCy} r={6} color="#FFFFFF" opacity={headLightOpacity}>
+      <Circle cx={headCx} cy={headCy} r={6} color={color.label} opacity={headLightOpacity}>
         <BlurMask blur={6} style="normal" />
       </Circle>
-      <Circle cx={headCx} cy={headCy} r={2.8} color="#FFFFFF" opacity={headLightOpacity} />
+      <Circle cx={headCx} cy={headCy} r={2.8} color={color.label} opacity={headLightOpacity} />
 
       {/* Head on a HIT step: the black dot with a faint light rim (the LED
           goes dark but stays present — Paper 2026-07-24 revision). */}
-      <Circle cx={headCx} cy={headCy} r={3} color="#08080A" opacity={headDarkOpacity} />
+      <Circle cx={headCx} cy={headCy} r={3} color={color.displayBg} opacity={headDarkOpacity} />
       <Circle
         cx={headCx}
         cy={headCy}
         r={3.5}
-        color="rgba(255,255,255,0.35)"
+        color={alpha(color.label, 0.35)}
         style="stroke"
         strokeWidth={1}
         opacity={headDarkOpacity}

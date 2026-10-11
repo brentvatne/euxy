@@ -11,16 +11,18 @@
  */
 import { Stack } from 'expo-router/stack';
 
-import { largeTitleStackOptions, sheetOptions } from '@/theme/navigation';
+import { largeTitleStackOptionsFor, sheetOptionsFor } from '@/theme/navigation';
+import { useScheme } from '@/theme/theme';
 
 export default function PatternsStack() {
+  const scheme = useScheme();
   return (
-    <Stack screenOptions={largeTitleStackOptions}>
+    <Stack screenOptions={largeTitleStackOptionsFor(scheme)}>
       <Stack.Screen name="patterns" options={{ title: 'Patterns' }} />
       {/* Two URL shapes, one sheet: /p/<payload> is canonical, /p?d=<payload>
           is kept for links already in the wild. */}
-      <Stack.Screen name="p" options={{ ...sheetOptions, sheetAllowedDetents: [0.45] }} />
-      <Stack.Screen name="p/[d]" options={{ ...sheetOptions, sheetAllowedDetents: [0.45] }} />
+      <Stack.Screen name="p" options={{ ...sheetOptionsFor(scheme), sheetAllowedDetents: [0.45] }} />
+      <Stack.Screen name="p/[d]" options={{ ...sheetOptionsFor(scheme), sheetAllowedDetents: [0.45] }} />
     </Stack>
   );
 }

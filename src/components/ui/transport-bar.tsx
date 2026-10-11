@@ -11,7 +11,7 @@
  * tab. `playDisabled` dims the play button (empty pattern).
  */
 import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
@@ -36,7 +36,8 @@ import { claimStartPulse } from '@/lib/use-beat-haptics';
 
 import { playheadPlaying, playheadTick } from '@/core/playhead';
 import type { ClockMode, RecordPhase } from '@/state/types';
-import { color, font, ramp, space } from '@/theme/tokens';
+import { font, space } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import { AppText } from './text';
 import { IconPause, IconPlay, IconSkipToStart, IconStop } from './icons';
 
@@ -71,6 +72,8 @@ export function TransportBar({
   onToggleMode,
   onPressBpm,
 }: TransportBarProps) {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   const jam = mode === 'jam';
   return (
     <View style={styles.bar}>
@@ -210,6 +213,7 @@ function ModePill({
   bpm: number;
   onToggleMode?: () => void;
 }) {
+  const styles = useStyles(stylesFor);
   const rec = !jam;
   const recording = rec && recordPhase === 'recording';
   // Reduced Motion here needs care: `withRepeat` propagates its reduceMotion
@@ -364,7 +368,7 @@ function ModePill({
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color, ramp }) => ({
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -377,7 +381,7 @@ const styles = StyleSheet.create({
     height: 77,
     paddingVertical: space.md,
     paddingHorizontal: 18,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: color.ground,
     borderTopWidth: 1,
     borderTopColor: color.surface,
     // Subtle upward shadow so the pinned bar reads as floating over the lane
@@ -434,7 +438,7 @@ const styles = StyleSheet.create({
   },
   recRing: { width: 16, height: 16, borderRadius: 999, borderWidth: 2 },
   recText: { gap: 1 },
-  recTitle: { fontFamily: font.text, fontWeight: '600', fontSize: 15, lineHeight: 18, color: '#FFFFFF' },
+  recTitle: { fontFamily: font.text, fontWeight: '600', fontSize: 15, lineHeight: 18, color: color.label },
   recSub: { fontFamily: font.text, fontWeight: '500', fontSize: 12, lineHeight: 16, color: color.label25 },
   right: { flex: 1, alignItems: 'flex-end' },
   modePill: {
@@ -456,7 +460,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#6E6E76',
+    borderColor: color.trail,
   },
   modeDot: { width: 7, height: 7, borderRadius: 999, backgroundColor: color.danger },
   modeLabel: {
@@ -468,4 +472,4 @@ const styles = StyleSheet.create({
     color: color.label,
   },
   modeLabelRec: { color: color.danger },
-});
+}));

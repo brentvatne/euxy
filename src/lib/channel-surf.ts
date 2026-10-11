@@ -7,6 +7,7 @@
  * for display (same guarded-require pattern as lib/shot-rig.ts). The same
  * store keeps the recently surfed-to channels behind the sheet's quick picks.
  */
+import { currentTheme } from '@/theme/theme';
 import { router } from 'expo-router';
 
 import { postNotice } from './notice';
@@ -233,7 +234,7 @@ export async function surfToChannelAsync(
   try {
     await reloadUpdateAsync({
       reloadScreenOptions: {
-        backgroundColor: '#000000',
+        backgroundColor: currentTheme().color.ground,
         fade: true,
         spinner: { enabled: true, size: 'medium' },
       },

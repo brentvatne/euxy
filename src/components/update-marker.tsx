@@ -12,13 +12,14 @@
  * the first time.
  */
 import { useState } from 'react';
-import { Alert, StyleSheet } from 'react-native';
+import { Alert } from 'react-native';
 import Svg, { Rect } from 'react-native-svg';
 
 import { Key } from '@/components/ui/key';
 import { isFirstLaunch } from '@/lib/first-launch';
 import { reloadUpdateAsync, useUpdates } from '@/lib/shims';
-import { color, radius } from '@/theme/tokens';
+import { radius } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 
 /** True once expo-updates has staged an update for this install. */
 export function useUpdateAvailable(): boolean {
@@ -31,6 +32,7 @@ export function useUpdateAvailable(): boolean {
 
 /** Dot-matrix down-arrow — "downloaded", in the app's LED vocabulary. */
 function IconDownload() {
+  const { color } = useTheme();
   return (
     <Svg width={9} height={12} viewBox="0 0 11 15">
       {[
@@ -60,6 +62,7 @@ export function promptReload() {
 
 /** Renders nothing unless an update is staged. */
 export function UpdateMarker() {
+  const styles = useStyles(stylesFor);
   const available = useUpdateAvailable();
   if (!available) return null;
   return (
@@ -76,7 +79,7 @@ export function UpdateMarker() {
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   marker: {
     width: 28,
     height: 28,
@@ -85,4 +88,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

@@ -5,11 +5,12 @@
  * treatment), so it is built locally rather than reusing the gray-active shared
  * primitive. Values are tick counts (24 PPQN).
  */
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
 import { AppText } from '@/components/ui';
-import { color, HIT_TARGET, radius, space } from '@/theme/tokens';
+import { HIT_TARGET, radius, space } from '@/theme/tokens';
+import { themed, useStyles } from '@/theme/theme';
 import { RESOLUTIONS } from './resolution';
 
 export interface ResolutionPickerProps {
@@ -18,6 +19,7 @@ export interface ResolutionPickerProps {
 }
 
 export function ResolutionPicker({ value, onChange }: ResolutionPickerProps) {
+  const styles = useStyles(stylesFor);
   return (
     <View style={styles.track}>
       {RESOLUTIONS.map((opt) => {
@@ -43,7 +45,7 @@ export function ResolutionPicker({ value, onChange }: ResolutionPickerProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   track: {
     flexDirection: 'row',
     backgroundColor: color.surface2,
@@ -61,4 +63,4 @@ const styles = StyleSheet.create({
   label: { fontWeight: '600' },
   labelIdle: { color: color.label3 },
   labelActive: { color: color.ground, fontWeight: '700' },
-});
+}));

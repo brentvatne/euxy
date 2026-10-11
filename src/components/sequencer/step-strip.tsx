@@ -24,14 +24,15 @@
  */
 import { memo, useEffect, useRef, useState } from 'react';
 import { useIsFirstRender } from '@/lib/use-is-first-render';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import Animated, { useAnimatedStyle, useDerivedValue, useReducedMotion } from 'react-native-reanimated';
 
 import { playheadPlaying, playheadTick } from '@/core/playhead';
 import { patternForLane } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import type { Lane } from '@/state/types';
-import { stepFill } from '@/theme/tokens';
+import { alpha } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import { FlickerBloom } from '@/components/ui/flicker-bloom';
 import { Led as LedBase } from '@/components/ui/led';
 import { SKIA_STRIP_GLOW } from '@/lib/flags';
@@ -90,6 +91,7 @@ const FILM_MS = 600;
  * Instant on with a scale bloom, ~300ms phosphor decay off (LED-motion
  * principle 1 + the on/off micro-animation). */
 function Led({ ignite }: { ignite: boolean }) {
+  const styles = useStyles(stylesFor);
   return <LedBase ignite={ignite} style={styles.led} />;
 }
 
@@ -135,6 +137,8 @@ export const StepStrip = memo(StepStripBase, (prev, next) => {
 });
 
 function StepStripBase({ lane, washDelay = 0, active = true }: StepStripProps) {
+  const styles = useStyles(stylesFor);
+  const { stepFill } = useTheme();
   const pattern = patternForLane(lane);
   const n = pattern.length;
   const [width, setWidth] = useState(lastStripWidth);
@@ -342,6 +346,7 @@ function TravellingLight({
   pattern: number[];
   blockW: number;
 }) {
+  const styles = useStyles(stylesFor);
   const res = lane.resolutionTicks;
   const len = lane.length;
 
@@ -376,7 +381,7 @@ function TravellingLight({
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   root: { flex: 1, position: 'relative', gap: GAP },
   // No horizontal gap here: each block carries its own leading gap so the beat
   // groups can be spaced wider than the steps inside them.
@@ -391,11 +396,11 @@ const styles = StyleSheet.create({
     width: LED,
     height: LED,
     borderRadius: 999,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: color.label,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.45)',
     // Soft emissive glow (iOS).
-    shadowColor: '#FFFFFF',
+    shadowColor: color.label,
     shadowOpacity: 0.7,
     shadowRadius: 2.5,
     shadowOffset: { width: 0, height: 0 },
@@ -406,9 +411,9 @@ const styles = StyleSheet.create({
     width: LED + 1,
     height: LED + 1,
     borderRadius: 999,
-    backgroundColor: '#08080a',
+    backgroundColor: color.displayBg,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
+    borderColor: alpha(color.label, 0.35),
   },
   // Downbeat tick (V4b "lit tick"): a small LED-treated light, static, drawn
   // with the cell — never animates. Dimmer than any hit LED.
@@ -418,8 +423,8 @@ const styles = StyleSheet.create({
     width: TICK_W,
     height: TICK_H,
     borderRadius: TICK_RADIUS,
-    backgroundColor: 'rgba(255,255,255,0.85)',
-    shadowColor: '#FFFFFF',
+    backgroundColor: alpha(color.label, 0.85),
+    shadowColor: color.label,
     shadowOpacity: 0.45,
     shadowRadius: 2,
     shadowOffset: { width: 0, height: 0 },
@@ -427,7 +432,7 @@ const styles = StyleSheet.create({
   // The four lightest ramp fills: full-white core + a 1px dark ring OUTSIDE
   // the bar (Paper V4b's spread ring) instead of flipping the tick dark.
   tickLightFill: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: color.label,
     shadowOpacity: 0.6,
     outlineWidth: 1,
     outlineColor: 'rgba(0,0,0,0.40)',
@@ -438,7 +443,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     height: BLOCK_H,
     borderRadius: RADIUS,
-    backgroundColor: '#AFAFB3',
+    backgroundColor: color.tickLit,
   },
   overlay: {
     position: 'absolute',
@@ -447,5 +452,4 @@ const styles = StyleSheet.create({
     height: BLOCK_H,
     alignItems: 'center',
     paddingTop: LED_TOP,
-  },
-});
+  },}));

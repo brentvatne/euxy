@@ -15,7 +15,7 @@
  * settled: every cell decays to rest.
  */
 import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import Animated, {
   Easing,
   ReduceMotion,
@@ -29,6 +29,7 @@ import Animated, {
 
 import { playheadPlaying, playheadTick } from '@/core/playhead';
 import { timing } from '@/theme/tokens';
+import { themed, useStyles } from '@/theme/theme';
 
 const PPQN = timing.ppqn; // 24 ticks per beat; 12 per 8th
 
@@ -39,9 +40,6 @@ const DECAY = {
   reduceMotion: ReduceMotion.System,
 } as const;
 
-/** LED-motion grey palette (locked): rest / lit. */
-const REST = '#2C2C2E';
-const LIT = '#AFAFB3';
 
 export interface BeatTickerProps {
   /** 1-based count-in beat while the record count-in runs; 0 otherwise.
@@ -52,6 +50,7 @@ export interface BeatTickerProps {
 }
 
 export function BeatTicker({ countInBeat = 0, recording = false }: BeatTickerProps) {
+  const styles = useStyles(stylesFor);
   // JS transport state mirrored into shared values so the beat derivation
   // stays a pure UI-thread worklet.
   const countInSV = useSharedValue(countInBeat);
@@ -122,6 +121,7 @@ function Cell({
   glow: SharedValue<number>;
   blink: SharedValue<number>;
 }) {
+  const styles = useStyles(stylesFor);
   // Stacked pre-lit layer: the rest cell is always painted; only the lit
   // overlay's opacity animates (no color animation, no layout).
   const litStyle = useAnimatedStyle(() => ({
@@ -134,13 +134,13 @@ function Cell({
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   strip: { flexDirection: 'row', gap: 4, marginTop: 4 },
   cell: {
     width: 8,
     height: 3,
     borderRadius: 1.5,
-    backgroundColor: REST,
+    backgroundColor: color.tickRest,
     overflow: 'hidden',
   },
   lit: {
@@ -150,6 +150,5 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     borderRadius: 1.5,
-    backgroundColor: LIT,
-  },
-});
+    backgroundColor: color.tickLit,
+  },}));

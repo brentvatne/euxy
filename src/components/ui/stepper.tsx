@@ -5,10 +5,11 @@
  * Either button also HOLDS to scroll the value at an accelerating rate — see
  * use-hold-repeat (which owns the selection haptic for both paths).
  */
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
-import { color, HIT_SLOP, HIT_TARGET, radius, space } from '@/theme/tokens';
+import { HIT_SLOP, HIT_TARGET, radius, space } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import { AppText } from './text';
 import { SFSymbol } from './symbol';
 import { useHoldRepeat } from './use-hold-repeat';
@@ -33,6 +34,8 @@ export function Stepper({
   step = 1,
   format,
 }: StepperProps) {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   const clamp = (n: number) => Math.max(min, Math.min(max, n));
   /** Reports whether the value moved — a hold ends when it stops moving. */
   const set = (n: number) => {
@@ -81,7 +84,7 @@ export function Stepper({
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   container: { gap: space.xs },
   label: { marginLeft: space.xs },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
@@ -95,4 +98,4 @@ const styles = StyleSheet.create({
   },
   btnDisabled: { opacity: 0.5 },
   valueBox: { minWidth: 56, alignItems: 'center' },
-});
+}));

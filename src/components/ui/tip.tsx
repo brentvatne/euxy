@@ -29,7 +29,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { color, font, radius, ramp } from '@/theme/tokens';
+import { font, radius } from '@/theme/tokens';
+import { themed, useStyles } from '@/theme/theme';
 import { AppText } from './text';
 
 /** Caret box (a rotated square, so its point is the diagonal). */
@@ -74,6 +75,7 @@ export function Tip({
   style?: StyleProp<ViewStyle>;
   children: React.ReactNode;
 }) {
+  const styles = useStyles(stylesFor);
   return (
     <Animated.View
       pointerEvents="none"
@@ -91,7 +93,7 @@ export function Tip({
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color, ramp }) => ({
   // Hangs off the bottom edge of the anchor, out of the layout.
   layer: { position: 'absolute', top: '100%', left: 0, right: 0 },
   bubble: {
@@ -134,4 +136,4 @@ const styles = StyleSheet.create({
     // legible, and the popover is only up for as long as it's needed anyway.
     color: color.label,
   },
-});
+}));
