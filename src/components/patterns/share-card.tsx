@@ -28,7 +28,7 @@ import { chipForPattern, CHIP_SHADE_COLORS, effectiveChipName } from '@/componen
 import { patternForLane } from '@/core/lane-pattern';
 import { shareUrl } from '@/core/share-codec';
 import type { Pattern } from '@/state/types';
-import { useTheme } from '@/theme/theme';
+import { themes } from '@/theme/theme';
 
 const PAD = 18;
 const CHIP = 28;
@@ -107,7 +107,8 @@ export function ShareCard({
   width: number;
   canvasRef?: RefObject<CanvasRef | null>;
 }) {
-  const { color, stepFill } = useTheme();
+  // The card is shared as an image, so it is always the dark artwork whatever the app's scheme.
+  const { color, stepFill } = themes.dark;
   const height = shareCardHeight(pattern);
   // Encode the EFFECTIVE glyph name — curated preset glyphs come from the
   // id-keyed ASSIGNED map, and ids don't travel in the payload.

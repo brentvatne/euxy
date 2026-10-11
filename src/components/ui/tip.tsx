@@ -29,7 +29,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { font, radius, ramp } from '@/theme/tokens';
+import { font, radius } from '@/theme/tokens';
 import { themed, useStyles } from '@/theme/theme';
 import { AppText } from './text';
 
@@ -93,7 +93,7 @@ export function Tip({
   );
 }
 
-const stylesFor = themed(({ color }) => ({
+const stylesFor = themed(({ color, ramp }) => ({
   // Hangs off the bottom edge of the anchor, out of the layout.
   layer: { position: 'absolute', top: '100%', left: 0, right: 0 },
   bubble: {

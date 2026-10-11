@@ -18,6 +18,8 @@ import { Appearance, StyleSheet, useColorScheme } from 'react-native';
 
 import {
   keyRamp,
+  lightRamp,
+  ramp as darkRamp,
   lightKeyRamp,
   palette,
   type Palette,
@@ -30,6 +32,7 @@ export type Theme = {
   scheme: Scheme;
   color: Palette;
   keyRamp: readonly string[];
+  ramp: typeof darkRamp | typeof lightRamp;
   /** Fill for a step at `slot`, wrapped into its 16-slot row. */
   stepFill: (slot: number) => string;
   /** TextInput selection highlight. */
@@ -41,6 +44,7 @@ function buildTheme(scheme: Scheme): Theme {
     scheme,
     color: palette[scheme],
     keyRamp: scheme === 'light' ? lightKeyRamp : keyRamp,
+    ramp: scheme === 'light' ? lightRamp : darkRamp,
     stepFill: (slot) => stepFillFor(scheme, slot),
     selection: selectionFor(scheme),
   };

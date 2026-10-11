@@ -81,7 +81,7 @@ import {
   liquidGlassAvailable,
   useHapticRamp,
 } from "@/lib/shims";
-import { alpha, ramp, timing } from "@/theme/tokens";
+import { alpha, timing } from "@/theme/tokens";
 import { Key } from "@/components/ui/key";
 
 /** The capsule shell itself animates its size during a charge, so the glass
@@ -1944,7 +1944,7 @@ function TempKey({
 // Paper 5SI-0: glass capsule (rgba(28,28,34,.55) + blur 24 saturate 160% in
 // the mock — real GlassView here), 0.5px rgba(255,255,255,.12) rim, soft
 // 0/10/24 shadow, solid #2C2C2E keys. Fallback = the old solid #16161D bar.
-const stylesFor = themed(({ color }) => ({
+const stylesFor = themed(({ color, ramp }) => ({
   // The layout box is SS× the visual capsule and the ÷SS scale shrinks it
   // toward its own center, so the anchor overshoots the margins by half the
   // VISUAL size — the scaled-down capsule's right/bottom edges land exactly

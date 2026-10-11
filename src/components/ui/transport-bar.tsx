@@ -36,7 +36,7 @@ import { claimStartPulse } from '@/lib/use-beat-haptics';
 
 import { playheadPlaying, playheadTick } from '@/core/playhead';
 import type { ClockMode, RecordPhase } from '@/state/types';
-import { font, ramp, space } from '@/theme/tokens';
+import { font, space } from '@/theme/tokens';
 import { themed, useStyles, useTheme } from '@/theme/theme';
 import { AppText } from './text';
 import { IconPause, IconPlay, IconSkipToStart, IconStop } from './icons';
@@ -368,7 +368,7 @@ function ModePill({
   );
 }
 
-const stylesFor = themed(({ color }) => ({
+const stylesFor = themed(({ color, ramp }) => ({
   bar: {
     flexDirection: 'row',
     alignItems: 'center',

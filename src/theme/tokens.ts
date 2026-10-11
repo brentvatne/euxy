@@ -31,6 +31,19 @@ export const ramp = {
   8: '#000000', // ground
 } as const;
 
+/** The monoramp mirrored for the light scheme: same 9 stops, dark → light, so `ramp[n]` keeps its role in either scheme. */
+export const lightRamp = {
+  0: '#0a0a0c', // primary label / active / play
+  1: '#48484f',
+  2: '#6e6e76',
+  3: '#8c8c92',
+  4: '#a4a4aa',
+  5: '#bdbdc3',
+  6: '#dcdbe0',
+  7: '#e9e8ec',
+  8: '#f6f4f4', // ground
+} as const;
+
 /**
  * OP-XY sequencer-key ramp — the exact fills of the 16 sequencer keys in
  * Teenage Engineering's own product artwork (assets.teenage.engineering

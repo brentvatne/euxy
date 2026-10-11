@@ -11,7 +11,7 @@ import { memo } from 'react';
 import { View, type ViewStyle } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
-import { radius, ramp } from '@/theme/tokens';
+import { radius } from '@/theme/tokens';
 import { themed, useStyles, useTheme } from '@/theme/theme';
 
 export interface StepBlockProps {
@@ -37,7 +37,7 @@ export const StepBlock = memo(function StepBlock({
   style,
 }: StepBlockProps) {
   const styles = useStyles(stylesFor);
-  const { color } = useTheme();
+  const { color, ramp } = useTheme();
   const body = (
     <View
       style={[
@@ -57,7 +57,7 @@ export const StepBlock = memo(function StepBlock({
   );
 });
 
-const stylesFor = themed(({ color }) => ({
+const stylesFor = themed(({ color, ramp }) => ({
   base: { borderRadius: radius.step },
   grow: { flex: 1 },
   active: { borderWidth: 2, borderColor: color.label },

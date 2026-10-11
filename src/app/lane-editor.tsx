@@ -33,7 +33,7 @@ import { haptics, logObserveEvent } from '@/lib/shims';
 import { useLane } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import type { CombineOp, Lane } from '@/state/types';
-import { font, radius, ramp, space } from '@/theme/tokens';
+import { font, radius, space } from '@/theme/tokens';
 import { themed, useStyles, useTheme } from '@/theme/theme';
 import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 import { AppText, SFSymbol, SheetHeader, Tip } from '@/components/ui';
@@ -696,7 +696,7 @@ export default function LaneEditorSheet() {
   );
 }
 
-const stylesFor = themed(({ color }) => ({
+const stylesFor = themed(({ color, ramp }) => ({
   root: { flex: 1, backgroundColor: color.surface },
   grabberSpace: { height: 13 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },

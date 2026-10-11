@@ -12,7 +12,7 @@ import { StyleSheet, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
 import { haptics } from '@/lib/shims';
-import { font, HIT_TARGET, ramp, space } from '@/theme/tokens';
+import { font, HIT_TARGET, space } from '@/theme/tokens';
 import { themed, useStyles } from '@/theme/theme';
 import { Key } from './key';
 import { Led } from './led';
@@ -130,7 +130,7 @@ function MSButton({ label, active, onPress }: { label: string; active: boolean; 
 const ROW_PAD_V = space.md;
 const HEADER_GAP = 9;
 
-const stylesFor = themed(({ color }) => ({
+const stylesFor = themed(({ color, ramp }) => ({
   row: {
     paddingHorizontal: space.lg,
     borderTopWidth: 1,
