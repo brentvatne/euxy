@@ -1549,7 +1549,7 @@ function Pip({
   isCenter: boolean;
 }) {
   const styles = useStyles(stylesFor);
-  const { color } = useTheme();
+  const { color, scheme } = useTheme();
   const x = useSharedValue(PIP_COORD[rest[0]]);
   const y = useSharedValue(PIP_COORD[rest[1]]);
   useEffect(() => {
@@ -1585,7 +1585,7 @@ function Pip({
       backgroundColor: interpolateColor(
         peak.value,
         [0, 1],
-        [color.label, "#0A0A0A"],
+        [color.label, PEAK_SHADES[scheme][2]],
       ),
     };
   });

@@ -1,11 +1,13 @@
 /**
  * Root navigator. A Stack that hosts the tab group plus the app's form sheets
- * (so a sheet presents over the tabs from anywhere). Dark monochrome theme is
- * applied here via ThemeProvider; the tab bar takes its own tint in (tabs).
+ * (so a sheet presents over the tabs from anywhere). The monochrome theme for
+ * the active scheme is applied here via ThemeProvider; the tab bar takes its
+ * own tint in (tabs).
  */
 import { ThemeProvider } from 'expo-router/react-navigation';
 import { Stack } from 'expo-router/stack';
 import { StatusBar } from 'expo-status-bar';
+import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -43,6 +45,15 @@ function RootLayout() {
   const sheetOptions = sheetOptionsFor(scheme);
   // Simulator screenshot staging (no-op unless the host set the flag).
   useShotRig();
+
+  // The root view behind every screen follows the scheme's ground. app.json's
+  // static backgroundColor is a single colour (black, for the dark splash
+  // handoff); without this, light mode shows black through any gap between
+  // views (sheet presentation, keyboard resize).
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    void SystemUI.setBackgroundColorAsync(color.ground);
+  }, [color.ground]);
 
   // Bring MIDI up at launch. Enabling is what attaches the hot-plug listener,
   // the health watchdog, and OP-XY autoconnect — leaving it to the MIDI tab's
