@@ -7,13 +7,19 @@
  * Material equivalent here. An unmapped name renders nothing on Android — add
  * it to `MATERIAL` rather than passing a per-call `fallback`.
  *
+ * On Android expo-symbols draws the glyph as text at `size` (default 24) and
+ * does not scale it to the view, so a 13pt box around a 24pt glyph shows a
+ * clipped corner — the `size` prop has to be passed through there. iOS keeps
+ * the default point size and lets the image view scale it down instead.
+ *
  * Named `SFSymbol`, NOT `Symbol` — a component called `Symbol` shadows the JS
  * global `Symbol` in importing modules and breaks `Symbol.iterator` (iteration,
  * spread) with "undefined is not a function".
  */
 import { SymbolView, type AndroidSymbol, type SFSymbol as SFSymbolName, type SymbolViewProps } from 'expo-symbols';
+import { Platform } from 'react-native';
+import { useTheme } from '@/theme/theme';
 
-import { color } from '@/theme/tokens';
 
 const MATERIAL: Partial<Record<SFSymbolName, AndroidSymbol>> = {
   plus: 'add',
@@ -30,11 +36,14 @@ export interface SFSymbolProps extends Omit<SymbolViewProps, 'tintColor' | 'name
   tint?: string;
 }
 
-export function SFSymbol({ name, size = 20, tint = color.label, style, ...rest }: SFSymbolProps) {
+export function SFSymbol({ name, size = 20, tint: tintProp, style, ...rest }: SFSymbolProps) {
+  const { color } = useTheme();
+  const tint = tintProp ?? color.label;
   return (
     <SymbolView
       name={{ ios: name, android: MATERIAL[name] }}
       tintColor={tint}
+      size={Platform.OS === 'android' ? size : undefined}
       style={[{ width: size, height: size }, style]}
       {...rest}
     />

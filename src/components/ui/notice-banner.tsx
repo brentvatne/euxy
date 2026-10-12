@@ -14,7 +14,7 @@
  * fading has to read as one continuous banner, not a cut.
  */
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import Animated, {
   Easing,
   ReduceMotion,
@@ -28,7 +28,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/ui';
 import { subscribeNotice } from '@/lib/notice';
-import { color, radius, space } from '@/theme/tokens';
+import { radius, space } from '@/theme/tokens';
+import { themed, useStyles } from '@/theme/theme';
 
 /** How long a line holds before it takes itself away. */
 const HOLD_MS = 3200;
@@ -38,6 +39,7 @@ const OUT_MS = 260;
 const LIFT = 8;
 
 export function NoticeBanner() {
+  const styles = useStyles(stylesFor);
   const insets = useSafeAreaInsets();
   const [text, setText] = useState<string | null>(null);
   const opacity = useSharedValue(0);
@@ -95,7 +97,7 @@ export function NoticeBanner() {
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   layer: {
     position: 'absolute',
     top: 0,
@@ -113,4 +115,4 @@ const styles = StyleSheet.create({
     backgroundColor: color.surface,
   },
   text: { fontSize: 12, lineHeight: 16, color: color.label2, letterSpacing: 0.6 },
-});
+}));

@@ -38,6 +38,7 @@
  * = the rim itself brightens to 35% white (no drawn outline).
  */
 import { useEffect, useRef, useState } from "react";
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import {
   PixelRatio,
   StyleSheet,
@@ -51,7 +52,6 @@ import {
 } from "react-native-gesture-handler";
 import Animated, {
   Easing,
-  FadeOut,
   ReduceMotion,
   cancelAnimation,
   interpolateColor,
@@ -81,7 +81,7 @@ import {
   liquidGlassAvailable,
   useHapticRamp,
 } from "@/lib/shims";
-import { color, ramp, timing } from "@/theme/tokens";
+import { alpha, type Scheme, timing } from "@/theme/tokens";
 import { Key } from "@/components/ui/key";
 
 /** The capsule shell itself animates its size during a charge, so the glass
@@ -162,11 +162,12 @@ const PEAK_ORIGIN = (GLYPH - (PEAK_STEP * 4 + PEAK_CELL)) / 2;
  * weight onto white they closed the gaps and the bolt read as a grey block, so
  * the dim tier drops to a ghost and the lit tier goes nearly black.
  */
-const PEAK_SHADES = [
-  "rgba(10,10,10,0.07)",
-  "rgba(10,10,10,0.78)",
-  "#0A0A0A",
-] as const;
+const PEAK_SHADES: Record<Scheme, readonly [string, string, string]> = {
+  // Dark scheme: the key inverts to the light label, so the bolt is near-black.
+  dark: ["rgba(10,10,10,0.07)", "rgba(10,10,10,0.78)", "#0A0A0A"],
+  // Light scheme: the key inverts to the dark label, so the bolt is near-white.
+  light: ["rgba(246,244,244,0.07)", "rgba(246,244,244,0.78)", "#F6F4F4"],
+};
 /** Index of the centre pip within REST_CELLS — the one the pop collapses to. */
 const CENTER_PIP = 2;
 /** The dice's "light pixel" (E spec) — top-left pip: ticks the downbeat,
@@ -259,51 +260,29 @@ const SNAP = { damping: 34, stiffness: 340, reduceMotion: ReduceMotion.System };
 // landing corner — a real throw goes where it was headed.
 const THROW_PROJECTION_S = 0.18;
 
-// An occasional entrance can afford to be legible, but it should arrive
-// immediately under the finger: strong ease-out, opacity-led, and only 8pt of
-// travel. The old 140ms curve produced too few painted frames on a cold boot;
-// 200ms stays inside the small-popover budget while preserving the first-frame
-// response. Exit is deliberately faster and drops movement entirely.
-const CAPSULE_EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 /**
- * The capsule ARRIVES; it does not blink on. The old entrance was a 200ms
- * ease-out across 8pt — too little travel to register as movement and with no
- * overshoot to sell any weight, so it read as a cut with a fade stapled to it.
- *
- * This is a real spring instead: it rises further, scales up from just under
- * full size, and settles through one soft overshoot. The opacity still runs on
- * a timing and finishes EARLY — a spring on alpha reads as a flicker when it
- * overshoots, and the object should be solid well before it stops moving.
- *
- * A custom entering worklet rather than `FadeInDown.springify()` because the
- * scale is what does most of the work here, and the builders only animate the
- * properties they own (opacity + one translate).
+ * No entrance animation, on purpose — Liquid Glass has two rules:
+ *  - UIKit switches a UIVisualEffectView's effect OFF while it or any
+ *    superview has alpha < 1 ("many effects look incorrect or not show at
+ *    all"), so an opacity fade on the capsule renders a flat semi-opaque pill
+ *    that snaps to glass when the fade hits 1. Nothing above the GlassView
+ *    ever carries opacity; the key row (its child) does the breathing dim.
+ *  - UIGlassEffect paints an opaque black pill on the frame it is created,
+ *    and a freshly created one that nothing touches can sit black/invisible
+ *    until its next transform update. So the capsule is mounted for the
+ *    whole life of the screen: at boot it is created under the opaque boot
+ *    overlay and nudged for a few frames there (sub-pixel, invisible), and
+ *    the overlay's fade reveals it with the rest of the screen. With no lanes
+ *    it is parked below the screen edge and springs up when the first lane
+ *    lands — transform only, which the glass is fine with.
  */
-const CAPSULE_ENTER = () => {
-  'worklet';
-  const spring = (dampingRatio: number, duration: number) => ({
-    duration,
-    dampingRatio,
-    reduceMotion: ReduceMotion.System,
-  });
-  return {
-    initialValues: { opacity: 0, transform: [{ translateY: 18 }, { scale: 0.88 }] },
-    animations: {
-      opacity: withTiming(1, {
-        duration: 200,
-        easing: CAPSULE_EASE_OUT,
-        reduceMotion: ReduceMotion.System,
-      }),
-      transform: [
-        { translateY: withSpring(0, spring(0.62, 480)) },
-        { scale: withSpring(1, spring(0.58, 520)) },
-      ],
-    },
-  };
+const CAPSULE_SPRING = {
+  duration: 520,
+  dampingRatio: 0.7,
+  reduceMotion: ReduceMotion.System,
 };
-const CAPSULE_EXIT = FadeOut.duration(120)
-  .easing(CAPSULE_EASE_OUT)
-  .reduceMotion(ReduceMotion.System);
+const PARKED_Y = 240;
+const WAKE_FRAMES = 20;
 
 // --- Dice charge (issue #48) --------------------------------------------
 // The gesture: hold the dice and the capsule becomes one encoder with a ring
@@ -521,6 +500,7 @@ function rollScatterFrames(): number[][][] {
 }
 
 export function FloatingActions({
+  visible,
   canMutate,
   snapshotActive,
   onAddLane,
@@ -531,6 +511,8 @@ export function FloatingActions({
   onRevert,
   onKeep,
 }: {
+  /** Lanes exist. False parks the capsule below the screen edge. */
+  visible: boolean;
   canMutate: boolean;
   /** Temp mode armed — the resident temp key renders lit. */
   snapshotActive: boolean;
@@ -543,8 +525,23 @@ export function FloatingActions({
   onRevert: () => void;
   onKeep: () => void;
 }) {
+  const styles = useStyles(stylesFor);
   const reducedMotion = useReducedMotion();
   const { width: screenW } = useWindowDimensions();
+
+  // See the note above CAPSULE_SPRING: transform only, and a short sub-pixel
+  // nudge after mount so the glass materialises while still covered.
+  const wake = useSharedValue(0);
+  useEffect(() => {
+    wake.value = withRepeat(withTiming(1, { duration: 16 }), WAKE_FRAMES, true);
+  }, [wake]);
+  const park = useSharedValue(visible ? 0 : PARKED_Y);
+  useEffect(() => {
+    park.value = withSpring(visible ? 0 : PARKED_Y, CAPSULE_SPRING);
+  }, [visible, park]);
+  const anchorStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: park.value + wake.value * 0.5 }],
+  }));
   const corner = useStore((s) => s.settings.floatBarCorner);
   const setFloatBarCorner = useStore((s) => s.setFloatBarCorner);
 
@@ -799,8 +796,10 @@ export function FloatingActions({
     height: BAR_H + (CHARGE_D - BAR_H) * charge.contract.value,
   }));
 
+  // Opacity lives on the key row, never on the glass shell or its ancestors
+  // (see CAPSULE_SPRING).
   const keys = (
-    <View style={styles.row}>
+    <Animated.View style={[styles.row, breatheStyle]}>
       {/* Temp is a RESIDENT key (Brent's corrected semantics): tap to hold
           the current state away, tap again to jump back, long-press to keep. */}
       <SideKey charge={charge} side="left">
@@ -829,7 +828,7 @@ export function FloatingActions({
       <SideKey charge={charge} side="right">
         <AddKey onPress={onAddLane} />
       </SideKey>
-    </View>
+    </Animated.View>
   );
 
   return (
@@ -840,20 +839,10 @@ export function FloatingActions({
       style={StyleSheet.absoluteFill}
     >
       <GestureDetector gesture={pan}>
-        {/* Outer view owns mount animation; the inner one owns the drag
-            transform + breathing opacity. The anchor is absolute and fixed,
-            so a layout transition only adds a competing tail. */}
-        <Animated.View
-          // Mounted only while lanes exist (and never during boot) — so this
-          // entrance covers both app open and easing out of the empty state.
-          entering={CAPSULE_ENTER}
-          exiting={CAPSULE_EXIT}
-          style={styles.barAnchor}
-        >
-          <Animated.View
-            style={[dragStyle, breatheStyle]}
-            onTouchStart={relight}
-          >
+        {/* Outer view owns parking (and the mount nudge); the inner one owns
+            the drag transform. */}
+        <Animated.View style={[styles.barAnchor, anchorStyle]}>
+          <Animated.View style={dragStyle} onTouchStart={relight}>
             {liquidGlassAvailable && AnimatedGlassView ? (
               // Real material refracts the playhead LEDs sweeping beneath
               // it; the tint matches the Paper mock (rgba(28,28,34,.55)).
@@ -944,6 +933,7 @@ function ChargeRing({
   charge: Charge;
   reducedMotion: boolean;
 }) {
+  const styles = useStyles(stylesFor);
   const glowStyle = useAnimatedStyle(() => ({
     opacity: 0.5 * charge.bloom.value,
   }));
@@ -993,6 +983,7 @@ function RingLed({
   charge: Charge;
   reducedMotion: boolean;
 }) {
+  const styles = useStyles(stylesFor);
   const style = useAnimatedStyle(() => {
     // Reduced Motion: a four-segment stepper that snaps on tier boundaries
     // instead of sweeping one LED per 16th.
@@ -1031,6 +1022,8 @@ function RingLed({
 /** Add lane — the + rotates 90° while pressed (E spec), then the existing
  * lane slide-in takes over. */
 function AddKey({ onPress }: { onPress: () => void }) {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   const down = useSharedValue(0);
   const rotStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${down.value * 90}deg` }],
@@ -1110,6 +1103,7 @@ function ChargeDice({
   onRoll: (tier: ChargeTier) => void;
   onChargeCommit: (tier: ChargeTier) => void;
 }) {
+  const styles = useStyles(stylesFor);
   const [scatter, setScatter] = useState<{
     nonce: number;
     frames: number[][][];
@@ -1464,7 +1458,7 @@ function ChargeDice({
       ],
     };
   });
-  // Peak inverts the key: white fill, dark pips, all nine lit.
+  // Peak inverts the key: label fill, ground-coloured pips, all nine lit.
   const invertStyle = useAnimatedStyle(() => ({ opacity: charge.peak.value }));
   // Beat 3 lifts the surface one shade on the way there.
   const liftStyle = useAnimatedStyle(() => ({
@@ -1554,6 +1548,8 @@ function Pip({
   collapse: SharedValue<number>;
   isCenter: boolean;
 }) {
+  const styles = useStyles(stylesFor);
+  const { color, scheme } = useTheme();
   const x = useSharedValue(PIP_COORD[rest[0]]);
   const y = useSharedValue(PIP_COORD[rest[1]]);
   useEffect(() => {
@@ -1589,7 +1585,7 @@ function Pip({
       backgroundColor: interpolateColor(
         peak.value,
         [0, 1],
-        [color.label, "#0A0A0A"],
+        [color.label, PEAK_SHADES[scheme][2]],
       ),
     };
   });
@@ -1609,6 +1605,8 @@ function PeakGlyph({
   peak: SharedValue<number>;
   collapse: SharedValue<number>;
 }) {
+  const { scheme } = useTheme();
+  const shades = PEAK_SHADES[scheme];
   const style = useAnimatedStyle(() => ({
     opacity: peak.value * (1 - collapse.value),
   }));
@@ -1628,7 +1626,7 @@ function PeakGlyph({
               width: PEAK_CELL,
               height: PEAK_CELL,
               borderRadius: PEAK_CELL * 0.3,
-              backgroundColor: PEAK_SHADES[shade],
+              backgroundColor: shades[shade],
               transform: [{ translateX: cx }, { translateY: cy }],
             }}
           />
@@ -1673,6 +1671,7 @@ function TempKey({
   onRevert: () => void;
   onKeep: () => void;
 }) {
+  const styles = useStyles(stylesFor);
   const flash = useSharedValue(0);
   const dotPulse = useSharedValue(0);
   /**
@@ -1948,7 +1947,7 @@ function TempKey({
 // Paper 5SI-0: glass capsule (rgba(28,28,34,.55) + blur 24 saturate 160% in
 // the mock — real GlassView here), 0.5px rgba(255,255,255,.12) rim, soft
 // 0/10/24 shadow, solid #2C2C2E keys. Fallback = the old solid #16161D bar.
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color, ramp }) => ({
   // The layout box is SS× the visual capsule and the ÷SS scale shrinks it
   // toward its own center, so the anchor overshoots the margins by half the
   // VISUAL size — the scaled-down capsule's right/bottom edges land exactly
@@ -1974,7 +1973,7 @@ const styles = StyleSheet.create({
     // the solid fallback. Armed brightening is the separate armedRim
     // overlay, which can be thicker without heavying this rest chrome.
     borderWidth: 2 * SS,
-    borderColor: "rgba(255,255,255,0.07)",
+    borderColor: alpha(color.label, 0.07),
     shadowColor: "#000000",
     shadowOpacity: 0.4,
     shadowRadius: 24 * SS,
@@ -2016,8 +2015,8 @@ const styles = StyleSheet.create({
   // Downbeat bloom over the light pixel's rest cell (TL).
   pipGlow: {
     transform: [{ translateX: PIP_COORD[0] }, { translateY: PIP_COORD[0] }],
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#FFFFFF",
+    backgroundColor: color.label,
+    shadowColor: color.label,
     shadowOpacity: 0.8,
     shadowRadius: 3 * SS,
     shadowOffset: { width: 0, height: 0 },
@@ -2034,7 +2033,7 @@ const styles = StyleSheet.create({
   keyInvert: {
     ...FILL,
     borderRadius: 999,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: color.label,
   },
   keyFlash: {
     ...FILL,
@@ -2046,7 +2045,7 @@ const styles = StyleSheet.create({
     height: 11 * SS,
     borderRadius: 999,
     borderWidth: 1.5 * SS,
-    borderColor: "#8E8E93",
+    borderColor: color.label4,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2061,8 +2060,8 @@ const styles = StyleSheet.create({
   },
   // Jump-back blip: a hot white glow over the lit dot.
   ghostDotPulse: {
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#FFFFFF",
+    backgroundColor: color.label,
+    shadowColor: color.label,
     shadowOpacity: 1,
     shadowRadius: 6 * SS,
     shadowOffset: { width: 0, height: 0 },
@@ -2077,8 +2076,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: 999,
     borderWidth: 3 * SS,
-    borderColor: "rgba(255,255,255,0.25)",
-    shadowColor: "#FFFFFF",
+    borderColor: alpha(color.label, 0.25),
+    shadowColor: color.label,
     shadowOpacity: 0.4,
     shadowRadius: 16 * SS,
     shadowOffset: { width: 0, height: 0 },
@@ -2097,7 +2096,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: 999,
     borderWidth: 3 * SS,
-    borderColor: "rgba(255,255,255,0.35)",
+    borderColor: alpha(color.label, 0.35),
     overflow: "hidden",
   },
   // Keep progress bar — pinned right/bottom (the capsule's fixed corner) so
@@ -2136,8 +2135,8 @@ const styles = StyleSheet.create({
     width: 5 * SS,
     height: 5 * SS,
     borderRadius: 999,
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#FFFFFF",
+    backgroundColor: color.label,
+    shadowColor: color.label,
     shadowOpacity: 0.8,
     shadowRadius: 3 * SS,
     shadowOffset: { width: 0, height: 0 },
@@ -2163,8 +2162,8 @@ const styles = StyleSheet.create({
     width: RING_LED,
     height: RING_LED,
     borderRadius: 999,
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#FFFFFF",
+    backgroundColor: color.label,
+    shadowColor: color.label,
     shadowOpacity: 0.9,
     shadowRadius: 3 * SS,
     shadowOffset: { width: 0, height: 0 },
@@ -2178,8 +2177,8 @@ const styles = StyleSheet.create({
     width: CHARGE_D,
     height: CHARGE_D,
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    shadowColor: "#FFFFFF",
+    backgroundColor: alpha(color.label, 0.05),
+    shadowColor: color.label,
     shadowOpacity: 0.9,
     shadowRadius: 22 * SS,
     shadowOffset: { width: 0, height: 0 },
@@ -2193,10 +2192,10 @@ const styles = StyleSheet.create({
     height: DISCHARGE_D,
     borderRadius: 999,
     borderWidth: 1.5 * SS,
-    borderColor: "#FFFFFF",
+    borderColor: color.label,
     // Rides transform: scale (0.375 → 1). Clipping flips RN onto the
     // CALayer border path so the hairline scales as vector geometry
     // instead of a nearest-filtered bitmap. No children, no shadow.
     overflow: "hidden",
   },
-});
+}));

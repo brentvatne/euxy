@@ -6,16 +6,18 @@
  * lets the web tester verify the output link.
  */
 import { Stack } from 'expo-router/stack';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
 import { AppText } from '@/components/ui';
-import { color, radius, space } from '@/theme/tokens';
-import { GRAY } from '@/components/midi/components';
+import { radius, space } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import { clearLog, sendTestNote, useMidiRuntime } from '@/components/midi/runtime';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
 function ClockIndicator({ active }: { active: boolean }) {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   return (
     <View style={styles.clockTag}>
       <View style={[styles.clockDot, { backgroundColor: active ? color.playhead : color.label4, opacity: active ? 1 : 0.4 }]} />
@@ -27,6 +29,7 @@ function ClockIndicator({ active }: { active: boolean }) {
 }
 
 export default function ActivityLogScreen() {
+  const styles = useStyles(stylesFor);
   useMarkInteractive();
   const rt = useMidiRuntime();
 
@@ -71,7 +74,7 @@ export default function ActivityLogScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   root: { flex: 1, backgroundColor: color.ground },
   content: { padding: space.lg, gap: space.md },
 
@@ -79,7 +82,7 @@ const styles = StyleSheet.create({
   btn: { flex: 1, backgroundColor: color.surface2, borderRadius: radius.control, paddingVertical: 12, alignItems: 'center' },
   btnText: { fontSize: 15, fontWeight: '600', color: color.label },
   btnGhost: { paddingHorizontal: space.lg, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center', backgroundColor: color.surface },
-  btnGhostText: { fontSize: 15, fontWeight: '600', color: GRAY },
+  btnGhostText: { fontSize: 15, fontWeight: '600', color: color.label25 },
   btnPressed: { opacity: 0.6 },
 
   logBox: { backgroundColor: color.displayBg, borderRadius: radius.cell, padding: space.lg, gap: 3, minHeight: 220 },
@@ -102,4 +105,4 @@ const styles = StyleSheet.create({
   clockText: { fontSize: 12, lineHeight: 16 },
 
   hint: { fontSize: 12, lineHeight: 16, color: color.label4, paddingHorizontal: space.xs },
-});
+}));

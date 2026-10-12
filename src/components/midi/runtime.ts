@@ -356,6 +356,10 @@ export function getSnapshot(): MidiSnapshot {
   return snap;
 }
 
+export function subscribeMidiRuntime(cb: () => void): () => void {
+  return subscribe(cb);
+}
+
 function subscribe(cb: () => void): () => void {
   listeners.add(cb);
   return () => listeners.delete(cb);

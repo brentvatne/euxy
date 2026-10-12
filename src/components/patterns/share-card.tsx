@@ -28,7 +28,7 @@ import { chipForPattern, CHIP_SHADE_COLORS, effectiveChipName } from '@/componen
 import { patternForLane } from '@/core/lane-pattern';
 import { shareUrl } from '@/core/share-codec';
 import type { Pattern } from '@/state/types';
-import { color, stepFill } from '@/theme/tokens';
+import { themes } from '@/theme/theme';
 
 const PAD = 18;
 const CHIP = 28;
@@ -53,7 +53,7 @@ const fonts = {
 };
 
 /** Chip glyph cells at led-chip.tsx geometry, as Skia rects. */
-function chipElements(shades: string, x: number, y: number, size: number) {
+function chipElements(shades: string, x: number, y: number, size: number, surface: string) {
   const unit = (size * 0.58) / 22;
   const cell = 3.2 * unit;
   const gap = unit;
@@ -77,7 +77,7 @@ function chipElements(shades: string, x: number, y: number, size: number) {
   }
   return (
     <Group>
-      <RoundedRect x={x} y={y} width={size} height={size} r={size * 0.24} color={color.surface2} />
+      <RoundedRect x={x} y={y} width={size} height={size} r={size * 0.24} color={surface} />
       {cells}
     </Group>
   );
@@ -107,6 +107,8 @@ export function ShareCard({
   width: number;
   canvasRef?: RefObject<CanvasRef | null>;
 }) {
+  // The card is shared as an image, so it is always the dark artwork whatever the app's scheme.
+  const { color, stepFill } = themes.dark;
   const height = shareCardHeight(pattern);
   // Encode the EFFECTIVE glyph name — curated preset glyphs come from the
   // id-keyed ASSIGNED map, and ids don't travel in the payload.
@@ -215,13 +217,13 @@ export function ShareCard({
   return (
     <Canvas ref={canvasRef} style={{ width, height }}>
       <RoundedRect x={0} y={0} width={width} height={height} r={12} color={color.displayBg} />
-      {chipElements(shades, PAD, PAD, CHIP)}
+      {chipElements(shades, PAD, PAD, CHIP, color.surface2)}
       <SkiaText x={PAD + CHIP + 10} y={PAD + 15} text={pattern.name} font={fonts.name} color={color.label} />
       <SkiaText x={PAD + CHIP + 10} y={PAD + 33} text={stats} font={fonts.mono} color={color.label25} />
       {laneRows}
       <RoundedRect x={qrX} y={qrY} width={QR_PANEL} height={QR_PANEL} r={12} color="#F6F4F4" />
       {moduleRects}
-      {chipElements(shades, qrX + qrChipXY, qrY + qrChipXY, qrChipSize)}
+      {chipElements(shades, qrX + qrChipXY, qrY + qrChipXY, qrChipSize, color.surface2)}
       <SkiaText
         x={(width - captionW) / 2}
         y={qrY + QR_PANEL + 12 + 9}

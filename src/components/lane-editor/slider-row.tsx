@@ -15,10 +15,11 @@
  * while the store hears from us at most every COMMIT_MS.
  */
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { haptics } from '@/lib/shims';
-import { color, font, space } from '@/theme/tokens';
+import { font, space } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import { AppText } from '@/components/ui';
 import { NativeSlider } from '@/components/ui/native-slider';
 
@@ -34,6 +35,11 @@ export interface SliderRowProps {
   /** Landmark values that get a harder, detent-like haptic while dragging
    * (e.g. 16/32/48/64 on Steps) — every other step ticks like an encoder. */
   accentValues?: readonly number[];
+  /** Inactive track color — one step lighter than the row's background so the
+   * track reads as a track (Material also paints a stop dot at its end, which
+   * dangles in space when the track is invisible). Defaults to `surface2`,
+   * right for a row sitting on a `surface` card. */
+  trackColor?: string;
 }
 
 /** Longest the store may lag the finger. ~8× fewer commits on a fast sweep,
@@ -49,7 +55,11 @@ export function SliderRow({
   onChange,
   formatValue,
   accentValues,
+  trackColor: trackColorProp,
 }: SliderRowProps) {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
+  const trackColor = trackColorProp ?? color.surface2;
   // Encoder feel: one selection tick per stepped value crossed, a rigid
   // detent on landmarks. The ref gates repeat events at the same step.
   const lastTicked = useRef(value);
@@ -133,8 +143,8 @@ export function SliderRow({
         maximumValue={safeMax}
         step={step}
         disabled={empty}
-        minimumTrackTintColor="#EBEBEB"
-        maximumTrackTintColor={color.surface2}
+        minimumTrackTintColor={color.label}
+        maximumTrackTintColor={trackColor}
         thumbTintColor={color.label}
         onValueChange={(v) => {
           const next = Math.round(v / step) * step;
@@ -151,11 +161,11 @@ export function SliderRow({
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   row: { gap: space.xs },
   rowDisabled: { opacity: 0.4 },
   head: { flexDirection: 'row', justifyContent: 'space-between' },
   label: { fontFamily: font.text, fontWeight: '500', fontSize: 14, lineHeight: 18, color: color.label25 },
   value: { fontFamily: font.text, fontWeight: '600', fontSize: 14, lineHeight: 18, color: color.label },
   slider: { height: 28 },
-});
+}));

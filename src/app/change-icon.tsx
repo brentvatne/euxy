@@ -9,17 +9,21 @@
  */
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 import { effectiveChipName, type ChipName } from '@/components/patterns/chips';
 import { IconPicker } from '@/components/patterns/icon-picker';
 import { SheetHeader } from '@/components/ui';
 import { useStore } from '@/state/store';
-import { color, font, space } from '@/theme/tokens';
+import { font, space } from '@/theme/tokens';
+import { themed, useStyles } from '@/theme/theme';
+import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
 export default function ChangeIconSheet() {
+  const styles = useStyles(stylesFor);
   useMarkInteractive();
+  const bottomInset = useSheetBottomInset();
   const { patternId } = useLocalSearchParams<{ patternId?: string }>();
   const pattern = useStore((s) =>
     s.patterns.find((p) => p.id === (patternId ?? s.activePatternId)),
@@ -51,7 +55,7 @@ export default function ChangeIconSheet() {
           formSheet frame correction otherwise paints it over the header
           (same workaround as lane-editor). */}
       <View style={styles.flex} collapsable={false}>
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView nestedScrollEnabled contentContainerStyle={[styles.content, { paddingBottom: space.xxl + bottomInset }]} showsVerticalScrollIndicator={false}>
           <IconPicker
             selected={selected}
             onSelect={(name) => {
@@ -65,7 +69,7 @@ export default function ChangeIconSheet() {
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   root: { flex: 1, backgroundColor: color.surface },
   flex: { flex: 1 },
   grabberSpace: { height: 13 },
@@ -79,4 +83,4 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   content: { paddingHorizontal: 16, paddingBottom: space.xxl },
-});
+}));

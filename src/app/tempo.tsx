@@ -15,7 +15,7 @@
  * never rewrites existing lanes (see store.setBaseResolution).
  */
 import { useRef } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 import { router } from 'expo-router';
 
@@ -25,12 +25,17 @@ import { ValueFilm } from '@/components/ui/value-film';
 import { ResolutionPicker } from '@/components/patterns/resolution-picker';
 import { useActivePattern } from '@/state/selectors';
 import { useStore } from '@/state/store';
-import { color, font, HIT_SLOP, radius, space } from '@/theme/tokens';
+import { font, HIT_SLOP, radius, space } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
+import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 import { BPM_MAX, BPM_MIN } from './new-pattern';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
 export default function TempoSheet() {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   useMarkInteractive();
+  const bottomInset = useSheetBottomInset();
   const bpm = useStore((s) => s.transport.bpm);
   const recordMode = useStore((s) => s.transport.clockMode) === 'record';
   const setBpm = useStore((s) => s.setBpm);
@@ -124,8 +129,9 @@ export default function TempoSheet() {
           one that new-pattern and lane-editor need. */}
       <View style={styles.scroll} collapsable={false}>
       <ScrollView
+        nestedScrollEnabled
         style={styles.scroll}
-        contentContainerStyle={styles.body}
+        contentContainerStyle={[styles.body, { paddingBottom: space.xxl + bottomInset }]}
         showsVerticalScrollIndicator={false}
       >
         {/* No "Tempo" header — the sheet IS tempo (Brent: redundant). The
@@ -237,6 +243,7 @@ export default function TempoSheet() {
 /** Section headers match the Edit Lane sheet (Brent: that one is correct) —
  * title case, 17/22 semibold label3 — NOT the New Pattern micro-caps. */
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  const styles = useStyles(stylesFor);
   return (
     <View style={styles.field}>
       <AppText style={styles.fieldLabel}>{label}</AppText>
@@ -245,7 +252,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   root: { flex: 1, backgroundColor: color.surface },
   grabberSpace: { height: 13 },
   scroll: { flex: 1 },
@@ -296,12 +303,12 @@ const styles = StyleSheet.create({
     left: -6,
     right: -6,
     borderRadius: 6,
-    backgroundColor: '#F6F4F4',
+    backgroundColor: color.label,
   },
   disabled: { opacity: 0.35 },
   // Paper 8OU-0: 13/18 regular, px 20 (body is 16 → +4), first line #95959A,
   // second the dimmer #6E6E76 (Paper value; also the transport standby ring).
   footnotes: { gap: space.sm, paddingHorizontal: 4, paddingTop: space.xs },
   footnote: { fontFamily: font.text, fontSize: 13, lineHeight: 18, color: color.label3 },
-  footnoteDim: { fontFamily: font.text, fontSize: 13, lineHeight: 18, color: '#6E6E76' },
-});
+  footnoteDim: { fontFamily: font.text, fontSize: 13, lineHeight: 18, color: color.trail },
+}));

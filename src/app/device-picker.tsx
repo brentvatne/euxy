@@ -6,19 +6,22 @@
  */
 import { useEffect } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
 import { AppText } from '@/components/ui';
 import { IconBus, IconCheck, IconClose, IconDevice, IconNone, IconUsb } from '@/components/midi/icons';
 import { refreshDevices, selectInput, selectOutput, useMidiRuntime } from '@/components/midi/runtime';
 import { useSettings } from '@/state/selectors';
-import { color, radius, space } from '@/theme/tokens';
+import { radius, space } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
+import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 import type { MidiDevice } from '@/midi/types';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 function DeviceIcon({ name, selected }: { name: string; selected: boolean }) {
+  const { color } = useTheme();
   const c = selected ? color.label : color.label3;
   const n = norm(name);
   if (n.includes('opxy')) return <IconDevice color={selected ? color.label : color.label} />;
@@ -27,7 +30,9 @@ function DeviceIcon({ name, selected }: { name: string; selected: boolean }) {
 }
 
 export default function DevicePickerSheet() {
+  const styles = useStyles(stylesFor);
   useMarkInteractive();
+  const bottomInset = useSheetBottomInset();
   const { kind } = useLocalSearchParams<{ kind?: string }>();
   const isInput = kind === 'input';
   const rt = useMidiRuntime();
@@ -62,7 +67,7 @@ export default function DevicePickerSheet() {
   };
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.scroll}>
+    <ScrollView nestedScrollEnabled style={styles.root} contentContainerStyle={[styles.scroll, { paddingBottom: space.xxl + bottomInset }]}>
       <View style={styles.header}>
         <AppText style={styles.title}>{isInput ? 'Input device' : 'Output device'}</AppText>
         <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Close" style={styles.closeBtn} hitSlop={space.sm}>
@@ -104,7 +109,7 @@ export default function DevicePickerSheet() {
 
 const OUTER = radius.cell;
 const INNER = 2;
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   root: { flex: 1, backgroundColor: color.surface },
   scroll: { paddingBottom: space.xxl },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 20, paddingBottom: 10, paddingHorizontal: space.xl },
@@ -127,4 +132,4 @@ const styles = StyleSheet.create({
 
   searching: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.md, paddingTop: space.md },
   hint: { flex: 1, fontSize: 13, lineHeight: 18, color: color.label3 },
-});
+}));

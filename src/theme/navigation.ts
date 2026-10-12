@@ -5,15 +5,19 @@
  * its own `tintColor` prop separately.
  */
 import { Platform } from 'react-native';
-import { DarkTheme, type Theme } from 'expo-router/react-navigation';
+import { DarkTheme, DefaultTheme, type Theme } from 'expo-router/react-navigation';
 
-import { color, font, radius } from './tokens';
+import { palette, type Scheme, font, radius } from './tokens';
+import { useScheme } from './theme';
 
-export const navTheme: Theme = {
-  ...DarkTheme,
-  dark: true,
+export function navThemeFor(scheme: Scheme): Theme {
+  const color = palette[scheme];
+  const base = scheme === 'light' ? DefaultTheme : DarkTheme;
+  return {
+  ...base,
+  dark: scheme === 'dark',
   colors: {
-    ...DarkTheme.colors,
+    ...base.colors,
     primary: color.label, // tint (back chevrons, active controls) → white
     background: color.ground,
     card: color.ground, // headers blend into the ground; no gray header bar
@@ -21,11 +25,17 @@ export const navTheme: Theme = {
     border: color.separator,
     notification: color.danger,
   },
-  fonts: DarkTheme.fonts,
-};
+  fonts: base.fonts,
+  };
+}
+
+/** The React Navigation theme for the active scheme. */
+export function useNavTheme(): Theme {
+  return navThemeFor(useScheme());
+}
 
 /** Tab bar + control tint. White = active/primary per the monochrome rule. */
-export const TINT = color.label;
+export const tintFor = (scheme: Scheme) => palette[scheme].label;
 
 /**
  * Shared form-sheet screen options. Lives here (not in the root layout) because
@@ -33,13 +43,14 @@ export const TINT = color.label;
  * shared-pattern sheet inside the Patterns tab's stack (see
  * app/(tabs)/(patterns)/_layout.tsx). Detents stay per-screen.
  */
-export const sheetOptions = {
-  presentation: 'formSheet',
-  sheetGrabberVisible: true,
-  sheetCornerRadius: radius.sheet,
-  headerShown: false,
-  contentStyle: { backgroundColor: color.surface },
-} as const;
+export const sheetOptionsFor = (scheme: Scheme) =>
+  ({
+    presentation: 'formSheet',
+    sheetGrabberVisible: true,
+    sheetCornerRadius: radius.sheet,
+    headerShown: false,
+    contentStyle: { backgroundColor: palette[scheme].surface },
+  }) as const;
 
 /**
  * Screen options for the two large-title tabs (Patterns, MIDI).
@@ -53,7 +64,9 @@ export const sheetOptions = {
  * transparent header would just float over the first rows: there the header
  * is an ordinary opaque bar in the ground color, flush with the content.
  */
-export const largeTitleStackOptions = Platform.select({
+export const largeTitleStackOptionsFor = (scheme: Scheme) => {
+  const color = palette[scheme];
+  return Platform.select({
   android: {
     headerTransparent: false,
     headerShadowVisible: false,
@@ -73,5 +86,29 @@ export const largeTitleStackOptions = Platform.select({
     headerTitleStyle: { color: color.label },
   },
 } as const);
+};
 
-export { color, font };
+export { font };
+
+/**
+ * Android tab bar in the app's grays. Without this the Material 3 defaults
+ * leak through: a lavender-tinted surface and a periwinkle active-indicator
+ * pill, the only hue on an otherwise monochrome screen. iOS ignores every key
+ * here (the bar stays translucent white-on-black), so this is Android-only.
+ */
+export const androidTabBarOptionsFor = (scheme: Scheme) => {
+  const color = palette[scheme];
+  return Platform.select({
+  android: {
+    backgroundColor: color.surface,
+    indicatorColor: color.surface4,
+    rippleColor: scheme === 'light' ? 'rgba(10, 10, 12, 0.08)' : 'rgba(246, 244, 244, 0.10)',
+    iconColor: { default: color.label3, selected: color.label },
+    labelStyle: {
+      default: { color: color.label3, fontFamily: font.text },
+      selected: { color: color.label, fontFamily: font.text },
+    },
+  },
+  default: {},
+});
+};

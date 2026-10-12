@@ -11,7 +11,7 @@ import type { CanvasRef } from '@shopify/react-native-skia';
 import { ImageFormat } from '@shopify/react-native-skia';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ScrollView, Share, StyleSheet, View } from 'react-native';
+import { ScrollView, Share, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
 import { effectiveChipName } from '@/components/patterns/chips';
@@ -28,7 +28,9 @@ import {
 } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { useStore } from '@/state/store';
-import { color, font, space } from '@/theme/tokens';
+import { font, space } from '@/theme/tokens';
+import { themed, useStyles } from '@/theme/theme';
+import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 
 const CARD_WIDTH = 358;
 
@@ -39,6 +41,7 @@ const slug = (name: string) =>
     .replace(/^-|-$/g, '') || 'pattern';
 
 export default function SharePatternSheet() {
+  const styles = useStyles(stylesFor);
   const { patternId } = useLocalSearchParams<{ patternId?: string }>();
   const pattern = useStore((s) =>
     s.patterns.find((p) => p.id === (patternId ?? s.activePatternId)),
@@ -49,6 +52,7 @@ export default function SharePatternSheet() {
   // Nav TTI for this sheet (the QR render is its real readiness moment) +
   // the top of the share funnel.
   useMarkInteractive();
+  const bottomInset = useSheetBottomInset();
   useEffect(() => {
     logObserveEvent('share.sheet_opened');
   }, []);
@@ -93,7 +97,11 @@ export default function SharePatternSheet() {
       <View style={styles.grabberSpace} />
       <SheetHeader title="Share Pattern" onDone={() => router.back()} />
       <View style={styles.flex} collapsable={false}>
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          nestedScrollEnabled
+          contentContainerStyle={[styles.content, { paddingBottom: space.xxl + bottomInset }]}
+          showsVerticalScrollIndicator={false}
+        >
           <ShareCard pattern={pattern} width={CARD_WIDTH} canvasRef={canvasRef} />
           <View style={styles.actions}>
             <Pressable
@@ -120,7 +128,7 @@ export default function SharePatternSheet() {
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   root: { flex: 1, backgroundColor: color.surface },
   flex: { flex: 1 },
   grabberSpace: { height: 13 },
@@ -143,14 +151,14 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: color.label,
   },
-  keyLabelDark: { color: '#101014' },
+  keyLabelDark: { color: color.ground },
   footnote: {
     fontFamily: font.text,
     fontSize: 12,
     lineHeight: 16,
-    color: '#6E6E76',
+    color: color.trail,
     textAlign: 'center',
     paddingTop: 12,
     paddingHorizontal: 16,
   },
-});
+}));

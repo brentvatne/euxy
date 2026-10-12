@@ -9,12 +9,13 @@
  */
 import { MenuView } from '@expo/ui/community/menu';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 import Svg, { Path } from 'react-native-svg';
 
 import { haptics } from '@/lib/shims';
-import { color, font } from '@/theme/tokens';
+import { font } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import { AppText, Tip } from '@/components/ui';
 import { LedChip } from '@/components/patterns/led-chip';
 import { UpdateMarker } from '@/components/update-marker';
@@ -57,6 +58,8 @@ export function SequencerNav({
   canRestorePreset: boolean;
   onMenuAction: (action: PatternMenuAction) => void;
 }) {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   // With nothing connected the pill is the one thing on screen that knows why
   // nothing plays, so it answers that question itself: tapping it drops the
   // same popover the Listen key uses (TestFlight, build 71). Only while
@@ -216,7 +219,7 @@ export function SequencerNav({
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   // The popover's positioning context: unpadded (so a measured pill centre and
   // the popover's own insets share one origin) and above the lane list, which
   // the bubble has to paint over.
@@ -250,7 +253,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     lineHeight: 28,
     letterSpacing: -0.44,
-    color: '#FFFFFF',
+    color: color.label,
   },
   chevron: { marginTop: 4 },
   right: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -265,6 +268,5 @@ const styles = StyleSheet.create({
   },
   pillPressed: { opacity: 0.6 },
   pillDot: { width: 7, height: 7, borderRadius: 999 },
-  pillText: { fontFamily: font.text, fontWeight: '600', fontSize: 13, lineHeight: 16, color: '#EBEBEB' },
-
-});
+  pillText: { fontFamily: font.text, fontWeight: '600', fontSize: 13, lineHeight: 16, color: color.label },
+}));

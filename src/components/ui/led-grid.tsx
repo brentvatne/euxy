@@ -24,8 +24,9 @@
  */
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+import { useTheme } from '@/theme/theme';
 
-import { CHIP_SHADE_COLORS } from '@/components/patterns/chips';
+import { chipShadeColorsFor } from '@/components/patterns/chips';
 
 export type LedGridMode = 'fill' | 'pulse' | 'trail';
 
@@ -118,13 +119,13 @@ export function LedGrid({
   mode = 'fill',
   trail = 2,
   pulseFall = 1,
-  colors = CHIP_SHADE_COLORS,
+  colors: colorsProp,
   cell,
   gapX,
   gapY,
   cellRadius,
   renderBase = true,
-  unlitColor = '#1A1A1F',
+  unlitColor: unlitProp,
 }: {
   shades: string;
   /** Per-cell ignition index (null = never lights). See typeOnOrder() & friends. */
@@ -149,6 +150,9 @@ export function LedGrid({
   renderBase?: boolean;
   unlitColor?: string;
 }) {
+  const { color } = useTheme();
+  const colors = colorsProp ?? chipShadeColorsFor(color);
+  const unlitColor = unlitProp ?? color.ledUnlit;
   const m =
     cell != null
       ? { cell, gapX: gapX ?? 0, gapY: gapY ?? gapX ?? 0, radius: cellRadius ?? (cell * 9) / 44 }

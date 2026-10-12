@@ -1,13 +1,14 @@
 /**
- * Rename sheet. iOS renames through `Alert.prompt`, which Android and web do
- * not have — there the Patterns list, its long-press menu and the Sequencer's
- * pattern menu open this form sheet instead. One field, Done commits via
- * `renamePattern`; a blank name is a no-op (the store keeps the old one).
+ * Rename sheet (web). iOS renames through `Alert.prompt` and Android through a
+ * Material AlertDialog (components/patterns/rename-prompt*); web has neither,
+ * so the Patterns list, its long-press menu and the Sequencer's pattern menu
+ * open this form sheet there. One field, Done commits via `renamePattern`; a
+ * blank name is a no-op (the store keeps the old one).
  *
  * Route params: `patternId` — the pattern to rename.
  */
 import { useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { AppText, SheetHeader } from '@/components/ui';
@@ -16,10 +17,15 @@ import { Key } from '@/components/ui/key';
 import { haptics } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { useStore } from '@/state/store';
-import { color, font, radius, space, selection } from '@/theme/tokens';
+import { font, radius, space } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
+import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 
 export default function RenamePatternSheet() {
+  const styles = useStyles(stylesFor);
+  const { color, selection } = useTheme();
   useMarkInteractive();
+  const bottomInset = useSheetBottomInset();
   const { patternId } = useLocalSearchParams<{ patternId: string }>();
   const pattern = useStore((s) => s.patterns.find((p) => p.id === patternId));
   const renamePattern = useStore((s) => s.renamePattern);
@@ -43,7 +49,7 @@ export default function RenamePatternSheet() {
         doneLabel="Rename"
         doneDisabled={!name.trim()}
       />
-      <View style={styles.body}>
+      <View style={[styles.body, { paddingBottom: space.xxl + bottomInset }]}>
         <AppText style={styles.fieldLabel}>Name</AppText>
         <View style={styles.inputCell}>
           <TextInput
@@ -77,7 +83,7 @@ export default function RenamePatternSheet() {
 }
 
 // Same field recipe as the New Pattern sheet (Paper 8OY-0).
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   root: { flex: 1, backgroundColor: color.surface },
   grabberSpace: { height: 13 },
   body: {
@@ -119,4 +125,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

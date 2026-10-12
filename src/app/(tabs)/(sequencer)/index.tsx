@@ -8,7 +8,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useIsFirstRender } from '@/lib/use-is-first-render';
 import { router } from 'expo-router';
-import { Alert, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
+import { themed, useStyles } from '@/theme/theme';
 import Animated, {
   FadeInDown,
   FadeOut,
@@ -24,16 +25,16 @@ import { isPresetPattern } from '@/state/presets';
 import { laneAudible, useActivePattern, useAnySolo, useSettings } from '@/state/selectors';
 import { selectHasLaneEdits, useStore } from '@/state/store';
 import type { Lane } from '@/state/types';
-import { onBootOverlayGone, reportFirstScreenLayout } from '@/components/boot-signal';
+import { reportFirstScreenLayout } from '@/components/boot-signal';
 import { useMidiRuntime } from '@/components/midi/runtime';
 import { postNotice } from '@/lib/notice';
 import { haptics, logObserveEvent } from '@/lib/shims';
 import { useBeatHaptics } from '@/lib/use-beat-haptics';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
-import { color } from '@/theme/tokens';
 import { LaneRow, TransportBar } from '@/components/ui';
 import { useScreenFocused } from '@/components/ui/use-screen-focused';
 import { chipForPattern } from '@/components/patterns/chips';
+import { useRenamePrompt } from '@/components/patterns/rename-prompt';
 import { SequencerNav, type PatternMenuAction } from '@/components/sequencer/header';
 import { EmptyState } from '@/components/sequencer/empty-state';
 import { FloatingActions } from '@/components/sequencer/floating-actions';
@@ -48,9 +49,9 @@ function laneSubtitle(lane: Lane): string {
 
 // Backstop for the boot-overlay signal itself — comfortably past BootSplash's
 // own 2s failsafe plus its ~900ms power-on.
-const CAPSULE_FAILSAFE_MS = 4000;
 
 export default function SequencerScreen() {
+  const styles = useStyles(stylesFor);
   const insets = useSafeAreaInsets();
   const pattern = useActivePattern();
   const lanes = pattern.lanes;
@@ -61,7 +62,6 @@ export default function SequencerScreen() {
   const togglePlay = useStore((s) => s.togglePlay);
   const stop = useStore((s) => s.stop);
   const addLane = useStore((s) => s.addLane);
-  const renameActivePattern = useStore((s) => s.renameActivePattern);
   const clearLanes = useStore((s) => s.clearLanes);
   const revertToLoaded = useStore((s) => s.revertToLoaded);
   const saveCopyAndRevert = useStore((s) => s.saveCopyAndRevert);
@@ -69,6 +69,7 @@ export default function SequencerScreen() {
   // nothing to keep a copy of.
   const hasLaneEdits = useStore(selectHasLaneEdits);
   const resetPreset = useStore((s) => s.resetPreset);
+  const { promptRename, renamePrompt } = useRenamePrompt();
   const setClockMode = useStore((s) => s.setClockMode);
   const toggleMute = useStore((s) => s.toggleMute);
   const toggleSolo = useStore((s) => s.toggleSolo);
@@ -128,37 +129,6 @@ export default function SequencerScreen() {
     });
   };
 
-  // The capsule is the ONE thing that animates in on app open, and the whole
-  // app renders behind the opaque boot overlay for ~900ms (components/
-  // boot-splash.tsx) — so it holds its mount until that overlay is gone and
-  // then powers on where it can be seen. Gating on the screen's first render
-  // instead (the old `animateMount`) could never work: lanes exist in the very
-  // first render (hydration is synchronous), so the capsule always mounted in
-  // the initial commit with no entrance at all.
-  const [capsuleReady, setCapsuleReady] = useState(false);
-  useEffect(() => {
-    let revealFrame: number | null = null;
-    let revealed = false;
-    const reveal = () => {
-      if (revealed) return;
-      revealed = true;
-      setCapsuleReady(true);
-    };
-    const unsubscribe = onBootOverlayGone(() => {
-      // Cross a paint boundary instead of guessing at a delay. The overlay's
-      // removal is committed before this signal; mounting on the next frame
-      // keeps its teardown and the capsule entrance out of the same frame.
-      revealFrame = requestAnimationFrame(reveal);
-    });
-    // Same never-deadlock rule as the boot gates themselves: if the signal is
-    // ever missed, show the capsule anyway — no entrance beats no capsule.
-    const failsafe = setTimeout(reveal, CAPSULE_FAILSAFE_MS);
-    return () => {
-      unsubscribe();
-      clearTimeout(failsafe);
-      if (revealFrame != null) cancelAnimationFrame(revealFrame);
-    };
-  }, []);
 
   // The playhead runs on under the Lane Editor / Tempo sheets (still this
   // tab, just covered); it stops once another tab is actually up and nobody
@@ -202,22 +172,6 @@ export default function SequencerScreen() {
     togglePlay();
   };
 
-  const renamePattern = () => {
-    if (Platform.OS !== 'ios') {
-      router.push({ pathname: '/rename-pattern', params: { patternId: pattern.id } });
-      return;
-    }
-    Alert.prompt(
-      'Rename pattern',
-      undefined,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Rename', onPress: (name?: string) => name?.trim() && renameActivePattern(name) },
-      ],
-      'plain-text',
-      pattern.name,
-    );
-  };
 
   // Restores on the spot, no confirmation — the same terms as the Patterns
   // list's per-row Restore Default (patterns.tsx). Only the restore-everything
@@ -247,7 +201,7 @@ export default function SequencerScreen() {
         router.push({ pathname: '/new-pattern', params: { from: 'sequencer' } });
         break;
       case 'rename':
-        renamePattern();
+        promptRename(pattern);
         break;
       case 'icon':
         router.push({ pathname: '/change-icon', params: { from: 'sequencer' } });
@@ -353,38 +307,37 @@ export default function SequencerScreen() {
             ))}
           </ScrollView>
         )}
-        {/* Hidden in the empty state — its own Add-lane CTA owns that screen.
-            Held back until the boot overlay is gone so its entrance plays on a
-            visible frame (see capsuleReady above). */}
-        {lanes.length > 0 && capsuleReady ? (
-          <FloatingActions
-            canMutate
-            snapshotActive={snapshotActive}
-            onAddLane={addAndEdit}
-            onMutate={() => {
-              logObserveEvent('pattern.mutated', { attributes: { lanes: lanes.length } });
-              mutatePattern();
-            }}
-            onRoll={rollPattern}
-            // Logged on the COMMIT, once per hold — the preview rolls inside a
-            // hold are one gesture, and how far people actually charge is the
-            // question worth answering.
-            onChargeCommit={(tier) => {
-              logObserveEvent('pattern.charged', { attributes: { tier, lanes: lanes.length } });
-              commitChargeRoll();
-            }}
-            onArm={armSnapshot}
-            // Restores a state you already know, same as revert / restore
-            // above — the swap snaps instead of animating.
-            onRevert={() => applyQuietly(revertSnapshot)}
-            onKeep={keepSnapshot}
-          />
-        ) : null}
+        {/* Always mounted (Liquid Glass wants to be created under the boot
+            overlay, see floating-actions.tsx); parked off-screen in the empty
+            state, whose own Add-lane CTA owns that screen. */}
+        <FloatingActions
+        visible={lanes.length > 0}
+          canMutate
+          snapshotActive={snapshotActive}
+          onAddLane={addAndEdit}
+          onMutate={() => {
+            logObserveEvent('pattern.mutated', { attributes: { lanes: lanes.length } });
+            mutatePattern();
+          }}
+          onRoll={rollPattern}
+          // Logged on the COMMIT, once per hold — the preview rolls inside a
+          // hold are one gesture, and how far people actually charge is the
+          // question worth answering.
+          onChargeCommit={(tier) => {
+            logObserveEvent('pattern.charged', { attributes: { tier, lanes: lanes.length } });
+            commitChargeRoll();
+          }}
+          onArm={armSnapshot}
+          // Restores a state you already know, same as revert / restore
+          // above — the swap snaps instead of animating.
+          onRevert={() => applyQuietly(revertSnapshot)}
+          onKeep={keepSnapshot}
+        />
       </View>
 
       {/* Bottom inset includes the tab bar height inside NativeTabs — keeps
           the transport pinned above it, on the transport's own background. */}
-      <View style={{ paddingBottom: insets.bottom, backgroundColor: '#0A0A0A' }}>
+      <View style={[styles.dock, { paddingBottom: insets.bottom }]}>
         <TransportBar
           playing={transport.playing}
           bpm={transport.bpm}
@@ -405,14 +358,26 @@ export default function SequencerScreen() {
           onPressBpm={() => router.push('/tempo')}
         />
       </View>
+      {renamePrompt}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   root: { flex: 1, backgroundColor: color.ground },
   listArea: { flex: 1 },
   scroll: { flex: 1 },
   // Extra bottom padding so the last lane can scroll clear of the floating bar.
   scrollContent: { paddingBottom: 84 },
-});
+  // Subtle upward shadow so the pinned transport reads as floating over the
+  // lane list scrolling beneath it (Paper 2026-07-24 depth pass). It lives on
+  // the dock, which runs to the screen's bottom edge, so the blur's downward
+  // spill lands off-screen instead of under the bar, above the tab bar.
+  dock: {
+    backgroundColor: color.ground,
+    shadowColor: '#000000',
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -8 },
+  },
+}));

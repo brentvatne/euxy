@@ -25,6 +25,7 @@
  */
 import { AppState } from 'react-native';
 
+import { initSound, stopAllSound, triggerSound } from '@/audio/sampler';
 import { laneStepAt } from '@/core/euclid';
 import { midiOut } from '@/components/midi/runtime';
 import { activateKeepAwake, deactivateKeepAwake, logObserveEvent } from '@/lib/shims';
@@ -120,6 +121,7 @@ class Engine {
     this.unsubscribeInbound = this.port.onInbound((e) => this.onInbound(e));
     this.subscribeStore();
     this.subscribeAppState();
+    initSound();
   }
 
   getPort(): MidiPort {
@@ -307,6 +309,7 @@ class Engine {
       clearTimeout(n.timer);
     }
     this.active.clear();
+    stopAllSound();
     // All Sound Off + All Notes Off on every channel that could be in use.
     const channels = new Set<number>();
     const pattern = selectActivePattern(useStore.getState());
@@ -371,6 +374,9 @@ class Engine {
   ): void {
     const port = this.port!;
     port.sendNoteOn(note, velocity, channel, timeMs);
+    // Built-in sound takes the same timestamp; it is a no-op while off or
+    // while a device is connected (audio/sampler.ts).
+    triggerSound(note, velocity, timeMs);
     const offAt = timeMs + Math.max(1, gateMs);
     port.sendNoteOff(note, channel, offAt);
     // Bookkeep the outstanding note so panic can force it off; clear it when

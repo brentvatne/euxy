@@ -18,7 +18,7 @@
  */
 import Constants from 'expo-constants';
 import { useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { TextInput, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
 import { AppText } from '@/components/ui';
@@ -31,7 +31,9 @@ import {
 } from '@/lib/channel-surf';
 import { haptics, updatesInfo } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
-import { color, font, radius, space, selection } from '@/theme/tokens';
+import { font, radius, space } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
+import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 
 const fmtDate = (d: Date | null) => {
   if (!d) return '—';
@@ -60,7 +62,10 @@ const placeholder = {
 };
 
 export default function ChannelSurfSheet() {
+  const styles = useStyles(stylesFor);
+  const { color, selection } = useTheme();
   useMarkInteractive();
+  const bottomInset = useSheetBottomInset();
   const [override, setOverride] = useState(getChannelOverrideRecord);
   const [quickPicks, setQuickPicks] = useState(getQuickPickChannels);
   // Null until the prompt is edited (or a chip tapped), so the field starts on
@@ -136,9 +141,10 @@ export default function ChannelSurfSheet() {
           frame-correction path (docs/feedback/form-sheets.md). */}
       <View style={styles.scroll} collapsable={false}>
         <KeyboardAwareScrollView
+          nestedScrollEnabled
           bottomOffset={24}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.body}
+          contentContainerStyle={[styles.body, { paddingBottom: space.xxl + bottomInset }]}
         >
           {/* Device screen: the running update, spec-sheet style. */}
           <View style={styles.panel}>
@@ -248,6 +254,7 @@ export default function ChannelSurfSheet() {
 }
 
 function SpecRow({ label, value }: { label: string; value: string }) {
+  const styles = useStyles(stylesFor);
   return (
     <View style={styles.specRow}>
       <AppText mono style={styles.specLabel}>
@@ -260,7 +267,7 @@ function SpecRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   root: { flex: 1, backgroundColor: color.surface },
   // 13px "sheet top" band the native grabber floats over (same as Tempo).
   grabberSpace: { height: 13 },
@@ -318,4 +325,4 @@ const styles = StyleSheet.create({
   clearLabel: { fontSize: 13, lineHeight: 18, fontWeight: '500', color: color.label3 },
 
   footnote: { fontSize: 12, lineHeight: 16, color: color.label4, paddingTop: 10, paddingHorizontal: space.md },
-});
+}));

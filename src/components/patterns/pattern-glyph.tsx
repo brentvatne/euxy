@@ -12,18 +12,19 @@
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { color } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme';
 import { LedGrid, twinkle as twinkleOrder } from '@/components/ui/led-grid';
 import { useIdleTwinkle } from '@/components/ui/use-idle-twinkle';
 
 // Lit/dim map per the Paper reference glyph (row-major, '1' = lit).
 const SHADES = '1011' + '0101';
-const TWINKLE_COLORS = ['transparent', '#F6F4F4'] as const;
 // 5 lit cells × ~4s per slot ⇒ one twinkle every few seconds, no visible loop.
 const TWINKLE_LOOP_MS = 20000;
 const TWINKLE_FALL = 400 / (TWINKLE_LOOP_MS / 5);
 
 export function PatternGlyph({ size = 22, twinkle = false }: { size?: number; twinkle?: boolean }) {
+  const { color } = useTheme();
+  const twinkleColors = useMemo(() => ['transparent', color.label] as const, [color]);
   const u = size / 22;
   // Lazy useState, not useMemo: useMemo is a hint React may discard and
   // recompute, which would reshuffle the twinkle order mid-animation.
@@ -54,7 +55,7 @@ export function PatternGlyph({ size = 22, twinkle = false }: { size?: number; tw
             progress={progress}
             mode="pulse"
             pulseFall={TWINKLE_FALL}
-            colors={TWINKLE_COLORS}
+            colors={twinkleColors}
             cols={4}
             cell={3.2 * u}
             gapX={1.3 * u}

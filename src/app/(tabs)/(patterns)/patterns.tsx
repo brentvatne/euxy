@@ -7,7 +7,7 @@
  * 2NR-0) shows when there are no patterns.
  */
 import { useMemo, useState } from 'react';
-import { ActionSheetIOS, Alert, Platform, StyleSheet, View } from 'react-native';
+import { Alert, View } from 'react-native';
 import { Stack, router } from 'expo-router';
 
 import { haptics } from '@/lib/shims';
@@ -21,6 +21,8 @@ import { AppText, SFSymbol } from '@/components/ui';
 import { reportFirstScreenLayout } from '@/components/boot-signal';
 import { PatternGlyph } from '@/components/patterns/pattern-glyph';
 import { PatternRow } from '@/components/patterns/pattern-row';
+import { usePatternMenu } from '@/components/patterns/pattern-menu';
+import { useRenamePrompt } from '@/components/patterns/rename-prompt';
 import {
   SORT_OPTIONS,
   SortMenuButton,
@@ -30,12 +32,14 @@ import {
 import { isPresetPattern } from '@/state/presets';
 import { usePatterns } from '@/state/selectors';
 import { useStore } from '@/state/store';
-import type { Pattern } from '@/state/types';
-import { color, radius, space } from '@/theme/tokens';
+import { radius, space } from '@/theme/tokens';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 
 const SEQUENCER_HREF = '/(tabs)/(sequencer)' as const;
 
 function HeaderAddButton() {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   return (
     <Pressable
       onPress={() => {
@@ -53,13 +57,13 @@ function HeaderAddButton() {
 }
 
 export default function PatternsScreen() {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   const patterns = usePatterns();
   const activeId = useStore((s) => s.activePatternId);
   const isPlaying = useStore((s) => s.transport.playing);
   const loadPattern = useStore((s) => s.loadPattern);
   const deletePattern = useStore((s) => s.deletePattern);
-  const renamePattern = useStore((s) => s.renamePattern);
-  const duplicatePattern = useStore((s) => s.duplicatePattern);
   const resetPreset = useStore((s) => s.resetPreset);
   const resetAllPresets = useStore((s) => s.resetAllPresets);
   const sort = useStore((s) => s.settings.patternSort);
@@ -67,65 +71,8 @@ export default function PatternsScreen() {
   const setPatternSort = useStore((s) => s.setPatternSort);
   const [query, setQuery] = useState('');
 
-  const promptRename = (pattern: Pattern) => {
-    if (Platform.OS !== 'ios') {
-      router.push({ pathname: '/rename-pattern', params: { patternId: pattern.id } });
-      return;
-    }
-    Alert.prompt(
-      'Rename pattern',
-      undefined,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Rename', onPress: (name?: string) => name?.trim() && renamePattern(pattern.id, name) },
-      ],
-      'plain-text',
-      pattern.name,
-    );
-  };
-
-  // Long-press context menu (roadmap: Rename / Change Icon / Clone / Delete,
-  // plus Restore Default on factory presets). A plain ActionSheetIOS instead
-  // of @expo/ui MenuView: its long-press trigger is a SwiftUI ContextMenu
-  // whose Host/RNHostView re-parents the row — inside a ReanimatedSwipeable
-  // that puts the swipe/tap gestures at risk, and this must not break them.
-  const showPatternMenu = (pattern: Pattern) => {
-    const changeIcon = () =>
-      router.push({ pathname: '/change-icon', params: { patternId: pattern.id } });
-    const clone = () => {
-      haptics.impact('light');
-      const newId = duplicatePattern(pattern.id);
-      // duplicatePattern's set() is synchronous, so the fresh row is already
-      // in the store by the time we read it back here for the rename prompt.
-      const cloned = useStore.getState().patterns.find((p) => p.id === newId);
-      if (cloned) promptRename(cloned);
-    };
-    const restoreDefault = () => {
-      haptics.impact('light');
-      resetPreset(pattern.id);
-    };
-    const isPreset = isPresetPattern(pattern.id);
-    if (Platform.OS === 'ios') {
-      const options = ['Cancel', 'Rename…', 'Change Icon…', 'Clone'];
-      if (isPreset) options.push('Restore Default');
-      options.push('Delete');
-      const destructiveButtonIndex = options.length - 1;
-      ActionSheetIOS.showActionSheetWithOptions(
-        { title: pattern.name, options, cancelButtonIndex: 0, destructiveButtonIndex },
-        (index) => {
-          if (index === 1) promptRename(pattern);
-          else if (index === 2) changeIcon();
-          else if (index === 3) clone();
-          else if (isPreset && index === 4) restoreDefault();
-          else if (index === destructiveButtonIndex) deletePattern(pattern.id);
-        },
-      );
-      return;
-    }
-    // Android/web: Alert.alert caps at three buttons on Android, so the menu
-    // is a route-backed sheet with the same actions.
-    router.push({ pathname: '/pattern-actions', params: { patternId: pattern.id } });
-  };
+  const { promptRename, renamePrompt } = useRenamePrompt();
+  const { showPatternMenu, patternMenu } = usePatternMenu(promptRename);
 
   const confirmRestoreAll = () => {
     Alert.alert(
@@ -275,12 +222,16 @@ export default function PatternsScreen() {
           </Pressable>
         ) : null}
       </ScrollView>
+      {patternMenu}
+      {renamePrompt}
     </GestureHandlerRootView>
   );
 }
 
 /** Node 2NR-0 — first-run empty library. */
 function EmptyState() {
+  const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   return (
     <View style={styles.empty}>
       <View style={styles.emptyGlyph}>
@@ -307,6 +258,7 @@ function EmptyState() {
 }
 
 function NoMatches({ query }: { query: string }) {
+  const styles = useStyles(stylesFor);
   return (
     <View style={styles.noMatch}>
       <AppText variant="subhead" tone="tertiary">
@@ -316,7 +268,7 @@ function NoMatches({ query }: { query: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFor = themed(({ color }) => ({
   flex: { flex: 1 },
   // Sort menu then +, the iOS order for a large-title header's trailing group.
   // Only used off iOS, where the header items API is unavailable.
@@ -352,4 +304,4 @@ const styles = StyleSheet.create({
   restoreAll: { alignItems: 'center', paddingVertical: 18 },
   restoreAllLabel: { fontSize: 13, lineHeight: 18, color: color.label3, fontWeight: '500' },
   pressedDim: { opacity: 0.65 },
-});
+}));

@@ -5,11 +5,13 @@
  */
 import { Stack } from 'expo-router/stack';
 
-import { largeTitleStackOptions } from '@/theme/navigation';
+import { largeTitleStackOptionsFor } from '@/theme/navigation';
+import { useScheme } from '@/theme/theme';
 
 export default function MidiStack() {
+  const scheme = useScheme();
   return (
-    <Stack screenOptions={largeTitleStackOptions}>
+    <Stack screenOptions={largeTitleStackOptionsFor(scheme)}>
       <Stack.Screen name="midi" options={{ title: 'MIDI' }} />
       <Stack.Screen name="activity-log" options={{ title: 'Activity Log', headerLargeTitle: false }} />
     </Stack>

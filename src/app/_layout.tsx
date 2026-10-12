@@ -1,11 +1,13 @@
 /**
  * Root navigator. A Stack that hosts the tab group plus the app's form sheets
- * (so a sheet presents over the tabs from anywhere). Dark monochrome theme is
- * applied here via ThemeProvider; the tab bar takes its own tint in (tabs).
+ * (so a sheet presents over the tabs from anywhere). The monochrome theme for
+ * the active scheme is applied here via ThemeProvider; the tab bar takes its
+ * own tint in (tabs).
  */
 import { ThemeProvider } from 'expo-router/react-navigation';
 import { Stack } from 'expo-router/stack';
 import { StatusBar } from 'expo-status-bar';
+import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -13,13 +15,14 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { BootSplash } from '@/components/boot-splash';
 import { enableMidi } from '@/components/midi/runtime';
-import { KeyboardProvider } from '@/components/ui/keyboard';
+import { KeyboardProvider, preloadKeyboard } from '@/components/ui/keyboard';
+import { onBootOverlayGone } from '@/components/boot-signal';
 import { NoticeBanner } from '@/components/ui/notice-banner';
 import { configureObserve, wrapWithObserveRoot } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { useShotRig } from '@/lib/shot-rig';
-import { navTheme, sheetOptions } from '@/theme/navigation';
-import { color } from '@/theme/tokens';
+import { sheetOptionsFor, useNavTheme } from '@/theme/navigation';
+import { useTheme } from '@/theme/theme';
 
 // EAS Observe: per-route navigation metrics. Must run at module scope,
 // before any screen mounts.
@@ -37,16 +40,34 @@ configureObserve({
 export const unstable_settings = { anchor: '(tabs)' };
 
 function RootLayout() {
+  const navTheme = useNavTheme();
+  const { color, scheme } = useTheme();
+  const sheetOptions = sheetOptionsFor(scheme);
   // Simulator screenshot staging (no-op unless the host set the flag).
   useShotRig();
+
+  // The root view behind every screen follows the scheme's ground. app.json's
+  // static backgroundColor is a single colour (black, for the dark splash
+  // handoff); without this, light mode shows black through any gap between
+  // views (sheet presentation, keyboard resize).
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    void SystemUI.setBackgroundColorAsync(color.ground);
+  }, [color.ground]);
 
   // Bring MIDI up at launch. Enabling is what attaches the hot-plug listener,
   // the health watchdog, and OP-XY autoconnect — leaving it to the MIDI tab's
   // mount meant a launch straight into the Sequencer never noticed a device
   // plugged in later. (Web still needs its explicit enable tap: permission
   // prompts require a user gesture there.)
+  // MIDI comes up after the boot overlay, not during it: the first CoreMIDI
+  // call waits on MIDIServer (~600 ms when it has to cold-start) and would
+  // otherwise land in the first-screen critical path. See MidiModule.swift.
   useEffect(() => {
-    if (Platform.OS !== 'web') void enableMidi();
+    if (Platform.OS === 'web') return;
+    return onBootOverlayGone(() => {
+      void enableMidi();
+    });
   }, []);
 
   // App-level TTI. Note this reports the FULL boot sequence, not the moment the
@@ -55,6 +76,11 @@ function RootLayout() {
   // readiness underneath is the `boot.ready` event instead.
   useMarkInteractive();
 
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    return onBootOverlayGone(preloadKeyboard);
+  }, []);
+
   return (
     // Every touch target now goes through gesture-handler's Pressable, whose
     // GestureDetector requires a GestureHandlerRootView ancestor somewhere in
@@ -62,9 +88,9 @@ function RootLayout() {
     // under one of the older screen-local wrappers).
     <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaProvider>
-      <KeyboardProvider>
+      <KeyboardProvider preload={false}>
       <ThemeProvider value={navTheme}>
-        <StatusBar style="light" />
+        <StatusBar style="auto" />
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.ground } }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen
@@ -83,7 +109,7 @@ function RootLayout() {
             name="change-icon"
             options={{ ...sheetOptions, sheetAllowedDetents: [0.75] }}
           />
-          {/* Android/web only — iOS renames with Alert.prompt. */}
+          {/* Web only — iOS renames with Alert.prompt, Android with a Compose AlertDialog. */}
           <Stack.Screen
             name="rename-pattern"
             options={{ ...sheetOptions, sheetAllowedDetents: [0.3] }}
