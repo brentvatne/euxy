@@ -11,6 +11,8 @@ import { useCallback, useEffect } from 'react';
 import { Platform, ScrollView, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
+import { SOUND_KITS, type SoundKit } from '@/audio/kits';
+import { soundSupported } from '@/audio/sampler';
 import { AppText, Segmented } from '@/components/ui';
 import { IconPanic } from '@/components/ui/icons';
 import { reportFirstScreenLayout } from '@/components/boot-signal';
@@ -21,6 +23,8 @@ import { space } from '@/theme/tokens';
 import { themed, useStyles } from '@/theme/theme';
 import { Cell, ClockModeToggle, ConnectionBadge, Group, LatencySlider, PushRow, SectionHeader, ValueRow } from './components';
 import { enableMidi, panic, refreshDevices, setLatency, useMidiRuntime } from './runtime';
+
+const KIT_LABEL: Record<Exclude<SoundKit, 'off'>, string> = { '808': '808', '909': '909', analog: 'Analog' };
 
 const LATENCY_MIN = -120;
 const LATENCY_MAX = 120;
@@ -48,6 +52,7 @@ export default function MidiScreen() {
   const transport = useTransport();
   const setClockMode = useStore((s) => s.setClockMode);
   const setCountInBeats = useStore((s) => s.setCountInBeats);
+  const setSoundKit = useStore((s) => s.setSoundKit);
   // Routing is scoped to the active pattern, so the section needs its name
   // as well as its lanes.
   const activePattern = useActivePattern();
@@ -133,6 +138,34 @@ export default function MidiScreen() {
           ? 'Jam — euxy is the clock master. Press Play in the Sequencer and euxy drives the OP‑XY over MIDI clock while you tweak lanes live.'
           : 'Record — the OP‑XY is the clock master and euxy follows its clock, so the Sequencer has no Play button. Hold Record and press Play on the OP‑XY: euxy waits out the count‑in, then plays its lanes in sync while the device captures them into its own sequencer.'}
       </AppText>
+
+      {/* SOUND — the phone plays the lanes itself when no device is. Kept
+          to one segmented row: Off and the three kits. While an output is
+          connected the row is disabled, the choice is kept. */}
+      {soundSupported && (
+        <>
+          <SectionHeader>Sound</SectionHeader>
+          <Group>
+            <Cell pos="single">
+              <AppText style={[styles.rowLabel, connected && styles.rowLabelDisabled]}>Built-in kit</AppText>
+              <Segmented<SoundKit>
+                size="compact"
+                options={[{ label: 'Off', value: 'off' }, ...SOUND_KITS.map((k) => ({ label: KIT_LABEL[k], value: k }))]}
+                value={settings.soundKit}
+                onChange={setSoundKit}
+                disabled={connected}
+              />
+            </Cell>
+          </Group>
+          <AppText style={styles.sectionFooter}>
+            {connected
+              ? `Built-in sound is off while ${outName} is connected — the device plays the lanes.`
+              : settings.soundKit === 'off'
+                ? 'Hear the lanes from this phone when no device is connected.'
+                : `${KIT_LABEL[settings.soundKit]} plays from this phone until a device is connected.`}
+          </AppText>
+        </>
+      )}
 
       {/* DIAGNOSTICS — long-press the header for the hidden channel-surf
           sheet (runtime EAS Update channel switching). The raw byte stream is
