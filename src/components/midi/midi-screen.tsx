@@ -146,7 +146,7 @@ export default function MidiScreen() {
         <>
           <SectionHeader>Sound</SectionHeader>
           <Group>
-            <Cell pos="single">
+            <Cell pos="single" contentStyle={styles.kitCell}>
               <AppText style={[styles.rowLabel, connected && styles.rowLabelDisabled]}>Built-in kit</AppText>
               <Segmented<SoundKit>
                 size="compact"
@@ -230,6 +230,10 @@ const stylesFor = themed(({ color }) => ({
 
   latencyCell: { flexDirection: 'column', alignItems: 'stretch', gap: 10, paddingVertical: 14 },
   latencyHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  // Label + four segments measure ~312pt; a 375pt-wide phone leaves 311 inside the
+  // cell. Wrap so the control drops under the label there instead of
+  // overflowing the cell's right edge; wider phones keep the single row.
+  kitCell: { flexWrap: 'wrap', columnGap: space.md, rowGap: 10 },
   sectionFooter: {
     fontSize: 13,
     lineHeight: 18,
