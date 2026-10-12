@@ -1,6 +1,7 @@
 /**
  * Scheme-aware access to the design tokens. The app follows the system
- * appearance (`userInterfaceStyle: automatic`); every component reads its
+ * appearance (`userInterfaceStyle: automatic`) unless Settings pins one
+ * (`applyThemePreference`); every component reads its
  * colors through `useTheme()` or a `themed()` StyleSheet so both schemes come
  * from the one palette table in tokens.ts.
  *
@@ -27,6 +28,18 @@ import {
   selectionFor,
   stepFillFor,
 } from './tokens';
+
+import type { ThemePreference } from '@/state/types';
+
+/**
+ * Apply the Settings → Appearance choice. `Appearance.setColorScheme` overrides
+ * what `useColorScheme()` reports app-wide (and the iOS window's
+ * `overrideUserInterfaceStyle` / Android night mode, so native sheets and the
+ * tab bar follow); `unspecified` hands control back to the system.
+ */
+export function applyThemePreference(theme: ThemePreference): void {
+  Appearance.setColorScheme(theme === 'auto' ? 'unspecified' : theme);
+}
 
 export type Theme = {
   scheme: Scheme;

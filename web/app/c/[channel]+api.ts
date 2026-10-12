@@ -104,7 +104,7 @@ export function GET(request: Request, { channel }: { channel: string }) {
   <p><strong>euxy is installed, but iOS sent the link here instead of to the app.</strong>
      The app association can take a while to reach a device. Enter the channel by hand:</p>
   <ol>
-    <li>Open euxy and go to the MIDI tab.</li>
+    <li>Open euxy and go to the Settings tab.</li>
     <li>Press and hold the <strong>MIDI Diagnostics</strong> header to reveal Channel Surf.</li>
     <li>Enter <code>${safeChannel}</code>.</li>
   </ol>

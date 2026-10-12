@@ -1,6 +1,6 @@
 /**
  * MIDI-tab icons. Cross-platform vectors (react-native-svg) so they render
- * identically on iOS and on web — the MIDI tab is the entire web experience, so
+ * identically on iOS and on web — the Settings tab is the entire web experience, so
  * these deliberately avoid expo-symbols (SF Symbols don't render on web).
  *
  * Paths are exported verbatim from Paper (nodes MC-0 / 29L-0 / 2BL-0); keep them

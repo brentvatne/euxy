@@ -1,7 +1,7 @@
 /**
  * Channel surf sheet (Paper C3Y-0) — hidden debug UI for switching the EAS
  * Update channel at runtime. Opened by long-pressing the Diagnostics section
- * header on the MIDI tab, and ONLY that way: the channel deep link
+ * header on the Settings tab, and ONLY that way: the channel deep link
  * (`euxy://c/<channel>`) used to render this same sheet, but a form sheet that
  * is still presented when expo-updates reloads kills every later sheet
  * presentation in the app, so the link is headless now and reports through the

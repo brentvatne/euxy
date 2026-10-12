@@ -116,7 +116,7 @@ class Engine {
     // init() may be async on a real port; the stub resolves immediately. We
     // don't await — sending to an uninitialized/absent output is a safe no-op.
     // (On web a permission rejection outside a user gesture is swallowed; the
-    // MIDI tab's explicit enable flow owns the real prompt.)
+    // Settings tab's explicit enable flow owns the real prompt.)
     this.port.init().catch(() => {});
     this.unsubscribeInbound = this.port.onInbound((e) => this.onInbound(e));
     this.subscribeStore();

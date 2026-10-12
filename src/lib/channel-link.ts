@@ -1,7 +1,7 @@
 /**
  * Channel deep links — `euxy://c/<channel>`. Opening one lands on the Channel
  * Surf sheet with that channel as the target and switches to it right away
- * (see app/(tabs)/(midi)/c/[channel].tsx and app/channel-surf.tsx).
+ * (see app/(tabs)/(settings)/c/[channel].tsx and app/channel-surf.tsx).
  *
  * The link shape lives here, apart from lib/channel-surf.ts, because this
  * module imports nothing: the parser is unit-testable under Bun, and the

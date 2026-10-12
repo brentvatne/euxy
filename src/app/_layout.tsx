@@ -56,7 +56,7 @@ function RootLayout() {
   }, [color.ground]);
 
   // Bring MIDI up at launch. Enabling is what attaches the hot-plug listener,
-  // the health watchdog, and OP-XY autoconnect — leaving it to the MIDI tab's
+  // the health watchdog, and OP-XY autoconnect — leaving it to the Settings tab's
   // mount meant a launch straight into the Sequencer never noticed a device
   // plugged in later. (Web still needs its explicit enable tap: permission
   // prompts require a user gesture there.)
@@ -130,7 +130,7 @@ function RootLayout() {
             name="share-pattern"
             options={{ ...sheetOptions, sheetAllowedDetents: [0.9] }}
           />
-          {/* Hidden debug sheet — long-press the MIDI tab's Diagnostics
+          {/* Hidden debug sheet — long-press the Settings tab's Diagnostics
               header. Switches the EAS Update channel at runtime. */}
           <Stack.Screen
             name="channel-surf"

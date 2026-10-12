@@ -3,7 +3,7 @@
  * OP-XY is plugged in. A plain module beside the engine, off the render path.
  *
  * Rules:
- *  - Opt-in: `settings.soundKit` is 'off' until the user picks a kit (MIDI tab).
+ *  - Opt-in: `settings.soundKit` is 'off' until the user picks a kit (Settings tab).
  *  - Off while a MIDI output is connected: the device plays the notes then,
  *    and doubling them from the speaker (~ms apart) would smear every hit.
  *    The preference is kept, so unplugging the device brings the kit back.
