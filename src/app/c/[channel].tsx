@@ -17,7 +17,7 @@
  * and the sheet at app/channel-surf.tsx is now only ever opened by hand from
  * Diagnostics.
  *
- * Still registered in the ROOT Stack (not the MIDI tab that owns Diagnostics),
+ * Still registered in the ROOT Stack (not the Settings tab that owns Diagnostics),
  * where `unstable_settings.anchor` keeps `(tabs)` mounted beneath it — so
  * dismissing to the tabs is a pop, not a fresh navigation, however the link
  * arrived. Verified: `/c/<x>` resolves to `{index: 1, routes: ['(tabs)',

@@ -1,5 +1,5 @@
 /**
- * Bottom tabs (native). Three tabs: Sequencer (home) · Patterns · MIDI. Each is
+ * Bottom tabs (native). Three tabs: Sequencer (home) · Patterns · Settings. Each is
  * its own Stack (see the group _layout files). Tint is white per the monochrome
  * rule — no system blue. Tabs are static (never added/removed at runtime).
  */
@@ -10,7 +10,7 @@ import { useScheme } from '@/theme/theme';
 
 // Only (sequencer) has an index route, so "/" (the launch URL) is unambiguous
 // and the app always opens on the Sequencer. The other tabs own /patterns and
-// /midi. (unstable_settings.initialRouteName does NOT disambiguate colliding
+// /settings. (unstable_settings.initialRouteName does NOT disambiguate colliding
 // group index routes — the first alphabetical group wins.)
 export default function TabsLayout() {
   const scheme = useScheme();
@@ -24,9 +24,9 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Icon sf={{ default: 'rectangle.stack', selected: 'rectangle.stack.fill' }} md="layers" />
         <NativeTabs.Trigger.Label>Patterns</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="(midi)">
-        <NativeTabs.Trigger.Icon sf="waveform" md="graphic_eq" />
-        <NativeTabs.Trigger.Label>MIDI</NativeTabs.Trigger.Label>
+      <NativeTabs.Trigger name="(settings)">
+        <NativeTabs.Trigger.Icon sf={{ default: 'gearshape', selected: 'gearshape.fill' }} md="settings" />
+        <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );

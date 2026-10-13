@@ -11,7 +11,7 @@
  *
  * The gate is deliberately route-AGNOSTIC. It used to require the SEQUENCER
  * specifically, which is wrong: the app can legitimately launch onto another
- * tab (EAS Observe recorded 13 of 80 startups with /(tabs)/(midi) as the
+ * tab (EAS Observe recorded 13 of 80 startups with /(tabs)/(settings) as the
  * launch route) and NativeTabs does not mount unfocused tabs — so on those
  * launches the gate could never pass and the 2s failsafe became the boot path.
  * One observed cold launch took 2.46s with a frozen frame for exactly that

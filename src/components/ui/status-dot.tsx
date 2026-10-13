@@ -1,6 +1,6 @@
 /**
  * Connection status indicator. A small filled dot (`connected` green / dim gray)
- * with an optional label — used in the Sequencer header and MIDI tab.
+ * with an optional label — used in the Sequencer header and Settings tab.
  */
 import { StyleSheet, View, type ViewProps } from 'react-native';
 

@@ -1,5 +1,5 @@
 /**
- * Activity Log — pushed from the MIDI tab's Diagnostics section. Shows the raw
+ * Activity Log — pushed from the Settings tab's Diagnostics section. Shows the raw
  * inbound/outbound MIDI byte stream (hex + annotation) for debugging. High-rate
  * clock (0xF8) and active-sensing (0xFE) are filtered from the list; incoming
  * clock instead lights a "Clock" indicator in the header. A test-note button

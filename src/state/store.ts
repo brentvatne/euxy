@@ -8,6 +8,7 @@
  * value in the engine, not this store.
  */
 import type { SoundKit } from '@/audio/kits';
+import { applyThemePreference } from '@/theme/theme';
 import { create } from 'zustand';
 
 import { randomChipName } from '@/components/patterns/chips';
@@ -17,7 +18,7 @@ import { timing } from '@/theme/tokens';
 import { makeLane, uid } from './lane';
 import { attachPersistence, loadPersisted } from './persistence';
 import { PRESETS_VERSION, isPresetPattern, presetCreatedAt, presetPatterns } from './presets';
-import type { CombineOp, Lane, Pattern, PatternSort, Settings, Transport } from './types';
+import type { CombineOp, Lane, Pattern, PatternSort, Settings, Transport, ThemePreference } from './types';
 
 const rint = (n: number) => Math.floor(Math.random() * n);
 const pickOne = <T,>(arr: readonly T[]): T => arr[rint(arr.length)];
@@ -337,8 +338,9 @@ export interface AppState {
   setCountInBeats: (beats: number) => void;
   /** Pulse on every beat while playing (Tempo sheet, off by default). */
   setBeatHaptics: (on: boolean) => void;
-  /** Built-in sound kit (MIDI tab "Sound"; 'off' by default). */
+  /** Built-in sound kit (Settings tab "Sound"; 'off' by default). */
   setSoundKit: (kit: SoundKit) => void;
+  setTheme: (theme: ThemePreference) => void;
   setFloatBarCorner: (corner: 'left' | 'right') => void;
   /** Pick the order the Patterns library is listed in (library header "Sort
    * by"). Picking a new key starts it descending; picking the key that is
@@ -458,6 +460,7 @@ export const useStore = create<AppState>((set, get) => {
       patternSortDir: 'desc',
       beatHaptics: false,
       soundKit: 'off',
+      theme: 'auto',
       ...persisted?.settings,
     },
 
@@ -700,6 +703,10 @@ export const useStore = create<AppState>((set, get) => {
     setCountInBeats: (countInBeats) => set((s) => ({ settings: { ...s.settings, countInBeats } })),
     setBeatHaptics: (beatHaptics) => set((s) => ({ settings: { ...s.settings, beatHaptics } })),
     setSoundKit: (soundKit) => set((s) => ({ settings: { ...s.settings, soundKit } })),
+    setTheme: (theme) => {
+      applyThemePreference(theme);
+      set((s) => ({ settings: { ...s.settings, theme } }));
+    },
     setFloatBarCorner: (floatBarCorner) =>
       set((s) => ({ settings: { ...s.settings, floatBarCorner } })),
     // Same menu item does double duty, the way an iOS sort menu does: the first
@@ -888,3 +895,6 @@ export const useStore = create<AppState>((set, get) => {
 // Persist the durable slice on every change (debounced; no-op without the
 // native module).
 attachPersistence(useStore);
+
+// Pin the persisted appearance before the first render reads useColorScheme().
+applyThemePreference(useStore.getState().settings.theme);

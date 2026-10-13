@@ -1,6 +1,6 @@
 /**
- * MIDI tab (Paper MC-0 connected / 1A8-0 disconnected). Large-title grouped
- * form: Connection · Timing · Diagnostics · Routing · Panic. This screen is
+ * Settings tab (Paper MC-0 connected / 1A8-0 disconnected). Large-title grouped
+ * form: Connection · Timing · Sound · Appearance · Diagnostics · Routing · Panic. This screen is
  * also the entire web experience — it drives the platform `MidiPort` via the
  * shared runtime, so on web it doubles as the minimal MIDI connection tester
  * (enable → pick output/input → panic; watch traffic and send a test note from
@@ -19,6 +19,7 @@ import { reportFirstScreenLayout } from '@/components/boot-signal';
 import { haptics } from '@/lib/shims';
 import { useActivePattern, useSettings, useTransport } from '@/state/selectors';
 import { useStore } from '@/state/store';
+import type { ThemePreference } from '@/state/types';
 import { space } from '@/theme/tokens';
 import { themed, useStyles } from '@/theme/theme';
 import { Cell, ClockModeToggle, ConnectionBadge, Group, LatencySlider, PushRow, SectionHeader, ValueRow } from './components';
@@ -47,12 +48,13 @@ export default function MidiScreen() {
   );
 
   // Per-route TTI for EAS Observe is marked once at the route boundary in
-  // `src/app/(tabs)/(midi)/midi.tsx` — don't mark it again here.
+  // `src/app/(tabs)/(settings)/settings.tsx` — don't mark it again here.
   const settings = useSettings();
   const transport = useTransport();
   const setClockMode = useStore((s) => s.setClockMode);
   const setCountInBeats = useStore((s) => s.setCountInBeats);
   const setSoundKit = useStore((s) => s.setSoundKit);
+  const setTheme = useStore((s) => s.setTheme);
   // Routing is scoped to the active pattern, so the section needs its name
   // as well as its lanes.
   const activePattern = useActivePattern();
@@ -166,6 +168,24 @@ export default function MidiScreen() {
           </AppText>
         </>
       )}
+
+      {/* APPEARANCE — Auto follows the system; Light/Dark pin a scheme. */}
+      <SectionHeader>Appearance</SectionHeader>
+      <Group>
+        <Cell pos="single">
+          <AppText style={styles.rowLabel}>Theme</AppText>
+          <Segmented<ThemePreference>
+            size="compact"
+            options={[
+              { label: 'Auto', value: 'auto' },
+              { label: 'Light', value: 'light' },
+              { label: 'Dark', value: 'dark' },
+            ]}
+            value={settings.theme}
+            onChange={setTheme}
+          />
+        </Cell>
+      </Group>
 
       {/* DIAGNOSTICS — long-press the header for the hidden channel-surf
           sheet (runtime EAS Update channel switching). The raw byte stream is

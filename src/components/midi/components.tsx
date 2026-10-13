@@ -1,5 +1,5 @@
 /**
- * Presentational building blocks for the MIDI tab, built to the exact values in
+ * Presentational building blocks for the Settings tab, built to the exact values in
  * Paper nodes MC-0 / 1A8-0. StyleSheet + tokens only, monochrome. These are
  * MIDI-local (not shared primitives) because the grouped-form look — inset cells
  * with 1px separators and position-aware corner radii, a white-active compact

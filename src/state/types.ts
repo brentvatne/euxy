@@ -88,6 +88,9 @@ export type PatternSort = 'created' | 'bpm';
  * first); re-picking the active key in the menu flips it. */
 export type PatternSortDir = 'desc' | 'asc';
 
+/** Appearance: follow the system, or pin one scheme. */
+export type ThemePreference = 'auto' | 'light' | 'dark';
+
 export interface Settings {
   /** Selected MIDI output/input device ids (null = none). */
   outputId: string | null;
@@ -126,6 +129,9 @@ export interface Settings {
    * Absent on old blobs — the store defaults it to 'off'.
    */
   soundKit: SoundKit;
+  /** Appearance (Settings tab). Absent on old blobs — the store defaults it
+   * to 'auto', which follows the system like before. */
+  theme: ThemePreference;
 }
 
 export interface Selection {

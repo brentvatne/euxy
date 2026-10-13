@@ -9,7 +9,7 @@ import { MONO, SANS } from './ui';
 const STEPS = [
   'Plug the iPhone into the Mac with USB',
   'Audio MIDI Setup → select the iPhone → Enable',
-  'In euxy: MIDI tab → output → “IDAM MIDI Host”',
+  'In euxy: Settings tab → output → “IDAM MIDI Host”',
   'Play — this page is the speaker',
 ];
 
