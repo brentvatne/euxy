@@ -21,17 +21,24 @@
  * arriving in its header slot. Random glyph only as a first-launch fallback;
  * frame 0 is the unlit grid, so the splash PNG is glyph-agnostic either way.
  * Reduced Motion skips straight to the crossfade.
+ *
+ * ANDROID: the system masks the splash icon to a 192dp circle, which cropped
+ * the 276dp grid into a disc. The native splash there is the single centre
+ * cell (splash-cell.png, 44dp), and frame 0 of this overlay draws only that
+ * cell; the grid then powers up outward ring by ring (RING_MS) before the
+ * type-on.
  */
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
-import { themed, useStyles } from '@/theme/theme';
+import { Image, Platform, StyleSheet, View } from 'react-native';
+import { themed, useStyles, useTheme } from '@/theme/theme';
 import Animated, {
   Easing,
   ReduceMotion,
   runOnJS,
   useReducedMotion,
   useSharedValue,
+  withDelay,
   withTiming,
 } from 'react-native-reanimated';
 
@@ -51,7 +58,11 @@ import { useStore } from '@/state/store';
 // underneath it (see the layout gates in the component).
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
-const GRID = 276; // pt — must match app.json expo-splash-screen imageWidth
+const GRID = 276; // pt — must match app.json expo-splash-screen imageWidth (iOS)
+const RING_GROW = Platform.OS === 'android';
+// Android power-up: ring 1 lights at 1×, ring 2 at 2×, the type-on starts at 3×.
+const RING_STEP_MS = 70;
+const RING_MS = RING_GROW ? RING_STEP_MS * 3 : 0;
 const TYPE_MS = 500; // fixed type-on length — the step rhythm adapts per glyph
 const HOLD_MS = 150;
 const FADE_MS = 250;
@@ -68,6 +79,14 @@ const FAILSAFE_MS = 2000;
 const FADE_FAILSAFE_MS = 1500;
 
 const GLYPHS = Object.values(CHIPS);
+
+const ALL_CELLS = '1'.repeat(25);
+/** Android ring power-up: each cell's ring around the centre. The centre is
+ * -1 so it is lit from frame 0, matching the native splash-cell.png. */
+const RING_ORDER = Array.from({ length: 25 }, (_, i) => {
+  const ring = Math.max(Math.abs((i % 5) - 2), Math.abs(Math.floor(i / 5) - 2));
+  return ring === 0 ? -1 : ring;
+});
 
 /** The glyph the app boots into: the active pattern's icon. */
 function bootGlyph(): string {
@@ -97,10 +116,12 @@ function bootTypeOnOrder(shades: string): (number | null)[] {
 
 export function BootSplash() {
   const styles = useStyles(stylesFor);
+  const { color } = useTheme();
   const [done, setDone] = useState(false);
   const reduceMotion = useReducedMotion();
   const glyph = useMemo(() => bootGlyph(), []);
   const order = useMemo(() => bootTypeOnOrder(glyph), [glyph]);
+  const ringProgress = useSharedValue(0);
   const progress = useSharedValue(0);
   const opacity = useSharedValue(1);
 
@@ -159,9 +180,13 @@ export function BootSplash() {
       severity: gate === 'failsafe' ? 'warn' : 'info',
     });
     SplashScreen.hide();
-    const typeMs = reduceMotion ? 0 : TYPE_MS;
+    const typeMs = reduceMotion ? 0 : RING_MS + TYPE_MS;
     if (reduceMotion) {
+      ringProgress.value = 1;
       progress.value = 1;
+    } else if (RING_GROW) {
+      ringProgress.value = withTiming(1, { duration: RING_MS, easing: Easing.linear });
+      progress.value = withDelay(RING_MS, withTiming(1, { duration: TYPE_MS, easing: Easing.linear }));
     } else {
       progress.value = withTiming(1, { duration: TYPE_MS, easing: Easing.linear });
     }
@@ -237,12 +262,25 @@ export function BootSplash() {
       }}
     >
       <View style={{ width: GRID, height: GRID }}>
-        {/* Frame 0 = the actual splash asset, so the handoff can't jump. */}
-        <Image
-          source={require('../../assets/images/splash-icon.png')}
-          style={{ width: GRID, height: GRID }}
-          fadeDuration={0}
-        />
+        {RING_GROW ? (
+          // Frame 0 = the centre cell alone, the same 44pt cell as the native
+          // splash-cell.png; the rings power up around it.
+          <LedGrid
+            shades={ALL_CELLS}
+            order={RING_ORDER}
+            progress={ringProgress}
+            size={GRID}
+            colors={[color.splashCell, color.splashCell]}
+            renderBase={false}
+          />
+        ) : (
+          // Frame 0 = the actual splash asset, so the handoff can't jump.
+          <Image
+            source={require('../../assets/images/splash-icon.png')}
+            style={{ width: GRID, height: GRID }}
+            fadeDuration={0}
+          />
+        )}
         <View style={StyleSheet.absoluteFill}>
           <LedGrid shades={glyph} order={order} progress={progress} size={GRID} renderBase={false} />
         </View>
