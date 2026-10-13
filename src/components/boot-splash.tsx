@@ -166,7 +166,11 @@ export function BootSplash() {
     SplashScreen.hide();
     // Pin the Settings appearance only now: the window override would also
     // repaint the native splash. The app re-renders in it under this overlay.
-    applyThemePreference(useStore.getState().settings.theme);
+    // "auto" is skipped: Appearance already follows the system, and setting
+    // 'unspecified' mid-launch re-evaluated the appearance (Explore's dark-pass
+    // captures of the share sheets lost the route observer with the call).
+    const persistedTheme = useStore.getState().settings.theme;
+    if (persistedTheme !== 'auto') applyThemePreference(persistedTheme);
     const typeMs = reduceMotion ? 0 : TYPE_MS;
     if (reduceMotion) {
       progress.value = 1;
