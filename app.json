@@ -39,19 +39,12 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#f6f4f4",
+          "backgroundColor": "#08080A",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 276,
-          "dark": {
-            "backgroundColor": "#08080A",
-            "image": "./assets/images/splash-icon.png"
-          },
           "android": {
-            "image": "./assets/images/splash-cell.png",
-            "imageWidth": 44,
-            "dark": {
-              "image": "./assets/images/splash-cell-dark.png"
-            }
+            "image": "./assets/images/splash-cell-dark.png",
+            "imageWidth": 44
           }
         }
       ],
