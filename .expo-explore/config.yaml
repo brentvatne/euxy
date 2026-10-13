@@ -1,3 +1,4 @@
+# Explore review demo for @expo/explore 0.16.3 (phone Inspector + comment "deploying" state); close after looking.
 mode: deterministic
 app:
   name: euxy
