@@ -897,4 +897,9 @@ export const useStore = create<AppState>((set, get) => {
 attachPersistence(useStore);
 
 // Pin the persisted appearance before the first render reads useColorScheme().
-applyThemePreference(useStore.getState().settings.theme);
+// Only when the user chose one: "auto" means following the system, which is
+// what Appearance does untouched, and setting it at module load re-evaluated
+// the appearance mid-launch (Explore's dark-pass captures of the share sheets
+// lost the route observer until this call was skipped).
+const persistedTheme = useStore.getState().settings.theme;
+if (persistedTheme !== 'auto') applyThemePreference(persistedTheme);
