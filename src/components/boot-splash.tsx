@@ -25,7 +25,7 @@
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
-import { themed, useStyles } from '@/theme/theme';
+import { applyThemePreference, launchScheme, themes } from '@/theme/theme';
 import Animated, {
   Easing,
   ReduceMotion,
@@ -42,7 +42,7 @@ import {
   onFirstScreenLayout,
   reportBootOverlayGone,
 } from '@/components/boot-signal';
-import { CHIPS, chipForPattern } from '@/components/patterns/chips';
+import { CHIPS, chipForPattern, chipShadeColorsFor } from '@/components/patterns/chips';
 import { LedGrid, litCount } from '@/components/ui/led-grid';
 import { logObserveEvent } from '@/lib/shims';
 import { useStore } from '@/state/store';
@@ -68,6 +68,13 @@ const FAILSAFE_MS = 2000;
 const FADE_FAILSAFE_MS = 1500;
 
 const GLYPHS = Object.values(CHIPS);
+
+// The overlay is drawn in the scheme the native splash launched in, NOT the
+// Settings pin: iOS shows the launch screen in the system scheme, so a pinned
+// scheme here would flash on the handoff. The pin lands under this opaque
+// overlay (see start()) and the fade reveals the app in it.
+const bootColor = themes[launchScheme].color;
+const bootShadeColors = chipShadeColorsFor(bootColor);
 
 /** The glyph the app boots into: the active pattern's icon. */
 function bootGlyph(): string {
@@ -96,7 +103,6 @@ function bootTypeOnOrder(shades: string): (number | null)[] {
 }
 
 export function BootSplash() {
-  const styles = useStyles(stylesFor);
   const [done, setDone] = useState(false);
   const reduceMotion = useReducedMotion();
   const glyph = useMemo(() => bootGlyph(), []);
@@ -159,6 +165,9 @@ export function BootSplash() {
       severity: gate === 'failsafe' ? 'warn' : 'info',
     });
     SplashScreen.hide();
+    // Pin the Settings appearance only now: the window override would also
+    // repaint the native splash. The app re-renders in it under this overlay.
+    applyThemePreference(useStore.getState().settings.theme);
     const typeMs = reduceMotion ? 0 : TYPE_MS;
     if (reduceMotion) {
       progress.value = 1;
@@ -244,22 +253,30 @@ export function BootSplash() {
           fadeDuration={0}
         />
         <View style={StyleSheet.absoluteFill}>
-          <LedGrid shades={glyph} order={order} progress={progress} size={GRID} renderBase={false} />
+          <LedGrid
+            shades={glyph}
+            order={order}
+            progress={progress}
+            size={GRID}
+            renderBase={false}
+            colors={bootShadeColors}
+          />
         </View>
       </View>
     </Animated.View>
   );
 }
 
-const stylesFor = themed(({ color }) => ({
+const styles = StyleSheet.create({
   overlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: color.splash,
+    backgroundColor: bootColor.splash,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1000,
-  },}));
+  },
+});

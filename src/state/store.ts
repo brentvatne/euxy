@@ -896,5 +896,6 @@ export const useStore = create<AppState>((set, get) => {
 // native module).
 attachPersistence(useStore);
 
-// Pin the persisted appearance before the first render reads useColorScheme().
-applyThemePreference(useStore.getState().settings.theme);
+// The persisted appearance is pinned by BootSplash once the native splash is
+// gone, not here: the window override would also flip the still-visible native
+// splash (drawn in the system scheme) to the pinned one — a visible flash.
