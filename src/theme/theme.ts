@@ -38,6 +38,9 @@ import type { ThemePreference } from '@/state/types';
  * tab bar follow); `unspecified` hands control back to the system.
  */
 export function applyThemePreference(theme: ThemePreference): void {
+  // react-native-web's Appearance has no setColorScheme; the web build follows
+  // the system scheme.
+  if (typeof Appearance.setColorScheme !== 'function') return;
   Appearance.setColorScheme(theme === 'auto' ? 'unspecified' : theme);
 }
 
