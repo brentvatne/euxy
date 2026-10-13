@@ -98,6 +98,15 @@ export function stepFill(slot: number): string {
   return stepRamp[((slot % 16) + 16) % 16];
 }
 
+/**
+ * The boot splash is black in both schemes: the native splash is drawn by the
+ * OS from the system appearance, which cannot see the Settings → Theme pin, so
+ * a scheme-following overlay could flash the wrong colour. These are not part
+ * of the palette on purpose.
+ */
+export const splashBackground = '#08080a'; // must equal the splash backgroundColor in app.json
+export const splashCell = '#26252B'; // Android boot overlay's unlit grid; must equal assets/images/splash-cell-dark.png
+
 const darkColor = {
   // Surfaces
   ground: '#000000', // app background (also OLED-friendly)
@@ -111,8 +120,6 @@ const darkColor = {
   surface4: '#48484A', // grabber, active segment, controls inside a surface3 panel
   separator: '#1C1C1E',
   displayBg: '#08080a', // dot-matrix "device screen" panel (Graph view)
-  splash: '#08080a', // JS boot overlay; must equal the native splash background in app.json
-  splashCell: '#26252B', // Android boot overlay's unlit grid; must equal assets/images/splash-cell-dark.png
 
   // Labels (text)
   label: '#f6f4f4', // primary + active/interactive
@@ -158,8 +165,6 @@ const lightColor: Palette = {
   surface4: '#cfced4',
   separator: '#f6f4f4',
   displayBg: '#ececef',
-  splash: '#f6f4f4',
-  splashCell: '#1A1A1F',
 
   label: '#0a0a0c',
   label2: '#48484f',

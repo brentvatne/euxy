@@ -27,11 +27,17 @@
  * cell (splash-cell.png, 44dp), and frame 0 of this overlay draws only that
  * cell; the grid then powers up outward ring by ring (RING_MS) before the
  * type-on.
+ *
+ * ALWAYS BLACK, in light mode too: the OS draws the native splash from the
+ * system appearance and cannot see the Settings → Theme pin, so a
+ * scheme-following overlay flashed the wrong colour whenever the two disagreed
+ * (Brent 2026-10-13). One colour on both sides makes the handoff seamless.
  */
 import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Platform, StyleSheet, View } from 'react-native';
-import { themed, useStyles, useTheme } from '@/theme/theme';
+import { splashBackground, splashCell } from '@/theme/tokens';
 import Animated, {
   Easing,
   ReduceMotion,
@@ -115,8 +121,6 @@ function bootTypeOnOrder(shades: string): (number | null)[] {
 }
 
 export function BootSplash() {
-  const styles = useStyles(stylesFor);
-  const { color } = useTheme();
   const [done, setDone] = useState(false);
   const reduceMotion = useReducedMotion();
   const glyph = useMemo(() => bootGlyph(), []);
@@ -261,6 +265,10 @@ export function BootSplash() {
         maybeStart();
       }}
     >
+      {/* The overlay is black whatever the scheme, so the layout's `auto`
+          status bar would draw dark icons on it in light mode; this wins while
+          mounted and hands back on unmount. */}
+      <StatusBar style="light" />
       <View style={{ width: GRID, height: GRID }}>
         {RING_GROW ? (
           // Frame 0 = the centre cell alone, the same 44pt cell as the native
@@ -270,7 +278,7 @@ export function BootSplash() {
             order={RING_ORDER}
             progress={ringProgress}
             size={GRID}
-            colors={[color.splashCell, color.splashCell]}
+            colors={[splashCell, splashCell]}
             renderBase={false}
           />
         ) : (
@@ -289,15 +297,16 @@ export function BootSplash() {
   );
 }
 
-const stylesFor = themed(({ color }) => ({
+const styles = StyleSheet.create({
   overlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: color.splash,
+    backgroundColor: splashBackground,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1000,
-  },}));
+  },
+});
