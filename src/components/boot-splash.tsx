@@ -25,7 +25,7 @@
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
-import { applyThemePreference, launchScheme, themes } from '@/theme/theme';
+import { applyThemePreference, themes } from '@/theme/theme';
 import Animated, {
   Easing,
   ReduceMotion,
@@ -69,11 +69,10 @@ const FADE_FAILSAFE_MS = 1500;
 
 const GLYPHS = Object.values(CHIPS);
 
-// The overlay is drawn in the scheme the native splash launched in, NOT the
-// Settings pin: iOS shows the launch screen in the system scheme, so a pinned
-// scheme here would flash on the handoff. The pin lands under this opaque
+// The overlay is always drawn dark, matching the native splash (dark in both
+// system schemes, see app.json). The Settings pin lands under this opaque
 // overlay (see start()) and the fade reveals the app in it.
-const bootColor = themes[launchScheme].color;
+const bootColor = themes.dark.color;
 const bootShadeColors = chipShadeColorsFor(bootColor);
 
 /** The glyph the app boots into: the active pattern's icon. */

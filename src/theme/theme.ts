@@ -73,16 +73,6 @@ export function schemeOf(value: string | null | undefined): Scheme {
   return value === 'light' ? 'light' : 'dark';
 }
 
-/**
- * The scheme the native splash is showing. iOS draws the launch screen from the
- * system appearance before any app code runs, so a pinned Settings scheme can't
- * reach it; captured at module load, before `applyThemePreference` overrides it
- * (on an in-app reload this is the previous pin, which the re-shown splash
- * also follows). BootSplash stays in this scheme so the native → JS handoff
- * can't change color.
- */
-export const launchScheme: Scheme = schemeOf(Appearance.getColorScheme());
-
 /** The active color scheme. */
 export function useScheme(): Scheme {
   return schemeOf(useColorScheme());
