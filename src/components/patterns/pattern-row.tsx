@@ -60,7 +60,8 @@ function PatternRowImpl({ pattern, active, playing = false, first, last, onPress
   // A swipe must never double as a select: while the row is dragged or open,
   // a tap only closes the swipe.
   const swiping = useRef(false);
-  const subtitle = `${pattern.lanes.length} ${laneWord(pattern.lanes.length)} · ${pattern.bpm} BPM · ${editedLabel(pattern.updatedAt)}`;
+  // Tempo reads at a glance in its own column, so the subtitle keeps the rest.
+  const subtitle = `${pattern.lanes.length} ${laneWord(pattern.lanes.length)} · ${editedLabel(pattern.updatedAt)}`;
 
   const cornerStyle = {
     borderTopLeftRadius: first ? radius.cell : radius.step - 2,
@@ -150,6 +151,10 @@ function PatternRowImpl({ pattern, active, playing = false, first, last, onPress
             {subtitle}
           </AppText>
         </View>
+        <View style={styles.tempo}>
+          <AppText style={styles.tempoValue}>{pattern.bpm}</AppText>
+          <AppText style={styles.tempoUnit}>BPM</AppText>
+        </View>
         {active ? <View style={styles.activeDot} /> : null}
         <SFSymbol name="chevron.right" size={16} tint={color.labelDisabled} />
       </Pressable>
@@ -181,6 +186,9 @@ const stylesFor = themed(({ color }) => ({
   // Paper KL-0: name semibold 16/20 white; sub regular 13/16 label25.
   name: { fontFamily: font.text, fontWeight: '600', fontSize: 16, lineHeight: 20, color: color.label },
   sub: { fontFamily: font.text, fontWeight: '400', fontSize: 13, lineHeight: 16, color: color.label25 },
+  tempo: { alignItems: 'flex-end', minWidth: 36 },
+  tempoValue: { fontFamily: font.text, fontWeight: '600', fontSize: 17, lineHeight: 20, color: color.label, fontVariant: ['tabular-nums'] },
+  tempoUnit: { fontFamily: font.text, fontWeight: '600', fontSize: 9, lineHeight: 11, letterSpacing: 0.6, color: color.label25 },
   activeDot: {
     width: 8,
     height: 8,

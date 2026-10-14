@@ -130,12 +130,6 @@ function RootLayout() {
             name="share-pattern"
             options={{ ...sheetOptions, sheetAllowedDetents: [0.9] }}
           />
-          {/* Hidden debug sheet — long-press the Settings tab's Diagnostics
-              header. Switches the EAS Update channel at runtime. */}
-          <Stack.Screen
-            name="channel-surf"
-            options={{ ...sheetOptions, sheetAllowedDetents: [0.6] }}
-          />
           {/* The channel link (euxy://c/<channel>). Deliberately NOT a sheet:
               a form sheet presented across an expo-updates reload latches
               react-native-screens' _updatingModals flag and no sheet in the app

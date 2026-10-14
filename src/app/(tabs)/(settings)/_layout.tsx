@@ -14,6 +14,7 @@ export default function SettingsStack() {
     <Stack screenOptions={largeTitleStackOptionsFor(scheme)}>
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       <Stack.Screen name="activity-log" options={{ title: 'Activity Log', headerLargeTitle: false }} />
+      <Stack.Screen name="about" options={{ title: 'About' }} />
     </Stack>
   );
 }

@@ -28,6 +28,7 @@ const MATERIAL: Partial<Record<SFSymbolName, AndroidSymbol>> = {
   'chevron.right': 'chevron_right',
   'chevron.up.chevron.down': 'unfold_more',
   dice: 'casino',
+  'info.circle': 'info',
 };
 
 export interface SFSymbolProps extends Omit<SymbolViewProps, 'tintColor' | 'name'> {

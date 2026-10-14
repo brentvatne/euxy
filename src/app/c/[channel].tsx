@@ -13,9 +13,7 @@
  * in lib/channel-surf.ts for the full trace). Observe recorded a user tapping a
  * lane row eight times into the void after following one of these links.
  *
- * So the link presents nothing. The switch is reported by the banner instead,
- * and the sheet at app/channel-surf.tsx is now only ever opened by hand from
- * Diagnostics.
+ * So the link presents nothing. The switch is reported by the banner instead.
  *
  * Still registered in the ROOT Stack (not the Settings tab that owns Diagnostics),
  * where `unstable_settings.anchor` keeps `(tabs)` mounted beneath it — so

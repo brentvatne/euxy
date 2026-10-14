@@ -16,7 +16,6 @@ import { soundSupported } from '@/audio/sampler';
 import { AppText, Segmented } from '@/components/ui';
 import { IconPanic } from '@/components/ui/icons';
 import { reportFirstScreenLayout } from '@/components/boot-signal';
-import { haptics } from '@/lib/shims';
 import { useActivePattern, useSettings, useTransport } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import type { ThemePreference } from '@/state/types';
@@ -70,10 +69,6 @@ export default function MidiScreen() {
   const inName = rt.inputs.find((d) => d.id === settings.inputId)?.name ?? null;
   const connected = rt.enabled && !!outName;
 
-  const openChannelSurf = () => {
-    haptics.impact('medium');
-    router.push('/channel-surf');
-  };
   const openOutput = () => router.push('/device-picker?kind=output');
   const openInput = () => router.push('/device-picker?kind=input');
   const onConnectionPress = () => {
@@ -187,12 +182,10 @@ export default function MidiScreen() {
         </Cell>
       </Group>
 
-      {/* DIAGNOSTICS — long-press the header for the hidden channel-surf
-          sheet (runtime EAS Update channel switching). The raw byte stream is
-          deliberately NOT previewed here: live traffic scrolling under a
-          settings form reads as noise, so it lives one tap away behind the
-          Activity-log row and nowhere else. */}
-      <SectionHeader onLongPress={openChannelSurf}>Diagnostics</SectionHeader>
+      {/* DIAGNOSTICS — the raw byte stream is deliberately NOT previewed
+          here: live traffic scrolling under a settings form reads as noise, so
+          it lives one tap away behind the Activity-log row and nowhere else. */}
+      <SectionHeader>Diagnostics</SectionHeader>
       <Group>
         <PushRow pos="single" label="Activity log" onPress={() => router.push('/activity-log')} />
       </Group>
