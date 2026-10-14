@@ -55,7 +55,7 @@ import {
   onFirstScreenLayout,
   reportBootOverlayGone,
 } from '@/components/boot-signal';
-import { CHIPS, chipForPattern } from '@/components/patterns/chips';
+import { CHIP_SHADE_COLORS, CHIPS, chipForPattern } from '@/components/patterns/chips';
 import { LedGrid, litCount } from '@/components/ui/led-grid';
 import { logObserveEvent } from '@/lib/shims';
 import { useStore } from '@/state/store';
@@ -290,7 +290,16 @@ export function BootSplash() {
           />
         )}
         <View style={StyleSheet.absoluteFill}>
-          <LedGrid shades={glyph} order={order} progress={progress} size={GRID} renderBase={false} />
+          {/* Dark-scheme shades whatever the theme, like the background: the
+              theme's light shades are near-black and vanish on this grid. */}
+          <LedGrid
+            shades={glyph}
+            order={order}
+            progress={progress}
+            size={GRID}
+            colors={CHIP_SHADE_COLORS}
+            renderBase={false}
+          />
         </View>
       </View>
     </Animated.View>
