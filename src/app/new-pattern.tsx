@@ -102,7 +102,7 @@ export default function NewPatternSheet() {
           (Paper 16Z-0) — the native grabber floats over it. */}
       <View style={styles.grabberSpace} />
       <SheetHeader
-        title="New Pattern"
+        title="Create Pattern"
         onCancel={() => router.back()}
         onDone={create}
         doneLabel="Create"
