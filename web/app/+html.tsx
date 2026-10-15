@@ -8,9 +8,12 @@
  * noticeably when /p/<payload> hands off to /p?d=<payload>.
  *
  * Everything else here is Expo Router's default document, reproduced because
- * defining this file replaces it wholesale.
+ * defining this file replaces it wholesale. Since SDK 58 that includes the
+ * server document's nodes: `headNodes` carries each page's <Head> tags (the
+ * title, the unfurl meta) and `bodyNodes` the client scripts. Leaving them out
+ * shipped pages with no title that never hydrated.
  */
-import { ScrollViewStyleReset } from 'expo-router/html';
+import { ScrollViewStyleReset, useServerDocumentContext } from 'expo-router/html';
 import { type PropsWithChildren } from 'react';
 
 import { color } from '@/theme/tokens';
@@ -22,8 +25,9 @@ import { color } from '@/theme/tokens';
 const FIRST_PAINT = `html,body{background-color:${color.ground};}html{zoom:1.08;}`;
 
 export default function Root({ children }: PropsWithChildren) {
+  const { htmlAttributes, bodyAttributes, headNodes, bodyNodes } = useServerDocumentContext();
   return (
-    <html lang="en">
+    <html lang="en" {...htmlAttributes}>
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
@@ -36,8 +40,12 @@ export default function Root({ children }: PropsWithChildren) {
         <noscript>
           <style dangerouslySetInnerHTML={{ __html: `[data-reveal] { opacity: 1; }` }} />
         </noscript>
+        {headNodes}
       </head>
-      <body>{children}</body>
+      <body {...bodyAttributes}>
+        {children}
+        {bodyNodes}
+      </body>
     </html>
   );
 }
