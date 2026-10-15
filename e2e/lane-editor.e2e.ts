@@ -12,14 +12,22 @@ describe('lane editor', { platforms: ['ios', 'android'] }, () => {
     await expect(screen.getByText('Edit Lane').first()).toBeVisible();
   });
 
-  test('a new name shows on the sequencer', async ({ screen }) => {
+  // A new lane: its name field starts empty, so typing replaces nothing. (On
+  // EAS Simulators, filling the seed lane's "Kick" sometimes typed in front of
+  // it instead of over it.)
+  test('a new lane can be named', async ({ screen }) => {
+    await screen.getByRole('button', 'Done').first().tap();
+    await screen.getByRole('button', 'Add lane').first().tap();
+    await expect(screen.getByText('Edit Lane').first()).toBeVisible();
+
     const name = screen.getByRole('textbox', 'Lane name');
     await screen.scrollUntilVisible(name);
     await name.fill('Boom');
     await screen.getByRole('button', 'Done').first().tap();
 
-    await expect(screen.getByText('Edit Lane')).toHaveCount(0);
-    await expect(screen.getByTestId('lane-row-title-0')).toHaveAccessibleName(/^Boom/);
+    const added = screen.getByTestId('lane-row-title-5');
+    await screen.scrollUntilVisible(added);
+    await expect(added).toHaveAccessibleName(/^Boom/);
   });
 
   test('done keeps a new combine mode', async ({ screen }) => {

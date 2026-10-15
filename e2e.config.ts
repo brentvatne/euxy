@@ -57,4 +57,7 @@ export default {
     },
   ],
   workers: 1,
+  // One more attempt on CI, where a hosted device occasionally drops a
+  // snapshot (ENGINE_FAILURE) mid-run; locally a failure stays a failure.
+  retries: process.env.CI ? 1 : 0,
 } satisfies E2EConfig;
