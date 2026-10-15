@@ -15,7 +15,14 @@
  * `themed()` builds one StyleSheet per scheme at module load, so render cost is
  * a lookup, not a StyleSheet.create.
  */
-import { Appearance, StyleSheet, useColorScheme } from 'react-native';
+import {
+  Appearance,
+  StyleSheet,
+  useColorScheme,
+  type ImageStyle,
+  type TextStyle,
+  type ViewStyle,
+} from 'react-native';
 
 import {
   keyRamp,
@@ -88,16 +95,20 @@ export function currentTheme(): Theme {
   return themes[schemeOf(Appearance.getColorScheme())];
 }
 
-export type ThemedStyles<T extends StyleSheet.NamedStyles<T>> = Record<Scheme, T>;
+/** What `StyleSheet.create` takes: React Native 0.88's strict types dropped
+ * `StyleSheet.NamedStyles`, so the same shape is spelled out here. */
+type NamedStyles<T> = { [P in keyof T]: ViewStyle | TextStyle | ImageStyle };
+
+export type ThemedStyles<T extends NamedStyles<T>> = Record<Scheme, T>;
 
 /** One StyleSheet per scheme from a factory over the theme. Pair with `useStyles`. */
-export function themed<T extends StyleSheet.NamedStyles<T>>(
-  factory: (theme: Theme) => T & StyleSheet.NamedStyles<T>,
+export function themed<T extends NamedStyles<T>>(
+  factory: (theme: Theme) => T & NamedStyles<T>,
 ): ThemedStyles<T> {
   return { dark: StyleSheet.create(factory(themes.dark)), light: StyleSheet.create(factory(themes.light)) };
 }
 
 /** The StyleSheet of a `themed()` pair for the current scheme. */
-export function useStyles<T extends StyleSheet.NamedStyles<T>>(styles: ThemedStyles<T>): T {
+export function useStyles<T extends NamedStyles<T>>(styles: ThemedStyles<T>): T {
   return styles[useScheme()];
 }

@@ -49,6 +49,7 @@ import {
   Gesture,
   GestureDetector,
   GestureHandlerRootView,
+  usePanGesture,
 } from "react-native-gesture-handler";
 import Animated, {
   Easing,
@@ -1391,9 +1392,10 @@ function ChargeDice({
   const originX = useSharedValue(0);
   const originY = useSharedValue(0);
   const tracking = useSharedValue(0);
-  const dragWatch = Gesture.Pan()
-    .manualActivation(true)
-    .onTouchesDown((e) => {
+  const dragWatch = usePanGesture({
+    manualActivation: true,
+    onTouchesDown: (e) => {
+      'worklet';
       const t = e.allTouches[0];
       if (!t) return;
       originX.value = t.absoluteX;
@@ -1401,8 +1403,9 @@ function ChargeDice({
       tracking.value = 1;
       charge.pullX.value = 0;
       charge.pullY.value = 0;
-    })
-    .onTouchesMove((e) => {
+    },
+    onTouchesMove: (e) => {
+      'worklet';
       if (tracking.value !== 1) return;
       const t = e.allTouches[0];
       if (!t) return;
@@ -1411,32 +1414,29 @@ function ChargeDice({
       // points — a strong spring on a short leash.
       charge.pullX.value = rubberBand(t.absoluteX - originX.value);
       charge.pullY.value = rubberBand(t.absoluteY - originY.value);
-    })
-    // `endTouch` reads the press machine's refs (charging, popped), and the
-    // compiler rule can't see that `scheduleOnRN` defers the call to a JS tick
-    // long after this render — a worklet handed to a gesture builder never runs
-    // during render.
-    // eslint-disable-next-line react-hooks/refs
-    .onTouchesUp(() => {
+    },
+    onTouchesUp: () => {
+      'worklet';
       if (tracking.value !== 1) return;
       tracking.value = 0;
       charge.pullX.value = withSpring(0, SNAP);
       charge.pullY.value = withSpring(0, SNAP);
       scheduleOnRN(endTouch);
-    })
+    },
     // Only a real touch END may resolve the hold. NOT `onFinalize`: a
     // manual-activation Pan that never activates gets finalised as soon as it
     // FAILS, which happens while the finger is still down and moving — using
     // it as a backstop expanded the capsule mid-hold, which read as the
     // encoder suddenly jumping back toward its rest position.
-    // eslint-disable-next-line react-hooks/refs
-    .onTouchesCancelled(() => {
+    onTouchesCancel: () => {
+      'worklet';
       if (tracking.value !== 1) return;
       tracking.value = 0;
       charge.pullX.value = withSpring(0, SNAP);
       charge.pullY.value = withSpring(0, SNAP);
       scheduleOnRN(endTouch);
-    });
+    },
+  });
 
   const keyStyle = useAnimatedStyle(() => {
     // 0.25 as the hold engages → 1.0 at a closed ring → 2.0 while it strains at
@@ -1485,7 +1485,7 @@ function ChargeDice({
           // back as the capsule contracts, so the pips are not left scaled off
           // the pixel grid for the whole hold (see KeyProps.travelRelease).
           travelRelease={travelRelease}
-          simultaneousWithExternalGesture={dragWatch}
+          simultaneousWith={dragWatch}
           style={styles.btn}
           accessibilityRole="button"
           accessibilityLabel="Mutate pattern"

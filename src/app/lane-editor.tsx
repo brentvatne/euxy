@@ -22,7 +22,7 @@ import {
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
-  type ScrollView,
+  type ScrollViewInstance,
   Platform,
 } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
@@ -179,7 +179,7 @@ export default function LaneEditorSheet() {
   const [moreWidth, setMoreWidth] = useState(0);
   // The pinned card's drop shadow appears only once content scrolls under it.
   const [scrolled, setScrolled] = useState(false);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const scrollY = useRef(0);
   const ledExitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
