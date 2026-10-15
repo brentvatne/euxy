@@ -33,7 +33,8 @@
       "channel": "explore",
       "environment": "development",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "resourceClass": "large"
       }
     },
     "e2e": {
@@ -42,7 +43,8 @@
         "simulator": true
       },
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "resourceClass": "large"
       },
       "channel": "e2e",
       "environment": "development"
