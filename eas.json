@@ -41,6 +41,9 @@
       "ios": {
         "simulator": true
       },
+      "android": {
+        "buildType": "apk"
+      },
       "channel": "e2e",
       "environment": "development"
     },

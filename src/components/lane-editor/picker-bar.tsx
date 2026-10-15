@@ -44,6 +44,9 @@ export function PickerBar<T extends string>({
             onPress={() => onChange(opt.value)}
             style={styles.segment}
             accessibilityRole="button"
+            // The selected segment draws its label twice (under and inside the
+            // pill), which VoiceOver otherwise read as "XOR XOR".
+            accessibilityLabel={opt.label}
             accessibilityState={{ selected: active }}
           >
             {/* Same light hand-off as the shared Segmented: the white pill and

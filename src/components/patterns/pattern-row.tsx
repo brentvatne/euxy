@@ -60,7 +60,9 @@ function PatternRowImpl({ pattern, active, playing = false, first, last, onPress
   // A swipe must never double as a select: while the row is dragged or open,
   // a tap only closes the swipe.
   const swiping = useRef(false);
-  const subtitle = `${pattern.lanes.length} ${laneWord(pattern.lanes.length)} · ${pattern.bpm} BPM · ${editedLabel(pattern.updatedAt)}`;
+  const lanes = `${pattern.lanes.length} ${laneWord(pattern.lanes.length)}`;
+  const edited = editedLabel(pattern.updatedAt);
+  const subtitle = `${lanes} · ${pattern.bpm} BPM · ${edited}`;
 
   const cornerStyle = {
     borderTopLeftRadius: first ? radius.cell : radius.step - 2,
@@ -139,6 +141,10 @@ function PatternRowImpl({ pattern, active, playing = false, first, last, onPress
         }
         style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
         accessibilityRole="button"
+        // Spelled out rather than read from the visible text, so VoiceOver
+        // pauses between the parts and moving them around on screen leaves
+        // what it says (and the e2e tests that find rows by it) alone.
+        accessibilityLabel={`${pattern.name}, ${lanes}, ${pattern.bpm} BPM, ${edited}`}
         accessibilityState={{ selected: active }}
       >
         <LedChip shades={chipForPattern(pattern)} size={38} playing={playing} />

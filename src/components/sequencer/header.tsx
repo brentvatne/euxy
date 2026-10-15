@@ -158,6 +158,9 @@ export function SequencerNav({
         >
           <View
             style={[styles.pattern, triggerWidth > 0 && { width: triggerWidth }]}
+            // Android exposes a View's role and label only when it is one
+            // accessible element; without this TalkBack heard "Untitled".
+            accessible
             accessibilityRole="button"
             accessibilityLabel={`Pattern ${patternName} — menu`}
           >

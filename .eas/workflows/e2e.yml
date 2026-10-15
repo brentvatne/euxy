@@ -1,9 +1,11 @@
 # Deterministic e2e suite (tester-army/e2e) on EAS Simulators.
 #
-# Reuses the last `e2e` simulator build with this fingerprint and repacks the
-# pull request's JavaScript into it; builds only when the native side changed.
-# The test job runs on Linux: @e2e-dev/eas leases a hosted iOS simulator,
-# EAS installs the build on it, and the suite drives it over agent-device.
+# Per platform, reuses the last `e2e` build (an iOS simulator build, an Android
+# APK) with this fingerprint and repacks the pull request's JavaScript into it;
+# builds only when the native side changed. The test jobs run on Linux:
+# @e2e-dev/eas leases a hosted iOS simulator or Android emulator, EAS installs
+# the build on it, and the suite drives it over agent-device. The website's
+# suite runs from .github/workflows/e2e-web.yml.
 #
 # No model or API key: the suite has no agent steps. The test job runs the
 # pull request's code (install scripts, e2e.config.ts, the tests), so it reads
@@ -78,4 +80,48 @@ jobs:
         with:
           type: other
           name: e2e-ios
+          path: .e2e
+
+  get_build_android:
+    needs: [fingerprint]
+    type: get-build
+    params:
+      platform: android
+      profile: e2e
+      fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
+      wait_for_in_progress: true
+
+  repack_android:
+    needs: [get_build_android]
+    if: ${{ needs.get_build_android.outputs.build_id }}
+    type: repack
+    params:
+      build_id: ${{ needs.get_build_android.outputs.build_id }}
+
+  build_android:
+    needs: [get_build_android]
+    if: ${{ !needs.get_build_android.outputs.build_id }}
+    type: build
+    params:
+      platform: android
+      profile: e2e
+
+  test_android:
+    after: [repack_android, build_android]
+    if: ${{ after.repack_android.status == 'success' || after.build_android.status == 'success' }}
+    runs_on: linux-medium
+    environment: e2e
+    env:
+      CI: '1'
+      E2E_ANDROID_BUILD_ID: ${{ after.repack_android.outputs.build_id || after.build_android.outputs.build_id }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - name: Run e2e on EAS Simulators
+        run: npx e2e run --target eas-android --reporter list,junit
+      - uses: eas/upload_artifact
+        if: ${{ always() }}
+        with:
+          type: other
+          name: e2e-android
           path: .e2e

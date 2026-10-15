@@ -61,6 +61,9 @@ export function Segmented<T extends string>({
             }}
             style={compact ? styles.segmentCompact : styles.segment}
             accessibilityRole="button"
+            // The selected segment draws its label twice (base layer and pill),
+            // which VoiceOver otherwise read out twice.
+            accessibilityLabel={opt.label}
             accessibilityState={{ selected: active, disabled }}
           >
             {/* The inactive label is always the base layer; the ACTIVE pill —

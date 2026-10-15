@@ -10,7 +10,8 @@
     "export": "node scripts/sync-shared.mjs && bun scripts/generate-og.ts && node scripts/generate-wasm-modules.mjs && expo export --platform web",
     "typecheck": "node scripts/sync-shared.mjs && node scripts/generate-wasm-modules.mjs && tsc --noEmit",
     "deploy": "node scripts/sync-shared.mjs && bun scripts/generate-og.ts && node scripts/generate-wasm-modules.mjs && expo export --platform web && node scripts/check-dist.mjs && npx --yes eas-cli deploy --prod --non-interactive",
-    "og:wasm": "node scripts/generate-wasm-modules.mjs"
+    "og:wasm": "node scripts/generate-wasm-modules.mjs",
+    "serve:e2e": "node scripts/sync-shared.mjs && node scripts/generate-wasm-modules.mjs && expo export --platform web && expo serve --port ${PORT:-8082}"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.7",
