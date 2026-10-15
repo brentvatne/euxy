@@ -36,7 +36,7 @@
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Platform, StyleSheet, View } from 'react-native';
+import { Image, Platform, Settings, StyleSheet, View } from 'react-native';
 import { splashBackground, splashCell } from '@/theme/tokens';
 import Animated, {
   Easing,
@@ -85,6 +85,11 @@ const FAILSAFE_MS = 2000;
 const FADE_FAILSAFE_MS = 1500;
 
 const GLYPHS = Object.values(CHIPS);
+
+// e2e: launched with `-E2EHoldBootSplash YES`, the overlay stops on its lit
+// glyph and never fades, so a test can compare that frame across appearances.
+// Launch arguments land in NSUserDefaults, which only iOS's Settings reads.
+const HOLD_FOR_TEST = Platform.OS === 'ios' && Boolean(Settings.get('E2EHoldBootSplash'));
 
 const ALL_CELLS = '1'.repeat(25);
 /** Android ring power-up: each cell's ring around the centre. The centre is
@@ -195,6 +200,7 @@ export function BootSplash() {
       progress.value = withTiming(1, { duration: TYPE_MS, easing: Easing.linear });
     }
     holdTimer.current = setTimeout(() => {
+      if (HOLD_FOR_TEST) return;
       typeDone.current = true;
       // Gate 2 is only needed for the reveal: the screen underneath must have
       // laid out before we fade, or the handoff frame isn't live. It usually
@@ -269,7 +275,7 @@ export function BootSplash() {
           status bar would draw dark icons on it in light mode; this wins while
           mounted and hands back on unmount. */}
       <StatusBar style="light" />
-      <View style={{ width: GRID, height: GRID }}>
+      <View testID="boot-splash-grid" style={{ width: GRID, height: GRID }}>
         {RING_GROW ? (
           // Frame 0 = the centre cell alone, the same 44pt cell as the native
           // splash-cell.png; the rings power up around it.
