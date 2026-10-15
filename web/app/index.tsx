@@ -126,7 +126,10 @@ export default function Home() {
                   key={p.id}
                   onPress={() => selectPreset(p.id)}
                   accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
+                  // Toggle-button semantics: `selected` comes out as
+                  // aria-selected, which a button cannot carry, so assistive
+                  // tech never heard which preset was playing.
+                  {...({ 'aria-pressed': active } as object)}
                   // data-pill only when idle so the CSS hover tint never
                   // fights the selected white fill.
                   {...webAttrs(active ? { anim: '' } : { anim: '', pill: '' })}

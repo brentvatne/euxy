@@ -59,6 +59,10 @@ export function LaneRow({
           }}
           disabled={!onPressTitle}
           testID={titleTestID}
+          // Named outright: iOS strings the child texts together, Android left
+          // the row nameless.
+          accessibilityRole="button"
+          accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}
           style={({ pressed }) => [styles.titleGroup, pressed && styles.pressedDim]}
         >
           {/* The accent is a LIGHT, so it goes out like one: the white bar is
