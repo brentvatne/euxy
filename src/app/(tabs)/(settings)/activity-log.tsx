@@ -37,7 +37,7 @@ export default function ActivityLogScreen() {
     <>
       <Stack.Screen
         options={{
-          title: 'Activity Log',
+          title: 'Activity',
           headerLargeTitle: false,
           headerRight: () => <ClockIndicator active={rt.clockActive} />,
         }}
@@ -45,7 +45,7 @@ export default function ActivityLogScreen() {
       <ScrollView style={styles.root} contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.content}>
         <View style={styles.actions}>
           <Pressable onPress={() => sendTestNote()} accessibilityRole="button" style={({ pressed }) => [styles.btn, pressed && styles.btnPressed]}>
-            <AppText style={styles.btnText}>Send test note</AppText>
+            <AppText style={styles.btnText}>Send a test note</AppText>
           </Pressable>
           <Pressable onPress={clearLog} accessibilityRole="button" style={({ pressed }) => [styles.btnGhost, pressed && styles.btnPressed]}>
             <AppText style={styles.btnGhostText}>Clear</AppText>

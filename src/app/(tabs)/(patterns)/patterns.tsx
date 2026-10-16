@@ -175,7 +175,7 @@ export default function PatternsScreen() {
         }}
       />
       <Stack.SearchBar
-        placeholder="Search"
+        placeholder="Search patterns"
         hideWhenScrolling={false}
         tintColor={color.label}
         textColor={color.label}

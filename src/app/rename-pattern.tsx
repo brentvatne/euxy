@@ -43,7 +43,7 @@ export default function RenamePatternSheet() {
     <View style={styles.root}>
       <View style={styles.grabberSpace} />
       <SheetHeader
-        title="Rename Pattern"
+        title="Rename"
         onCancel={() => router.back()}
         onDone={commit}
         doneLabel="Rename"
