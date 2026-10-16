@@ -6,12 +6,18 @@
   "build": {
     "production": {
       "channel": "production",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "ios": {
+        "image": "macos-tahoe-26.6-xcode-27.1"
+      }
     },
     "preview": {
       "distribution": "internal",
       "channel": "preview",
-      "environment": "preview"
+      "environment": "preview",
+      "ios": {
+        "image": "macos-tahoe-26.6-xcode-27.1"
+      }
     },
     "preview-simulator": {
       "extends": "preview",
@@ -22,13 +28,15 @@
     },
     "sim": {
       "ios": {
-        "simulator": true
+        "simulator": true,
+        "image": "macos-tahoe-26.6-xcode-27.1"
       },
       "channel": "sim"
     },
     "explore": {
       "ios": {
-        "simulator": true
+        "simulator": true,
+        "image": "macos-tahoe-26.6-xcode-27.1"
       },
       "channel": "explore",
       "environment": "development",
@@ -40,7 +48,8 @@
     "e2e": {
       "withoutCredentials": true,
       "ios": {
-        "simulator": true
+        "simulator": true,
+        "image": "macos-tahoe-26.6-xcode-27.1"
       },
       "android": {
         "buildType": "apk",
@@ -53,7 +62,8 @@
       "developmentClient": true,
       "distribution": "internal",
       "ios": {
-        "simulator": true
+        "simulator": true,
+        "image": "macos-tahoe-26.6-xcode-27.1"
       },
       "channel": "development-simulator"
     }
