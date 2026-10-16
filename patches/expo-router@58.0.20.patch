@@ -1,0 +1,150 @@
+diff --git a/build/fork/useLinking.native.js b/build/fork/useLinking.native.js
+index 5e16744e7b62a476b4831cb3371f9cad299f9a71..74080ae0d36801cec2a2350dbe09a0e606ae5929 100644
+--- a/build/fork/useLinking.native.js
++++ b/build/fork/useLinking.native.js
+@@ -121,7 +121,8 @@ function useLinking(ref, { prefixes, filter, config, getInitialURL = ()=>(0, _ge
+                         href: path,
+                         originalHref: url,
+                         options: {
+-                            event: 'NAVIGATE'
++                            event: 'NAVIGATE',
++                            __internal__popToNavigator: true
+                         }
+                     }
+                 });
+diff --git a/build/global-state/getNavigationAction.js b/build/global-state/getNavigationAction.js
+index 58870dd80827a11b8cbe91c0eebcefae0e8be84a..65d1a26d219689e8c3ae789576e3de96885cd164 100644
+--- a/build/global-state/getNavigationAction.js
++++ b/build/global-state/getNavigationAction.js
+@@ -40,7 +40,10 @@ function getNavigateAction(baseHref, options, config, type, withAnchor, singular
+             type: type ?? 'NAVIGATE',
+             payload: {
+                 singular,
+-                __internal__PreviewKey: previewKey
++                __internal__PreviewKey: previewKey,
++                ...options.__internal__popToNavigator ? {
++                    pop: true
++                } : undefined
+             }
+         },
+         withAnchor,
+diff --git a/build/global-state/resolveNavigationDestination.js b/build/global-state/resolveNavigationDestination.js
+index 2d76099c2f517cabeb9bd76c17d727ddb05cbe31..db48180371187272e408b3dce1c84b865fd904f9 100644
+--- a/build/global-state/resolveNavigationDestination.js
++++ b/build/global-state/resolveNavigationDestination.js
+@@ -23,6 +23,7 @@ const _stateKeys = require("../react-navigation/routers/stateKeys");
+ const _utils = require("../react-navigation/routers/utils");
+ const _routeNode = require("../routeNode");
+ const _sortRoutes = require("../sortRoutes");
++const _getSingularId = require("../utils/getSingularId");
+ function _interop_require_default(obj) {
+     return obj && obj.__esModule ? obj : {
+         default: obj
+@@ -83,20 +84,34 @@ function resolveNavigationDestination({ targetState, navigationState, routeNode,
+         targetState: target,
+         navigationState: current,
+         routeNode: node,
++        rootRouteNode: routeNode,
+         registry,
+         action: resolvedAction,
+         withAnchor,
+         internalParams
+     });
+ }
+-function createResolvedAction({ targetState, navigationState, routeNode, registry, action, withAnchor = false, internalParams = {} }) {
++function createResolvedAction({ targetState, navigationState, routeNode, rootRouteNode, registry, action, withAnchor = false, internalParams = {} }) {
+     const targetRoute = getFocusedRoute(targetState);
+     if (!targetRoute) {
+         return action;
+     }
+     const params = (0, _navigationParams.appendInternalExpoRouterParams)(targetRoute.params, internalParams) ?? {};
++    const childTarget = targetRoute.state;
++    const childNode = findDestinationNode(routeNode, targetRoute.name);
++    const { pop, ...actionPayload } = action.payload;
++    const shouldPop = pop === true && shouldPopTo({
++        targetRoute,
++        navigationState,
++        routeNode,
++        rootRouteNode,
++        childNode
++    });
+     const payload = {
+-        ...action.payload,
++        ...actionPayload,
++        ...shouldPop ? {
++            pop
++        } : undefined,
+         name: targetRoute.name,
+         params,
+         ...targetRoute.path !== undefined ? {
+@@ -109,8 +124,6 @@ function createResolvedAction({ targetState, navigationState, routeNode, registr
+     };
+     const result = registry.get(navigationState.key)?.reduce(navigationState, baseAction);
+     const selectedRoute = getSelection(result)?.route;
+-    const childTarget = targetRoute.state;
+-    const childNode = findDestinationNode(routeNode, targetRoute.name);
+     if (!childTarget || !childNode) {
+         return baseAction;
+     }
+@@ -120,11 +133,13 @@ function createResolvedAction({ targetState, navigationState, routeNode, registr
+         targetState: childTarget,
+         navigationState: selectedRoute?.state,
+         routeNode: childNode,
++        rootRouteNode,
+         registry,
+         withAnchor,
+         internalParams,
+         parentChain,
+-        previewKey: action.payload.__internal__PreviewKey
++        previewKey: action.payload.__internal__PreviewKey,
++        pop: pop === true
+     });
+     return {
+         ...baseAction,
+@@ -134,7 +149,7 @@ function createResolvedAction({ targetState, navigationState, routeNode, registr
+         }
+     };
+ }
+-function resolveState({ targetState, navigationState, routeNode, registry, withAnchor, internalParams, parentChain, previewKey }) {
++function resolveState({ targetState, navigationState, routeNode, rootRouteNode, registry, withAnchor, internalParams, parentChain, previewKey, pop }) {
+     if (navigationState?.stale !== false || !registry.has(navigationState.key)) {
+         return createDestinationState(targetState, routeNode, withAnchor, internalParams, parentChain);
+     }
+@@ -146,11 +161,15 @@ function resolveState({ targetState, navigationState, routeNode, registry, withA
+         targetState: targetState,
+         navigationState,
+         routeNode,
++        rootRouteNode,
+         registry,
+         action: {
+             type: 'NAVIGATE',
+             payload: {
+-                __internal__PreviewKey: previewKey
++                __internal__PreviewKey: previewKey,
++                ...pop ? {
++                    pop
++                } : undefined
+             }
+         },
+         withAnchor,
+@@ -236,6 +255,20 @@ function routesMatch(targetRoute, currentRoute) {
+     const dynamic = (0, _matchers.matchDynamicName)(targetRoute.name);
+     return !dynamic || targetRoute.params?.[dynamic.name] === currentRoute.params?.[dynamic.name];
+ }
++// expo/expo#51649: getActionFromState's pop rule for incoming links.
++function shouldPopTo({ targetRoute, navigationState, routeNode, rootRouteNode, childNode }) {
++    const isRootLayoutNavigator = routeNode === rootRouteNode && targetRoute.name !== _constants.INTERNAL_SLOT_NAME;
++    const holdsNavigator = targetRoute.state !== undefined || (childNode?.children.length ?? 0) > 0;
++    if (isRootLayoutNavigator && !holdsNavigator) {
++        return false;
++    }
++    const popTarget = navigationState.routes.findLast((route)=>route.name === targetRoute.name);
++    return !popTarget || (0, _getSingularId.getSingularId)(targetRoute.name, {
++        params: targetRoute.params
++    }) === (0, _getSingularId.getSingularId)(popTarget.name, {
++        params: popTarget.params
++    });
++}
+ function findDestinationNode(routeNode, routeName) {
+     return routeName === _constants.INTERNAL_SLOT_NAME ? routeNode : (0, _routeNode.findRouteNodeByName)(routeNode, routeName);
+ }

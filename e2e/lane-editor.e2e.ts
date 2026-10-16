@@ -39,14 +39,20 @@ describe('lane editor', { platforms: ['ios', 'android'] }, () => {
     await expect(screen.getByRole('button', 'XOR').first()).toBeSelected();
   });
 
+  // The name is typed onto "Kick" rather than filled over it: fill checks that
+  // the field reads exactly what it set, and on EAS Simulators it sometimes
+  // types in front of the text instead ("BoomKick"). Any edit will do here.
   test('cancel reverts the lane', async ({ screen }) => {
     await screen.getByRole('button', 'XOR').first().tap();
+    await expect(screen.getByRole('button', 'XOR').first()).toBeSelected();
     const name = screen.getByRole('textbox', 'Lane name');
     await screen.scrollUntilVisible(name);
-    await name.fill('Boom');
+    await name.pressSequentially('Boom');
+    await expect(name).not.toHaveValue('Kick');
     await screen.getByRole('button', 'Cancel').first().tap();
 
-    await expect(screen.getByTestId('lane-row-title-0')).toHaveAccessibleName(/^Kick/);
+    // "Kick, " and the subtitle: not "KickBoom" or "BoomKick".
+    await expect(screen.getByTestId('lane-row-title-0')).toHaveAccessibleName(/^Kick, /);
     await screen.getByTestId('lane-row-title-0').tap();
     await expect(screen.getByRole('button', 'OR').first()).toBeSelected();
     await expect(screen.getByRole('button', 'XOR').first()).not.toBeSelected();

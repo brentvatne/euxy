@@ -307,7 +307,8 @@ try {
   sharePngImpl = async (base64: string, filename: string) => {
     const file = new fileSystem.File(fileSystem.Paths.cache, filename);
     if (file.exists) file.delete();
-    file.write(base64, { encoding: 'base64' });
+    // Async since SDK 58: the share sheet must not open on a half-written file.
+    await file.write(base64, { encoding: 'base64' });
     await sharing.shareAsync(file.uri, { UTI: 'public.png', mimeType: 'image/png' });
   };
 } catch {
