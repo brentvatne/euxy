@@ -7,7 +7,7 @@ on:
 permissions: {}
 env:
   # The exact @expo/explore release CI installs. expo-explore setup --workflows sets it.
-  EXPLORE_VERSION: 0.19.3
+  EXPLORE_VERSION: 0.19.4
   APP_PROJECT_DIR: .
   APP_INSTALL_DIR: .
   TOOLS_PREFIX: explore-tools
