@@ -5,13 +5,14 @@
  */
 import { Stack } from 'expo-router/stack';
 
-import { largeTitleStackOptionsFor } from '@/theme/navigation';
+import { largeTitleStackOptionsFor, useRailContentStyle } from '@/theme/navigation';
 import { useScheme } from '@/theme/theme';
 
 export default function SettingsStack() {
   const scheme = useScheme();
+  const railContentStyle = useRailContentStyle();
   return (
-    <Stack screenOptions={largeTitleStackOptionsFor(scheme)}>
+    <Stack screenOptions={{ ...largeTitleStackOptionsFor(scheme), contentStyle: railContentStyle }}>
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       <Stack.Screen name="activity-log" options={{ title: 'Activity Log', headerLargeTitle: false }} />
     </Stack>

@@ -5,6 +5,7 @@
  * its own `tintColor` prop separately.
  */
 import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DarkTheme, DefaultTheme, type Theme } from 'expo-router/react-navigation';
 
 import { palette, type Scheme, font, radius } from './tokens';
@@ -87,6 +88,21 @@ export const largeTitleStackOptionsFor = (scheme: Scheme) => {
   },
 } as const);
 };
+
+/**
+ * Tab-stack content style that keeps screens out of a side rail. On iPhone Duo
+ * the system controls (clock, Dynamic Island) and the tab bar sit in a vertical
+ * rail on the left or right edge, which iOS reports as a ~84pt left or right
+ * safe-area inset. Applied as the tab stacks' contentStyle, it pads every tab
+ * screen's content while the native header and tab bar stay where iOS puts
+ * them. Not on the root Stack: its sheets don't sit beside the rail, and they
+ * set their own contentStyle (sheetOptionsFor), which replaces this one anyway.
+ * Zero on phones, so nothing moves there.
+ */
+export function useRailContentStyle() {
+  const insets = useSafeAreaInsets();
+  return { paddingLeft: insets.left, paddingRight: insets.right };
+}
 
 export { font };
 
