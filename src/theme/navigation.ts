@@ -95,9 +95,9 @@ export const largeTitleStackOptionsFor = (scheme: Scheme) => {
  * rail on the left or right edge, which iOS reports as a ~84pt left or right
  * safe-area inset. Applied as the tab stacks' contentStyle, it pads every tab
  * screen's content while the native header and tab bar stay where iOS puts
- * them. Not on the root Stack: its sheets don't sit beside the rail, and they
- * set their own contentStyle (sheetOptionsFor), which replaces this one anyway.
- * Zero on phones, so nothing moves there.
+ * them. The root Stack's sheets add it to their own contentStyle (sheetOptionsFor):
+ * on the outer display the rail's clock and Wi-Fi pill overlap a sheet's right
+ * edge, its Done button among it. Zero on phones, so nothing moves there.
  */
 export function useRailContentStyle() {
   const insets = useSafeAreaInsets();
