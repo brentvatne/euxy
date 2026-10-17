@@ -11,13 +11,14 @@
  */
 import { Stack } from 'expo-router/stack';
 
-import { largeTitleStackOptionsFor, sheetOptionsFor } from '@/theme/navigation';
+import { largeTitleStackOptionsFor, sheetOptionsFor, useRailContentStyle } from '@/theme/navigation';
 import { useScheme } from '@/theme/theme';
 
 export default function PatternsStack() {
   const scheme = useScheme();
+  const railContentStyle = useRailContentStyle();
   return (
-    <Stack screenOptions={largeTitleStackOptionsFor(scheme)}>
+    <Stack screenOptions={{ ...largeTitleStackOptionsFor(scheme), contentStyle: railContentStyle }}>
       <Stack.Screen name="patterns" options={{ title: 'Patterns' }} />
       {/* Two URL shapes, one sheet: /p/<payload> is canonical, /p?d=<payload>
           is kept for links already in the wild. */}
