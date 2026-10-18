@@ -26,7 +26,8 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect, useGlobalSearchParams, usePathname } from 'expo-router';
 
-const OWN_SHEET_ROUTES = new Set(['/lane-editor', '/tempo', '/share-pattern']);
+// The Lane Editor's path carries its lane (/lane-editor/<lane>), so it is matched by prefix below.
+const OWN_SHEET_ROUTES = new Set(['/tempo', '/share-pattern']);
 const SHARED_SHEET_ROUTES = new Set(['/new-pattern', '/change-icon']);
 
 export function useScreenFocused(): boolean {
@@ -44,6 +45,6 @@ export function useScreenFocused(): boolean {
   const pathname = usePathname();
   const { from } = useGlobalSearchParams<{ from?: string }>();
   const onOwnSheet =
-    OWN_SHEET_ROUTES.has(pathname) || (SHARED_SHEET_ROUTES.has(pathname) && from === 'sequencer');
+    OWN_SHEET_ROUTES.has(pathname) || pathname.startsWith('/lane-editor/') || (SHARED_SHEET_ROUTES.has(pathname) && from === 'sequencer');
   return focused || onOwnSheet;
 }

@@ -5,17 +5,21 @@ app:
   bundleId: dev.brent.euxy
   easProfile: explore
   scheme: euxy
-platforms:
-  ios: {}
-  android:
-    device: pixel_7
-    bundleId: dev.brent.euxy
-    easProfile: explore
+# Each target is a device the review captures, side by side in its report.
+targets:
+  iphone: { platform: ios, device: iPhone 17 }
+  duo-closed: { platform: ios, device: iPhone Duo, pose: closed }
+  duo-open: { platform: ios, device: iPhone Duo, pose: open }
+  android: { platform: android, device: pixel_7, label: Android, bundleId: dev.brent.euxy, easProfile: explore }
 navigation:
   provider: expo-router
 device:
   name: iPhone 17
 capture:
+  # Built and repacked on EAS, captured on EAS Simulator, driven by Argent.
+  simulator: eas
+  repack: eas
+  controller: argent
   launch: video
   maxMinutes: 30
   maxActions: 500
@@ -53,18 +57,10 @@ parameters:
   # The actions sheet closes itself (router.back) when its pattern is missing.
   /pattern-actions:
     patternId: preset_lofi
-setup:
-  # Opened by link, the lane editor shows "No lane selected." Open it from the
-  # first lane row instead, so it is captured with a lane, then close it.
-  - action: open
-    url: euxy://
-    ready: { identifier: lane-row-title-0 }
-  - action: tap
-    identifier: lane-row-title-0
-    ready: { label: Edit Lane }
-  - action: tap
-    label: Done
-    ready: { identifier: lane-row-title-0 }
+  # The lane editor opens the lane at a position in the open pattern: a fresh
+  # install's lane ids are random.
+  /lane-editor/[lane]:
+    lane: "0"
 
 ci:
   trustedAuthors:

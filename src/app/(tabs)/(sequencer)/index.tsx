@@ -73,7 +73,6 @@ export default function SequencerScreen() {
   const setClockMode = useStore((s) => s.setClockMode);
   const toggleMute = useStore((s) => s.toggleMute);
   const toggleSolo = useStore((s) => s.toggleSolo);
-  const selectLane = useStore((s) => s.selectLane);
   const mutatePattern = useStore((s) => s.mutateActivePattern);
   // Dice HOLD: a charged roll (one preview roll per schedule tick, escalating
   // in scope) that commits whatever it reached on release.
@@ -148,8 +147,7 @@ export default function SequencerScreen() {
   // 9 for the next-busiest sheet — so how people get INTO it is worth knowing.
   const openEditor = (laneId: string, source: 'lane_row' | 'add_lane' = 'lane_row') => {
     logObserveEvent('lane_editor.opened', { attributes: { source } });
-    selectLane(laneId);
-    router.push('/lane-editor');
+    router.push({ pathname: '/lane-editor/[lane]', params: { lane: laneId } });
   };
 
   // A fresh lane goes straight into the editor to be named and dialed in.

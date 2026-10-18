@@ -101,7 +101,7 @@ function RootLayout() {
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.ground } }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen
-            name="lane-editor"
+            name="lane-editor/[lane]"
             options={{ ...sheetOptions, sheetAllowedDetents: [1.0] }}
           />
           <Stack.Screen

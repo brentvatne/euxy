@@ -13,9 +13,13 @@
  * themselves). No Steps|Graph toggle — the combined card is the only view.
  * Edits apply live so you hear them against the running pattern; Done keeps
  * them and Cancel puts the lane back the way it opened (see `cancel`).
+ *
+ * The lane is the route's: `/lane-editor/<lane id>` from a lane row, or a
+ * position in the open pattern (`/lane-editor/0`) for a link that cannot know
+ * a fresh install's ids, such as a review tool's.
  */
 import { useEffect, useRef, useState } from 'react';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { MenuView } from '@expo/ui/community/menu';
 import {
   TextInput,
@@ -30,7 +34,7 @@ import { Pressable } from 'react-native-gesture-handler';
 import { midi, midiOut, sendTestNote } from '@/components/midi/runtime';
 import { midiNoteName } from '@/core/note';
 import { haptics, logObserveEvent } from '@/lib/shims';
-import { useLane } from '@/state/selectors';
+import { selectActivePattern, useLane } from '@/state/selectors';
 import { useStore } from '@/state/store';
 import type { CombineOp, Lane } from '@/state/types';
 import { font, radius, space } from '@/theme/tokens';
@@ -147,12 +151,20 @@ function Section({
   );
 }
 
+/** The lane a route parameter names: a lane id, or a position in the open pattern written as digits. */
+function laneFromParam(lanes: readonly Lane[], param: string | undefined): string | null {
+  if (!param) return null;
+  if (/^\d+$/.test(param)) return lanes[Number(param)]?.id ?? null;
+  return param;
+}
+
 export default function LaneEditorSheet() {
   const styles = useStyles(stylesFor);
   const { color } = useTheme();
   useMarkInteractive();
   const bottomInset = useSheetBottomInset();
-  const laneId = useStore((s) => s.selection.laneId);
+  const { lane: laneParam } = useLocalSearchParams<{ lane: string }>();
+  const laneId = useStore((s) => laneFromParam(selectActivePattern(s).lanes, laneParam));
   const lane = useLane(laneId);
   const updateLane = useStore((s) => s.updateLane);
   const restoreLane = useStore((s) => s.restoreLane);
