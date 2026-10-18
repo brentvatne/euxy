@@ -40,6 +40,9 @@ import { EmptyState } from '@/components/sequencer/empty-state';
 import { FloatingActions } from '@/components/sequencer/floating-actions';
 import { StepStrip } from '@/components/sequencer/step-strip';
 
+/** Space above the header when the status bar is in a side rail (iPhone Duo). */
+const RAIL_TOP_SPACE = 24;
+
 /** ROADMAP item 12: the strip already SHOWS the rhythm, so the subtitle is
  * just the two facts you scan for — note · Track N. Euclid params live in
  * the Lane Editor where they're editable. */
@@ -53,6 +56,7 @@ function laneSubtitle(lane: Lane): string {
 export default function SequencerScreen() {
   const styles = useStyles(stylesFor);
   const insets = useSafeAreaInsets();
+  const railPadding = { paddingLeft: insets.left, paddingRight: insets.right };
   const pattern = useActivePattern();
   const lanes = pattern.lanes;
   const anySolo = useAnySolo();
@@ -231,20 +235,29 @@ export default function SequencerScreen() {
     // reports — the gate must not depend on this route being the one that
     // mounted (see boot-signal.ts).
     <View style={styles.root} onLayout={reportFirstScreenLayout}>
-      <View style={{ paddingTop: insets.top }} />
-      <SequencerNav
-        patternName={pattern.name}
-        patternChip={chipForPattern(pattern)}
-        connected={connected}
-        deviceName={outputDevice?.name ?? 'No device'}
-        canSaveCopy={hasLaneEdits}
-        canRestorePreset={isPresetPattern(pattern.id)}
-        onMenuAction={onMenuAction}
-      />
+      {/* On iPhone Duo the status bar sits in the side rail, so there is no
+          top inset; keep the header off the screen's top edge, level with
+          the other tabs' native titles. Phones always have a top inset. */}
+      <View style={{ paddingTop: insets.top > 0 ? insets.top : RAIL_TOP_SPACE }} />
+      {/* iPhone Duo's side rail (clock, Dynamic Island, tab bar) is a left or
+          right safe-area inset. The header, lanes and capsule keep out of it;
+          the screen's ground and the transport dock below still run to the
+          edge, so the dock's shadow has no end to show beside the rail. */}
+      <View style={railPadding}>
+        <SequencerNav
+          patternName={pattern.name}
+          patternChip={chipForPattern(pattern)}
+          connected={connected}
+          deviceName={outputDevice?.name ?? 'No device'}
+          canSaveCopy={hasLaneEdits}
+          canRestorePreset={isPresetPattern(pattern.id)}
+          onMenuAction={onMenuAction}
+        />
+      </View>
       {/* The lane list with the floating action bar (Paper 7A-0) hovering
           above it — add lane / mutate / undo live there, not in a header row
           or at the list's end. */}
-      <View style={styles.listArea}>
+      <View style={[styles.listArea, railPadding]}>
         {lanes.length === 0 ? (
           <EmptyState onAddLane={addAndEdit} />
         ) : (
@@ -335,7 +348,7 @@ export default function SequencerScreen() {
 
       {/* Bottom inset includes the tab bar height inside NativeTabs — keeps
           the transport pinned above it, on the transport's own background. */}
-      <View style={[styles.dock, { paddingBottom: insets.bottom }]}>
+      <View style={[styles.dock, railPadding, { paddingBottom: insets.bottom }]}>
         <TransportBar
           playing={transport.playing}
           bpm={transport.bpm}

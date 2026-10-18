@@ -530,8 +530,8 @@ export function FloatingActions({
   const styles = useStyles(stylesFor);
   const reducedMotion = useReducedMotion();
   const { width: windowW } = useWindowDimensions();
-  // The tab stacks pad the screen by a side rail's insets (useRailContentStyle,
-  // iPhone Duo), so the capsule's corners are that much closer together.
+  // The Sequencer pads the lane list by a side rail's insets (iPhone Duo), so
+  // the capsule's corners are that much closer together.
   const insets = useSafeAreaInsets();
   const screenW = windowW - insets.left - insets.right;
 

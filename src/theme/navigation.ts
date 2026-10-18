@@ -93,11 +93,11 @@ export const largeTitleStackOptionsFor = (scheme: Scheme) => {
  * Tab-stack content style that keeps screens out of a side rail. On iPhone Duo
  * the system controls (clock, Dynamic Island) and the tab bar sit in a vertical
  * rail on the left or right edge, which iOS reports as a ~84pt left or right
- * safe-area inset. Applied as the tab stacks' contentStyle, it pads every tab
- * screen's content while the native header and tab bar stay where iOS puts
- * them. The root Stack's sheets add it to their own contentStyle (sheetOptionsFor):
- * on the outer display the rail's clock and Wi-Fi pill overlap a sheet's right
- * edge, its Done button among it. Zero on phones, so nothing moves there.
+ * safe-area inset. Applied as the Patterns and Settings stacks' contentStyle, it
+ * pads every screen's content while the native header and tab bar stay where
+ * iOS puts them. The Sequencer pads its own content instead, so its transport
+ * dock can run to the edge, and sheets keep out of the rail only where they sit
+ * beside its controls (SheetSafeArea). Zero on phones, so nothing moves there.
  */
 export function useRailContentStyle() {
   const insets = useSafeAreaInsets();

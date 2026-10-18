@@ -21,7 +21,8 @@ import { NoticeBanner } from '@/components/ui/notice-banner';
 import { configureObserve, wrapWithObserveRoot } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { useShotRig } from '@/lib/shot-rig';
-import { sheetOptionsFor, useNavTheme, useRailContentStyle } from '@/theme/navigation';
+import { sheetScreenLayout } from '@/components/ui/sheet-safe-area';
+import { sheetOptionsFor, useNavTheme } from '@/theme/navigation';
 import { useTheme } from '@/theme/theme';
 
 // EAS Observe: per-route navigation metrics. Must run at module scope,
@@ -42,14 +43,7 @@ export const unstable_settings = { anchor: '(tabs)' };
 function RootLayout() {
   const navTheme = useNavTheme();
   const { color, scheme } = useTheme();
-  const sheetOptionsBase = sheetOptionsFor(scheme);
-  // On iPhone Duo's outer display the clock and Wi-Fi pill sit over a sheet's right edge
-  // (its Done button, the last step cells), so sheets keep out of the rail too.
-  const railContentStyle = useRailContentStyle();
-  const sheetOptions = {
-    ...sheetOptionsBase,
-    contentStyle: { ...sheetOptionsBase.contentStyle, ...railContentStyle },
-  };
+  const sheetOptions = sheetOptionsFor(scheme);
   // Simulator screenshot staging (no-op unless the host set the flag).
   useShotRig();
 
@@ -98,7 +92,10 @@ function RootLayout() {
       <KeyboardProvider preload={false}>
       <ThemeProvider value={navTheme}>
         <StatusBar style="auto" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.ground } }}>
+        <Stack
+          screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.ground } }}
+          screenLayout={sheetScreenLayout}
+        >
           <Stack.Screen name="(tabs)" />
           <Stack.Screen
             name="lane-editor/[lane]"
