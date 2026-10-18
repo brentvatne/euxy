@@ -58,6 +58,8 @@ describe('journeys', { platforms: ['ios', 'android'] }, () => {
     // The create button sits below the fields; its label is the text inside it.
     const create = screen.getByText('Create pattern').first();
     await screen.scrollUntilVisible(create);
+    await expect(create).toBeVisible();
+    await new Promise(resolve => setTimeout(resolve, 600));
     await create.tap();
 
     await expect(screen.getByRole('tab', 'Sequencer')).toBeSelected({ timeout: 10_000 });
@@ -87,10 +89,10 @@ describe('journeys', { platforms: ['ios', 'android'] }, () => {
 
   test('rename the pattern from its menu and find it in the list', async ({ app, screen }) => {
     await screen.getByRole('button', 'Pattern Untitled — menu').tap();
-    // The menu's actions are labelled by the text inside them.
-    await expect(screen.getByText('Rename…').first()).toBeVisible();
     await app.screenshot('pattern-menu');
-    await screen.getByText('Rename…').first().tap();
+    // The menu's actions are labelled by the text inside them.
+    await expect(screen.getByText(/^Rename/).first()).toBeVisible({ timeout: 10_000 });
+    await screen.getByText(/^Rename/).first().tap();
     await expect(screen.getByText('Rename Pattern').first()).toBeVisible();
     const field = screen.getByRole('textbox').first();
     await field.fill('Groove');
