@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useIsFirstRender } from '@/lib/use-is-first-render';
 import { router } from 'expo-router';
 import { ScrollView, View } from 'react-native';
+import { useRailInsets } from '@/theme/navigation';
 import { themed, useStyles } from '@/theme/theme';
 import Animated, {
   FadeInDown,
@@ -62,8 +63,9 @@ function laneSubtitle(lane: Lane): string {
 export default function SequencerScreen() {
   const styles = useStyles(stylesFor);
   const insets = useSafeAreaInsets();
-  const railPadding = { paddingLeft: insets.left, paddingRight: insets.right };
-  const railMargin = { marginLeft: insets.left, marginRight: insets.right };
+  const rail = useRailInsets();
+  const railPadding = { paddingLeft: rail.left, paddingRight: rail.right };
+  const railMargin = { marginLeft: rail.left, marginRight: rail.right };
   const pattern = useActivePattern();
   const lanes = pattern.lanes;
   const anySolo = useAnySolo();
@@ -378,7 +380,7 @@ export default function SequencerScreen() {
           }
           // §10: the BPM readout opens the Tempo sheet (edits apply live).
           onPressBpm={() => router.push('/tempo')}
-          edgeInsets={insets}
+          edgeInsets={rail}
         />
       </View>
       {renamePrompt}
