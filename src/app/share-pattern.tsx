@@ -34,6 +34,8 @@ import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 
 const CARD_WIDTH = 358;
 const CONTENT_PAD = 16;
+/** The least room the card leaves between itself and the sheet's edge before it is scaled down. */
+const CARD_MIN_MARGIN = 8;
 /** The widest phone's sheet row: iPhone Pro Max (440pt) less the content padding. */
 const PHONE_ROW_MAX = 440 - CONTENT_PAD * 2;
 
@@ -52,7 +54,10 @@ export default function SharePatternSheet() {
   const canvasRef = useRef<CanvasRef | null>(null);
   const [copied, setCopied] = useState(false);
   const [rowWidth, setRowWidth] = useState(CARD_WIDTH);
-  const cardScale = Math.min(1, rowWidth / CARD_WIDTH);
+  // The card may run into the row's padding, as it always has on narrower
+  // Android phones, but is scaled down before it comes within CARD_MIN_MARGIN
+  // of the sheet's edge.
+  const cardScale = Math.min(1, (rowWidth + CONTENT_PAD - CARD_MIN_MARGIN) / CARD_WIDTH);
 
   // Nav TTI for this sheet (the QR render is its real readiness moment) +
   // the top of the share funnel.

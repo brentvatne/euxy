@@ -40,8 +40,14 @@ import { EmptyState } from '@/components/sequencer/empty-state';
 import { FloatingActions } from '@/components/sequencer/floating-actions';
 import { StepStrip } from '@/components/sequencer/step-strip';
 
-/** Space above the header when the status bar is in a side rail (iPhone Duo). */
-const RAIL_TOP_SPACE = 24;
+/**
+ * Where UIKit puts a navigation bar when the status bar is in a side rail
+ * (iPhone Duo): 24pt from the top in both poses, while the safe-area top inset
+ * and the status bar frame both read 0, so no API reports it (measured on iOS
+ * 27.1). The Sequencer's custom header starts there too, so its title lines up
+ * with the native titles of the other tabs.
+ */
+const NAV_BAR_TOP_IN_RAIL = 24;
 
 /** ROADMAP item 12: the strip already SHOWS the rhythm, so the subtitle is
  * just the two facts you scan for — note · Track N. Euclid params live in
@@ -57,6 +63,7 @@ export default function SequencerScreen() {
   const styles = useStyles(stylesFor);
   const insets = useSafeAreaInsets();
   const railPadding = { paddingLeft: insets.left, paddingRight: insets.right };
+  const railMargin = { marginLeft: insets.left, marginRight: insets.right };
   const pattern = useActivePattern();
   const lanes = pattern.lanes;
   const anySolo = useAnySolo();
@@ -236,9 +243,9 @@ export default function SequencerScreen() {
     // mounted (see boot-signal.ts).
     <View style={styles.root} onLayout={reportFirstScreenLayout}>
       {/* On iPhone Duo the status bar sits in the side rail, so there is no
-          top inset; keep the header off the screen's top edge, level with
-          the other tabs' native titles. Phones always have a top inset. */}
-      <View style={{ paddingTop: insets.top > 0 ? insets.top : RAIL_TOP_SPACE }} />
+          top inset; the header starts where UIKit puts the other tabs'
+          navigation bars. Phones always have a top inset. */}
+      <View style={{ paddingTop: insets.top > 0 ? insets.top : NAV_BAR_TOP_IN_RAIL }} />
       {/* iPhone Duo's side rail (clock, Dynamic Island, tab bar) is a left or
           right safe-area inset. The header, lanes and capsule keep out of it;
           the screen's ground and the transport dock below still run to the
@@ -257,7 +264,10 @@ export default function SequencerScreen() {
       {/* The lane list with the floating action bar (Paper 7A-0) hovering
           above it — add lane / mutate / undo live there, not in a header row
           or at the list's end. */}
-      <View style={[styles.listArea, railPadding]}>
+      {/* Margins, not padding: the floating capsule is absolutely positioned
+          in here, and an absolute child ignores its parent's padding, so it
+          would slide under the rail's tab bar. */}
+      <View style={[styles.listArea, railMargin]}>
         {lanes.length === 0 ? (
           <EmptyState onAddLane={addAndEdit} />
         ) : (
