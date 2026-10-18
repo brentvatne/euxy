@@ -97,7 +97,9 @@ export const largeTitleStackOptionsFor = (scheme: Scheme) => {
  * native content (a navigation bar's search field) runs right up to the
  * safe-area edge. euxy's screens keep their own 16pt margin (space.lg) inside,
  * so this is the inset less that margin: their content ends on the same edge
- * as the native content. Zero on phones, so nothing moves there.
+ * as the native content. Zero on phones, so nothing moves there. The side away
+ * from the rail keeps the 16pt margin, 4pt inside UIKit's 20pt there on the
+ * Duo; React Native gets no layout-margin value to match it exactly.
  */
 export function useRailInsets() {
   const insets = useSafeAreaInsets();
