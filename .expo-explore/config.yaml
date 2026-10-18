@@ -13,7 +13,7 @@ app:
 targets:
   iphone: { platform: ios, device: iPhone 17 }
   android: { platform: android, device: pixel_7, bundleId: dev.brent.euxy, easProfile: explore }
-  duo-closed: { platform: ios, device: iPhone Duo, pose: closed, label: "iPhone Duo (closed)" }
+  duo-closed: { platform: ios, device: iPhone Duo, pose: closed, label: "iPhone Duo (closed)", flows: { tests: [e2e/duo-probe.e2e.ts] } }
 navigation:
   provider: expo-router
 device:
