@@ -13,21 +13,23 @@ describe('sequencer', { platforms: ['ios', 'android'] }, () => {
     await expect(screen.getByTestId('boot-splash')).toBeHidden({ timeout: 10_000 });
   });
 
-  test('opens on the sequencer with the seed pattern', async ({ screen }) => {
+  test('opens on the sequencer with the seed pattern', async ({ app, screen }) => {
     await expect(screen.getByRole('button', 'Pattern Untitled — menu')).toBeVisible();
     await expect(screen.getByTestId(/^lane-row-title-\d+$/)).toHaveCount(5);
     await expect(screen.getByTestId('lane-row-title-0')).toHaveAccessibleName('Kick, F2 · Track 1');
     await expect(screen.getByRole('button', 'Play').first()).toBeVisible();
     await expect(screen.getByRole('tab', 'Sequencer')).toBeSelected();
+    await app.screenshot('sequencer');
   });
 
-  test('cancel in the tempo sheet reverts the BPM', async ({ screen }) => {
+  test('cancel in the tempo sheet reverts the BPM', async ({ app, screen }) => {
     await screen.getByRole('button', 'Edit tempo').first().tap();
     await expect(screen.getByTestId('tempo-value')).toHaveText('120');
 
     await screen.getByRole('button', 'Increase tempo').first().tap();
     await screen.getByRole('button', 'Increase tempo').first().tap();
     await expect(screen.getByTestId('tempo-value')).toHaveText('122');
+    await app.screenshot('tempo-122');
 
     await screen.getByRole('button', 'Cancel').first().tap();
     await screen.getByRole('button', 'Edit tempo').first().tap();

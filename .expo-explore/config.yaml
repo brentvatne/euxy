@@ -1,4 +1,9 @@
-mode: deterministic
+mode: flows
+# Flows: the app's own e2e tests under e2e/ run on the capture session after setup;
+# every app.screenshot(label) is a compared frame.
+flows:
+  tests:
+    - e2e/sequencer.e2e.ts
 app:
   name: euxy
   platform: ios
