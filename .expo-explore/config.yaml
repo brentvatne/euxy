@@ -2,6 +2,7 @@ mode: flows
 # Flows: the app's own e2e tests under e2e/ run on the capture session after setup;
 # every app.screenshot(label) is a compared frame.
 flows:
+  frames: steps
   tests:
     - e2e/sequencer.e2e.ts
     - e2e/journeys.e2e.ts
