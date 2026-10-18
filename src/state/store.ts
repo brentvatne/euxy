@@ -250,7 +250,6 @@ export interface AppState {
   patterns: Pattern[];
   activePatternId: string;
   transport: Transport;
-  selection: { laneId: string | null };
   settings: Settings;
 
   // Transport ------------------------------------------------------------
@@ -327,9 +326,6 @@ export interface AppState {
   revertSnapshot: () => void;
   /** Keep the live side, discard the snapshot, disarm (long-press). */
   keepSnapshot: () => void;
-
-  // Selection ------------------------------------------------------------
-  selectLane: (id: string | null) => void;
 
   // Settings -------------------------------------------------------------
   setOutput: (id: string | null) => void;
@@ -443,7 +439,6 @@ export const useStore = create<AppState>((set, get) => {
       recordPhase: 'armed',
       countInBeat: 0,
     },
-    selection: { laneId: null },
     mutateVersion: 0,
     snapshotActive: false,
     gridFx: null,
@@ -524,7 +519,6 @@ export const useStore = create<AppState>((set, get) => {
       })),
     clearLanes: () => {
       mutateActive((p) => ({ ...p, lanes: [] }));
-      set({ selection: { laneId: null } });
     },
     revertToLoaded: () => {
       const s = get();
@@ -539,7 +533,6 @@ export const useStore = create<AppState>((set, get) => {
       mutateActive((pp) => ({ ...pp, lanes: restored }));
       set((st) => ({
         mutateVersion: st.mutateVersion + 1,
-        selection: { laneId: null },
         gridFx: { nonce: (st.gridFx?.nonce ?? 0) + 1, kind: 'revert' },
       }));
     },
@@ -562,7 +555,6 @@ export const useStore = create<AppState>((set, get) => {
       mutateActive((pp) => ({ ...pp, lanes: restored }));
       set((st) => ({
         mutateVersion: st.mutateVersion + 1,
-        selection: { laneId: null },
         gridFx: { nonce: (st.gridFx?.nonce ?? 0) + 1, kind: 'revert' },
       }));
       return copyId;
@@ -693,9 +685,6 @@ export const useStore = create<AppState>((set, get) => {
         return { ...p, lanes };
       }),
 
-    // Selection
-    selectLane: (laneId) => set({ selection: { laneId } }),
-
     // Settings
     setOutput: (outputId) => set((s) => ({ settings: { ...s.settings, outputId } })),
     setInput: (inputId) => set((s) => ({ settings: { ...s.settings, inputId } })),
@@ -744,7 +733,6 @@ export const useStore = create<AppState>((set, get) => {
         patterns: [...s.patterns, pattern],
         activePatternId: pattern.id,
         transport: { ...s.transport, bpm: pattern.bpm, playing: false },
-        selection: { laneId: null },
         snapshotActive: false,
       }));
       return pattern.id;
@@ -769,7 +757,6 @@ export const useStore = create<AppState>((set, get) => {
         patterns: [...s.patterns, pattern],
         activePatternId: pattern.id,
         transport: { ...s.transport, bpm: pattern.bpm, playing: false },
-        selection: { laneId: null },
         snapshotActive: false,
       }));
       return pattern.id;
@@ -808,7 +795,6 @@ export const useStore = create<AppState>((set, get) => {
         return {
           activePatternId: id,
           transport: { ...s.transport, bpm: p.bpm },
-          selection: { laneId: null },
           snapshotActive: false,
         };
       }),
@@ -833,7 +819,6 @@ export const useStore = create<AppState>((set, get) => {
             patterns: [fresh],
             activePatternId: fresh.id,
             transport: { ...s.transport, bpm: fresh.bpm, playing: false },
-            selection: { laneId: null },
             snapshotActive: false,
           };
         }
@@ -844,7 +829,6 @@ export const useStore = create<AppState>((set, get) => {
           patterns,
           activePatternId: patterns[0].id,
           transport: { ...s.transport, bpm: patterns[0].bpm, playing: false },
-          selection: { laneId: null },
           snapshotActive: false,
         };
       }),
@@ -854,7 +838,7 @@ export const useStore = create<AppState>((set, get) => {
     setActivePatternIcon: (icon) => get().setPatternIcon(get().activePatternId, icon),
     setBaseResolution: (ticks) => mutateActive((p) => ({ ...p, baseResolutionTicks: ticks })),
     // Factory resets replace content in place (same pattern id, fresh lane
-    // ids) so the active/selection ids stay valid; a deleted preset is
+    // ids) so the active pattern id stays valid; a deleted preset is
     // re-appended. This is also the escape hatch for installs that seeded
     // presets before a factory-definition fix — seeding never retouches them.
     //
@@ -872,7 +856,6 @@ export const useStore = create<AppState>((set, get) => {
           patterns: exists
             ? s.patterns.map((p) => (p.id === id ? factory : p))
             : [...s.patterns, factory],
-          selection: isActive ? { laneId: null } : s.selection,
           transport: isActive ? { ...s.transport, bpm: factory.bpm } : s.transport,
         };
       }),
@@ -885,7 +868,6 @@ export const useStore = create<AppState>((set, get) => {
         const active = byId.get(s.activePatternId);
         return {
           patterns: [...restored, ...missing],
-          selection: active ? { laneId: null } : s.selection,
           transport: active ? { ...s.transport, bpm: active.bpm } : s.transport,
         };
       }),

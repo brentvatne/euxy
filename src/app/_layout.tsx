@@ -21,6 +21,7 @@ import { NoticeBanner } from '@/components/ui/notice-banner';
 import { configureObserve, wrapWithObserveRoot } from '@/lib/shims';
 import { useMarkInteractive } from '@/lib/use-mark-interactive';
 import { useShotRig } from '@/lib/shot-rig';
+import { sheetScreenLayout } from '@/components/ui/sheet-safe-area';
 import { sheetOptionsFor, useNavTheme } from '@/theme/navigation';
 import { useTheme } from '@/theme/theme';
 
@@ -91,10 +92,13 @@ function RootLayout() {
       <KeyboardProvider preload={false}>
       <ThemeProvider value={navTheme}>
         <StatusBar style="auto" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.ground } }}>
+        <Stack
+          screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.ground } }}
+          screenLayout={sheetScreenLayout}
+        >
           <Stack.Screen name="(tabs)" />
           <Stack.Screen
-            name="lane-editor"
+            name="lane-editor/[lane]"
             options={{ ...sheetOptions, sheetAllowedDetents: [1.0] }}
           />
           <Stack.Screen

@@ -69,6 +69,7 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
+import { useRailInsets } from "@/theme/navigation";
 import { CHIPS } from "@/components/patterns/chips";
 import Svg, { Path } from "react-native-svg";
 
@@ -528,7 +529,11 @@ export function FloatingActions({
 }) {
   const styles = useStyles(stylesFor);
   const reducedMotion = useReducedMotion();
-  const { width: screenW } = useWindowDimensions();
+  const { width: windowW } = useWindowDimensions();
+  // The Sequencer keeps the lane list out of a side rail (useRailInsets,
+  // iPhone Duo), so the capsule's corners are that much closer together.
+  const rail = useRailInsets();
+  const screenW = windowW - rail.left - rail.right;
 
   // See the note above CAPSULE_SPRING: transform only, and a short sub-pixel
   // nudge after mount so the glass materialises while still covered.

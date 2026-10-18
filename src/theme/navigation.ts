@@ -5,9 +5,10 @@
  * its own `tintColor` prop separately.
  */
 import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DarkTheme, DefaultTheme, type Theme } from 'expo-router/react-navigation';
 
-import { palette, type Scheme, font, radius } from './tokens';
+import { palette, type Scheme, font, radius, space } from './tokens';
 import { useScheme } from './theme';
 
 export function navThemeFor(scheme: Scheme): Theme {
@@ -87,6 +88,37 @@ export const largeTitleStackOptionsFor = (scheme: Scheme) => {
   },
 } as const);
 };
+
+/**
+ * How far a screen's content moves in for a side rail, on each side. On iPhone
+ * Duo the system controls (clock, Dynamic Island) and the tab bar sit in a
+ * vertical rail on the left or right edge, which iOS reports as a ~84pt left or
+ * right safe-area inset. Beside the rail iOS drops its usual content margin, so
+ * native content (a navigation bar's search field) runs right up to the
+ * safe-area edge. euxy's screens keep their own 16pt margin (space.lg) inside,
+ * so this is the inset less that margin: their content ends on the same edge
+ * as the native content. Zero on phones, so nothing moves there.
+ */
+export function useRailInsets() {
+  const insets = useSafeAreaInsets();
+  return {
+    left: Math.max(0, insets.left - space.lg),
+    right: Math.max(0, insets.right - space.lg),
+  };
+}
+
+/**
+ * Tab-stack content style that keeps screens out of a side rail (see
+ * useRailInsets). Applied as the Patterns and Settings stacks' contentStyle,
+ * it pads every screen's content while the native header and tab bar stay where
+ * iOS puts them. The Sequencer pads its own content instead, so its transport
+ * dock can run to the edge, and sheets keep out of the rail only where they sit
+ * beside its controls (SheetSafeArea).
+ */
+export function useRailContentStyle() {
+  const rail = useRailInsets();
+  return { paddingLeft: rail.left, paddingRight: rail.right };
+}
 
 export { font };
 

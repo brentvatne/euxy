@@ -15,7 +15,7 @@ import { ScrollView, Share, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
 import { effectiveChipName } from '@/components/patterns/chips';
-import { ShareCard } from '@/components/patterns/share-card';
+import { ShareCard, shareCardHeight } from '@/components/patterns/share-card';
 import { AppText, SheetHeader } from '@/components/ui';
 import { shareUrl } from '@/core/share-codec';
 import {
@@ -33,6 +33,11 @@ import { themed, useStyles } from '@/theme/theme';
 import { useSheetBottomInset } from '@/components/ui/use-sheet-bottom-inset';
 
 const CARD_WIDTH = 358;
+const CONTENT_PAD = 16;
+/** The least room the card leaves between itself and the sheet's edge before it is scaled down. */
+const CARD_MIN_MARGIN = 8;
+/** The widest phone's sheet row: iPhone Pro Max (440pt) less the content padding. */
+const PHONE_ROW_MAX = 440 - CONTENT_PAD * 2;
 
 const slug = (name: string) =>
   name
@@ -48,6 +53,11 @@ export default function SharePatternSheet() {
   );
   const canvasRef = useRef<CanvasRef | null>(null);
   const [copied, setCopied] = useState(false);
+  const [rowWidth, setRowWidth] = useState(CARD_WIDTH);
+  // The card may run into the row's padding, as it always has on narrower
+  // Android phones, but is scaled down before it comes within CARD_MIN_MARGIN
+  // of the sheet's edge.
+  const cardScale = Math.min(1, (rowWidth + CONTENT_PAD - CARD_MIN_MARGIN) / CARD_WIDTH);
 
   // Nav TTI for this sheet (the QR render is its real readiness moment) +
   // the top of the share funnel.
@@ -92,6 +102,51 @@ export default function SharePatternSheet() {
     logObserveEvent('share.link_copied');
   };
 
+  const wide = rowWidth > PHONE_ROW_MAX;
+  const body = (
+    <>
+      {/* Narrower than the card (iPhone Duo's outer display, beside the
+          rail): the drawing is scaled down to fit rather than redrawn,
+          so the exported PNG is the same artwork on every device. At
+          full size it renders unwrapped, so phones lay out exactly as
+          before (a wrapper's height rounds differently on Android). */}
+      {cardScale < 1 ? (
+        <View style={{ height: shareCardHeight(pattern) * cardScale }}>
+          <View
+            style={{
+              width: CARD_WIDTH,
+              transform: [{ scale: cardScale }],
+              transformOrigin: 'top left',
+            }}
+          >
+            <ShareCard pattern={pattern} width={CARD_WIDTH} canvasRef={canvasRef} />
+          </View>
+        </View>
+      ) : (
+        <ShareCard pattern={pattern} width={CARD_WIDTH} canvasRef={canvasRef} />
+      )}
+      <View style={styles.actions}>
+        <Pressable
+          onPress={shareCard}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.key, styles.keyPrimary, pressed && styles.pressed]}
+        >
+          <AppText style={[styles.keyLabel, styles.keyLabelDark]}>Share Card</AppText>
+        </Pressable>
+        <Pressable
+          onPress={copyLink}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.key, pressed && styles.pressed]}
+        >
+          <AppText style={styles.keyLabel}>{copied ? 'Copied' : 'Copy Link'}</AppText>
+        </Pressable>
+      </View>
+      <AppText style={styles.footnote}>
+        anyone can scan the code with their camera — euxy opens the pattern, no account needed
+      </AppText>
+    </>
+  );
+
   return (
     <View style={styles.root}>
       <View style={styles.grabberSpace} />
@@ -101,27 +156,12 @@ export default function SharePatternSheet() {
           nestedScrollEnabled
           contentContainerStyle={[styles.content, { paddingBottom: space.xxl + bottomInset }]}
           showsVerticalScrollIndicator={false}
+          onLayout={(e) => setRowWidth(e.nativeEvent.layout.width - CONTENT_PAD * 2)}
         >
-          <ShareCard pattern={pattern} width={CARD_WIDTH} canvasRef={canvasRef} />
-          <View style={styles.actions}>
-            <Pressable
-              onPress={shareCard}
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.key, styles.keyPrimary, pressed && styles.pressed]}
-            >
-              <AppText style={[styles.keyLabel, styles.keyLabelDark]}>Share Card</AppText>
-            </Pressable>
-            <Pressable
-              onPress={copyLink}
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.key, pressed && styles.pressed]}
-            >
-              <AppText style={styles.keyLabel}>{copied ? 'Copied' : 'Copy Link'}</AppText>
-            </Pressable>
-          </View>
-          <AppText style={styles.footnote}>
-            anyone can scan the code with their camera — euxy opens the pattern, no account needed
-          </AppText>
+          {/* Wider than any phone's sheet (iPhone Duo's inner display): the
+              card, its keys and the footnote form one centred column the
+              card's width, instead of a card pinned left of full-width keys. */}
+          {wide ? <View style={styles.column}>{body}</View> : body}
         </ScrollView>
       </View>
     </View>
@@ -132,7 +172,8 @@ const stylesFor = themed(({ color }) => ({
   root: { flex: 1, backgroundColor: color.surface },
   flex: { flex: 1 },
   grabberSpace: { height: 13 },
-  content: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: space.xxl },
+  content: { paddingHorizontal: CONTENT_PAD, paddingTop: 14, paddingBottom: space.xxl },
+  column: { width: CARD_WIDTH, alignSelf: 'center' },
   actions: { flexDirection: 'row', gap: 10, paddingTop: 16 },
   key: {
     flex: 1,

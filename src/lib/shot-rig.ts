@@ -69,10 +69,7 @@ export function useShotRig() {
         setTimeout(() => {
           const st = useStore.getState();
           const lane = st.patterns.find((p) => p.id === st.activePatternId)?.lanes[0];
-          if (lane) {
-            st.selectLane(lane.id);
-            router.push('/lane-editor');
-          }
+          if (lane) router.push({ pathname: '/lane-editor/[lane]', params: { lane: lane.id } });
         }, 600);
       }
       if (cfg.play) setTimeout(() => useStore.getState().play(), 800);

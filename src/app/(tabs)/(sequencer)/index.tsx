@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useIsFirstRender } from '@/lib/use-is-first-render';
 import { router } from 'expo-router';
 import { ScrollView, View } from 'react-native';
+import { useRailInsets } from '@/theme/navigation';
 import { themed, useStyles } from '@/theme/theme';
 import Animated, {
   FadeInDown,
@@ -40,6 +41,15 @@ import { EmptyState } from '@/components/sequencer/empty-state';
 import { FloatingActions } from '@/components/sequencer/floating-actions';
 import { StepStrip } from '@/components/sequencer/step-strip';
 
+/**
+ * Where UIKit puts a navigation bar when the status bar is in a side rail
+ * (iPhone Duo): 24pt from the top in both poses, while the safe-area top inset
+ * and the status bar frame both read 0, so no API reports it (measured on iOS
+ * 27.1). The Sequencer's custom header starts there too, so its title lines up
+ * with the native titles of the other tabs.
+ */
+const NAV_BAR_TOP_IN_RAIL = 24;
+
 /** ROADMAP item 12: the strip already SHOWS the rhythm, so the subtitle is
  * just the two facts you scan for — note · Track N. Euclid params live in
  * the Lane Editor where they're editable. */
@@ -53,6 +63,9 @@ function laneSubtitle(lane: Lane): string {
 export default function SequencerScreen() {
   const styles = useStyles(stylesFor);
   const insets = useSafeAreaInsets();
+  const rail = useRailInsets();
+  const railPadding = { paddingLeft: rail.left, paddingRight: rail.right };
+  const railMargin = { marginLeft: rail.left, marginRight: rail.right };
   const pattern = useActivePattern();
   const lanes = pattern.lanes;
   const anySolo = useAnySolo();
@@ -73,7 +86,6 @@ export default function SequencerScreen() {
   const setClockMode = useStore((s) => s.setClockMode);
   const toggleMute = useStore((s) => s.toggleMute);
   const toggleSolo = useStore((s) => s.toggleSolo);
-  const selectLane = useStore((s) => s.selectLane);
   const mutatePattern = useStore((s) => s.mutateActivePattern);
   // Dice HOLD: a charged roll (one preview roll per schedule tick, escalating
   // in scope) that commits whatever it reached on release.
@@ -148,8 +160,7 @@ export default function SequencerScreen() {
   // 9 for the next-busiest sheet — so how people get INTO it is worth knowing.
   const openEditor = (laneId: string, source: 'lane_row' | 'add_lane' = 'lane_row') => {
     logObserveEvent('lane_editor.opened', { attributes: { source } });
-    selectLane(laneId);
-    router.push('/lane-editor');
+    router.push({ pathname: '/lane-editor/[lane]', params: { lane: laneId } });
   };
 
   // A fresh lane goes straight into the editor to be named and dialed in.
@@ -233,20 +244,33 @@ export default function SequencerScreen() {
     // reports — the gate must not depend on this route being the one that
     // mounted (see boot-signal.ts).
     <View style={styles.root} onLayout={reportFirstScreenLayout}>
-      <View style={{ paddingTop: insets.top }} />
-      <SequencerNav
-        patternName={pattern.name}
-        patternChip={chipForPattern(pattern)}
-        connected={connected}
-        deviceName={outputDevice?.name ?? 'No device'}
-        canSaveCopy={hasLaneEdits}
-        canRestorePreset={isPresetPattern(pattern.id)}
-        onMenuAction={onMenuAction}
-      />
+      {/* On iPhone Duo the status bar sits in the side rail, so there is no
+          top inset; the header starts where UIKit puts the other tabs'
+          navigation bars. Phones always have a top inset. */}
+      <View style={{ paddingTop: insets.top > 0 ? insets.top : NAV_BAR_TOP_IN_RAIL }} />
+      {/* iPhone Duo's side rail (clock, Dynamic Island, tab bar) is a left or
+          right safe-area inset. The header, lanes and capsule keep out of it;
+          the screen's ground and the transport dock below still run to the
+          edge, so the dock's shadow and the bar's top border have no end to
+          show beside the rail; only the transport's controls move in. */}
+      <View style={railPadding}>
+        <SequencerNav
+          patternName={pattern.name}
+          patternChip={chipForPattern(pattern)}
+          connected={connected}
+          deviceName={outputDevice?.name ?? 'No device'}
+          canSaveCopy={hasLaneEdits}
+          canRestorePreset={isPresetPattern(pattern.id)}
+          onMenuAction={onMenuAction}
+        />
+      </View>
       {/* The lane list with the floating action bar (Paper 7A-0) hovering
           above it — add lane / mutate / undo live there, not in a header row
           or at the list's end. */}
-      <View style={styles.listArea}>
+      {/* Margins, not padding: the floating capsule is absolutely positioned
+          in here, and an absolute child ignores its parent's padding, so it
+          would slide under the rail's tab bar. */}
+      <View style={[styles.listArea, railMargin]}>
         {lanes.length === 0 ? (
           <EmptyState onAddLane={addAndEdit} />
         ) : (
@@ -356,6 +380,7 @@ export default function SequencerScreen() {
           }
           // §10: the BPM readout opens the Tempo sheet (edits apply live).
           onPressBpm={() => router.push('/tempo')}
+          edgeInsets={rail}
         />
       </View>
       {renamePrompt}
