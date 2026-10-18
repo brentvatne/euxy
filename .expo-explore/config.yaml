@@ -10,12 +10,10 @@ app:
   bundleId: dev.brent.euxy
   easProfile: explore
   scheme: euxy
-platforms:
-  ios: {}
-  android:
-    device: pixel_7
-    bundleId: dev.brent.euxy
-    easProfile: explore
+targets:
+  iphone: { platform: ios, device: iPhone 17 }
+  android: { platform: android, device: pixel_7, bundleId: dev.brent.euxy, easProfile: explore }
+  duo-closed: { platform: ios, device: iPhone Duo, pose: closed, label: "iPhone Duo (closed)" }
 navigation:
   provider: expo-router
 device:
