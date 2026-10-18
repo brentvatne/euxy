@@ -9,6 +9,7 @@ app:
 targets:
   iphone: { platform: ios, device: iPhone 17 }
   duo-closed: { platform: ios, device: iPhone Duo, pose: closed }
+  duo-half-open: { platform: ios, device: iPhone Duo, pose: half-open }
   duo-open: { platform: ios, device: iPhone Duo, pose: open }
   android: { platform: android, device: pixel_7, label: Android, bundleId: dev.brent.euxy, easProfile: explore }
 navigation:
