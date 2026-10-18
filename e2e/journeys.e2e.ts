@@ -44,7 +44,7 @@ describe('journeys', { platforms: ['ios', 'android'] }, () => {
     await screen.getByRole('button', 'Play').first().tap();
     await expect(screen.getByRole('button', 'Pause').first()).toBeVisible();
     await app.screenshot('playing');
-    await screen.getByRole('button', 'Stop').first().tap();
+    await screen.getByRole('button', 'Pause').first().tap();
     await expect(screen.getByRole('button', 'Play').first()).toBeVisible();
   });
 
@@ -55,7 +55,10 @@ describe('journeys', { platforms: ['ios', 'android'] }, () => {
     await app.screenshot('new-pattern-sheet');
     await screen.getByRole('button', 'Increase tempo').first().tap();
     await screen.getByRole('button', 'Increase tempo').first().tap();
-    await screen.getByRole('button', 'Create pattern').first().tap();
+    // The create button sits below the fields; its label is the text inside it.
+    const create = screen.getByText('Create pattern').first();
+    await screen.scrollUntilVisible(create);
+    await create.tap();
 
     await expect(screen.getByRole('tab', 'Sequencer')).toBeSelected({ timeout: 10_000 });
     await expect(screen.getByRole('button', /^Pattern .* — menu$/)).toBeVisible();
@@ -76,7 +79,7 @@ describe('journeys', { platforms: ['ios', 'android'] }, () => {
 
     await screen.getByRole('button', 'Play').first().tap();
     await expect(screen.getByRole('button', 'Pause').first()).toBeVisible();
-    await screen.getByRole('button', 'Stop').first().tap();
+    await screen.getByRole('button', 'Pause').first().tap();
     await screen.getByRole('tab', 'Patterns').tap();
     await expect(screen.getByRole('button', 'New pattern').first()).toBeVisible();
     await app.screenshot('patterns-with-new');
@@ -84,9 +87,10 @@ describe('journeys', { platforms: ['ios', 'android'] }, () => {
 
   test('rename the pattern from its menu and find it in the list', async ({ app, screen }) => {
     await screen.getByRole('button', 'Pattern Untitled — menu').tap();
-    await expect(screen.getByRole('button', 'Rename…').first()).toBeVisible();
+    // The menu's actions are labelled by the text inside them.
+    await expect(screen.getByText('Rename…').first()).toBeVisible();
     await app.screenshot('pattern-menu');
-    await screen.getByRole('button', 'Rename…').first().tap();
+    await screen.getByText('Rename…').first().tap();
     await expect(screen.getByText('Rename Pattern').first()).toBeVisible();
     const field = screen.getByRole('textbox').first();
     await field.fill('Groove');
