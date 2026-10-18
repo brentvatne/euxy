@@ -249,7 +249,8 @@ export default function SequencerScreen() {
       {/* iPhone Duo's side rail (clock, Dynamic Island, tab bar) is a left or
           right safe-area inset. The header, lanes and capsule keep out of it;
           the screen's ground and the transport dock below still run to the
-          edge, so the dock's shadow has no end to show beside the rail. */}
+          edge, so the dock's shadow and the bar's top border have no end to
+          show beside the rail; only the transport's controls move in. */}
       <View style={railPadding}>
         <SequencerNav
           patternName={pattern.name}
@@ -358,7 +359,7 @@ export default function SequencerScreen() {
 
       {/* Bottom inset includes the tab bar height inside NativeTabs — keeps
           the transport pinned above it, on the transport's own background. */}
-      <View style={[styles.dock, railPadding, { paddingBottom: insets.bottom }]}>
+      <View style={[styles.dock, { paddingBottom: insets.bottom }]}>
         <TransportBar
           playing={transport.playing}
           bpm={transport.bpm}
@@ -377,6 +378,7 @@ export default function SequencerScreen() {
           }
           // §10: the BPM readout opens the Tempo sheet (edits apply live).
           onPressBpm={() => router.push('/tempo')}
+          edgeInsets={insets}
         />
       </View>
       {renamePrompt}

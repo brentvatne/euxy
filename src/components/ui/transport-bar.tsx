@@ -41,6 +41,8 @@ import { themed, useStyles, useTheme } from '@/theme/theme';
 import { AppText } from './text';
 import { IconPause, IconPlay, IconSkipToStart, IconStop } from './icons';
 
+const BAR_PAD_X = 18;
+
 // Wave2 ease spike (concept H comparison surface): ONLY the play button swaps.
 const PlayKey = EASE_TRANSPORT_PLAY ? KeyEase : Key;
 
@@ -57,6 +59,10 @@ export interface TransportBarProps {
   onSkipToStart?: () => void;
   onToggleMode?: () => void;
   onPressBpm?: () => void;
+  /** Extra room at each end for system UI beside the bar, such as iPhone Duo's
+   * side rail. The bar and its top border still run edge to edge; only its
+   * controls move in. */
+  edgeInsets?: { left: number; right: number };
 }
 
 export function TransportBar({
@@ -71,12 +77,21 @@ export function TransportBar({
   onSkipToStart,
   onToggleMode,
   onPressBpm,
+  edgeInsets,
 }: TransportBarProps) {
   const styles = useStyles(stylesFor);
   const { color } = useTheme();
   const jam = mode === 'jam';
   return (
-    <View style={styles.bar}>
+    <View
+      style={[
+        styles.bar,
+        edgeInsets && {
+          paddingLeft: BAR_PAD_X + edgeInsets.left,
+          paddingRight: BAR_PAD_X + edgeInsets.right,
+        },
+      ]}
+    >
       <Pressable
         onPress={onPressBpm}
         disabled={!onPressBpm}
@@ -380,7 +395,7 @@ const stylesFor = themed(({ color, ramp }) => ({
     // on every mode toggle.
     height: 77,
     paddingVertical: space.md,
-    paddingHorizontal: 18,
+    paddingHorizontal: BAR_PAD_X,
     backgroundColor: color.ground,
     borderTopWidth: 1,
     borderTopColor: color.surface,

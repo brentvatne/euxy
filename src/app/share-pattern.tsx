@@ -102,6 +102,51 @@ export default function SharePatternSheet() {
     logObserveEvent('share.link_copied');
   };
 
+  const wide = rowWidth > PHONE_ROW_MAX;
+  const body = (
+    <>
+      {/* Narrower than the card (iPhone Duo's outer display, beside the
+          rail): the drawing is scaled down to fit rather than redrawn,
+          so the exported PNG is the same artwork on every device. At
+          full size it renders unwrapped, so phones lay out exactly as
+          before (a wrapper's height rounds differently on Android). */}
+      {cardScale < 1 ? (
+        <View style={{ height: shareCardHeight(pattern) * cardScale }}>
+          <View
+            style={{
+              width: CARD_WIDTH,
+              transform: [{ scale: cardScale }],
+              transformOrigin: 'top left',
+            }}
+          >
+            <ShareCard pattern={pattern} width={CARD_WIDTH} canvasRef={canvasRef} />
+          </View>
+        </View>
+      ) : (
+        <ShareCard pattern={pattern} width={CARD_WIDTH} canvasRef={canvasRef} />
+      )}
+      <View style={styles.actions}>
+        <Pressable
+          onPress={shareCard}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.key, styles.keyPrimary, pressed && styles.pressed]}
+        >
+          <AppText style={[styles.keyLabel, styles.keyLabelDark]}>Share Card</AppText>
+        </Pressable>
+        <Pressable
+          onPress={copyLink}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.key, pressed && styles.pressed]}
+        >
+          <AppText style={styles.keyLabel}>{copied ? 'Copied' : 'Copy Link'}</AppText>
+        </Pressable>
+      </View>
+      <AppText style={styles.footnote}>
+        anyone can scan the code with their camera — euxy opens the pattern, no account needed
+      </AppText>
+    </>
+  );
+
   return (
     <View style={styles.root}>
       <View style={styles.grabberSpace} />
@@ -116,41 +161,7 @@ export default function SharePatternSheet() {
           {/* Wider than any phone's sheet (iPhone Duo's inner display): the
               card, its keys and the footnote form one centred column the
               card's width, instead of a card pinned left of full-width keys. */}
-          <View style={rowWidth > PHONE_ROW_MAX ? styles.column : undefined}>
-            {/* Narrower than the card (iPhone Duo's outer display, beside the
-                rail): the drawing is scaled down to fit rather than redrawn,
-                so the exported PNG is the same artwork on every device. */}
-            <View style={{ height: shareCardHeight(pattern) * cardScale }}>
-              <View
-                style={{
-                  width: CARD_WIDTH,
-                  transform: [{ scale: cardScale }],
-                  transformOrigin: 'top left',
-                }}
-              >
-                <ShareCard pattern={pattern} width={CARD_WIDTH} canvasRef={canvasRef} />
-              </View>
-            </View>
-            <View style={styles.actions}>
-              <Pressable
-                onPress={shareCard}
-                accessibilityRole="button"
-                style={({ pressed }) => [styles.key, styles.keyPrimary, pressed && styles.pressed]}
-              >
-                <AppText style={[styles.keyLabel, styles.keyLabelDark]}>Share Card</AppText>
-              </Pressable>
-              <Pressable
-                onPress={copyLink}
-                accessibilityRole="button"
-                style={({ pressed }) => [styles.key, pressed && styles.pressed]}
-              >
-                <AppText style={styles.keyLabel}>{copied ? 'Copied' : 'Copy Link'}</AppText>
-              </Pressable>
-            </View>
-            <AppText style={styles.footnote}>
-              anyone can scan the code with their camera — euxy opens the pattern, no account needed
-            </AppText>
-          </View>
+          {wide ? <View style={styles.column}>{body}</View> : body}
         </ScrollView>
       </View>
     </View>
