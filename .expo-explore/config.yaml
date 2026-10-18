@@ -4,6 +4,7 @@ mode: flows
 flows:
   tests:
     - e2e/sequencer.e2e.ts
+    - e2e/journeys.e2e.ts
 app:
   name: euxy
   platform: ios
@@ -13,13 +14,11 @@ app:
 targets:
   iphone: { platform: ios, device: iPhone 17 }
   android: { platform: android, device: pixel_7, bundleId: dev.brent.euxy, easProfile: explore }
-  duo-closed: { platform: ios, device: iPhone Duo, pose: closed, label: "iPhone Duo (closed)", flows: { tests: [e2e/duo-probe.e2e.ts] } }
 navigation:
   provider: expo-router
 device:
   name: iPhone 17
 capture:
-  appearance: [light, dark]
   launch: video
   maxMinutes: 30
   maxActions: 500
