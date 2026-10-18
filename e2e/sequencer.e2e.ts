@@ -46,11 +46,12 @@ describe('sequencer', { platforms: ['ios', 'android'] }, () => {
     await expect(screen.getByTestId('tempo-value')).toHaveText('119');
   });
 
-  test('mute toggles on a lane and back off', async ({ screen }) => {
+  test('mute toggles on a lane and back off', async ({ app, screen }) => {
     const mute = screen.getByRole('button', 'Mute').first();
 
     await mute.tap();
     await expect(mute).toBeSelected();
+    await app.screenshot('mute-on');
 
     await mute.tap();
     await expect(mute).not.toBeSelected();
