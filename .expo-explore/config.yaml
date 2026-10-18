@@ -19,6 +19,7 @@ navigation:
 device:
   name: iPhone 17
 capture:
+  appearance: [light, dark]
   launch: video
   maxMinutes: 30
   maxActions: 500
