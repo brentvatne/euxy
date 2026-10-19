@@ -24,10 +24,11 @@ capture:
   launch: video
   maxMinutes: 30
   maxActions: 500
+  # This account runs 10 simulators at once: two per target, so head and base capture side by side.
+  maxSessions: 10
 report:
   preview:
     hosting: eas
-    expiresAfter: 30d
 exploration:
   scope: changes
   # Headless: applies the channel override and returns to the tabs on its first
