@@ -98,11 +98,12 @@ describe('journeys', { platforms: ['ios', 'android'] }, () => {
     // The menu's actions are labelled by the text inside them.
     await expect(screen.getByText(/^Rename/).first()).toBeVisible({ timeout: 10_000 });
     await screen.getByText(/^Rename/).first().tap();
-    await expect(screen.getByText('Rename Pattern').first()).toBeVisible();
+    // iOS asks in a native alert titled "Rename pattern" whose confirm button is "Rename".
+    await expect(screen.getByText(/^Rename pattern$/i).first()).toBeVisible();
     const field = screen.getByRole('textbox').first();
     await field.fill('Groove');
     await app.screenshot('rename-sheet');
-    await screen.getByRole('button', 'Done').first().tap();
+    await screen.getByRole('button', /^(Rename|Done)$/).first().tap();
     await expect(screen.getByRole('button', 'Pattern Groove — menu')).toBeVisible();
     await app.screenshot('renamed');
 
