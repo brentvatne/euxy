@@ -54,8 +54,10 @@ describe('journeys', { platforms: ['ios', 'android'] }, () => {
     await screen.getByRole('tab', 'Patterns').tap();
     await screen.getByRole('button', 'New pattern').first().tap();
     await expect(screen.getByText('New Pattern').first()).toBeVisible();
-    // The sheet proposes a random name; give it a known one so the rest of the journey can find the pattern.
-    await screen.getByRole('textbox').first().fill('Rusty Relay');
+    // The sheet proposes a random name; replace it (iOS fill appends, so clear first) so the journey can find the pattern.
+    const name = screen.getByRole('textbox').first();
+    await name.clear();
+    await name.fill('Rusty Relay');
     await app.screenshot('new-pattern-sheet');
     await screen.getByRole('button', 'Increase tempo').first().tap();
     await screen.getByRole('button', 'Increase tempo').first().tap();
