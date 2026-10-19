@@ -5,7 +5,7 @@ flows:
   frames: steps
   tests:
     - e2e/sequencer.e2e.ts
-    - e2e/journeys.e2e.ts
+    - e2e/flows.e2e.ts
 app:
   name: euxy
   platform: ios

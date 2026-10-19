@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from 'e2e';
 
 // Multi-step journeys through euxy, with a frame at each state worth comparing
 // across revisions. Buttons are reported twice on iOS, so queries take .first().
-describe('journeys', { platforms: ['ios', 'android'] }, () => {
+describe('flows', { platforms: ['ios', 'android'] }, () => {
   beforeEach(async ({ app, screen }) => {
     await app.clearState();
     await expect(screen.getByRole('tab', 'Sequencer')).toBeVisible({ timeout: 30_000 });
