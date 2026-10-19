@@ -54,19 +54,28 @@ describe('journeys', { platforms: ['ios', 'android'] }, () => {
     await screen.getByRole('tab', 'Patterns').tap();
     await screen.getByRole('button', 'New pattern').first().tap();
     await expect(screen.getByText('New Pattern').first()).toBeVisible();
-    // The sheet proposes a random name; replace it (iOS fill appends, so clear first) so the journey can find the pattern.
+    // The sheet proposes a random name; replace it so the journey can find the pattern. iOS appends on fill and
+    // ignores clear, so its field's own clear button goes first where there is one.
     const patternName = screen.getByRole('textbox').first();
+    const clearName = screen.getByRole('button', /^Clear text$/i);
+    if (await clearName.count()) await clearName.first().tap();
     await patternName.clear();
     await patternName.fill('Rusty Relay');
     await app.screenshot('new-pattern-sheet');
     await screen.getByRole('button', 'Increase tempo').first().tap();
     await screen.getByRole('button', 'Increase tempo').first().tap();
-    // The create button sits below the fields; its label is the text inside it.
-    const create = screen.getByText('Create pattern').first();
-    await screen.scrollUntilVisible(create);
-    await expect(create).toBeVisible();
-    await new Promise(resolve => setTimeout(resolve, 600));
-    await create.tap();
+    // iOS confirms from the sheet's header button; Android's sheet has the create button below the fields,
+    // where its label is the text inside it.
+    const headerCreate = screen.getByRole('button', /^Create$/);
+    if (await headerCreate.count()) {
+      await headerCreate.first().tap();
+    } else {
+      const create = screen.getByText('Create pattern').first();
+      await screen.scrollUntilVisible(create);
+      await expect(create).toBeVisible();
+      await new Promise(resolve => setTimeout(resolve, 600));
+      await create.tap();
+    }
 
     // Creating selects the new pattern in the list; Android stays on the list while iOS may switch tabs,
     // so go to the sequencer explicitly and let the new pattern's menu prove it is loaded.
