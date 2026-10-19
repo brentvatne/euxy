@@ -64,8 +64,11 @@ describe('journeys', { platforms: ['ios', 'android'] }, () => {
     await new Promise(resolve => setTimeout(resolve, 600));
     await create.tap();
 
-    // Android does not report the selected tab; the new pattern's menu proves the switch.
-    await expect(screen.getByRole('button', /^Pattern .* — menu$/)).toBeVisible({ timeout: 10_000 });
+    // Creating selects the new pattern in the list; Android stays on the list while iOS may switch tabs,
+    // so go to the sequencer explicitly and let the new pattern's menu prove it is loaded.
+    await expect(screen.getByRole('button', row('Rusty Relay')).first()).toBeSelected({ timeout: 10_000 });
+    await screen.getByRole('tab', 'Sequencer').tap();
+    await expect(screen.getByRole('button', 'Pattern Rusty Relay — menu')).toBeVisible({ timeout: 10_000 });
     await app.screenshot('created');
 
     await screen.getByRole('button', 'Add lane').first().tap();
