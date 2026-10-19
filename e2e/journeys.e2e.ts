@@ -54,11 +54,9 @@ describe('journeys', { platforms: ['ios', 'android'] }, () => {
     await screen.getByRole('tab', 'Patterns').tap();
     await screen.getByRole('button', 'New pattern').first().tap();
     await expect(screen.getByText('New Pattern').first()).toBeVisible();
-    // The sheet proposes a random name; replace it so the journey can find the pattern. iOS appends on fill and
-    // ignores clear, so its field's own clear button goes first where there is one.
+    // The sheet proposes a random name; add ours so the journey can find the pattern. iOS appends on fill (and
+    // ignores clear), so the later matches look for the name as a suffix.
     const patternName = screen.getByRole('textbox').first();
-    const clearName = screen.getByRole('button', /^Clear text$/i);
-    if (await clearName.count()) await clearName.first().tap();
     await patternName.clear();
     await patternName.fill('Rusty Relay');
     await app.screenshot('new-pattern-sheet');
@@ -79,9 +77,9 @@ describe('journeys', { platforms: ['ios', 'android'] }, () => {
 
     // Creating selects the new pattern in the list; Android stays on the list while iOS may switch tabs,
     // so go to the sequencer explicitly and let the new pattern's menu prove it is loaded.
-    await expect(screen.getByRole('button', row('Rusty Relay')).first()).toBeSelected({ timeout: 10_000 });
+    await expect(screen.getByRole('button', /Rusty Relay, \d+ lanes?, \d+ BPM/).first()).toBeSelected({ timeout: 10_000 });
     await screen.getByRole('tab', 'Sequencer').tap();
-    await expect(screen.getByRole('button', 'Pattern Rusty Relay — menu')).toBeVisible({ timeout: 10_000 });
+    await expect(screen.getByRole('button', /^Pattern .*Rusty Relay — menu$/)).toBeVisible({ timeout: 10_000 });
     await app.screenshot('created');
 
     await screen.getByRole('button', 'Add lane').first().tap();
