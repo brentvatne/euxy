@@ -105,7 +105,8 @@ describe('journeys', { platforms: ['ios', 'android'] }, () => {
     const field = screen.getByRole('textbox').first();
     await field.fill('Groove');
     await app.screenshot('rename-sheet');
-    await screen.getByRole('button', /^(Rename|Done)$/).first().tap();
+    // Android's native alert exposes its buttons as text, not as role button, so find the confirm by its label.
+    await screen.getByText(/^(Rename|Done)$/).first().tap();
     await expect(screen.getByRole('button', 'Pattern Groove — menu')).toBeVisible();
     await app.screenshot('renamed');
 
