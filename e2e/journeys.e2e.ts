@@ -111,6 +111,7 @@ describe('journeys', { platforms: ['ios', 'android'] }, () => {
     const confirm = screen.getByText(/^(Rename|Done)$/).first();
     await expect(confirm).toBeVisible();
     const box = await confirm.boundingBox();
+    if (!box) throw new Error('the rename confirm has no bounding box');
     await screen.tapAt({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
     await expect(screen.getByRole('button', 'Pattern Groove — menu')).toBeVisible();
     await app.screenshot('renamed');
