@@ -107,8 +107,11 @@ describe('journeys', { platforms: ['ios', 'android'] }, () => {
     const field = screen.getByRole('textbox').first();
     await field.fill('Groove');
     await app.screenshot('rename-sheet');
-    // Android's native alert exposes its buttons as text, not as role button, so find the confirm by its label.
-    await screen.getByText(/^(Rename|Done)$/).first().tap();
+    // The confirm is a native alert button; Android's Compose dialog exposes no tappable node for it, so tap its centre.
+    const confirm = screen.getByText(/^(Rename|Done)$/).first();
+    await expect(confirm).toBeVisible();
+    const box = await confirm.boundingBox();
+    await screen.tapAt({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
     await expect(screen.getByRole('button', 'Pattern Groove — menu')).toBeVisible();
     await app.screenshot('renamed');
 
