@@ -223,7 +223,7 @@ export default function TempoSheet() {
             lanes — it's the default grid for NEW lanes.) */}
         <View style={styles.footnotes}>
           <AppText style={styles.footnote}>
-            Changes apply live while playing. Base resolution sets the step grid for new lanes.
+            Changes apply live while playing. Base resolution sets the step grid for lanes you add next.
           </AppText>
           <AppText style={styles.footnote}>
             The metronome pulses the phone on every beat while the transport runs, the first of four
