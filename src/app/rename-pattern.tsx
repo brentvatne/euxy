@@ -50,7 +50,7 @@ export default function RenamePatternSheet() {
         doneDisabled={!name.trim()}
       />
       <View style={[styles.body, { paddingBottom: space.xxl + bottomInset }]}>
-        <AppText style={styles.fieldLabel}>Name</AppText>
+        <AppText style={styles.fieldLabel}>Pattern name</AppText>
         <View style={styles.inputCell}>
           <TextInput
             value={name}
