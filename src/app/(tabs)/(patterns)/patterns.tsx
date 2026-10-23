@@ -218,7 +218,7 @@ export default function PatternsScreen() {
             style={({ pressed }) => [styles.restoreAll, pressed && styles.pressedDim]}
             accessibilityRole="button"
           >
-            <AppText style={styles.restoreAllLabel}>Restore factory presets</AppText>
+            <AppText style={styles.restoreAllLabel}>Restore the factory presets</AppText>
           </Pressable>
         ) : null}
       </ScrollView>

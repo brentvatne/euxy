@@ -127,7 +127,7 @@ export default function MidiScreen() {
         </Cell>
         <Cell pos="last" contentStyle={styles.latencyCell}>
           <View style={styles.latencyHead}>
-            <AppText style={styles.rowLabel}>Latency offset</AppText>
+            <AppText style={styles.rowLabel}>Output latency</AppText>
             <AppText style={styles.latencyValue}>{fmtLatency(settings.latencyOffsetMs)}</AppText>
           </View>
           <LatencySlider value={settings.latencyOffsetMs} min={LATENCY_MIN} max={LATENCY_MAX} onChange={setLatency} />
