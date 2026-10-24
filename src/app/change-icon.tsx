@@ -13,7 +13,7 @@ import { ScrollView, View } from 'react-native';
 
 import { effectiveChipName, type ChipName } from '@/components/patterns/chips';
 import { IconPicker } from '@/components/patterns/icon-picker';
-import { SheetHeader } from '@/components/ui';
+import { AppText, SheetHeader } from '@/components/ui';
 import { useStore } from '@/state/store';
 import { font, space } from '@/theme/tokens';
 import { themed, useStyles } from '@/theme/theme';
@@ -42,7 +42,7 @@ export default function ChangeIconSheet() {
     <View style={styles.root}>
       <View style={styles.grabberSpace} />
       <SheetHeader
-        title=""
+        title="Icon"
         onCancel={() => {
           // Selection applied live — cancelling puts back the open-time glyph.
           if (initial && selected !== initial) setPatternIcon(pattern.id, initial);
@@ -50,6 +50,9 @@ export default function ChangeIconSheet() {
         }}
         onDone={() => router.back()}
       />
+      <AppText style={styles.subtitle} numberOfLines={1}>
+        For “{pattern.name}”
+      </AppText>
       {/* The glyph grid needs scrolling. collapsable={false} wrapper keeps the
           ScrollView OUT of direct-child position — react-native-screens'
           formSheet frame correction otherwise paints it over the header

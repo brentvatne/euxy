@@ -191,7 +191,7 @@ export default function TempoSheet() {
             "Sound" option later is a third label here, not a second setting
             and a rename. */}
         <View style={styles.tempoCell}>
-          <AppText variant="body">Metronome</AppText>
+          <AppText variant="body">Beat pulse</AppText>
           {/* Wrapped, and it has to be: Segmented's compact track carries
               `alignSelf: 'flex-start'`, which overrides this row's
               alignItems:center and pins the control to the top of the cell.
@@ -226,8 +226,8 @@ export default function TempoSheet() {
             Changes apply live while playing. Base resolution sets the step grid for new lanes.
           </AppText>
           <AppText style={styles.footnote}>
-            The metronome pulses the phone on every beat while the transport runs, the first of four
-            harder. Off by default — a pulse on the beat can fight the music.
+            Beat pulse taps the phone on every beat while the transport runs, the first of each bar
+            harder. Off by default, since a pulse on the beat can fight the music.
           </AppText>
           <AppText style={styles.footnoteDim}>
             In Record mode the OP‑XY owns the clock — BPM follows the device and can&apos;t be
