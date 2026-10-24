@@ -6,7 +6,7 @@
  * lets the web tester verify the output link.
  */
 import { Stack } from 'expo-router/stack';
-import { ScrollView, View } from 'react-native';
+import { Platform, ScrollView, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 
 import { AppText } from '@/components/ui';
@@ -45,7 +45,7 @@ export default function ActivityLogScreen() {
       <ScrollView style={styles.root} contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.content}>
         <View style={styles.actions}>
           <Pressable onPress={() => sendTestNote()} accessibilityRole="button" style={({ pressed }) => [styles.btn, pressed && styles.btnPressed]}>
-            <AppText style={styles.btnText}>Send test note</AppText>
+            <AppText style={styles.btnText}>Send a test note</AppText>
           </Pressable>
           <Pressable onPress={clearLog} accessibilityRole="button" style={({ pressed }) => [styles.btnGhost, pressed && styles.btnPressed]}>
             <AppText style={styles.btnGhostText}>Clear</AppText>
@@ -68,6 +68,7 @@ export default function ActivityLogScreen() {
 
         <AppText style={styles.hint}>
           Clock (F8) and active-sensing (FE) are filtered; incoming clock lights the header indicator.
+          {Platform.OS === 'ios' ? ' Network MIDI sessions appear in Audio MIDI Setup on your Mac.' : ''}
         </AppText>
       </ScrollView>
     </>
