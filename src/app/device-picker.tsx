@@ -99,7 +99,7 @@ export default function DevicePickerSheet() {
         })}
         {devices.length === 0 ? (
           <View style={styles.searching}>
-            <AppText style={styles.hint}>No {isInput ? 'inputs' : 'outputs'} found — connect the OP–XY over USB-C.</AppText>
+            <AppText style={styles.hint}>No {isInput ? 'inputs' : 'outputs'} found — connect the OP–XY over USB-C or Bluetooth MIDI.</AppText>
           </View>
         ) : null}
       </View>

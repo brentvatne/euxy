@@ -138,7 +138,7 @@ export default function SharePatternSheet() {
           accessibilityRole="button"
           style={({ pressed }) => [styles.key, pressed && styles.pressed]}
         >
-          <AppText style={styles.keyLabel}>{copied ? 'Copied' : 'Copy Link'}</AppText>
+          <AppText style={styles.keyLabel}>{copied ? 'Copied' : 'Copy link'}</AppText>
         </Pressable>
       </View>
       <AppText style={styles.footnote}>
